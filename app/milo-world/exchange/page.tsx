@@ -8,20 +8,6 @@ import MiloExchangeGuide from "./components/MiloExchangeGuide";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
-type Profile = {
-  id: string;
-  email: string | null;
-  role: string | null;
-  tier: string | null;
-  is_simulation_user: boolean;
-  milo_exchange_age_band: string | null;
-  milo_exchange_unlocked: boolean | null;
-  milo_exchange_locked_until: string | null;
-  milo_exchange_age_verified_at: string | null;
-  milo_exchange_age_verification_method: string | null;
-  milo_exchange_terms_accepted_at: string | null;
-};
-
 type Stock = {
   symbol: string;
   name: string;
@@ -122,39 +108,6 @@ function useResponsiveMode() {
   return screenMode;
 }
 
-function calculateAge(dateString: string) {
-  const today = new Date();
-  const birthDate = new Date(`${dateString}T00:00:00`);
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-
-  if (
-    monthDiff < 0 ||
-    (monthDiff === 0 && today.getDate() < birthDate.getDate())
-  ) {
-    age -= 1;
-  }
-
-  return age;
-}
-
-function getAgeBand(age: number) {
-  if (age < 13) return "under_13";
-  if (age < 16) return "13_15";
-  if (age < 18) return "16_17";
-  return "18_plus";
-}
-
-function getThirteenthBirthday(dateString: string) {
-  const birthDate = new Date(`${dateString}T00:00:00`);
-  birthDate.setFullYear(birthDate.getFullYear() + 13);
-  return birthDate.toISOString().slice(0, 10);
-}
-
-function getTodayDateOnly() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function formatNumber(value: number) {
   return Math.round(Number(value || 0)).toLocaleString();
 }
@@ -208,11 +161,9 @@ export default function MiloExchangeMainPage() {
   const isCompact = screenMode !== "desktop";
 
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [dreamTokens, setDreamTokens] = useState(0);
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [stockHoldings, setStockHoldings] = useState<StockHolding[]>([]);
@@ -231,10 +182,6 @@ export default function MiloExchangeMainPage() {
   const [friendEmail, setFriendEmail] = useState("");
   const [friendMessage, setFriendMessage] = useState("");
 
-  const [dob, setDob] = useState("");
-  const [confirmAge, setConfirmAge] = useState(false);
-  const [confirmTerms, setConfirmTerms] = useState(false);
-  const [gateError, setGateError] = useState("");
   const [pageMessage, setPageMessage] = useState("");
 
   const stockPortfolioValue = useMemo(() => {
@@ -276,21 +223,6 @@ export default function MiloExchangeMainPage() {
     (friend) => friend.status === "pending" && friend.direction === "outgoing"
   );
 
-  const isLockedUnder13 = useMemo(() => {
-    if (profile?.is_simulation_user) return false;
-    if (!profile?.milo_exchange_locked_until) return false;
-    if (profile.milo_exchange_unlocked) return false;
-    return profile.milo_exchange_locked_until > getTodayDateOnly();
-  }, [profile]);
-
-  const canEnterExchange =
-    Boolean(profile?.is_simulation_user) ||
-    (Boolean(profile?.milo_exchange_unlocked) &&
-      Boolean(profile?.milo_exchange_terms_accepted_at) &&
-      (profile?.milo_exchange_age_band === "13_15" ||
-      profile?.milo_exchange_age_band === "16_17" ||
-      profile?.milo_exchange_age_band === "18_plus"));
-
   useEffect(() => {
     loadPage();
   }, []);
@@ -313,7 +245,6 @@ export default function MiloExchangeMainPage() {
     setUserId(user.id);
 
     await Promise.all([
-      loadProfile(user.id),
       loadDreamTokens(user.id),
       loadStockPortfolio(user.id),
       loadPropertyPortfolio(user.id),
@@ -330,7 +261,6 @@ export default function MiloExchangeMainPage() {
     setRefreshing(true);
 
     await Promise.all([
-      loadProfile(userId),
       loadDreamTokens(userId),
       loadStockPortfolio(userId),
       loadPropertyPortfolio(userId),
@@ -342,42 +272,10 @@ export default function MiloExchangeMainPage() {
     setRefreshing(false);
   }
 
-  async function loadProfile(id: string) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select(
-        `
-        id,
-        email,
-        role,
-        tier,
-        is_simulation_user,
-        milo_exchange_age_band,
-        milo_exchange_unlocked,
-        milo_exchange_locked_until,
-        milo_exchange_age_verified_at,
-        milo_exchange_age_verification_method,
-        milo_exchange_terms_accepted_at
-      `
-      )
-      .eq("id", id)
-      .single();
-
-    if (error) {
-      console.warn("Could not load profile:", error.message);
-      setPageMessage("Could not load your exchange profile.");
-      return;
-    }
-
-    setProfile(data as Profile);
-  }
-
-  async function loadDreamTokens(id: string) {
-    const { data, error } = await supabase
-      .from("dream_token_transactions")
-      .select("amount")
-      .eq("user_id", id)
-      .eq("token_kind", "virtual");
+  async function loadDreamTokens(_id: string) {
+    const { data, error } = await supabase.rpc(
+      "get_my_virtual_dream_token_balance"
+    );
 
     if (error) {
       console.warn("Could not load Dreamscape Tokens:", error.message);
@@ -385,9 +283,7 @@ export default function MiloExchangeMainPage() {
       return;
     }
 
-    const total =
-      data?.reduce((sum, row) => sum + Number(row.amount || 0), 0) || 0;
-    setDreamTokens(total);
+    setDreamTokens(Number(data || 0));
   }
 
   async function loadStockPortfolio(id: string) {
@@ -681,87 +577,6 @@ export default function MiloExchangeMainPage() {
     await loadFriends(userId);
   }
 
-  async function handleAgeVerification() {
-    if (!userId) return;
-
-    setGateError("");
-
-    if (!dob) {
-      setGateError("Please enter your date of birth.");
-      return;
-    }
-
-    if (!confirmAge) {
-      setGateError("Please confirm that your date of birth is accurate.");
-      return;
-    }
-
-    if (!confirmTerms) {
-      setGateError(
-        "Please confirm that you understand this is a fictional market simulator."
-      );
-      return;
-    }
-
-    const age = calculateAge(dob);
-
-    if (Number.isNaN(age) || age < 0 || age > 120) {
-      setGateError("Please enter a valid date of birth.");
-      return;
-    }
-
-    const ageBand = getAgeBand(age);
-    const now = new Date().toISOString();
-    setActionLoading(true);
-
-    if (age < 13) {
-      const lockedUntil = getThirteenthBirthday(dob);
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          milo_exchange_age_band: ageBand,
-          milo_exchange_unlocked: false,
-          milo_exchange_locked_until: lockedUntil,
-          milo_exchange_age_verified_at: now,
-          milo_exchange_age_verification_method: "self_declared_dob",
-          milo_exchange_terms_accepted_at: null,
-        })
-        .eq("id", userId);
-
-      setActionLoading(false);
-
-      if (error) {
-        setGateError("Could not save your age check. Check the profiles update policy.");
-        return;
-      }
-
-      await loadProfile(userId);
-      return;
-    }
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        milo_exchange_age_band: ageBand,
-        milo_exchange_unlocked: true,
-        milo_exchange_locked_until: null,
-        milo_exchange_age_verified_at: now,
-        milo_exchange_age_verification_method: "self_declared_dob",
-        milo_exchange_terms_accepted_at: now,
-      })
-      .eq("id", userId);
-
-    setActionLoading(false);
-
-    if (error) {
-      setGateError("Could not unlock Milo’s Exchange. Check the profiles update policy.");
-      return;
-    }
-
-    await loadProfile(userId);
-  }
-
   const pageShell: CSSProperties = {
     position: "relative",
     minHeight: "100vh",
@@ -989,96 +804,6 @@ export default function MiloExchangeMainPage() {
           <Link href="/milo-world" style={secondaryButton}>
             Back to Milo’s World
           </Link>
-        </div>
-      </CenterPanel>
-    );
-  }
-
-  if (isLockedUnder13) {
-    return (
-      <CenterPanel eyebrow="Locked Feature" title="Milo’s Exchange is for users aged 13 and above.">
-        <p>
-          The exchange is locked for this account. You can continue earning
-          Dreamscape Tokens through Milo’s Activity Lab.
-        </p>
-
-        {profile?.milo_exchange_locked_until && (
-          <p style={{ color: "rgba(255,255,255,0.58)", fontSize: "14px" }}>
-            This feature can be reviewed again from {profile.milo_exchange_locked_until}.
-          </p>
-        )}
-
-        <div style={{ marginTop: "24px" }}>
-          <Link href="/milo-world" style={primaryButton}>
-            Back to Milo’s World
-          </Link>
-        </div>
-      </CenterPanel>
-    );
-  }
-
-  if (!canEnterExchange) {
-    return (
-      <CenterPanel eyebrow="Age Check Required" title="Milo’s Exchange is for users aged 13 and above.">
-        <p>
-          Verify your age before entering. This is a fictional market using
-          earned Dreamscape Tokens only.
-        </p>
-
-        <div style={{ marginTop: "24px", display: "grid", gap: "16px" }}>
-          <label style={{ display: "grid", gap: "8px" }}>
-            <span style={{ fontSize: "12px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.14em" }}>
-              Date of birth
-            </span>
-            <input
-              type="date"
-              value={dob}
-              onChange={(event) => setDob(event.target.value)}
-              style={inputStyle}
-            />
-          </label>
-
-          <label style={{ display: "grid", gridTemplateColumns: "20px 1fr", gap: "12px" }}>
-            <input
-              type="checkbox"
-              checked={confirmAge}
-              onChange={(event) => setConfirmAge(event.target.checked)}
-            />
-            <span>I confirm that my date of birth is accurate.</span>
-          </label>
-
-          <label style={{ display: "grid", gridTemplateColumns: "20px 1fr", gap: "12px" }}>
-            <input
-              type="checkbox"
-              checked={confirmTerms}
-              onChange={(event) => setConfirmTerms(event.target.checked)}
-            />
-            <span>
-              I understand this is a fictional market simulator. Dreamscape
-              Tokens have no cash value and cannot be cashed out.
-            </span>
-          </label>
-
-          {gateError && <p style={{ color: "#ffb0b0", fontWeight: 800 }}>{gateError}</p>}
-
-          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={handleAgeVerification}
-              disabled={actionLoading}
-              style={{
-                ...primaryButton,
-                opacity: actionLoading ? 0.6 : 1,
-                cursor: actionLoading ? "not-allowed" : "pointer",
-              }}
-            >
-              {actionLoading ? "Checking..." : "Continue"}
-            </button>
-
-            <Link href="/milo-world" style={secondaryButton}>
-              Back to Milo’s World
-            </Link>
-          </div>
         </div>
       </CenterPanel>
     );

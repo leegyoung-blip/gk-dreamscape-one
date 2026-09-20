@@ -9,20 +9,6 @@ import MiloExchangeGuide from "../components/MiloExchangeGuide";
 type ScreenMode = "desktop" | "tablet" | "mobile";
 type ExchangeSection = "portfolio" | "market" | "trade";
 
-type Profile = {
-  id: string;
-  email: string | null;
-  role: string | null;
-  tier: string | null;
-  is_simulation_user: boolean;
-  milo_exchange_age_band: string | null;
-  milo_exchange_unlocked: boolean | null;
-  milo_exchange_locked_until: string | null;
-  milo_exchange_age_verified_at: string | null;
-  milo_exchange_age_verification_method: string | null;
-  milo_exchange_terms_accepted_at: string | null;
-};
-
 type Stock = {
   symbol: string;
   name: string;
@@ -104,40 +90,6 @@ function useResponsiveMode() {
   }, []);
 
   return screenMode;
-}
-
-function calculateAge(dateString: string) {
-  const today = new Date();
-  const birthDate = new Date(`${dateString}T00:00:00`);
-
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-
-  if (
-    monthDiff < 0 ||
-    (monthDiff === 0 && today.getDate() < birthDate.getDate())
-  ) {
-    age -= 1;
-  }
-
-  return age;
-}
-
-function getAgeBand(age: number) {
-  if (age < 13) return "under_13";
-  if (age < 16) return "13_15";
-  if (age < 18) return "16_17";
-  return "18_plus";
-}
-
-function getSixteenthBirthday(dateString: string) {
-  const birthDate = new Date(`${dateString}T00:00:00`);
-  birthDate.setFullYear(birthDate.getFullYear() + 16);
-  return birthDate.toISOString().slice(0, 10);
-}
-
-function getTodayDateOnly() {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function formatNumber(value: number) {
@@ -674,7 +626,6 @@ export default function MiloStockExchangePage() {
   const [actionLoading, setActionLoading] = useState(false);
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [dreamTokens, setDreamTokens] = useState(0);
 
   const [stocks, setStocks] = useState<Stock[]>([]);
@@ -687,12 +638,7 @@ export default function MiloStockExchangePage() {
   const [quantity, setQuantity] = useState(1);
   const [activeSection, setActiveSection] = useState<ExchangeSection>("portfolio");
 
-  const [dob, setDob] = useState("");
-  const [confirmAge, setConfirmAge] = useState(false);
-  const [confirmTerms, setConfirmTerms] = useState(false);
-
   const [pageMessage, setPageMessage] = useState("");
-  const [gateError, setGateError] = useState("");
   const [tradeMessage, setTradeMessage] = useState("");
 
 
@@ -743,20 +689,6 @@ export default function MiloStockExchangePage() {
     return selectedNewsEvents.filter((event) => event.status === "teaser");
   }, [selectedNewsEvents]);
 
-  const isLockedUnder16 = useMemo(() => {
-    if (profile?.is_simulation_user) return false;
-    if (!profile?.milo_exchange_locked_until) return false;
-    if (profile.milo_exchange_unlocked) return false;
-    return profile.milo_exchange_locked_until > getTodayDateOnly();
-  }, [profile]);
-
-  const canEnterExchange =
-    Boolean(profile?.is_simulation_user) ||
-    (Boolean(profile?.milo_exchange_unlocked) &&
-      Boolean(profile?.milo_exchange_terms_accepted_at) &&
-      (profile?.milo_exchange_age_band === "16_17" ||
-      profile?.milo_exchange_age_band === "18_plus"));
-
   useEffect(() => {
     loadPage();
   }, []);
@@ -779,7 +711,6 @@ export default function MiloStockExchangePage() {
     setUserId(user.id);
 
     await Promise.all([
-      loadProfile(user.id),
       loadDreamTokens(user.id),
       loadStocks(),
       loadHoldings(user.id),
@@ -791,42 +722,10 @@ export default function MiloStockExchangePage() {
     setLoading(false);
   }
 
-  async function loadProfile(id: string) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select(
-        `
-        id,
-        email,
-        role,
-        tier,
-        is_simulation_user,
-        milo_exchange_age_band,
-        milo_exchange_unlocked,
-        milo_exchange_locked_until,
-        milo_exchange_age_verified_at,
-        milo_exchange_age_verification_method,
-        milo_exchange_terms_accepted_at
-      `
-      )
-      .eq("id", id)
-      .single();
-
-    if (error) {
-      console.warn("Could not load profile:", error.message);
-      setPageMessage("Could not load your profile.");
-      return;
-    }
-
-    setProfile(data as Profile);
-  }
-
-  async function loadDreamTokens(id: string) {
-    const { data, error } = await supabase
-      .from("dream_token_transactions")
-      .select("amount")
-      .eq("user_id", id)
-      .eq("token_kind", "virtual");
+  async function loadDreamTokens(_id: string) {
+    const { data, error } = await supabase.rpc(
+      "get_my_virtual_dream_token_balance"
+    );
 
     if (error) {
       console.warn("Could not load Dreamscape Tokens:", error.message);
@@ -834,8 +733,7 @@ export default function MiloStockExchangePage() {
       return;
     }
 
-    const total = data?.reduce((sum, row) => sum + (row.amount || 0), 0) || 0;
-    setDreamTokens(total);
+    setDreamTokens(Number(data || 0));
   }
 
   async function loadStocks() {
@@ -931,122 +829,10 @@ export default function MiloStockExchangePage() {
     );
   }
 
-  async function handleAgeVerification() {
-    if (!userId) return;
-
-    setGateError("");
-
-    if (!dob) {
-      setGateError("Please enter your date of birth.");
-      return;
-    }
-
-    if (!confirmAge) {
-      setGateError("Please confirm that your date of birth is accurate.");
-      return;
-    }
-
-    if (!confirmTerms) {
-      setGateError(
-        "Please confirm that you understand this is a fictional market simulator."
-      );
-      return;
-    }
-
-    const age = calculateAge(dob);
-
-    if (Number.isNaN(age) || age < 0 || age > 120) {
-      setGateError("Please enter a valid date of birth.");
-      return;
-    }
-
-    const ageBand = getAgeBand(age);
-    const now = new Date().toISOString();
-
-    setActionLoading(true);
-
-    if (age < 16) {
-      const lockedUntil = getSixteenthBirthday(dob);
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          milo_exchange_age_band: ageBand,
-          milo_exchange_unlocked: false,
-          milo_exchange_locked_until: lockedUntil,
-          milo_exchange_age_verified_at: now,
-          milo_exchange_age_verification_method: "self_declared_dob",
-          milo_exchange_terms_accepted_at: null,
-        })
-        .eq("id", userId);
-
-      setActionLoading(false);
-
-      if (error) {
-        console.warn("Age gate update failed:", error.message);
-        setGateError(
-          "Could not save your age check. Check the profiles update policy."
-        );
-        return;
-      }
-
-      await loadProfile(userId);
-      return;
-    }
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        milo_exchange_age_band: ageBand,
-        milo_exchange_unlocked: true,
-        milo_exchange_locked_until: null,
-        milo_exchange_age_verified_at: now,
-        milo_exchange_age_verification_method: "self_declared_dob",
-        milo_exchange_terms_accepted_at: now,
-      })
-      .eq("id", userId);
-
-    setActionLoading(false);
-
-    if (error) {
-      console.warn("Age gate update failed:", error.message);
-      setGateError(
-        "Could not unlock Milo’s Stock Exchange. Check the profiles update policy."
-      );
-      return;
-    }
-
-    await loadProfile(userId);
-  }
-
-  async function addTokenTransaction(
-    id: string,
-    amount: number,
-    title: string
-  ) {
-    const { error } = await supabase.from("dream_token_transactions").insert({
-      user_id: id,
-      amount,
-      token_kind: "virtual",
-      type: amount < 0 ? "spend" : "earn",
-      title,
-    });
-
-    if (error) {
-      console.warn("Token transaction failed:", error.message);
-      return false;
-    }
-
-    window.dispatchEvent(new Event("dream-tokens-updated"));
-    return true;
-  }
-
-
   async function refreshUserData() {
     if (!userId) return;
 
     await Promise.all([
-      loadProfile(userId),
       loadDreamTokens(userId),
       loadHoldings(userId),
       loadTrades(userId),
@@ -1056,180 +842,94 @@ export default function MiloStockExchangePage() {
     ]);
   }
 
-  async function buyStock() {
-    if (!userId || !selectedStock || !canEnterExchange) return;
+  async function executeStockTrade(side: "buy" | "sell") {
+    if (!userId || !selectedStock || actionLoading) return;
 
     setTradeMessage("");
 
     const qty = Math.max(1, Math.floor(Number(quantity) || 1));
-    const total = qty * selectedStock.current_price;
 
-    if (total > dreamTokens) {
-      setTradeMessage("You do not have enough Dreamscape Tokens for this trade.");
-      return;
+    // Client checks are only for quick feedback. The RPC re-checks the
+    // authoritative wallet, market price and holdings inside one DB transaction.
+    if (side === "buy") {
+      const estimatedTotal = qty * selectedStock.current_price;
+      if (estimatedTotal > dreamTokens) {
+        setTradeMessage("You do not have enough Dreamscape Tokens for this trade.");
+        return;
+      }
+    } else {
+      const existingHolding = getHolding(selectedStock.symbol);
+      if (!existingHolding || existingHolding.quantity < qty) {
+        setTradeMessage("You do not have enough shares to sell.");
+        return;
+      }
     }
 
     setActionLoading(true);
 
-    const tokenSaved = await addTokenTransaction(
-      userId,
-      -total,
-      `Bought ${qty} ${selectedStock.symbol} in Milo’s Stock Exchange`
-    );
-
-    if (!tokenSaved) {
-      setActionLoading(false);
-      setTradeMessage("Could not deduct Dreamscape Tokens.");
-      return;
-    }
-
-    const existingHolding = getHolding(selectedStock.symbol);
-
-    if (existingHolding) {
-      const currentTotalCost =
-        existingHolding.quantity * existingHolding.average_price;
-      const newQuantity = existingHolding.quantity + qty;
-      const newAveragePrice = Math.round(
-        (currentTotalCost + total) / newQuantity
-      );
-
-      const { error: holdingError } = await supabase
-        .from("milo_exchange_holdings")
-        .update({
-          quantity: newQuantity,
-          average_price: newAveragePrice,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existingHolding.id);
-
-      if (holdingError) {
-        console.warn("Holding update failed:", holdingError.message);
-        setTradeMessage(
-          "Tokens were deducted, but the holding update failed. Please check Supabase policies."
-        );
-        setActionLoading(false);
-        await refreshUserData();
-        return;
-      }
-    } else {
-      const { error: holdingError } = await supabase
-        .from("milo_exchange_holdings")
-        .insert({
-          user_id: userId,
-          symbol: selectedStock.symbol,
-          quantity: qty,
-          average_price: selectedStock.current_price,
-        });
-
-      if (holdingError) {
-        console.warn("Holding insert failed:", holdingError.message);
-        setTradeMessage(
-          "Tokens were deducted, but the holding insert failed. Please check Supabase policies."
-        );
-        setActionLoading(false);
-        await refreshUserData();
-        return;
-      }
-    }
-
-    await supabase.from("milo_exchange_trades").insert({
-      user_id: userId,
-      symbol: selectedStock.symbol,
-      side: "buy",
-      quantity: qty,
-      price: selectedStock.current_price,
-      total,
+    const { data, error } = await supabase.rpc("trade_milo_exchange_stock", {
+      p_symbol: selectedStock.symbol,
+      p_side: side,
+      p_quantity: qty,
     });
 
-    setTradeMessage(
-      `Bought ${qty} share${qty === 1 ? "" : "s"} of ${
-        selectedStock.symbol
-      }.`
-    );
-
-    await refreshUserData();
-    setActionLoading(false);
-  }
-
-  async function sellStock() {
-    if (!userId || !selectedStock || !canEnterExchange) return;
-
-    setTradeMessage("");
-
-    const qty = Math.max(1, Math.floor(Number(quantity) || 1));
-    const existingHolding = getHolding(selectedStock.symbol);
-
-    if (!existingHolding || existingHolding.quantity < qty) {
-      setTradeMessage("You do not have enough shares to sell.");
-      return;
-    }
-
-    const total = qty * selectedStock.current_price;
-    const remainingQuantity = existingHolding.quantity - qty;
-
-    setActionLoading(true);
-
-    if (remainingQuantity <= 0) {
-      const { error: deleteError } = await supabase
-        .from("milo_exchange_holdings")
-        .delete()
-        .eq("id", existingHolding.id);
-
-      if (deleteError) {
-        console.warn("Holding delete failed:", deleteError.message);
-        setTradeMessage("Could not update your holding. Please try again.");
-        setActionLoading(false);
-        return;
-      }
-    } else {
-      const { error: holdingError } = await supabase
-        .from("milo_exchange_holdings")
-        .update({
-          quantity: remainingQuantity,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existingHolding.id);
-
-      if (holdingError) {
-        console.warn("Holding update failed:", holdingError.message);
-        setTradeMessage("Could not update your holding. Please try again.");
-        setActionLoading(false);
-        return;
-      }
-    }
-
-    const tokenSaved = await addTokenTransaction(
-      userId,
-      total,
-      `Sold ${qty} ${selectedStock.symbol} in Milo’s Stock Exchange`
-    );
-
-    if (!tokenSaved) {
-      setTradeMessage(
-        "The holding was updated, but the token credit failed. Please check Supabase policies."
-      );
+    if (error) {
+      console.warn("Stock trade failed:", error.message);
+      setTradeMessage(`Trade failed: ${error.message}`);
       setActionLoading(false);
       await refreshUserData();
       return;
     }
 
-    await supabase.from("milo_exchange_trades").insert({
-      user_id: userId,
-      symbol: selectedStock.symbol,
-      side: "sell",
-      quantity: qty,
-      price: selectedStock.current_price,
-      total,
-    });
+    const result = (data || {}) as Record<string, unknown>;
+
+    if (result.ok === false) {
+      const reason = String(result.reason || "trade_failed");
+      const message =
+        reason === "insufficient_tokens"
+          ? "You do not have enough Dreamscape Tokens for this trade."
+          : reason === "insufficient_shares"
+          ? "You do not have enough shares to sell."
+          : reason === "stock_not_found"
+          ? "This stock is no longer available for trading."
+          : reason === "invalid_quantity"
+          ? "Choose at least 1 share."
+          : reason === "invalid_side"
+          ? "That trade type is not supported."
+          : reason === "not_authenticated"
+          ? "Please log in again before trading."
+          : String(result.message || "The trade could not be completed.");
+
+      setTradeMessage(message);
+      setActionLoading(false);
+      await refreshUserData();
+      return;
+    }
+
+    const tradedQuantity = Number(result.quantity || qty);
+    const symbol = String(result.symbol || selectedStock.symbol);
+    const price = Number(result.price || selectedStock.current_price);
 
     setTradeMessage(
-      `Sold ${qty} share${qty === 1 ? "" : "s"} of ${
-        selectedStock.symbol
-      }.`
+      String(
+        result.message ||
+          `${side === "buy" ? "Bought" : "Sold"} ${tradedQuantity} share${
+            tradedQuantity === 1 ? "" : "s"
+          } of ${symbol} at ${formatNumber(price)} DT.`
+      )
     );
 
+    window.dispatchEvent(new Event("dream-tokens-updated"));
     await refreshUserData();
     setActionLoading(false);
+  }
+
+  async function buyStock() {
+    await executeStockTrade("buy");
+  }
+
+  async function sellStock() {
+    await executeStockTrade("sell");
   }
 
   const pageShell: CSSProperties = {
@@ -1454,12 +1154,11 @@ export default function MiloStockExchangePage() {
   if (!userId) {
     return (
       <CenterPanel
-        eyebrow="16+ Feature"
+        eyebrow="Exchange Access"
         title="Log in to enter Milo’s Stock Exchange"
       >
         <p>
-          This feature uses your Dreamscape profile to check access and save
-          your fictional portfolio.
+          Log in to save your fictional portfolio, trades and market progress.
         </p>
 
         <div
@@ -1477,136 +1176,6 @@ export default function MiloStockExchangePage() {
           <Link href="/milo-world/exchange" style={secondaryButton}>
             Back to Milo’s Exchange
           </Link>
-        </div>
-      </CenterPanel>
-    );
-  }
-
-  if (isLockedUnder16) {
-    return (
-      <CenterPanel
-        eyebrow="Locked Feature"
-        title="Milo’s Stock Exchange is for users aged 16 and above."
-      >
-        <p>
-          This exchange is locked for your account. You can still earn
-          Dreamscape Tokens in the Activity Lab and use other Dreamscape
-          features.
-        </p>
-
-        {profile?.milo_exchange_locked_until && (
-          <p style={{ color: "rgba(255,255,255,0.58)", fontSize: "14px" }}>
-            This feature can be reviewed again from{" "}
-            {profile.milo_exchange_locked_until}.
-          </p>
-        )}
-
-        <div style={{ marginTop: "24px" }}>
-          <Link href="/milo-world/exchange" style={primaryButton}>
-            Back to Milo’s Exchange
-          </Link>
-        </div>
-      </CenterPanel>
-    );
-  }
-
-  if (!canEnterExchange) {
-    return (
-      <CenterPanel
-        eyebrow="Age Check Required"
-        title="Milo’s Stock Exchange is for users aged 16 and above."
-      >
-        <p>
-          Please verify your age before entering. This is a fictional market
-          simulator using earned Dreamscape Tokens only.
-        </p>
-
-        <div style={{ marginTop: "24px", display: "grid", gap: "16px" }}>
-          <label style={{ display: "grid", gap: "8px" }}>
-            <span
-              style={{
-                color: "rgba(255,255,255,0.72)",
-                fontSize: "12px",
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-                fontWeight: 900,
-              }}
-            >
-              Date of birth
-            </span>
-
-            <input
-              type="date"
-              value={dob}
-              onChange={(event) => setDob(event.target.value)}
-              style={inputStyle}
-            />
-          </label>
-
-          <label
-            style={{
-              display: "grid",
-              gridTemplateColumns: "20px 1fr",
-              gap: "12px",
-              alignItems: "start",
-              color: "rgba(255,255,255,0.78)",
-              lineHeight: 1.55,
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={confirmAge}
-              onChange={(event) => setConfirmAge(event.target.checked)}
-              style={{ marginTop: "4px" }}
-            />
-            <span>I confirm that my date of birth is accurate.</span>
-          </label>
-
-          <label
-            style={{
-              display: "grid",
-              gridTemplateColumns: "20px 1fr",
-              gap: "12px",
-              alignItems: "start",
-              color: "rgba(255,255,255,0.78)",
-              lineHeight: 1.55,
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={confirmTerms}
-              onChange={(event) => setConfirmTerms(event.target.checked)}
-              style={{ marginTop: "4px" }}
-            />
-            <span>
-              I understand this is a fictional market simulator. Dreamscape
-              Tokens have no cash value, cannot be purchased here, and cannot be
-              cashed out.
-            </span>
-          </label>
-
-          {gateError && (
-            <p style={{ color: "#ffb0b0", fontWeight: 800 }}>{gateError}</p>
-          )}
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
-            <button
-              type="button"
-              onClick={handleAgeVerification}
-              disabled={actionLoading}
-              style={{
-                ...primaryButton,
-                opacity: actionLoading ? 0.6 : 1,
-                cursor: actionLoading ? "not-allowed" : "pointer",
-              }}
-            >
-              {actionLoading ? "Checking..." : "Continue"}
-            </button>
-
-            <Link href="/milo-world/exchange" style={secondaryButton}>
-              Back to Milo’s Exchange
-            </Link>
-          </div>
         </div>
       </CenterPanel>
     );

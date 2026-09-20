@@ -1165,3 +1165,350 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+
+/* ==========================================================================
+   REVIEW READABILITY PATCH — 2026-09-21
+   Increase small text throughout the uploader/review flow without changing
+   the established NOVA+ layout.
+   ========================================================================== */
+
+.eyebrow {
+  font-size: 12px;
+}
+
+.header h2 {
+  font-size: clamp(32px, 3.2vw, 44px);
+}
+
+.header p {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.dropZone strong,
+.fileSelected strong {
+  font-size: 19px;
+}
+
+.dropZone span,
+.fileSelected span {
+  font-size: 14px;
+}
+
+.dropZone small,
+.fileSelected small {
+  font-size: 12px;
+}
+
+.hints label > span {
+  font-size: 11px;
+}
+
+.hints select {
+  min-height: 44px;
+  font-size: 13px;
+}
+
+.hints small {
+  font-size: 11px;
+}
+
+.privacyNote strong {
+  font-size: 13px;
+}
+
+.privacyNote p {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.error {
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.secondary,
+.primary,
+.errorState button,
+.phaseNotice button {
+  min-height: 46px;
+  padding-left: 17px;
+  padding-right: 17px;
+  font-size: 13px;
+}
+
+.processingCopy h3 {
+  font-size: 26px;
+}
+
+.processingCopy p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.processingSteps span {
+  padding: 8px 11px;
+  font-size: 11px;
+}
+
+.errorState h3 {
+  font-size: 24px;
+}
+
+.errorState p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.analysisSummary small {
+  font-size: 11px;
+}
+
+.analysisSummary h3 {
+  font-size: 23px;
+}
+
+.analysisSummary p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.analysisBadges span {
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.resultMetrics small {
+  font-size: 11px;
+}
+
+.resultMetrics strong {
+  font-size: 22px;
+}
+
+.reviewHeading h3 {
+  font-size: 23px;
+}
+
+.reviewHeading > p {
+  max-width: 520px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.itemCard {
+  padding: 16px;
+}
+
+.itemTop small {
+  font-size: 10px;
+}
+
+.itemTop strong {
+  max-width: 900px;
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.correctness {
+  padding: 7px 10px;
+  font-size: 11px;
+}
+
+.answerGrid > div,
+.teacherFeedback {
+  padding: 12px;
+}
+
+.answerGrid small,
+.teacherFeedback small,
+.mappingRow small {
+  font-size: 10px;
+}
+
+.answerGrid p,
+.teacherFeedback p {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.mappingRow {
+  padding: 12px;
+}
+
+.mappingRow strong {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.mappingRow > div:first-child > span {
+  font-size: 10px;
+}
+
+.mappingMeta > span,
+.mappingMeta > b {
+  padding: 6px 8px;
+  font-size: 10px;
+}
+
+.reasoning summary {
+  font-size: 11px;
+}
+
+.reasoning p {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.phaseNotice strong {
+  font-size: 13px;
+}
+
+.phaseNotice p {
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.phase3Summary small {
+  font-size: 10px;
+}
+
+.phase3Summary strong {
+  font-size: 21px;
+}
+
+.reviewControls {
+  gap: 9px;
+}
+
+.reviewControls label,
+.decisionControl {
+  padding: 12px;
+}
+
+.reviewControls label > span,
+.decisionControl > small {
+  margin-bottom: 8px;
+  font-size: 10px;
+}
+
+.reviewControls select {
+  min-height: 43px;
+  padding: 0 11px;
+  font-size: 13px;
+}
+
+.decisionControl button {
+  min-height: 43px;
+  font-size: 12px;
+}
+
+.phase3EvidenceRow {
+  gap: 8px;
+}
+
+.phase3EvidenceRow > div {
+  padding: 11px;
+}
+
+.phase3EvidenceRow small {
+  font-size: 10px;
+}
+
+.phase3EvidenceRow strong {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.itemDecisionWarning {
+  padding: 10px 11px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.phase3CommitBar {
+  padding-top: 17px;
+  padding-bottom: 20px;
+}
+
+.phase3CommitBar strong {
+  font-size: 14px;
+}
+
+.phase3CommitBar p {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.phase3CommitBar button,
+.completeButton {
+  min-height: 52px;
+  padding: 0 20px;
+  border-radius: 13px;
+  font-size: 13px;
+}
+
+.completeState h3 {
+  font-size: 28px;
+}
+
+.completeState > p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.completeMetrics small {
+  font-size: 10px;
+}
+
+.completeMetrics strong {
+  font-size: 23px;
+}
+
+.duplicateWarning strong {
+  font-size: 13px;
+}
+
+.duplicateWarning p {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.duplicateWarning button {
+  min-height: 39px;
+  font-size: 11px;
+}
+
+.impactGrid small {
+  font-size: 10px;
+}
+
+.impactGrid strong {
+  font-size: 18px;
+}
+
+@media (max-width: 760px) {
+  .header h2 {
+    font-size: clamp(28px, 7vw, 36px);
+  }
+
+  .header p {
+    font-size: 13px;
+  }
+
+  .itemTop strong {
+    font-size: 14px;
+  }
+
+  .answerGrid p,
+  .teacherFeedback p,
+  .reviewControls select {
+    font-size: 12px;
+  }
+}

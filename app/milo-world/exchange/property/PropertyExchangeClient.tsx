@@ -14,20 +14,6 @@ type ScreenMode = "desktop" | "tablet" | "mobile";
 type DistrictId = "residential-hub" | "commercial-hub";
 type PropertyType = "apartment" | "landed" | "office" | "retail";
 
-type Profile = {
-  id: string;
-  email: string | null;
-  role: string | null;
-  tier: string | null;
-  is_simulation_user: boolean;
-  milo_exchange_age_band: string | null;
-  milo_exchange_unlocked: boolean | null;
-  milo_exchange_locked_until: string | null;
-  milo_exchange_age_verified_at: string | null;
-  milo_exchange_age_verification_method: string | null;
-  milo_exchange_terms_accepted_at: string | null;
-};
-
 type DistrictDefinition = {
   id: DistrictId;
   name: string;
@@ -82,6 +68,12 @@ type RecentPropertySale = {
   price_per_unit: number;
   total_price: number;
   sold_at: string;
+};
+
+type PropertyRentPayout = {
+  week_start: string;
+  amount: number;
+  paid_at: string;
 };
 
 const DISTRICTS: DistrictDefinition[] = [
@@ -194,39 +186,6 @@ function useResponsiveMode() {
   }, []);
 
   return screenMode;
-}
-
-function calculateAge(dateString: string) {
-  const today = new Date();
-  const birthDate = new Date(`${dateString}T00:00:00`);
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-
-  if (
-    monthDiff < 0 ||
-    (monthDiff === 0 && today.getDate() < birthDate.getDate())
-  ) {
-    age -= 1;
-  }
-
-  return age;
-}
-
-function getAgeBand(age: number) {
-  if (age < 13) return "under_13";
-  if (age < 16) return "13_15";
-  if (age < 18) return "16_17";
-  return "18_plus";
-}
-
-function getSixteenthBirthday(dateString: string) {
-  const birthDate = new Date(`${dateString}T00:00:00`);
-  birthDate.setFullYear(birthDate.getFullYear() + 16);
-  return birthDate.toISOString().slice(0, 10);
-}
-
-function getTodayDateOnly() {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function formatNumber(value: number) {
@@ -744,13 +703,13 @@ export default function PropertyExchangeClient() {
   const [marketLoading, setMarketLoading] = useState(false);
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [dreamTokens, setDreamTokens] = useState(0);
   const [properties, setProperties] = useState<PropertyOffering[]>([]);
   const [holdings, setHoldings] = useState<PropertyHolding[]>([]);
   const [recentSales, setRecentSales] = useState<RecentPropertySale[]>([]);
   const [resaleListings, setResaleListings] = useState<PropertyResaleListing[]>([]);
   const [myListings, setMyListings] = useState<MyPropertyListing[]>([]);
+  const [latestRentPayout, setLatestRentPayout] = useState<PropertyRentPayout | null>(null);
 
   const [selectedDistrict, setSelectedDistrict] = useState<DistrictId | null>(null);
   const [hoveredDistrict, setHoveredDistrict] = useState<DistrictId | null>(null);
@@ -758,10 +717,6 @@ export default function PropertyExchangeClient() {
   const [previewProperty, setPreviewProperty] = useState<PropertyOffering | null>(null);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
 
-  const [dob, setDob] = useState("");
-  const [confirmAge, setConfirmAge] = useState(false);
-  const [confirmTerms, setConfirmTerms] = useState(false);
-  const [gateError, setGateError] = useState("");
   const [pageMessage, setPageMessage] = useState("");
   const [tradeMessage, setTradeMessage] = useState("");
 
@@ -800,20 +755,6 @@ export default function PropertyExchangeClient() {
       return total + Number(holding.quantity || 0) * Number(property?.weekly_rent || 0);
     }, 0);
   }, [holdings, properties]);
-
-  const isLockedUnder16 = useMemo(() => {
-    if (profile?.is_simulation_user) return false;
-    if (!profile?.milo_exchange_locked_until) return false;
-    if (profile.milo_exchange_unlocked) return false;
-    return profile.milo_exchange_locked_until > getTodayDateOnly();
-  }, [profile]);
-
-  const canEnterExchange =
-    Boolean(profile?.is_simulation_user) ||
-    (Boolean(profile?.milo_exchange_unlocked) &&
-      Boolean(profile?.milo_exchange_terms_accepted_at) &&
-      (profile?.milo_exchange_age_band === "16_17" ||
-      profile?.milo_exchange_age_band === "18_plus"));
 
   const pageShell: CSSProperties = {
     position: "relative",
@@ -903,7 +844,7 @@ export default function PropertyExchangeClient() {
   }, []);
 
   useEffect(() => {
-    if (!canEnterExchange || !userId) return;
+    if (!userId) return;
 
     function handleFocus() {
       void refreshMarket();
@@ -914,7 +855,7 @@ export default function PropertyExchangeClient() {
     return () => {
       window.removeEventListener("focus", handleFocus);
     };
-  }, [canEnterExchange, userId]);
+  }, [userId]);
 
   async function loadPage() {
     setLoading(true);
@@ -934,7 +875,6 @@ export default function PropertyExchangeClient() {
     setUserId(user.id);
 
     await Promise.all([
-      loadProfile(user.id),
       loadDreamTokens(user.id),
       loadPropertyMarket(user.id),
     ]);
@@ -942,30 +882,12 @@ export default function PropertyExchangeClient() {
     setLoading(false);
   }
 
-  async function loadProfile(id: string) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select(
-        "id,email,role,tier,is_simulation_user,milo_exchange_age_band,milo_exchange_unlocked,milo_exchange_locked_until,milo_exchange_age_verified_at,milo_exchange_age_verification_method,milo_exchange_terms_accepted_at"
-      )
-      .eq("id", id)
-      .single();
-
-    if (error) {
-      console.warn("Could not load profile:", error.message);
-      setPageMessage("Could not load your Exchange access profile.");
-      return;
-    }
-
-    setProfile(data as Profile);
-  }
-
-  async function loadDreamTokens(id: string) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("dream_token_balance")
-      .eq("id", id)
-      .single();
+  async function loadDreamTokens(_id: string) {
+    // The ledger is the single source of truth. The RPC aggregates server-side
+    // so the browser does not need to download the user's entire transaction history.
+    const { data, error } = await supabase.rpc(
+      "get_my_virtual_dream_token_balance"
+    );
 
     if (error) {
       console.warn("Could not load Dreamscape Tokens:", error.message);
@@ -973,7 +895,7 @@ export default function PropertyExchangeClient() {
       return;
     }
 
-    setDreamTokens(Number(data?.dream_token_balance || 0));
+    setDreamTokens(Number(data || 0));
   }
 
   async function loadPropertyMarket(id: string) {
@@ -985,6 +907,7 @@ export default function PropertyExchangeClient() {
       salesResult,
       resaleResult,
       myListingsResult,
+      rentPayoutResult,
     ] = await Promise.all([
       supabase
         .from("milo_exchange_properties")
@@ -1010,6 +933,13 @@ export default function PropertyExchangeClient() {
       supabase.rpc("get_my_milo_exchange_property_listings", {
         p_limit: 30,
       }),
+      supabase
+        .from("milo_exchange_property_rent_payouts")
+        .select("week_start,amount,paid_at")
+        .eq("user_id", id)
+        .order("paid_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     if (propertiesResult.error) {
@@ -1109,6 +1039,20 @@ export default function PropertyExchangeClient() {
       );
     }
 
+    if (rentPayoutResult.error) {
+      // This is non-fatal so the page still works before the rental migration is applied.
+      console.warn("Could not load property rent payout history:", rentPayoutResult.error.message);
+      setLatestRentPayout(null);
+    } else if (rentPayoutResult.data) {
+      setLatestRentPayout({
+        week_start: String(rentPayoutResult.data.week_start || ""),
+        amount: Number(rentPayoutResult.data.amount || 0),
+        paid_at: String(rentPayoutResult.data.paid_at || ""),
+      });
+    } else {
+      setLatestRentPayout(null);
+    }
+
     setMarketLoading(false);
   }
 
@@ -1116,86 +1060,6 @@ export default function PropertyExchangeClient() {
     if (!userId) return;
 
     await Promise.all([loadDreamTokens(userId), loadPropertyMarket(userId)]);
-  }
-
-  async function handleAgeVerification() {
-    if (!userId) return;
-
-    setGateError("");
-
-    if (!dob) {
-      setGateError("Please enter your date of birth.");
-      return;
-    }
-
-    if (!confirmAge) {
-      setGateError("Please confirm that your date of birth is accurate.");
-      return;
-    }
-
-    if (!confirmTerms) {
-      setGateError(
-        "Please confirm that you understand this is a virtual property market using Dreamscape Tokens."
-      );
-      return;
-    }
-
-    const age = calculateAge(dob);
-
-    if (Number.isNaN(age) || age < 0 || age > 120) {
-      setGateError("Please enter a valid date of birth.");
-      return;
-    }
-
-    const ageBand = getAgeBand(age);
-    const now = new Date().toISOString();
-    setActionLoading(true);
-
-    if (age < 16) {
-      const lockedUntil = getSixteenthBirthday(dob);
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          milo_exchange_age_band: ageBand,
-          milo_exchange_unlocked: false,
-          milo_exchange_locked_until: lockedUntil,
-          milo_exchange_age_verified_at: now,
-          milo_exchange_age_verification_method: "self_declared_dob",
-          milo_exchange_terms_accepted_at: null,
-        })
-        .eq("id", userId);
-
-      setActionLoading(false);
-
-      if (error) {
-        setGateError("Could not save the age check. Check the profiles update policy.");
-        return;
-      }
-
-      await loadProfile(userId);
-      return;
-    }
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        milo_exchange_age_band: ageBand,
-        milo_exchange_unlocked: true,
-        milo_exchange_locked_until: null,
-        milo_exchange_age_verified_at: now,
-        milo_exchange_age_verification_method: "self_declared_dob",
-        milo_exchange_terms_accepted_at: now,
-      })
-      .eq("id", userId);
-
-    setActionLoading(false);
-
-    if (error) {
-      setGateError("Could not unlock the Property Exchange. Check the profiles update policy.");
-      return;
-    }
-
-    await Promise.all([loadProfile(userId), loadPropertyMarket(userId)]);
   }
 
   function chooseDistrict(id: DistrictId) {
@@ -1217,7 +1081,7 @@ export default function PropertyExchangeClient() {
   }
 
   async function buyProperty(property: PropertyOffering) {
-    if (!userId || !canEnterExchange) return;
+    if (!userId) return;
 
     const quantity = Math.max(1, Math.floor(Number(purchaseQuantity) || 1));
 
@@ -1241,11 +1105,10 @@ export default function PropertyExchangeClient() {
       p_quantity: quantity,
     });
 
-    setActionLoading(false);
-
     if (error) {
       console.warn("Property purchase failed:", error.message);
       setTradeMessage(`Purchase failed: ${error.message}`);
+      setActionLoading(false);
       return;
     }
 
@@ -1260,15 +1123,13 @@ export default function PropertyExchangeClient() {
     window.dispatchEvent(new Event("dream-tokens-updated"));
     await refreshMarket();
 
-    setPreviewProperty((current) => {
-      if (!current) return current;
-      const refreshed = properties.find((item) => item.id === current.id);
-      return refreshed || current;
-    });
+    // Close the modal after refresh so it can never show stale availability/holdings.
+    setPreviewProperty(null);
+    setActionLoading(false);
   }
 
   async function buyResaleProperty(listing: PropertyResaleListing) {
-    if (!userId || !canEnterExchange || actionLoading) return;
+    if (!userId || actionLoading) return;
 
     if (listing.asking_price > dreamTokens) {
       setTradeMessage(
@@ -1328,7 +1189,7 @@ export default function PropertyExchangeClient() {
   }
 
   async function createResaleListing(propertyId: string, askingPrice: number) {
-    if (!userId || !canEnterExchange || actionLoading) return;
+    if (!userId || actionLoading) return;
 
     setActionLoading(true);
     setTradeMessage("");
@@ -1364,7 +1225,7 @@ export default function PropertyExchangeClient() {
   }
 
   async function cancelResaleListing(listingId: string) {
-    if (!userId || !canEnterExchange || actionLoading) return;
+    if (!userId || actionLoading) return;
 
     setActionLoading(true);
     setTradeMessage("");
@@ -1404,73 +1265,6 @@ export default function PropertyExchangeClient() {
         <div style={{ marginTop: "24px", display: "flex", flexWrap: "wrap", gap: "12px" }}>
           <Link href="/login" style={primaryButton}>Log In</Link>
           <Link href="/milo-world/exchange" style={secondaryButton}>Exchange Home</Link>
-        </div>
-      </CenterPanel>
-    );
-  }
-
-  if (isLockedUnder16) {
-    return (
-      <CenterPanel eyebrow="Locked Feature" title="Milo’s Exchange is for users aged 16 and above." isMobile={isMobile}>
-        <p>
-          The virtual property market is locked for this account. Other parts of
-          Dreamscape remain available.
-        </p>
-        {profile?.milo_exchange_locked_until && (
-          <p style={{ color: "rgba(255,255,255,0.58)", fontSize: "14px" }}>
-            This feature can be reviewed again from {profile.milo_exchange_locked_until}.
-          </p>
-        )}
-        <Link href="/milo-world/exchange" style={{ ...primaryButton, marginTop: "20px" }}>
-          Exchange Home
-        </Link>
-      </CenterPanel>
-    );
-  }
-
-  if (!canEnterExchange) {
-    return (
-      <CenterPanel eyebrow="Age Check Required" title="Milo’s Exchange is for users aged 16 and above." isMobile={isMobile}>
-        <p>
-          Verify your age before entering. These are virtual properties inside
-          Dreamscape and are purchased only with earned Dreamscape Tokens.
-        </p>
-
-        <div style={{ marginTop: "24px", display: "grid", gap: "16px" }}>
-          <label style={{ display: "grid", gap: "8px" }}>
-            <span style={{ fontSize: "12px", letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 900 }}>
-              Date of birth
-            </span>
-            <input type="date" value={dob} onChange={(event) => setDob(event.target.value)} style={inputStyle} />
-          </label>
-
-          <label style={{ display: "grid", gridTemplateColumns: "20px 1fr", gap: "12px", alignItems: "start" }}>
-            <input type="checkbox" checked={confirmAge} onChange={(event) => setConfirmAge(event.target.checked)} style={{ marginTop: "4px" }} />
-            <span>I confirm that my date of birth is accurate.</span>
-          </label>
-
-          <label style={{ display: "grid", gridTemplateColumns: "20px 1fr", gap: "12px", alignItems: "start" }}>
-            <input type="checkbox" checked={confirmTerms} onChange={(event) => setConfirmTerms(event.target.checked)} style={{ marginTop: "4px" }} />
-            <span>
-              I understand these are virtual Dreamscape properties. Dreamscape
-              Tokens have no cash value and the units do not represent legal
-              ownership of real-world land or buildings.
-            </span>
-          </label>
-
-          {gateError && <p style={{ color: "#ffb0b0", fontWeight: 800 }}>{gateError}</p>}
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
-            <button
-              type="button"
-              onClick={handleAgeVerification}
-              disabled={actionLoading}
-              style={{ ...primaryButton, opacity: actionLoading ? 0.6 : 1 }}
-            >
-              {actionLoading ? "Checking..." : "Continue"}
-            </button>
-            <Link href="/milo-world/exchange" style={secondaryButton}>Exchange Home</Link>
-          </div>
         </div>
       </CenterPanel>
     );
@@ -1556,7 +1350,7 @@ export default function PropertyExchangeClient() {
                   ["Unit Type", previewProperty.unit_type],
                   ["Floor Area", `${previewProperty.area_sqm} sqm`],
                   ["Dreamscape Price", `${formatNumber(previewProperty.listing_price)} DT`],
-                  ["Weekly Rental", `${formatNumber(previewProperty.weekly_rent)} DT`],
+                  ["Weekly Rent Rate", `${formatNumber(previewProperty.weekly_rent)} DT/week`],
                   ["Units Available", `${previewProperty.available_quantity}`],
                   ["Your Holdings", `${holdingsByProperty.get(previewProperty.id)?.quantity || 0}`],
                 ].map(([label, value]) => (
@@ -1644,7 +1438,7 @@ export default function PropertyExchangeClient() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: "9px", justifyContent: isMobile ? "flex-start" : "flex-end" }}>
             <Link href="/milo-world/exchange/stocks" style={navButtonStyle}>Stock Exchange</Link>
             <Link href="/profile" style={navButtonStyle}>{formatNumber(dreamTokens)} DT</Link>
-            <span style={{ ...navButtonStyle, color: "#ffd18a", borderColor: "rgba(255,209,138,0.24)" }}>16+ Virtual Market</span>
+            <span style={{ ...navButtonStyle, color: "#ffd18a", borderColor: "rgba(255,209,138,0.24)" }}>Virtual Learning Market</span>
           </div>
         </header>
 
@@ -1656,27 +1450,60 @@ export default function PropertyExchangeClient() {
             Property Exchange
           </h1>
           <p style={{ margin: "18px auto 0", maxWidth: "760px", color: "rgba(255,255,255,0.64)", lineHeight: 1.7, fontSize: isMobile ? "15px" : "17px" }}>
-            Explore the first two built districts, compare unit supply and rental
-            income, and purchase virtual properties directly from Dreamscape.
+            Explore the first two built districts, compare unit supply and weekly
+            rent, and purchase virtual properties directly from Dreamscape.
           </p>
         </section>
 
         <section data-milo-guide="property-summary" style={{ marginTop: "28px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", gap: "12px" }}>
           {[
-            ["Cash Holdings", `${formatNumber(dreamTokens)} DT`],
-            ["Property Value", `${formatNumber(propertyPortfolioValue)} DT`],
-            ["Weekly Rental", `${formatNumber(weeklyRentalIncome)} DT`],
-            ["Units Owned", `${totalOwnedUnits}`],
-          ].map(([label, value]) => (
-            <article key={label} style={{ ...glassPanel, padding: isMobile ? "16px" : "20px" }}>
+            { label: "Cash Holdings", value: `${formatNumber(dreamTokens)} DT`, note: "Ledger balance" },
+            { label: "Property Value", value: `${formatNumber(propertyPortfolioValue)} DT`, note: "Current reference value" },
+            { label: "Weekly Rent Rate", value: `${formatNumber(weeklyRentalIncome)} DT`, note: "Automatic Monday payout" },
+            { label: "Units Owned", value: `${totalOwnedUnits}`, note: "Across all properties" },
+          ].map((item) => (
+            <article key={item.label} style={{ ...glassPanel, padding: isMobile ? "16px" : "20px" }}>
               <span style={{ color: "rgba(255,255,255,0.48)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 850 }}>
-                {label}
+                {item.label}
               </span>
               <strong style={{ display: "block", marginTop: "9px", fontSize: isMobile ? "21px" : "27px", letterSpacing: "-0.04em" }}>
-                {value}
+                {item.value}
               </strong>
+              <span style={{ display: "block", marginTop: "6px", color: "rgba(255,255,255,0.4)", fontSize: "11px", lineHeight: 1.4 }}>
+                {item.note}
+              </span>
             </article>
           ))}
+        </section>
+
+        <section
+          style={{
+            ...glassPanel,
+            marginTop: "12px",
+            padding: isMobile ? "14px 16px" : "15px 20px",
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            justifyContent: "space-between",
+            gap: "10px",
+            alignItems: isMobile ? "flex-start" : "center",
+          }}
+        >
+          <div>
+            <strong style={{ color: "#79f2ce", fontSize: "13px" }}>Rental income is now a real DT payout.</strong>
+            <p style={{ margin: "5px 0 0", color: "rgba(255,255,255,0.52)", fontSize: "12px", lineHeight: 1.5 }}>
+              Every Monday, the server pays one week of rent for the units held at payout time. Duplicate payouts are blocked by the database.
+            </p>
+          </div>
+          <div style={{ flexShrink: 0, textAlign: isMobile ? "left" : "right" }}>
+            <span style={{ display: "block", color: "rgba(255,255,255,0.42)", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 850 }}>
+              Last rental payout
+            </span>
+            <strong style={{ display: "block", marginTop: "4px", color: latestRentPayout ? "#79f2ce" : "rgba(255,255,255,0.6)", fontSize: "13px" }}>
+              {latestRentPayout
+                ? `+${formatNumber(latestRentPayout.amount)} DT · ${formatDateTime(latestRentPayout.paid_at)}`
+                : "No payout yet"}
+            </strong>
+          </div>
         </section>
 
         {pageMessage && (
