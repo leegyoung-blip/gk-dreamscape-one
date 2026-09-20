@@ -8,29 +8,23 @@ export const dynamic = "force-dynamic";
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, {
     status,
-    headers: {
-      "Cache-Control": "no-store",
-    },
+    headers: { "Cache-Control": "no-store" },
   });
 }
 
 async function requireAdmin(request: Request) {
   const authHeader =
     request.headers.get("authorization") || "";
-
   const token =
     authHeader.startsWith("Bearer ")
       ? authHeader.slice(7).trim()
       : "";
 
-  if (!token) {
-    throw new Error("AUTH_REQUIRED");
-  }
+  if (!token) throw new Error("AUTH_REQUIRED");
 
   const url =
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL;
-
   const key =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
@@ -77,8 +71,6 @@ async function requireAdmin(request: Request) {
   ) {
     throw new Error("ADMIN_REQUIRED");
   }
-
-  return user;
 }
 
 export async function GET(request: Request) {
@@ -102,17 +94,40 @@ export async function GET(request: Request) {
         days * 24 * 60 * 60 * 1000,
     ).toISOString();
 
-    const { data: runs, error } =
-      await supabaseAdmin
+    const [
+      runsResult,
+      settingsResult,
+      recentFailureResult,
+    ] = await Promise.all([
+      supabaseAdmin
         .from("nova_schoolwork_analysis_runs")
         .select(
-          "status,trigger_source,extraction_model,reasoning_model,total_cost_usd,automatic_retry_count,duration_ms,page_count,question_count,error_code,started_at,completed_at",
+          "id,upload_id,run_number,status,trigger_source,extraction_model,reasoning_model,total_cost_usd,automatic_retry_count,duration_ms,page_count,question_count,error_code,error_message,started_at,completed_at",
         )
-        .gte("started_at", since);
+        .gte("started_at", since),
 
-    if (error) throw error;
+      supabaseAdmin
+        .from("nova_schoolwork_settings")
+        .select("*")
+        .eq("id", 1)
+        .single(),
 
-    const rows = runs ?? [];
+      supabaseAdmin
+        .from("nova_schoolwork_analysis_runs")
+        .select(
+          "id,upload_id,run_number,status,error_code,error_message,started_at,completed_at,duration_ms",
+        )
+        .in("status", ["failed", "needs_input"])
+        .order("started_at", { ascending: false })
+        .limit(12),
+    ]);
+
+    if (runsResult.error) throw runsResult.error;
+    if (settingsResult.error) throw settingsResult.error;
+    if (recentFailureResult.error) throw recentFailureResult.error;
+
+    const rows = runsResult.data ?? [];
+    const settings = settingsResult.data;
 
     const succeeded =
       rows.filter(
@@ -132,24 +147,33 @@ export async function GET(request: Request) {
     const durations =
       rows
         .map((row) => Number(row.duration_ms))
-        .filter((value) =>
-          Number.isFinite(value),
-        );
+        .filter((value) => Number.isFinite(value));
 
     const costs =
       rows
-        .map((row) =>
-          Number(row.total_cost_usd),
-        )
-        .filter((value) =>
-          Number.isFinite(value),
-        );
+        .map((row) => Number(row.total_cost_usd))
+        .filter((value) => Number.isFinite(value));
 
     const totalCost =
       costs.reduce(
         (sum, value) => sum + value,
         0,
       );
+
+    const averageCost =
+      costs.length > 0
+        ? totalCost / costs.length
+        : null;
+
+    const averageDurationSeconds =
+      durations.length > 0
+        ? durations.reduce(
+            (sum, value) => sum + value,
+            0,
+          ) /
+          durations.length /
+          1000
+        : null;
 
     const totalQuestions =
       rows.reduce(
@@ -169,22 +193,30 @@ export async function GET(request: Request) {
         0,
       );
 
+    const failureRate =
+      rows.length > 0
+        ? ((failed + needsInput) / rows.length) *
+          100
+        : 0;
+
     const failureReasons =
       Object.entries(
         rows.reduce<Record<string, number>>(
           (acc, row) => {
+            if (
+              row.status !== "failed" &&
+              row.status !== "needs_input"
+            ) {
+              return acc;
+            }
+
             const key =
               String(
                 row.error_code || "UNKNOWN",
               );
 
-            if (
-              row.status === "failed" ||
-              row.status === "needs_input"
-            ) {
-              acc[key] =
-                (acc[key] || 0) + 1;
-            }
+            acc[key] =
+              (acc[key] || 0) + 1;
 
             return acc;
           },
@@ -200,10 +232,85 @@ export async function GET(request: Request) {
             b.count - a.count,
         );
 
+    const warnings: string[] = [];
+
+    if (
+      failureRate >
+      Number(
+        settings.warning_failure_rate_pct ||
+          10,
+      )
+    ) {
+      warnings.push(
+        `Failure / needs-attention rate is ${failureRate.toFixed(
+          1,
+        )}%.`,
+      );
+    }
+
+    if (
+      averageDurationSeconds !== null &&
+      averageDurationSeconds >
+        Number(
+          settings.warning_average_latency_seconds ||
+            60,
+        )
+    ) {
+      warnings.push(
+        `Average analysis time is ${averageDurationSeconds.toFixed(
+          1,
+        )} seconds.`,
+      );
+    }
+
+    if (
+      averageCost !== null &&
+      averageCost >
+        Number(
+          settings.warning_average_cost_usd ||
+            0.15,
+        )
+    ) {
+      warnings.push(
+        `Average estimated analysis cost is $${averageCost.toFixed(
+          4,
+        )}.`,
+      );
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      warnings.unshift(
+        "OPENAI_API_KEY is not configured on the server.",
+      );
+    }
+
+    if (!settings.enabled) {
+      warnings.unshift(
+        "Schoolwork AI is paused by the admin kill switch.",
+      );
+    }
+
     return json({
       window_days: days,
       generated_at:
         new Date().toISOString(),
+
+      environment: {
+        openai_api_key_configured:
+          Boolean(process.env.OPENAI_API_KEY),
+      },
+
+      settings: {
+        enabled: Boolean(settings.enabled),
+        extraction_model:
+          settings.extraction_model,
+        reasoning_model:
+          settings.reasoning_model,
+        fallback_enabled:
+          Boolean(settings.fallback_enabled),
+        fallback_model:
+          settings.fallback_model,
+      },
 
       runs: rows.length,
       succeeded,
@@ -218,33 +325,26 @@ export async function GET(request: Request) {
             ) / 10
           : null,
 
+      failure_rate:
+        Math.round(failureRate * 10) / 10,
+
       average_duration_seconds:
-        durations.length > 0
-          ? Math.round(
-              (
-                durations.reduce(
-                  (sum, value) =>
-                    sum + value,
-                  0,
-                ) /
-                durations.length /
-                1000
-              ) *
-                10,
-            ) / 10
-          : null,
+        averageDurationSeconds === null
+          ? null
+          : Math.round(
+              averageDurationSeconds * 10,
+            ) / 10,
 
       total_estimated_cost_usd:
         Math.round(totalCost * 10000) /
         10000,
 
       average_estimated_cost_usd:
-        costs.length > 0
-          ? Math.round(
-              (totalCost / costs.length) *
-                10000,
-            ) / 10000
-          : null,
+        averageCost === null
+          ? null
+          : Math.round(
+              averageCost * 10000,
+            ) / 10000,
 
       questions_analysed:
         totalQuestions,
@@ -254,6 +354,11 @@ export async function GET(request: Request) {
 
       failure_reasons:
         failureReasons,
+
+      warnings,
+
+      recent_failures:
+        recentFailureResult.data ?? [],
     });
   } catch (error) {
     const message =

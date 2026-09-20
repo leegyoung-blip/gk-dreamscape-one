@@ -25,6 +25,14 @@ type NovaSchoolworkUploaderProps = {
 type SubjectHint = "" | "english" | "math";
 type LevelHint = "" | "1" | "2" | "3" | "4" | "5" | "6";
 
+type SchoolworkPublicConfig = {
+  enabled: boolean;
+  max_file_size_mb: number;
+  max_pages: number;
+  max_questions: number;
+  daily_upload_limit: number;
+};
+
 type UploadStage =
   | "select"
   | "uploading"
@@ -131,7 +139,7 @@ type DuplicateUpload = {
   created_at: string;
 };
 
-const MAX_BYTES = 20 * 1024 * 1024;
+const DEFAULT_MAX_BYTES = 20 * 1024 * 1024;
 
 const ALLOWED_TYPES = new Set([
   "application/pdf",
@@ -330,6 +338,15 @@ export default function NovaSchoolworkUploader({
 
   const [dragActive, setDragActive] = useState(false);
 
+  const [publicConfig, setPublicConfig] =
+    useState<SchoolworkPublicConfig>({
+      enabled: true,
+      max_file_size_mb: 20,
+      max_pages: 20,
+      max_questions: 80,
+      daily_upload_limit: 10,
+    });
+
   const skills = useMemo(
     () =>
       result
@@ -380,6 +397,80 @@ export default function NovaSchoolworkUploader({
     [reviewState],
   );
 
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!open) return;
+
+    async function loadConfig() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+          return;
+        }
+
+        const response = await fetch(
+          "/api/nova-plus/schoolwork/config",
+          {
+            headers: {
+              Authorization:
+                `Bearer ${session.access_token}`,
+            },
+          },
+        );
+
+        const body =
+          await response.json().catch(() => null);
+
+        if (
+          !cancelled &&
+          response.ok &&
+          body
+        ) {
+          setPublicConfig({
+            enabled:
+              Boolean(body.enabled),
+
+            max_file_size_mb:
+              Number(
+                body.max_file_size_mb ||
+                  20,
+              ),
+
+            max_pages:
+              Number(
+                body.max_pages ||
+                  20,
+              ),
+
+            max_questions:
+              Number(
+                body.max_questions ||
+                  80,
+              ),
+
+            daily_upload_limit:
+              Number(
+                body.daily_upload_limit ||
+                  10,
+              ),
+          });
+        }
+      } catch {
+        // The server analysis route remains authoritative.
+      }
+    }
+
+    void loadConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   useEffect(() => {
     let cancelled = false;
@@ -507,8 +598,21 @@ export default function NovaSchoolworkUploader({
       return "This file appears to be empty.";
     }
 
-    if (nextFile.size > MAX_BYTES) {
-      return "The maximum file size is 20 MB.";
+    const maxBytes =
+      Number(
+        publicConfig.max_file_size_mb ||
+          20,
+      ) *
+      1024 *
+      1024;
+
+    if (
+      nextFile.size >
+      (Number.isFinite(maxBytes)
+        ? maxBytes
+        : DEFAULT_MAX_BYTES)
+    ) {
+      return `The maximum file size is ${publicConfig.max_file_size_mb} MB.`;
     }
 
     return "";
@@ -590,6 +694,13 @@ export default function NovaSchoolworkUploader({
   async function analyse() {
     if (!file) return;
 
+    if (!publicConfig.enabled) {
+      setError(
+        "Schoolwork analysis is temporarily paused.",
+      );
+      return;
+    }
+
     if (
       duplicateUpload &&
       !uploadDuplicateAnyway
@@ -626,6 +737,45 @@ export default function NovaSchoolworkUploader({
       setStage("error");
       setError(
         "Please sign in again before uploading schoolwork.",
+      );
+      return;
+    }
+
+    const rollingDayStart =
+      new Date(
+        Date.now() -
+          24 * 60 * 60 * 1000,
+      ).toISOString();
+
+    const {
+      count: recentUploadCount,
+      error: countError,
+    } = await supabase
+      .from("nova_schoolwork_uploads")
+      .select("id", {
+        count: "exact",
+        head: true,
+      })
+      .eq(
+        "student_user_id",
+        learnerId,
+      )
+      .gte(
+        "created_at",
+        rollingDayStart,
+      );
+
+    if (
+      !countError &&
+      Number(recentUploadCount || 0) >=
+        Number(
+          publicConfig.daily_upload_limit ||
+            10,
+        )
+    ) {
+      setStage("error");
+      setError(
+        `This learner has reached the current ${publicConfig.daily_upload_limit}-upload limit for the last 24 hours.`,
       );
       return;
     }
@@ -919,7 +1069,7 @@ export default function NovaSchoolworkUploader({
                       or click to choose a file
                     </span>
                     <small>
-                      PDF, PNG or JPG · maximum 20 MB · up to 20 pages
+                      PDF, PNG or JPG · maximum {publicConfig.max_file_size_mb} MB · up to {publicConfig.max_pages} pages
                     </small>
                   </div>
                 )}
@@ -1031,6 +1181,12 @@ export default function NovaSchoolworkUploader({
                         : "Upload anyway"}
                     </button>
                   </div>
+                </div>
+              )}
+
+              {!publicConfig.enabled && (
+                <div className={styles.error}>
+                  Schoolwork analysis is temporarily paused by Dreamscape.
                 </div>
               )}
 
@@ -1704,7 +1860,10 @@ export default function NovaSchoolworkUploader({
             <button
               type="button"
               className={styles.primary}
-              disabled={!file}
+              disabled={
+                !file ||
+                !publicConfig.enabled
+              }
               onClick={() => void analyse()}
             >
               Upload &amp; Analyse

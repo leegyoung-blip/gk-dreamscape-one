@@ -32,6 +32,19 @@ export type MyPropertyListing = {
   buyer_name: string | null;
 };
 
+export type RecentPropertySaleLite = {
+  sale_id: string;
+  property_id: string;
+  property_name: string;
+  district: string;
+  property_type: string;
+  buyer_name: string;
+  quantity: number;
+  price_per_unit: number;
+  total_price: number;
+  sold_at: string;
+};
+
 type PropertyOfferingLite = {
   id: string;
   code: string;
@@ -59,6 +72,7 @@ type Props = {
   holdings: PropertyHoldingLite[];
   resaleListings: PropertyResaleListing[];
   myListings: MyPropertyListing[];
+  recentSales: RecentPropertySaleLite[];
   dreamTokens: number;
   actionLoading: boolean;
   marketLoading: boolean;
@@ -72,6 +86,7 @@ type Props = {
   onBuy: (listing: PropertyResaleListing) => Promise<void>;
   onCreateListing: (propertyId: string, askingPrice: number) => Promise<void>;
   onCancelListing: (listingId: string) => Promise<void>;
+  onOpenProperty: (propertyId: string) => void;
 };
 
 const PROPERTY_ASSET_BASE = "/milo-world/property-exchange";
@@ -146,6 +161,7 @@ export default function PropertyResaleMarket({
   holdings,
   resaleListings,
   myListings,
+  recentSales,
   dreamTokens,
   actionLoading,
   marketLoading,
@@ -159,6 +175,7 @@ export default function PropertyResaleMarket({
   onBuy,
   onCreateListing,
   onCancelListing,
+  onOpenProperty,
 }: Props) {
   const [listingPropertyId, setListingPropertyId] = useState<string | null>(null);
   const [askingPrice, setAskingPrice] = useState(0);
@@ -652,52 +669,214 @@ export default function PropertyResaleMarket({
         style={{
           marginTop: "18px",
           display: "grid",
-          gridTemplateColumns: isCompact ? "1fr" : "1fr 1fr",
+          gridTemplateColumns: isCompact ? "1fr" : "minmax(0, 1fr) minmax(0, 1fr)",
           gap: "18px",
           alignItems: "start",
         }}
       >
-        <section style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
-          <p
-            style={{
-              margin: 0,
-              color: "#79f2ce",
-              fontSize: "12px",
-              textTransform: "uppercase",
-              letterSpacing: "0.18em",
-              fontWeight: 900,
-            }}
-          >
-            Sell Property
-          </p>
-          <h2
-            style={{
-              margin: "10px 0 0",
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontSize: isMobile ? "32px" : "39px",
-              fontWeight: 500,
-            }}
-          >
-            List My Units
-          </h2>
-          <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55 }}>
-            List one owned unit at a time. Asking prices are limited to 85–115% of the current reference value.
-          </p>
-
-          {holdings.length === 0 ? (
-            <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.55)" }}>
-              Purchase a property before creating a resale listing.
+        {/*
+          Desktop uses two independent vertical columns instead of two shared
+          grid rows. This is intentional: the left and right sides can have
+          different amounts of content without creating the large blank gaps
+          that appeared between sections previously.
+        */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "18px", minWidth: 0 }}>
+          <section style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
+            <p
+              style={{
+                margin: 0,
+                color: "#79f2ce",
+                fontSize: "12px",
+                textTransform: "uppercase",
+                letterSpacing: "0.18em",
+                fontWeight: 900,
+              }}
+            >
+              Sell Property
             </p>
-          ) : (
-            <div style={{ marginTop: "17px", display: "grid", gap: "10px" }}>
-              {holdings.map((holding) => {
-                const property = properties.find((item) => item.id === holding.property_id);
-                if (!property) return null;
-                const active = activeListingsByProperty.get(property.id);
+            <h2
+              style={{
+                margin: "10px 0 0",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "32px" : "39px",
+                fontWeight: 500,
+              }}
+            >
+              List My Units
+            </h2>
+            <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55 }}>
+              List one owned unit at a time. Asking prices are limited to 85–115% of the current reference value.
+            </p>
 
-                return (
+            {holdings.length === 0 ? (
+              <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.55)" }}>
+                Purchase a property before creating a resale listing.
+              </p>
+            ) : (
+              <div style={{ marginTop: "17px", display: "grid", gap: "10px" }}>
+                {holdings.map((holding) => {
+                  const property = properties.find((item) => item.id === holding.property_id);
+                  if (!property) return null;
+                  const active = activeListingsByProperty.get(property.id);
+
+                  return (
+                    <article
+                      key={holding.id}
+                      style={{
+                        borderRadius: "16px",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        background: "rgba(255,255,255,0.05)",
+                        padding: "14px",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
+                        <span>
+                          <strong style={{ display: "block" }}>{property.name}</strong>
+                          <small style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,0.45)" }}>
+                            {holding.quantity} unit{holding.quantity === 1 ? "" : "s"} owned · Reference {formatNumber(Math.max(property.current_value, property.listing_price))} DT
+                          </small>
+                        </span>
+
+                        {active && (
+                          <span
+                            style={{
+                              borderRadius: "999px",
+                              padding: "5px 8px",
+                              background: "rgba(255,209,138,0.1)",
+                              color: "#ffd18a",
+                              fontSize: "10px",
+                              fontWeight: 900,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Listed
+                          </span>
+                        )}
+                      </div>
+
+                      {active ? (
+                        <div style={{ marginTop: "11px", display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                          <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "12px" }}>
+                            Asking <strong style={{ color: "#ffd18a" }}>{formatNumber(active.asking_price)} DT</strong>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void onCancelListing(active.listing_id)}
+                            disabled={actionLoading}
+                            style={{ ...secondaryButton, minHeight: "36px", padding: "0 13px", fontSize: "12px" }}
+                          >
+                            Cancel Listing
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openListing(property)}
+                          disabled={actionLoading}
+                          style={{ ...primaryButton, width: "100%", minHeight: "40px", marginTop: "11px" }}
+                        >
+                          List 1 Unit for Resale
+                        </button>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
+            <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.18em", fontWeight: 900 }}>
+              Your Portfolio
+            </p>
+            <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "42px", fontWeight: 500 }}>
+              My Property Units
+            </h2>
+
+            {holdings.length === 0 ? (
+              <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.58)", lineHeight: 1.6 }}>
+                You have not purchased a property unit yet.
+              </p>
+            ) : (
+              <div style={{ marginTop: "18px", display: "grid", gap: "10px" }}>
+                {holdings.map((holding) => {
+                  const property = properties.find((item) => item.id === holding.property_id);
+                  if (!property) return null;
+
+                  return (
+                    <button
+                      key={holding.id}
+                      type="button"
+                      onClick={() => onOpenProperty(property.id)}
+                      style={{
+                        borderRadius: "17px",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        background: "rgba(255,255,255,0.055)",
+                        color: "white",
+                        padding: "15px",
+                        display: "grid",
+                        gridTemplateColumns: "minmax(0,1fr) auto",
+                        gap: "12px",
+                        alignItems: "center",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      <span style={{ minWidth: 0 }}>
+                        <strong style={{ display: "block" }}>{property.name}</strong>
+                        <small style={{ display: "block", marginTop: "5px", color: "rgba(255,255,255,0.48)" }}>
+                          {property.district} · {holding.quantity} unit{holding.quantity === 1 ? "" : "s"}
+                        </small>
+                      </span>
+                      <span style={{ textAlign: "right" }}>
+                        <strong style={{ color: "#ffd18a", whiteSpace: "nowrap" }}>{formatNumber(property.current_value * holding.quantity)} DT</strong>
+                        <small style={{ display: "block", marginTop: "5px", color: "#8ee8ff", whiteSpace: "nowrap" }}>
+                          +{formatNumber(property.weekly_rent * holding.quantity)} DT/week
+                        </small>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "18px", minWidth: 0 }}>
+          <section style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
+            <p
+              style={{
+                margin: 0,
+                color: "#ffd18a",
+                fontSize: "12px",
+                textTransform: "uppercase",
+                letterSpacing: "0.18em",
+                fontWeight: 900,
+              }}
+            >
+              My Resale Activity
+            </p>
+            <h2
+              style={{
+                margin: "10px 0 0",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "32px" : "39px",
+                fontWeight: 500,
+              }}
+            >
+              My Listings
+            </h2>
+
+            {activeMyListings.length === 0 && recentMyListings.length === 0 ? (
+              <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.55)" }}>
+                You have not created any resale listings yet.
+              </p>
+            ) : (
+              <div className="milo-scrollbar" style={{ marginTop: "17px", display: "grid", gap: "9px", maxHeight: "460px", overflowY: "auto", paddingRight: "3px" }}>
+                {[...activeMyListings, ...recentMyListings].map((listing) => (
                   <article
-                    key={holding.id}
+                    key={listing.listing_id}
                     style={{
                       borderRadius: "16px",
                       border: "1px solid rgba(255,255,255,0.1)",
@@ -705,156 +884,104 @@ export default function PropertyResaleMarket({
                       padding: "14px",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
-                      <span>
-                        <strong style={{ display: "block" }}>{property.name}</strong>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "flex-start" }}>
+                      <span style={{ minWidth: 0 }}>
+                        <strong style={{ display: "block" }}>{listing.property_name}</strong>
                         <small style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,0.45)" }}>
-                          {holding.quantity} unit{holding.quantity === 1 ? "" : "s"} owned · Reference {formatNumber(Math.max(property.current_value, property.listing_price))} DT
+                          {formatNumber(listing.asking_price)} DT · created {formatDateTime(listing.created_at)}
                         </small>
                       </span>
-
-                      {active && (
-                        <span
-                          style={{
-                            borderRadius: "999px",
-                            padding: "5px 8px",
-                            background: "rgba(255,209,138,0.1)",
-                            color: "#ffd18a",
-                            fontSize: "10px",
-                            fontWeight: 900,
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          Listed
-                        </span>
-                      )}
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          borderRadius: "999px",
+                          padding: "5px 8px",
+                          background:
+                            listing.status === "active"
+                              ? "rgba(121,242,206,0.1)"
+                              : listing.status === "sold"
+                              ? "rgba(142,232,255,0.1)"
+                              : "rgba(255,255,255,0.07)",
+                          color:
+                            listing.status === "active"
+                              ? "#79f2ce"
+                              : listing.status === "sold"
+                              ? "#8ee8ff"
+                              : "rgba(255,255,255,0.62)",
+                          fontSize: "10px",
+                          fontWeight: 900,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {listing.status}
+                      </span>
                     </div>
 
-                    {active ? (
-                      <div style={{ marginTop: "11px", display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                        <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "12px" }}>
-                          Asking <strong style={{ color: "#ffd18a" }}>{formatNumber(active.asking_price)} DT</strong>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => void onCancelListing(active.listing_id)}
-                          disabled={actionLoading}
-                          style={{ ...secondaryButton, minHeight: "36px", padding: "0 13px", fontSize: "12px" }}
-                        >
-                          Cancel Listing
-                        </button>
-                      </div>
-                    ) : (
+                    <div style={{ marginTop: "9px", color: "rgba(255,255,255,0.48)", fontSize: "12px", lineHeight: 1.5 }}>
+                      {listing.status === "active" && <>Expires {formatDateTime(listing.expires_at)}</>}
+                      {listing.status === "sold" && <>{listing.buyer_name ? `Purchased by ${listing.buyer_name}` : "Sold"} · {formatDateTime(listing.sold_at)}</>}
+                      {listing.status === "cancelled" && <>Listing cancelled.</>}
+                      {listing.status === "expired" && <>Listing expired without a sale.</>}
+                    </div>
+
+                    {listing.status === "active" && (
                       <button
                         type="button"
-                        onClick={() => openListing(property)}
+                        onClick={() => void onCancelListing(listing.listing_id)}
                         disabled={actionLoading}
-                        style={{ ...primaryButton, width: "100%", minHeight: "40px", marginTop: "11px" }}
+                        style={{ ...secondaryButton, width: "100%", minHeight: "38px", marginTop: "11px" }}
                       >
-                        List 1 Unit for Resale
+                        Cancel Listing
                       </button>
                     )}
                   </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
+                ))}
+              </div>
+            )}
+          </section>
 
-        <section style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
-          <p
-            style={{
-              margin: 0,
-              color: "#ffd18a",
-              fontSize: "12px",
-              textTransform: "uppercase",
-              letterSpacing: "0.18em",
-              fontWeight: 900,
-            }}
-          >
-            My Resale Activity
-          </p>
-          <h2
-            style={{
-              margin: "10px 0 0",
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontSize: isMobile ? "32px" : "39px",
-              fontWeight: 500,
-            }}
-          >
-            My Listings
-          </h2>
-
-          {activeMyListings.length === 0 && recentMyListings.length === 0 ? (
-            <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.55)" }}>
-              You have not created any resale listings yet.
+          <section style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
+            <p style={{ margin: 0, color: "#ffd18a", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.18em", fontWeight: 900 }}>
+              Public Market Record
             </p>
-          ) : (
-            <div className="milo-scrollbar" style={{ marginTop: "17px", display: "grid", gap: "9px", maxHeight: "460px", overflowY: "auto", paddingRight: "3px" }}>
-              {[...activeMyListings, ...recentMyListings].map((listing) => (
-                <article
-                  key={listing.listing_id}
-                  style={{
-                    borderRadius: "16px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "rgba(255,255,255,0.05)",
-                    padding: "14px",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "flex-start" }}>
-                    <span>
-                      <strong style={{ display: "block" }}>{listing.property_name}</strong>
-                      <small style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,0.45)" }}>
-                        {formatNumber(listing.asking_price)} DT · created {formatDateTime(listing.created_at)}
-                      </small>
-                    </span>
-                    <span
-                      style={{
-                        borderRadius: "999px",
-                        padding: "5px 8px",
-                        background:
-                          listing.status === "active"
-                            ? "rgba(121,242,206,0.1)"
-                            : listing.status === "sold"
-                            ? "rgba(142,232,255,0.1)"
-                            : "rgba(255,255,255,0.07)",
-                        color:
-                          listing.status === "active"
-                            ? "#79f2ce"
-                            : listing.status === "sold"
-                            ? "#8ee8ff"
-                            : "rgba(255,255,255,0.62)",
-                        fontSize: "10px",
-                        fontWeight: 900,
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {listing.status}
-                    </span>
-                  </div>
+            <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "42px", fontWeight: 500 }}>
+              Recent Property Sales
+            </h2>
+            <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55 }}>
+              Completed Dreamscape property purchases are visible to all Exchange users.
+            </p>
 
-                  <div style={{ marginTop: "9px", color: "rgba(255,255,255,0.48)", fontSize: "12px", lineHeight: 1.5 }}>
-                    {listing.status === "active" && <>Expires {formatDateTime(listing.expires_at)}</>}
-                    {listing.status === "sold" && <>{listing.buyer_name ? `Purchased by ${listing.buyer_name}` : "Sold"} · {formatDateTime(listing.sold_at)}</>}
-                    {listing.status === "cancelled" && <>Listing cancelled.</>}
-                    {listing.status === "expired" && <>Listing expired without a sale.</>}
-                  </div>
-
-                  {listing.status === "active" && (
-                    <button
-                      type="button"
-                      onClick={() => void onCancelListing(listing.listing_id)}
-                      disabled={actionLoading}
-                      style={{ ...secondaryButton, width: "100%", minHeight: "38px", marginTop: "11px" }}
-                    >
-                      Cancel Listing
-                    </button>
-                  )}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+            {recentSales.length === 0 ? (
+              <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.58)" }}>
+                No completed property sales yet.
+              </p>
+            ) : (
+              <div className="milo-scrollbar" style={{ marginTop: "18px", display: "grid", gap: "9px", maxHeight: "520px", overflowY: "auto", paddingRight: "4px" }}>
+                {recentSales.map((sale) => (
+                  <article key={sale.sale_id} style={{ borderRadius: "17px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.055)", padding: "15px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
+                      <span style={{ minWidth: 0 }}>
+                        <strong style={{ display: "block" }}>{sale.property_name}</strong>
+                        <small style={{ display: "block", marginTop: "5px", color: "rgba(255,255,255,0.46)" }}>
+                          {sale.district} · {titleCase(sale.property_type)}
+                        </small>
+                      </span>
+                      <strong style={{ color: "#ffd18a", whiteSpace: "nowrap" }}>
+                        {formatNumber(sale.total_price)} DT
+                      </strong>
+                    </div>
+                    <div style={{ marginTop: "11px", display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", color: "rgba(255,255,255,0.54)", fontSize: "12px" }}>
+                      <span>
+                        {sale.buyer_name} purchased {sale.quantity} unit{sale.quantity === 1 ? "" : "s"}
+                      </span>
+                      <span>{formatDateTime(sale.sold_at)}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       </section>
     </>
   );

@@ -1916,6 +1916,7 @@ export default function PropertyExchangeClient() {
           holdings={holdings}
           resaleListings={resaleListings}
           myListings={myListings}
+          recentSales={recentSales}
           dreamTokens={dreamTokens}
           actionLoading={actionLoading}
           marketLoading={marketLoading}
@@ -1931,108 +1932,11 @@ export default function PropertyExchangeClient() {
           onBuy={buyResaleProperty}
           onCreateListing={createResaleListing}
           onCancelListing={cancelResaleListing}
+          onOpenProperty={(propertyId) => {
+            const property = properties.find((item) => item.id === propertyId);
+            if (property) openPreview(property);
+          }}
         />
-
-        <section style={{ marginTop: "18px", display: "grid", gridTemplateColumns: isDesktop ? "0.95fr 1.05fr" : "1fr", gap: "18px", alignItems: "start" }}>
-          <section style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
-            <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.18em", fontWeight: 900 }}>
-              Your Portfolio
-            </p>
-            <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "42px", fontWeight: 500 }}>
-              My Property Units
-            </h2>
-
-            {holdings.length === 0 ? (
-              <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.58)", lineHeight: 1.6 }}>
-                You have not purchased a property unit yet.
-              </p>
-            ) : (
-              <div style={{ marginTop: "18px", display: "grid", gap: "10px" }}>
-                {holdings.map((holding) => {
-                  const property = properties.find((item) => item.id === holding.property_id);
-                  if (!property) return null;
-
-                  return (
-                    <button
-                      key={holding.id}
-                      type="button"
-                      onClick={() => openPreview(property)}
-                      style={{
-                        borderRadius: "17px",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        background: "rgba(255,255,255,0.055)",
-                        color: "white",
-                        padding: "15px",
-                        display: "grid",
-                        gridTemplateColumns: "1fr auto",
-                        gap: "12px",
-                        alignItems: "center",
-                        textAlign: "left",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      <span>
-                        <strong style={{ display: "block" }}>{property.name}</strong>
-                        <small style={{ display: "block", marginTop: "5px", color: "rgba(255,255,255,0.48)" }}>
-                          {property.district} · {holding.quantity} unit{holding.quantity === 1 ? "" : "s"}
-                        </small>
-                      </span>
-                      <span style={{ textAlign: "right" }}>
-                        <strong style={{ color: "#ffd18a" }}>{formatNumber(property.current_value * holding.quantity)} DT</strong>
-                        <small style={{ display: "block", marginTop: "5px", color: "#8ee8ff" }}>
-                          +{formatNumber(property.weekly_rent * holding.quantity)} DT/week
-                        </small>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <section style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
-            <p style={{ margin: 0, color: "#ffd18a", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.18em", fontWeight: 900 }}>
-              Public Market Record
-            </p>
-            <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "42px", fontWeight: 500 }}>
-              Recent Property Sales
-            </h2>
-            <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55 }}>
-              Completed Dreamscape property purchases are visible to all Exchange users.
-            </p>
-
-            {recentSales.length === 0 ? (
-              <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.58)" }}>
-                No completed property sales yet.
-              </p>
-            ) : (
-              <div className="milo-scrollbar" style={{ marginTop: "18px", display: "grid", gap: "9px", maxHeight: "520px", overflowY: "auto", paddingRight: "4px" }}>
-                {recentSales.map((sale) => (
-                  <article key={sale.sale_id} style={{ borderRadius: "17px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.055)", padding: "15px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
-                      <span>
-                        <strong style={{ display: "block" }}>{sale.property_name}</strong>
-                        <small style={{ display: "block", marginTop: "5px", color: "rgba(255,255,255,0.46)" }}>
-                          {sale.district} · {titleCase(sale.property_type)}
-                        </small>
-                      </span>
-                      <strong style={{ color: "#ffd18a", whiteSpace: "nowrap" }}>
-                        {formatNumber(sale.total_price)} DT
-                      </strong>
-                    </div>
-                    <div style={{ marginTop: "11px", display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", color: "rgba(255,255,255,0.54)", fontSize: "12px" }}>
-                      <span>
-                        {sale.buyer_name} purchased {sale.quantity} unit{sale.quantity === 1 ? "" : "s"}
-                      </span>
-                      <span>{formatDateTime(sale.sold_at)}</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-        </section>
 
         <section style={{ ...glassPanel, marginTop: "18px", padding: isMobile ? "18px" : "24px" }}>
           <h2 style={{ margin: 0, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "30px" : "38px", fontWeight: 500 }}>

@@ -6,11 +6,20 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ANALYSIS_VERSION = "schoolwork_v2";
-const MAX_PAGES = 20;
-const MAX_QUESTIONS = 80;
-const MAX_AUTOMATIC_RETRIES = 1;
+
+const DEFAULT_SETTINGS = {
+  enabled: true,
+  max_file_size_mb: 20,
+  max_pages: 20,
+  max_questions: 80,
+  daily_upload_limit: 10,
+  automatic_retry_count: 1,
+  extraction_model: "gpt-5.6-luna",
+  reasoning_model: "gpt-5.6-sol",
+  fallback_enabled: true,
+  fallback_model: "gpt-5.6-terra",
+};
 
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -182,7 +191,6 @@ function fileContentPart(params: {
       type: "input_file",
       file_url: params.signedUrl,
       filename: params.filename,
-      detail: "high",
     };
   }
 
@@ -254,6 +262,10 @@ function modelPricing(model: string) {
     return { input: 4, output: 20 };
   }
 
+  if (model === "gpt-5.6-terra") {
+    return { input: 2, output: 12 };
+  }
+
   return null;
 }
 
@@ -305,6 +317,7 @@ async function callOpenAI(params: {
   schemaName: string;
   schema: Record<string, unknown>;
   reasoningEffort: "low" | "medium";
+  maxAutomaticRetries: number;
 }) {
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -317,7 +330,7 @@ async function callOpenAI(params: {
 
   for (
     let attempt = 0;
-    attempt <= MAX_AUTOMATIC_RETRIES;
+    attempt <= params.maxAutomaticRetries;
     attempt += 1
   ) {
     try {
@@ -371,7 +384,7 @@ async function callOpenAI(params: {
           `OpenAI request failed with status ${response.status}.`;
 
         if (
-          attempt < MAX_AUTOMATIC_RETRIES &&
+          attempt < params.maxAutomaticRetries &&
           retryableOpenAIStatus(response.status)
         ) {
           automaticRetryCount += 1;
@@ -402,7 +415,7 @@ async function callOpenAI(params: {
           automaticRetryCount,
         };
       } catch {
-        if (attempt < MAX_AUTOMATIC_RETRIES) {
+        if (attempt < params.maxAutomaticRetries) {
           automaticRetryCount += 1;
           continue;
         }
@@ -412,7 +425,7 @@ async function callOpenAI(params: {
     } catch (error) {
       lastError = error;
 
-      if (attempt >= MAX_AUTOMATIC_RETRIES) {
+      if (attempt >= params.maxAutomaticRetries) {
         throw error;
       }
 
@@ -435,6 +448,93 @@ async function callOpenAI(params: {
   throw lastError instanceof Error
     ? lastError
     : new Error("OPENAI_ANALYSIS_FAILED");
+}
+
+type SchoolworkSettings = typeof DEFAULT_SETTINGS;
+
+async function loadSchoolworkSettings(): Promise<SchoolworkSettings> {
+  const { data, error } = await supabaseAdmin
+    .from("nova_schoolwork_settings")
+    .select(
+      "enabled,max_file_size_mb,max_pages,max_questions,daily_upload_limit,automatic_retry_count,extraction_model,reasoning_model,fallback_enabled,fallback_model",
+    )
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return DEFAULT_SETTINGS;
+  }
+
+  return {
+    enabled: Boolean(data.enabled),
+    max_file_size_mb:
+      Number(data.max_file_size_mb || 20),
+    max_pages:
+      Number(data.max_pages || 20),
+    max_questions:
+      Number(data.max_questions || 80),
+    daily_upload_limit:
+      Number(data.daily_upload_limit || 10),
+    automatic_retry_count:
+      Number(data.automatic_retry_count || 0),
+    extraction_model:
+      String(
+        data.extraction_model ||
+          DEFAULT_SETTINGS.extraction_model,
+      ),
+    reasoning_model:
+      String(
+        data.reasoning_model ||
+          DEFAULT_SETTINGS.reasoning_model,
+      ),
+    fallback_enabled:
+      Boolean(data.fallback_enabled),
+    fallback_model:
+      String(
+        data.fallback_model ||
+          DEFAULT_SETTINGS.fallback_model,
+      ),
+  };
+}
+
+async function callOpenAIWithFallback(
+  params: Parameters<typeof callOpenAI>[0] & {
+    fallbackEnabled: boolean;
+    fallbackModel: string;
+  },
+) {
+  try {
+    const primary = await callOpenAI(params);
+
+    return {
+      ...primary,
+      modelUsed: params.model,
+      fallbackUsed: false,
+    };
+  } catch (primaryError) {
+    const fallbackModel =
+      params.fallbackModel.trim();
+
+    if (
+      !params.fallbackEnabled ||
+      !fallbackModel ||
+      fallbackModel === params.model
+    ) {
+      throw primaryError;
+    }
+
+    const fallback = await callOpenAI({
+      ...params,
+      model: fallbackModel,
+      maxAutomaticRetries: 0,
+    });
+
+    return {
+      ...fallback,
+      modelUsed: fallbackModel,
+      fallbackUsed: true,
+    };
+  }
 }
 
 function extractionSchema() {
@@ -864,6 +964,20 @@ export async function POST(request: Request) {
   try {
     const { user, client: userClient } = await requireCurrentUser(request);
 
+    const settings =
+      await loadSchoolworkSettings();
+
+    if (!settings.enabled) {
+      return json(
+        {
+          error_code: "SCHOOLWORK_AI_PAUSED",
+          error:
+            "Schoolwork analysis is temporarily paused.",
+        },
+        503,
+      );
+    }
+
     const body = (await request.json().catch(() => ({}))) as {
       upload_id?: unknown;
       subject_hint?: unknown;
@@ -936,24 +1050,98 @@ export async function POST(request: Request) {
     );
 
     if (accessError || !canView) {
-      return json({ error: "You do not have access to this learner." }, 403);
+      return json(
+        {
+          error:
+            "You do not have access to this learner.",
+        },
+        403,
+      );
     }
 
     if (!ALLOWED_MIME_TYPES.has(upload.mime_type)) {
-      return json({ error: "Unsupported schoolwork file type." }, 400);
+      return json(
+        {
+          error:
+            "Unsupported schoolwork file type.",
+        },
+        400,
+      );
     }
+
+    const maxFileBytes =
+      Math.max(
+        1,
+        Number(
+          settings.max_file_size_mb ||
+            20,
+        ),
+      ) *
+      1024 *
+      1024;
 
     if (
       Number(upload.file_size_bytes) <= 0 ||
-      Number(upload.file_size_bytes) > MAX_FILE_SIZE
+      Number(upload.file_size_bytes) >
+        maxFileBytes
     ) {
-      return json({ error: "Schoolwork file exceeds the 20 MB limit." }, 400);
+      return json(
+        {
+          error_code: "FILE_TOO_LARGE",
+          error:
+            `The current schoolwork limit is ${settings.max_file_size_mb} MB per file.`,
+        },
+        413,
+      );
+    }
+
+    const rollingDayStart =
+      new Date(
+        Date.now() -
+          24 * 60 * 60 * 1000,
+      ).toISOString();
+
+    const { count: recentUploadCount } =
+      await supabaseAdmin
+        .from("nova_schoolwork_uploads")
+        .select("id", {
+          count: "exact",
+          head: true,
+        })
+        .eq(
+          "student_user_id",
+          upload.student_user_id,
+        )
+        .gte(
+          "created_at",
+          rollingDayStart,
+        );
+
+    if (
+      Number(recentUploadCount || 0) >
+      Number(
+        settings.daily_upload_limit ||
+          10,
+      )
+    ) {
+      return json(
+        {
+          error_code:
+            "DAILY_UPLOAD_LIMIT",
+          error:
+            `This learner has reached the current ${settings.daily_upload_limit}-upload limit for the last 24 hours.`,
+        },
+        429,
+      );
     }
 
     const extractionModel =
-      process.env.NOVA_SCHOOLWORK_EXTRACT_MODEL || "gpt-5.6-luna";
+      process.env.NOVA_SCHOOLWORK_EXTRACT_MODEL ||
+      settings.extraction_model;
+
     const reasoningModel =
-      process.env.NOVA_SCHOOLWORK_REASON_MODEL || "gpt-5.6-sol";
+      process.env.NOVA_SCHOOLWORK_REASON_MODEL ||
+      settings.reasoning_model;
 
     const startedAt = new Date().toISOString();
 
@@ -984,7 +1172,7 @@ export async function POST(request: Request) {
       .from("nova_schoolwork_uploads")
       .update({
         status: "analysing",
-        extraction_model: extractionModel,
+        extraction_model: extractionCall.modelUsed,
         analysis_model: reasoningModel,
         analysis_version: ANALYSIS_VERSION,
         analysis_started_at: startedAt,
@@ -1012,7 +1200,7 @@ export async function POST(request: Request) {
       filename: upload.original_filename,
     });
 
-    const extractionCall = await callOpenAI({
+    const extractionCall = await callOpenAIWithFallback({
       model: extractionModel,
       instructions: extractionInstructions(),
       inputText: `
@@ -1032,15 +1220,21 @@ Hints are context only. Do not force them when the document clearly contradicts 
       schemaName: "nova_schoolwork_extraction_v1",
       schema: extractionSchema(),
       reasoningEffort: "low",
+      maxAutomaticRetries:
+        settings.automatic_retry_count,
+      fallbackEnabled:
+        settings.fallback_enabled,
+      fallbackModel:
+        settings.fallback_model,
     });
 
     const extraction = extractionCall.parsed as ExtractionResult;
 
-    if (Number(extraction.pages_detected || 0) > MAX_PAGES) {
+    if (Number(extraction.pages_detected || 0) > settings.max_pages) {
       const message =
         `PAGE_LIMIT_EXCEEDED: This upload appears to contain ` +
         `${extraction.pages_detected} pages. Please upload up to ` +
-        `${MAX_PAGES} pages at a time.`;
+        `${settings.max_pages} pages at a time.`;
 
       await supabaseAdmin
         .from("nova_schoolwork_analysis_runs")
@@ -1051,7 +1245,7 @@ Hints are context only. Do not force them when the document clearly contradicts 
           extraction_raw: extraction,
           extraction_usage: extractionCall.usage,
           extraction_cost_usd: estimateCostUsd(
-            extractionModel,
+            extractionCall.modelUsed,
             extractionCall.usage,
           ),
           automatic_retry_count:
@@ -1071,7 +1265,7 @@ Hints are context only. Do not force them when the document clearly contradicts 
           status: "needs_input",
           page_count: Number(extraction.pages_detected || 0),
           error_message:
-            `Please upload up to ${MAX_PAGES} pages at a time.`,
+            `Please upload up to ${settings.max_pages} pages at a time.`,
           analysis_completed_at: new Date().toISOString(),
         })
         .eq("id", uploadId);
@@ -1082,15 +1276,15 @@ Hints are context only. Do not force them when the document clearly contradicts 
           upload_id: uploadId,
           error_code: "PAGE_LIMIT_EXCEEDED",
           message:
-            `Please upload up to ${MAX_PAGES} pages at a time.`,
+            `Please upload up to ${settings.max_pages} pages at a time.`,
         },
         422,
       );
     }
 
-    if ((extraction.questions?.length || 0) > MAX_QUESTIONS) {
+    if ((extraction.questions?.length || 0) > settings.max_questions) {
       extraction.questions =
-        extraction.questions.slice(0, MAX_QUESTIONS);
+        extraction.questions.slice(0, settings.max_questions);
     }
 
     await supabaseAdmin
@@ -1100,7 +1294,7 @@ Hints are context only. Do not force them when the document clearly contradicts 
         extraction_raw: extraction,
         extraction_usage: extractionCall.usage,
         extraction_cost_usd: estimateCostUsd(
-          extractionModel,
+          extractionCall.modelUsed,
           extractionCall.usage,
         ),
         automatic_retry_count:
@@ -1132,7 +1326,7 @@ Hints are context only. Do not force them when the document clearly contradicts 
         {
           upload_id: uploadId,
           extraction_model: extractionModel,
-          reasoning_model: reasoningModel,
+          reasoning_model: reasoningCall.modelUsed,
           extraction_response_id: extractionCall.responseId,
           extraction_raw: extraction,
           extraction_usage: extractionCall.usage,
@@ -1241,7 +1435,7 @@ Hints are context only. Do not force them when the document clearly contradicts 
       public_explanation: skill.public_explanation || "",
     }));
 
-    const reasoningCall = await callOpenAI({
+    const reasoningCall = await callOpenAIWithFallback({
       model: reasoningModel,
       instructions: reasoningInstructions(),
       inputText: `
@@ -1261,6 +1455,12 @@ Re-check the original file, then produce the final verified analysis.
       schemaName: "nova_schoolwork_reasoned_analysis_v1",
       schema: reasoningSchema(taxonomy.map((skill) => skill.skill_code)),
       reasoningEffort: "medium",
+      maxAutomaticRetries:
+        settings.automatic_retry_count,
+      fallbackEnabled:
+        settings.fallback_enabled,
+      fallbackModel:
+        settings.fallback_model,
     });
 
     const reasoned = reasoningCall.parsed as ReasonedResult;
@@ -1272,7 +1472,7 @@ Re-check the original file, then produce the final verified analysis.
         analysis_raw: reasoned,
         reasoning_usage: reasoningCall.usage,
         reasoning_cost_usd: estimateCostUsd(
-          reasoningModel,
+          reasoningCall.modelUsed,
           reasoningCall.usage,
         ),
         automatic_retry_count:
@@ -1445,12 +1645,12 @@ Re-check the original file, then produce the final verified analysis.
     if (uploadUpdateError) throw uploadUpdateError;
 
     const extractionCost = estimateCostUsd(
-      extractionModel,
+      extractionCall.modelUsed,
       extractionCall.usage,
     );
 
     const reasoningCost = estimateCostUsd(
-      reasoningModel,
+      reasoningCall.modelUsed,
       reasoningCall.usage,
     );
 
@@ -1459,6 +1659,10 @@ Re-check the original file, then produce the final verified analysis.
       .update({
         status: "succeeded",
         stage: "complete",
+        extraction_model:
+          extractionCall.modelUsed,
+        reasoning_model:
+          reasoningCall.modelUsed,
         extraction_response_id: extractionCall.responseId,
         reasoning_response_id: reasoningCall.responseId,
         extraction_raw: extraction,
