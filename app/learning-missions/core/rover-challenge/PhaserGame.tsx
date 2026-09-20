@@ -270,6 +270,20 @@ type FrontierBarricadeItem = RoverBarricadeConfig & {
    */
   surfaceY: number;
 
+  /**
+   * Tangent angle of the terrain directly under this barricade.
+   * The sprite and its collision body both use this angle so the barricade
+   * follows the road instead of sitting unnaturally upright on a slope.
+   */
+  surfaceAngle: number;
+
+  /**
+   * Foreground road lip pieces drawn above the barricade so the cyan road edge
+   * slightly overlaps the lower portion of the barricade art.
+   */
+  terrainLipBase: Phaser.GameObjects.Rectangle;
+  terrainLipGlow: Phaser.GameObjects.Rectangle;
+
   sprite: Phaser.GameObjects.Image;
   healthBackground: Phaser.GameObjects.Rectangle;
   healthFill: Phaser.GameObjects.Rectangle;
@@ -780,6 +794,8 @@ class RoverMatterScene extends Phaser.Scene {
       barricade.sprite.destroy();
       barricade.healthBackground.destroy();
       barricade.healthFill.destroy();
+      barricade.terrainLipBase.destroy();
+      barricade.terrainLipGlow.destroy();
     }
     this.frontierBarricades = [];
     this.frontierBarricadesDestroyed = 0;
@@ -5168,6 +5184,9 @@ class RoverMatterScene extends Phaser.Scene {
           barricade.height * 0.46,
         )
         .setOrigin(0.5, 1)
+        .setRotation(
+          barricade.surfaceAngle,
+        )
         .setPosition(
           barricade.x,
           barricade.surfaceY,
@@ -5255,6 +5274,22 @@ class RoverMatterScene extends Phaser.Scene {
 
     const surfaceY =
       pose?.y ?? config.y;
+    const surfaceAngle =
+      pose?.angle ?? 0;
+
+    /**
+     * Upward normal points away from the terrain; downward normal points back
+     * into the road. These let us align the collision body to the road and
+     * place a small foreground road lip over the bottom edge of the barricade.
+     */
+    const upwardNormalX =
+      Math.sin(surfaceAngle);
+    const upwardNormalY =
+      -Math.cos(surfaceAngle);
+    const downwardNormalX =
+      -upwardNormalX;
+    const downwardNormalY =
+      -upwardNormalY;
 
     const sprite = this.add
       .image(
@@ -5267,6 +5302,7 @@ class RoverMatterScene extends Phaser.Scene {
         config.width,
         config.height,
       )
+      .setRotation(surfaceAngle)
       .setDepth(35);
 
     /*
@@ -5283,19 +5319,68 @@ class RoverMatterScene extends Phaser.Scene {
         config.height * 0.52,
       );
 
+    const bodyCenterInset = Math.max(
+      0,
+      collisionHeight / 2 - 3,
+    );
+
     const body =
       this.matter.add.rectangle(
-        config.x,
-        surfaceY -
-          collisionHeight / 2,
+        config.x +
+          upwardNormalX * bodyCenterInset,
+        surfaceY +
+          upwardNormalY * bodyCenterInset,
         collisionWidth,
         collisionHeight,
         {
           isStatic: true,
+          angle: surfaceAngle,
           label:
             `frontier-barricade:${config.id}`,
         },
       );
+
+    /**
+     * Foreground terrain lip:
+     * - dark road cap hides a thin strip of the barricade bottom
+     * - cyan strip re-draws the glowing road top above the barricade
+     */
+    const lipWidth = Math.max(
+      104,
+      config.width * 0.82,
+    );
+    const lipThickness = 16;
+    const glowThickness = 6;
+
+    const terrainLipBase = this.add
+      .rectangle(
+        config.x +
+          downwardNormalX * 6,
+        surfaceY +
+          downwardNormalY * 6,
+        lipWidth,
+        lipThickness,
+        0x101629,
+        1,
+      )
+      .setOrigin(0.5, 0.5)
+      .setRotation(surfaceAngle)
+      .setDepth(36);
+
+    const terrainLipGlow = this.add
+      .rectangle(
+        config.x +
+          downwardNormalX * 1.5,
+        surfaceY +
+          downwardNormalY * 1.5,
+        lipWidth,
+        glowThickness,
+        0x62eaff,
+        0.42,
+      )
+      .setOrigin(0.5, 0.5)
+      .setRotation(surfaceAngle)
+      .setDepth(37);
 
     const barWidth = Math.max(
       82,
@@ -5339,6 +5424,9 @@ class RoverMatterScene extends Phaser.Scene {
         hp: config.maxHp,
         destroyed: false,
         surfaceY,
+        surfaceAngle,
+        terrainLipBase,
+        terrainLipGlow,
         sprite,
         healthBackground,
         healthFill,

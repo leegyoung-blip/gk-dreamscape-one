@@ -1407,11 +1407,23 @@ export default function KnowledgeArenaPage() {
 
     const currentIndex = Number(lobby.current_question_index || 0);
     const hasNextRound = currentIndex < questions.length - 1;
+    const sequenceLength =
+      Number(coopRoundResult?.attacks?.length || 0) +
+      Number(coopRoundResult?.retaliations?.length || 0);
+
+    // ArenaCoopBattleView plays one combat event every 430ms and keeps the last
+    // event visible for another ~300ms. Add the requested one-second beat after
+    // the completed combat sequence before changing screens.
+    const sequenceMs = Math.max(1, sequenceLength) * 430 + 300;
+    const afterCombatDelay = sequenceMs + 1000;
 
     if (!hasNextRound) {
+      // The server also has a 2.2s result-animation guard. Respect whichever
+      // duration is longer, then finish Q10 and enter the results screen.
+      const finalDelay = Math.max(2300, afterCombatDelay);
       const finalTimer = window.setTimeout(() => {
         void tryAdvanceCoopRound();
-      }, 1100);
+      }, finalDelay);
       return () => window.clearTimeout(finalTimer);
     }
 
@@ -1423,7 +1435,7 @@ export default function KnowledgeArenaPage() {
         roundTransitionTimerRef.current = null;
         void tryAdvanceCoopRound();
       }, 3000);
-    }, 1000);
+    }, afterCombatDelay);
 
     return () => {
       window.clearTimeout(pauseTimer);
@@ -1439,6 +1451,9 @@ export default function KnowledgeArenaPage() {
     lobby?.round_status,
     lobby?.current_question_index,
     questions.length,
+    coopRoundResult?.question_index,
+    coopRoundResult?.attacks?.length,
+    coopRoundResult?.retaliations?.length,
   ]);
 
   useEffect(() => {
@@ -2155,7 +2170,7 @@ export default function KnowledgeArenaPage() {
   async function tryAdvanceCoopRound() {
     if (!lobby || lobby.game_mode !== "coop" || lobby.round_status !== "resolved") return;
 
-    const { error } = await supabase.rpc(
+    const { data, error } = await supabase.rpc(
       "advance_knowledge_arena_coop_round_v1",
       { p_lobby_id: lobby.id }
     );
@@ -2165,7 +2180,25 @@ export default function KnowledgeArenaPage() {
       return;
     }
 
+    const result = Array.isArray(data) ? data[0] : data;
+
+    // The server deliberately protects the synchronized combat animation for
+    // 2.2 seconds after a round resolves. If a client reaches this function
+    // slightly early, retry instead of leaving the match stuck on Q10/10.
+    if (result?.advanced === false && result?.reason === "result-animation") {
+      window.setTimeout(() => {
+        void tryAdvanceCoopRound();
+      }, 1250);
+      return;
+    }
+
     await loadLobbyState(lobby.id);
+
+    // Q10 returns { finished: true }. Move directly into the existing results
+    // flow instead of relying exclusively on a realtime event arriving first.
+    if (result?.finished) {
+      void finishMultiplayerQuiz();
+    }
   }
 
   async function setLobbyMode(nextMode: "coop" | "versus") {

@@ -245,6 +245,10 @@ export function ArenaCoopBattleView({
   const [attackBeam, setAttackBeam] = useState<{x:number;y:number;length:number;angle:number} | null>(null);
   const myPlayer = players.find((player) => player.id === myPlayerId) || null;
   const myGhost = Boolean(myPlayer?.is_eliminated);
+  const feedbackCorrect =
+    Boolean(answerLocked) &&
+    selectedAnswer !== null &&
+    selectedAnswer === question.correct_answer;
 
   const showDreamkeeper =
     Boolean(dreamkeeperActive) &&
@@ -297,14 +301,25 @@ export function ArenaCoopBattleView({
       <div className="kac-shade" />
 
       <div className="kac-top-row">
-        <div className="kac-question-card">
-          <div className="kac-question-meta">
-            <span>CO-OP · Q {questionIndex + 1}/10</span>
-            <strong className={timeLeft <= 3 ? "is-low" : ""}>{timeLeft}s</strong>
+        <div className="kac-question-panel">
+          <div className="kac-question-card">
+            <div className="kac-question-meta">
+              <span>CO-OP · Q {questionIndex + 1}/10</span>
+              <strong className={timeLeft <= 3 ? "is-low" : ""}>{timeLeft}s</strong>
+            </div>
+            <h2>{question.question_text}</h2>
+            {question.question_image && (
+              <img src={question.question_image} alt="" className="kac-question-image" />
+            )}
           </div>
-          <h2>{question.question_text}</h2>
-          {question.question_image && (
-            <img src={question.question_image} alt="" className="kac-question-image" />
+
+          {feedback && answerLocked && (
+            <div className={`kac-feedback ${feedbackCorrect ? "is-correct" : "is-wrong"}`}>
+              <strong className="kac-feedback-main">{feedback}</strong>
+              <span className="kac-explanation-line">
+                <b>Explanation:</b> {question.explanation}
+              </span>
+            </div>
           )}
         </div>
 
@@ -423,45 +438,11 @@ export function ArenaCoopBattleView({
         </div>
       )}
 
-      <div className="kac-bottom-status">
-        {roundStatus === "answering" && !answerLocked && (
-          <div className="kac-status-card">
-            <strong>Answer fast.</strong>
-            <span>Correct players attack first. Faster answers deal more damage.</span>
-          </div>
-        )}
-
-        {answerLocked && roundStatus === "answering" && (
-          <div className={`kac-status-card ${myGhost ? "is-ghost-status" : ""}`}>
-            <strong>{myGhost ? "Answer locked · Ghost observer" : myAttackScore > 0 ? `Attack ready · ${myAttackScore} DMG` : "Answer locked"}</strong>
-            <span>{myGhost ? "You can still answer, but skeleton ghosts deal no damage." : "Waiting for the rest of the team…"}</span>
-          </div>
-        )}
-
-        {roundStatus === "resolved" && (
-          <div className="kac-round-result">
-            <strong>{showDreamkeeper ? "DREAMKEEPER PHASE" : "ROUND RESOLVED"}</strong>
-            <span>
-              Correct Novas attacked first. The enemy then struck players who answered incorrectly.
-            </span>
-          </div>
-        )}
-
-        {feedback && answerLocked && (
-          <div className="kac-feedback">
-            <strong>{feedback}</strong>
-            <span className="kac-explanation-line">
-              <b>Explanation:</b> {question.explanation}
-            </span>
-          </div>
-        )}
-      </div>
-
       <style jsx>{`
         .kac-stage {
           position: relative;
           display: grid;
-          grid-template-rows: auto auto minmax(0, 1fr) auto;
+          grid-template-rows: auto auto minmax(0, 1fr);
           width: 100%;
           height: 100%;
           min-height: 0;
@@ -480,30 +461,50 @@ export function ArenaCoopBattleView({
         }
         .kac-top-row {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(340px, .92fr);
-          gap: 12px;
-          padding: 12px 14px 0;
+          grid-template-columns: minmax(0, .92fr) minmax(340px, 1.08fr);
+          gap: 8px;
+          padding: 8px 10px 0;
           align-items: start;
         }
         .kac-question-card,
         .kac-answer,
-        .kac-status-card,
-        .kac-round-result,
         .kac-feedback {
           border: 1px solid rgba(255,255,255,.12);
           background: rgba(5,12,27,.82);
           backdrop-filter: blur(8px);
         }
-        .kac-arena-divider { height:2px; margin:7px 14px 0; border-radius:999px; background:linear-gradient(90deg,transparent,rgba(126,232,255,.72) 12%,rgba(126,232,255,.96) 50%,rgba(126,232,255,.72) 88%,transparent); box-shadow:0 0 12px rgba(126,232,255,.34); }
-        .kac-question-card { border-radius: 16px; padding: 14px 16px; }
+        .kac-arena-divider { height:2px; margin:7px 10px 0; border-radius:999px; background:linear-gradient(90deg,transparent,rgba(126,232,255,.72) 12%,rgba(126,232,255,.96) 50%,rgba(126,232,255,.72) 88%,transparent); box-shadow:0 0 12px rgba(126,232,255,.34); }
+        .kac-question-panel { min-width:0; display:grid; gap:6px; align-content:start; }
+        .kac-question-card { border-radius: 14px; padding: 11px 13px; }
+        .kac-feedback {
+          display:grid;
+          gap:4px;
+          border-radius:11px;
+          padding:7px 10px;
+          text-align:left;
+          box-shadow:0 10px 24px rgba(0,0,0,.18);
+        }
+        .kac-feedback.is-correct {
+          border-color:rgba(74,222,128,.72);
+          background:linear-gradient(135deg,rgba(20,83,45,.94),rgba(15,55,37,.92));
+          box-shadow:0 0 0 1px rgba(74,222,128,.10),0 10px 24px rgba(0,0,0,.18);
+        }
+        .kac-feedback.is-wrong {
+          border-color:rgba(248,113,113,.72);
+          background:linear-gradient(135deg,rgba(127,29,29,.94),rgba(74,20,24,.92));
+          box-shadow:0 0 0 1px rgba(248,113,113,.10),0 10px 24px rgba(0,0,0,.18);
+        }
+        .kac-feedback-main { font-size:12px; line-height:1.25; font-weight:950; }
+        .kac-feedback.is-correct .kac-feedback-main { color:#b9ffd0; }
+        .kac-feedback.is-wrong .kac-feedback-main { color:#ffd0d0; }
         .kac-question-meta { display: flex; justify-content: space-between; gap: 10px; color: #86eaff; font-size: 11px; font-weight: 900; letter-spacing: .08em; }
         .kac-question-meta .is-low { color: #ff8d8d; }
-        .kac-question-card h2 { margin: 7px 0 0; font-size: clamp(18px, 2vw, 30px); line-height: 1.15; }
+        .kac-question-card h2 { margin: 6px 0 0; font-size: clamp(17px, 1.85vw, 27px); line-height: 1.15; }
         .kac-question-image { margin-top: 8px; max-width: 100%; max-height: 95px; object-fit: contain; border-radius: 10px; }
-        .kac-options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
-        .kac-answer { min-height: 72px; display: grid; grid-template-columns: auto 1fr; gap: 9px; align-items: center; border-radius: 14px; padding: 10px 12px; color: white; text-align: left; }
-        .kac-answer strong { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%; background: rgba(255,255,255,.12); }
-        .kac-answer span { font-size: 14px; font-weight: 800; line-height: 1.2; }
+        .kac-options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+        .kac-answer { min-height: 62px; display: grid; grid-template-columns: auto 1fr; gap: 7px; align-items: center; border-radius: 12px; padding: 7px 9px; color: white; text-align: left; }
+        .kac-answer strong { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 50%; background: rgba(255,255,255,.12); }
+        .kac-answer span { font-size: 13px; font-weight: 800; line-height: 1.18; }
         .kac-battlefield { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(180px, .6fr); gap: 14px; padding: 8px 20px 0; align-items: end; overflow: hidden; }
         .kac-team { min-width: 0; display: flex; align-items: flex-end; justify-content: center; gap: clamp(4px, 1.2vw, 14px); height: 100%; }
         .kac-player { width: min(15vw, 150px); min-width: 72px; display: grid; grid-template-rows: auto minmax(0,1fr) auto auto; align-items: end; transition: transform .2s ease, opacity .2s ease; }
@@ -545,22 +546,26 @@ export function ArenaCoopBattleView({
         .kac-damage { position: absolute; z-index: 3; border-radius: 999px; background: rgba(156,0,0,.66); padding: 4px 7px; color: #ff8585; font-size: 17px; font-weight: 950; animation: kacDamage 1s ease-out forwards; }
         .kac-damage-enemy { right: -10%; top: 24%; }
         .kac-damage-player { left: 50%; top: 24%; transform: translateX(-50%); }
-        .kac-bottom-status { display: grid; gap: 6px; padding: 0 14px 12px; }
-        .kac-status-card, .kac-round-result, .kac-feedback { justify-self: center; width: min(700px, 100%); border-radius: 12px; padding: 9px 12px; text-align: center; }
-        .kac-feedback { display:grid; gap:6px; background:rgba(4,12,28,.90); }
-        .kac-feedback > strong { font-size:13px; }
-        .kac-explanation-line { display:block; border-top:1px solid rgba(255,255,255,.12); padding-top:6px; color:rgba(255,255,255,.90); font-size:12px; font-weight:650; line-height:1.38; }
+        .kac-explanation-line {
+          display:block;
+          border-top:1px solid rgba(255,255,255,.14);
+          padding-top:4px;
+          color:rgba(255,255,255,.90);
+          font-size:10px;
+          font-weight:650;
+          line-height:1.32;
+        }
         .kac-explanation-line b { color:#8beaff; font-weight:950; }
-        .kac-status-card strong, .kac-round-result strong { display: block; font-size: 16px; }
-        .kac-status-card span, .kac-round-result span, .kac-feedback { font-size: 13px; line-height: 1.4; }
-        .kac-round-result { border-color: rgba(255,197,95,.30); background: rgba(48,22,4,.82); }
-        .is-ghost-status { border-color: rgba(170,232,255,.25); }
         @keyframes kacLaserPulse { from{opacity:.68;filter:brightness(1)} to{opacity:1;filter:brightness(1.6)} }
         @keyframes kacDamage { 0%{opacity:0;transform:translateY(8px) scale(.8)} 14%{opacity:1;transform:translateY(0) scale(1)} 100%{opacity:0;transform:translateY(-30px) scale(1.06)} }
         @keyframes kacHit { 0%,100%{transform:translateX(0)} 40%{transform:translateX(-8px)} 70%{transform:translateX(4px)} }
         @keyframes kacGhost { 0%,100%{transform:translate(-50%,-50%) translateY(0)} 50%{transform:translate(-50%,-50%) translateY(-6px)} }
         @media (max-width: 850px) {
-          .kac-top-row { grid-template-columns: 1fr 1fr; gap: 7px; padding: 7px 8px 0; }
+          .kac-top-row { grid-template-columns: minmax(0,.92fr) minmax(0,1.08fr); gap: 5px; padding: 4px 6px 0; }
+          .kac-question-panel { gap:4px; }
+          .kac-feedback { padding:5px 7px; border-radius:9px; }
+          .kac-feedback-main { font-size:9px; }
+          .kac-explanation-line { font-size:8px; padding-top:3px; }
           .kac-question-card { padding: 9px 10px; border-radius: 12px; }
           .kac-question-meta { font-size: 8px; }
           .kac-question-card h2 { font-size: clamp(13px,2.6vw,18px); }
