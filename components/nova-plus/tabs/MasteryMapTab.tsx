@@ -11,9 +11,11 @@ import {
   safeNumber,
   SUBJECT_META,
 } from "@/lib/nova-plus/helpers";
+import { useNovaSchoolworkEvidence } from "@/hooks/useNovaSchoolworkEvidence";
 import styles from "./MasteryMapTab.module.css";
 
 type Props = {
+  learnerId: string;
   profile: NovaPlusProfilePayload;
   onOpenRecommendations: () => void;
 };
@@ -373,9 +375,11 @@ function groupTopics(
 }
 
 export default function MasteryMapTab({
+  learnerId,
   profile,
   onOpenRecommendations,
 }: Props) {
+  const schoolworkEvidence = useNovaSchoolworkEvidence(learnerId);
   const curriculumConcepts = useMemo(
     () => (profile.curriculum_concepts ?? []).filter(isCanonicalMapConcept),
     [profile.curriculum_concepts],
@@ -719,6 +723,14 @@ export default function MasteryMapTab({
                                 <small style={{ color: stateMeta.colour }}>
                                   {stateMeta.label}
                                 </small>
+
+                                {schoolworkEvidence.bySkillId.has(
+                                  String(concept.skill_id),
+                                ) && (
+                                  <em className={styles.schoolworkBadge}>
+                                    + Work
+                                  </em>
+                                )}
                               </button>
 
                               <button
@@ -816,6 +828,31 @@ export default function MasteryMapTab({
                   </strong>
                 </span>
               </div>
+
+              {(() => {
+                const schoolwork =
+                  schoolworkEvidence.bySkillId.get(
+                    String(selectedConcept.skill_id),
+                  );
+
+                if (!schoolwork) return null;
+
+                return (
+                  <div className={styles.schoolworkEvidence}>
+                    <span>UPLOADED SCHOOLWORK</span>
+                    <strong>
+                      {schoolwork.event_count} approved question
+                      {schoolwork.event_count === 1 ? "" : "s"} from{" "}
+                      {schoolwork.upload_count} upload
+                      {schoolwork.upload_count === 1 ? "" : "s"}
+                    </strong>
+                    <small>
+                      This evidence is weighted below Dreamscape quiz evidence
+                      and was added only after review.
+                    </small>
+                  </div>
+                );
+              })()}
 
               <div className={styles.detailFooter}>
                 <span>

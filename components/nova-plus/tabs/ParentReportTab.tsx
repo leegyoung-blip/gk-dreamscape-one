@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useNovaSchoolworkEvidence } from "@/hooks/useNovaSchoolworkEvidence";
 import type {
   NovaPlusProfilePayload,
   NovaRecommendation,
@@ -423,6 +424,7 @@ function printReport({
   support,
   recommendation,
   tips,
+  schoolworkSources,
 }: {
   learnerLabel: string;
   periodLabel: string;
@@ -432,6 +434,13 @@ function printReport({
   support: ProfileSkill[];
   recommendation: NovaRecommendation | null;
   tips: HomeTip[];
+  schoolworkSources: Array<{
+    original_filename: string;
+    assignment_title: string | null;
+    reviewed_at: string | null;
+    created_at: string;
+    included_items: number;
+  }>;
 }) {
   /*
    * IMPORTANT:
@@ -530,6 +539,30 @@ function printReport({
       `,
     )
     .join("");
+
+  const schoolworkHtml = schoolworkSources.length
+    ? schoolworkSources
+        .slice(0, 5)
+        .map(
+          (source) => `
+            <div class="source">
+              <strong>${escapeHtml(
+                source.assignment_title || source.original_filename,
+              )}</strong>
+              <span>
+                ${escapeHtml(source.original_filename)} ·
+                ${source.included_items} approved item${
+                  source.included_items === 1 ? "" : "s"
+                } ·
+                ${escapeHtml(
+                  formatDate(source.reviewed_at || source.created_at),
+                )}
+              </span>
+            </div>
+          `,
+        )
+        .join("")
+    : `<div class="empty">No approved uploaded schoolwork is included in this learner profile yet.</div>`;
 
   const reportHtml = `
     <!doctype html>
@@ -706,6 +739,27 @@ function printReport({
             font-size: 9px;
           }
 
+          .sources {
+            display: grid;
+            gap: 6px;
+          }
+          .source {
+            padding: 9px 10px;
+            border: 1px solid #e2e9ef;
+            border-radius: 10px;
+          }
+          .source strong,
+          .source span {
+            display: block;
+          }
+          .source strong {
+            font-size: 9px;
+          }
+          .source span {
+            margin-top: 4px;
+            color: #71808d;
+            font-size: 7px;
+          }
           .footer {
             margin-top: 20px;
             padding-top: 10px;
@@ -755,6 +809,11 @@ function printReport({
           <section class="section">
             <h2 class="section-title">How You Can Help at Home</h2>
             <div class="grid">${tipsHtml}</div>
+          </section>
+
+          <section class="section">
+            <h2 class="section-title">Uploaded Schoolwork Included</h2>
+            <div class="sources">${schoolworkHtml}</div>
           </section>
 
           <div class="footer">
@@ -832,6 +891,7 @@ export default function ParentReportTab({
   const [recommendations, setRecommendations] =
     useState<NovaRecommendationsPayload | null>(null);
   const [recommendationsLoading, setRecommendationsLoading] = useState(true);
+  const schoolworkEvidence = useNovaSchoolworkEvidence(learnerId);
 
   const period = TIMEFRAMES.find((item) => item.key === timeframe) ?? TIMEFRAMES[1];
   const days = period.days;
@@ -1059,6 +1119,7 @@ export default function ParentReportTab({
       support: confirmedSupport,
       recommendation: firstRecommendation,
       tips: homeTips,
+      schoolworkSources: schoolworkEvidence.recent_uploads,
     });
   }
 
@@ -1117,6 +1178,27 @@ export default function ParentReportTab({
         </div>
       </section>
 
+      <section className={styles.sourceStrip}>
+        <div>
+          <span>RECORDED EVIDENCE</span>
+          <strong>
+            Dreamscape activity
+            {schoolworkEvidence.approved_uploads > 0
+              ? ` + ${schoolworkEvidence.approved_uploads} approved schoolwork upload${
+                  schoolworkEvidence.approved_uploads === 1 ? "" : "s"
+                }`
+              : ""}
+          </strong>
+        </div>
+
+        {schoolworkEvidence.awaiting_review > 0 && (
+          <b>
+            {schoolworkEvidence.awaiting_review} upload
+            {schoolworkEvidence.awaiting_review === 1 ? "" : "s"} awaiting review
+          </b>
+        )}
+      </section>
+
       <section className={styles.metricsGrid}>
         {reportMetrics.map((metric) => (
           <article key={metric.label}>
@@ -1156,7 +1238,14 @@ export default function ParentReportTab({
                       </div>
                     </div>
 
-                    <span className={styles.strongPill}>Strong</span>
+                    <div className={styles.conceptBadges}>
+                      {schoolworkEvidence.bySkillId.has(String(skill.skill_id)) && (
+                        <span className={styles.schoolworkPill}>
+                          Includes uploaded work
+                        </span>
+                      )}
+                      <span className={styles.strongPill}>Strong</span>
+                    </div>
                   </summary>
 
                   <div className={styles.evidenceRow}>
@@ -1216,7 +1305,14 @@ export default function ParentReportTab({
                       </div>
                     </div>
 
-                    <span className={styles.supportPill}>Needs Support</span>
+                    <div className={styles.conceptBadges}>
+                      {schoolworkEvidence.bySkillId.has(String(skill.skill_id)) && (
+                        <span className={styles.schoolworkPill}>
+                          Includes uploaded work
+                        </span>
+                      )}
+                      <span className={styles.supportPill}>Needs Support</span>
+                    </div>
                   </summary>
 
                   <div className={styles.evidenceRow}>

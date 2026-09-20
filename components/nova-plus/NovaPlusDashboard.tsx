@@ -9,6 +9,7 @@ import NovaRecommendsTab from "@/components/nova-plus/tabs/NovaRecommendsTab";
 import ProgressTab from "@/components/nova-plus/tabs/ProgressTab";
 import ParentReportTab from "@/components/nova-plus/tabs/ParentReportTab";
 import NovaSchoolworkUploader from "@/components/nova-plus/NovaSchoolworkUploader";
+import NovaSchoolworkHistory from "@/components/nova-plus/NovaSchoolworkHistory";
 import { useNovaPlusProfile } from "@/hooks/useNovaPlusProfile";
 import { supabase } from "@/lib/supabase";
 import type { NovaPlusTab } from "@/lib/nova-plus/types";
@@ -30,6 +31,8 @@ export default function NovaPlusDashboard() {
   const [tab, setTab] = useState<NovaPlusTab>("learning");
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [schoolworkOpen, setSchoolworkOpen] = useState(false);
+  const [schoolworkHistoryOpen, setSchoolworkHistoryOpen] = useState(false);
+  const [resumeSchoolworkId, setResumeSchoolworkId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,9 +122,21 @@ export default function NovaPlusDashboard() {
             type="button"
             className={styles.refreshButton}
             disabled={loading || !selectedLearnerId}
-            onClick={() => setSchoolworkOpen(true)}
+            onClick={() => {
+              setResumeSchoolworkId(null);
+              setSchoolworkOpen(true);
+            }}
           >
             + Add Work
+          </button>
+
+          <button
+            type="button"
+            className={styles.refreshButton}
+            disabled={loading || !selectedLearnerId}
+            onClick={() => setSchoolworkHistoryOpen(true)}
+          >
+            Work History
           </button>
 
           <button
@@ -190,6 +205,7 @@ export default function NovaPlusDashboard() {
           />
         ) : tab === "mastery" ? (
           <MasteryMapTab
+            learnerId={selectedLearnerId}
             profile={profile}
             onOpenRecommendations={() => setTab("recommendations")}
           />
@@ -217,12 +233,33 @@ export default function NovaPlusDashboard() {
       </section>
 
       {selectedLearnerId && (
-        <NovaSchoolworkUploader
-          open={schoolworkOpen}
-          learnerId={selectedLearnerId}
-          learnerLabel={learnerName}
-          onClose={() => setSchoolworkOpen(false)}
-        />
+        <>
+          <NovaSchoolworkUploader
+            open={schoolworkOpen}
+            learnerId={selectedLearnerId}
+            learnerLabel={learnerName}
+            resumeUploadId={resumeSchoolworkId}
+            onResumeHandled={() => setResumeSchoolworkId(null)}
+            onClose={() => {
+              setSchoolworkOpen(false);
+              setResumeSchoolworkId(null);
+            }}
+            onCommitted={() => refresh()}
+          />
+
+          <NovaSchoolworkHistory
+            open={schoolworkHistoryOpen}
+            learnerId={selectedLearnerId}
+            learnerLabel={learnerName}
+            onClose={() => setSchoolworkHistoryOpen(false)}
+            onContinueReview={(uploadId) => {
+              setSchoolworkHistoryOpen(false);
+              setResumeSchoolworkId(uploadId);
+              setSchoolworkOpen(true);
+            }}
+            onChanged={() => refresh()}
+          />
+        </>
       )}
     </main>
   );

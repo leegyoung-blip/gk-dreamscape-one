@@ -1,6 +1,13 @@
 "use client";
 
-import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  DragEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { supabase } from "@/lib/supabase";
 import styles from "./NovaSchoolworkUploader.module.css";
 
@@ -9,11 +16,33 @@ type NovaSchoolworkUploaderProps = {
   learnerId: string;
   learnerLabel: string;
   onClose: () => void;
+  onCommitted?: () => void | Promise<void>;
+  resumeUploadId?: string | null;
+  onResumeHandled?: () => void;
 };
 
 type SubjectHint = "" | "english" | "math";
 type LevelHint = "" | "1" | "2" | "3" | "4" | "5" | "6";
-type UploadStage = "select" | "uploading" | "analysing" | "review" | "error";
+
+type UploadStage =
+  | "select"
+  | "uploading"
+  | "analysing"
+  | "review"
+  | "committing"
+  | "complete"
+  | "error";
+
+type Correctness = "correct" | "incorrect" | "partial" | "uncertain";
+type ReviewDecisionValue = "include" | "exclude" | "review";
+
+type CanonicalSkill = {
+  skill_id: string;
+  skill_code: string;
+  skill_name: string;
+  domain: string;
+  topic: string;
+};
 
 type AnalysisItem = {
   item_index: number;
@@ -24,7 +53,7 @@ type AnalysisItem = {
   expected_answer: string;
   teacher_mark: "correct" | "incorrect" | "partial" | "unmarked" | "unclear";
   teacher_feedback: string;
-  final_correctness: "correct" | "incorrect" | "partial" | "uncertain";
+  final_correctness: Correctness;
   correctness_source: "teacher_mark" | "model" | "combined" | "unknown";
   extraction_confidence: number;
   correctness_confidence: number;
@@ -33,20 +62,8 @@ type AnalysisItem = {
   needs_review: boolean;
   evidence_recommendation: "include" | "review" | "exclude";
   proposed_evidence_weight: number;
-  primary_skill: {
-    skill_id: string;
-    skill_code: string;
-    skill_name: string;
-    domain: string;
-    topic: string;
-  } | null;
-  supporting_skills: Array<{
-    skill_id: string;
-    skill_code: string;
-    skill_name: string;
-    domain: string;
-    topic: string;
-  }>;
+  primary_skill: CanonicalSkill | null;
+  supporting_skills: CanonicalSkill[];
 };
 
 type AnalysisResult = {
@@ -69,20 +86,35 @@ type AnalysisResult = {
     extraction_model: string;
     reasoning_model: string;
   };
-  skills: Record<
-    string,
-    {
-      skill_id: string;
-      skill_code: string;
-      skill_name: string;
-      domain: string;
-      topic: string;
-    }
-  >;
+  skills: Record<string, CanonicalSkill>;
   items: AnalysisItem[];
 };
 
+type ReviewState = {
+  decision: ReviewDecisionValue;
+  skill_code: string;
+  correctness: Correctness;
+  original_skill_code: string;
+  original_correctness: Correctness;
+};
+
+type CommitResult = {
+  status: "approved";
+  upload_id: string;
+  student_user_id: string;
+  items_total: number;
+  items_included: number;
+  items_excluded: number;
+  correct_items: number;
+  incorrect_items: number;
+  partial_items: number;
+  profile_events_written: number;
+  mastery_refreshed: boolean;
+  reviewed_at: string;
+};
+
 const MAX_BYTES = 20 * 1024 * 1024;
+
 const ALLOWED_TYPES = new Set([
   "application/pdf",
   "image/png",
@@ -108,14 +140,16 @@ function fileSizeLabel(bytes: number) {
 }
 
 function confidenceLabel(value: number) {
-  const percent = Math.round(Math.max(0, Math.min(1, Number(value || 0))) * 100);
+  const percent = Math.round(
+    Math.max(0, Math.min(1, Number(value || 0))) * 100,
+  );
 
   if (percent >= 90) return `High · ${percent}%`;
   if (percent >= 75) return `Good · ${percent}%`;
   return `Review · ${percent}%`;
 }
 
-function correctnessLabel(value: AnalysisItem["final_correctness"]) {
+function correctnessLabel(value: Correctness) {
   switch (value) {
     case "correct":
       return "Correct";
@@ -132,31 +166,248 @@ function subjectLabel(subject: "english" | "math") {
   return subject === "math" ? "Mathematics" : "English";
 }
 
+function defaultReviewState(
+  result: AnalysisResult,
+): Record<number, ReviewState> {
+  return Object.fromEntries(
+    result.items.map((item) => {
+      const originalSkill = item.primary_skill?.skill_code || "";
+
+      let decision: ReviewDecisionValue = "review";
+
+      if (item.evidence_recommendation === "exclude") {
+        decision = "exclude";
+      } else if (
+        item.evidence_recommendation === "include" &&
+        !item.needs_review &&
+        originalSkill &&
+        item.final_correctness !== "uncertain"
+      ) {
+        decision = "include";
+      }
+
+      return [
+        item.item_index,
+        {
+          decision,
+          skill_code: originalSkill,
+          correctness: item.final_correctness,
+          original_skill_code: originalSkill,
+          original_correctness: item.final_correctness,
+        },
+      ];
+    }),
+  );
+}
+
+function evidenceStrength(
+  item: AnalysisItem,
+  state: ReviewState,
+) {
+  if (
+    state.decision !== "include" ||
+    !state.skill_code ||
+    state.correctness === "uncertain"
+  ) {
+    return "Not included";
+  }
+
+  if (
+    ["correct", "incorrect", "partial"].includes(item.teacher_mark) &&
+    ["teacher_mark", "combined"].includes(item.correctness_source)
+  ) {
+    return state.correctness === "partial"
+      ? "Teacher evidence · 0.60"
+      : "Teacher evidence · 0.80";
+  }
+
+  const correctnessEdited =
+    state.correctness !== state.original_correctness;
+
+  if (correctnessEdited) {
+    return state.correctness === "partial"
+      ? "Reviewed evidence · 0.30"
+      : "Reviewed evidence · 0.50";
+  }
+
+  if (
+    item.correctness_confidence >= 0.9 &&
+    (state.skill_code !== state.original_skill_code ||
+      item.mapping_confidence >= 0.85)
+  ) {
+    return state.correctness === "partial"
+      ? "AI-checked · 0.35"
+      : "AI-checked · 0.50";
+  }
+
+  return "Conservative evidence · ≤0.35";
+}
+
 export default function NovaSchoolworkUploader({
   open,
   learnerId,
   learnerLabel,
   onClose,
+  onCommitted,
+  resumeUploadId = null,
+  onResumeHandled,
 }: NovaSchoolworkUploaderProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
-  const [subjectHint, setSubjectHint] = useState<SubjectHint>("");
-  const [levelHint, setLevelHint] = useState<LevelHint>("");
-  const [stage, setStage] = useState<UploadStage>("select");
+  const [subjectHint, setSubjectHint] =
+    useState<SubjectHint>("");
+  const [levelHint, setLevelHint] =
+    useState<LevelHint>("");
+
+  const [stage, setStage] =
+    useState<UploadStage>("select");
+
   const [error, setError] = useState("");
-  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [result, setResult] =
+    useState<AnalysisResult | null>(null);
+
+  const [reviewState, setReviewState] = useState<
+    Record<number, ReviewState>
+  >({});
+
+  const [commitResult, setCommitResult] =
+    useState<CommitResult | null>(null);
+
   const [dragActive, setDragActive] = useState(false);
 
-  const reviewCount = useMemo(
-    () => result?.items.filter((item) => item.needs_review).length ?? 0,
+  const skills = useMemo(
+    () =>
+      result
+        ? Object.values(result.skills).sort((a, b) => {
+            if (a.topic !== b.topic) {
+              return a.topic.localeCompare(b.topic);
+            }
+            return a.skill_name.localeCompare(b.skill_name);
+          })
+        : [],
     [result],
   );
 
-  const mappedCount = useMemo(
-    () => result?.items.filter((item) => item.primary_skill).length ?? 0,
-    [result],
+  const unresolvedCount = useMemo(() => {
+    if (!result) return 0;
+
+    return result.items.filter((item) => {
+      const state = reviewState[item.item_index];
+
+      if (!state || state.decision === "review") {
+        return true;
+      }
+
+      if (state.decision === "exclude") {
+        return false;
+      }
+
+      return (
+        !state.skill_code ||
+        state.correctness === "uncertain"
+      );
+    }).length;
+  }, [result, reviewState]);
+
+  const includedCount = useMemo(
+    () =>
+      Object.values(reviewState).filter(
+        (state) => state.decision === "include",
+      ).length,
+    [reviewState],
   );
+
+  const excludedCount = useMemo(
+    () =>
+      Object.values(reviewState).filter(
+        (state) => state.decision === "exclude",
+      ).length,
+    [reviewState],
+  );
+
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!open || !resumeUploadId) return;
+
+    // Preserve the narrowed non-null value for the nested async callback.
+    // TypeScript does not keep the resumeUploadId narrowing across closures.
+    const uploadIdToResume = resumeUploadId;
+
+    async function resume() {
+      setStage("analysing");
+      setError("");
+
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+          throw new Error("Please sign in again.");
+        }
+
+        const params = new URLSearchParams({
+          student_id: learnerId,
+          upload_id: uploadIdToResume,
+        });
+
+        const response = await fetch(
+          `/api/nova-plus/schoolwork/history?${params.toString()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          },
+        );
+
+        const body = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(
+            body?.error ||
+              "The previous schoolwork analysis could not be reopened.",
+          );
+        }
+
+        if (cancelled) return;
+
+        const analysis = body.analysis_result as AnalysisResult;
+
+        setFile(null);
+        setResult(analysis);
+        setReviewState(defaultReviewState(analysis));
+        setCommitResult(null);
+        setStage("review");
+      } catch (resumeError) {
+        if (cancelled) return;
+
+        setStage("error");
+        setError(
+          resumeError instanceof Error
+            ? resumeError.message
+            : String(resumeError),
+        );
+      } finally {
+        if (!cancelled) {
+          onResumeHandled?.();
+        }
+      }
+    }
+
+    void resume();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    learnerId,
+    onResumeHandled,
+    open,
+    resumeUploadId,
+  ]);
 
   if (!open) return null;
 
@@ -167,12 +418,24 @@ export default function NovaSchoolworkUploader({
     setStage("select");
     setError("");
     setResult(null);
+    setReviewState({});
+    setCommitResult(null);
     setDragActive(false);
-    if (inputRef.current) inputRef.current.value = "";
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
   }
 
   function close() {
-    if (stage === "uploading" || stage === "analysing") return;
+    if (
+      stage === "uploading" ||
+      stage === "analysing" ||
+      stage === "committing"
+    ) {
+      return;
+    }
+
     reset();
     onClose();
   }
@@ -207,10 +470,14 @@ export default function NovaSchoolworkUploader({
     setError("");
     setFile(nextFile);
     setResult(null);
+    setReviewState({});
+    setCommitResult(null);
     setStage("select");
   }
 
-  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
+  function onFileChange(
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
     chooseFile(event.target.files?.[0] ?? null);
   }
 
@@ -220,10 +487,24 @@ export default function NovaSchoolworkUploader({
     chooseFile(event.dataTransfer.files?.[0] ?? null);
   }
 
+  function updateReview(
+    itemIndex: number,
+    patch: Partial<ReviewState>,
+  ) {
+    setReviewState((current) => ({
+      ...current,
+      [itemIndex]: {
+        ...current[itemIndex],
+        ...patch,
+      },
+    }));
+  }
+
   async function analyse() {
     if (!file) return;
 
     const validation = validateFile(file);
+
     if (validation) {
       setError(validation);
       return;
@@ -231,6 +512,8 @@ export default function NovaSchoolworkUploader({
 
     setError("");
     setResult(null);
+    setReviewState({});
+    setCommitResult(null);
     setStage("uploading");
 
     const {
@@ -238,23 +521,32 @@ export default function NovaSchoolworkUploader({
       error: sessionError,
     } = await supabase.auth.getSession();
 
-    if (sessionError || !session?.user || !session.access_token) {
+    if (
+      sessionError ||
+      !session?.user ||
+      !session.access_token
+    ) {
       setStage("error");
-      setError("Please sign in again before uploading schoolwork.");
+      setError(
+        "Please sign in again before uploading schoolwork.",
+      );
       return;
     }
 
     const uploadId = crypto.randomUUID();
     const filename = sanitiseFilename(file.name);
-    const storagePath = `${learnerId}/${uploadId}/${filename}`;
 
-    const { error: storageError } = await supabase.storage
-      .from("nova-schoolwork")
-      .upload(storagePath, file, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: file.type,
-      });
+    const storagePath =
+      `${learnerId}/${uploadId}/${filename}`;
+
+    const { error: storageError } =
+      await supabase.storage
+        .from("nova-schoolwork")
+        .upload(storagePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type,
+        });
 
     if (storageError) {
       setStage("error");
@@ -274,15 +566,19 @@ export default function NovaSchoolworkUploader({
         mime_type: file.type,
         file_size_bytes: file.size,
         subject_hint: subjectHint || null,
-        primary_level_hint: levelHint ? Number(levelHint) : null,
+        primary_level_hint:
+          levelHint ? Number(levelHint) : null,
         status: "uploaded",
       });
 
     if (uploadRowError) {
-      await supabase.storage
-        .from("nova-schoolwork")
-        .remove([storagePath])
-        .catch(() => undefined);
+      try {
+        await supabase.storage
+          .from("nova-schoolwork")
+          .remove([storagePath]);
+      } catch {
+        // Preserve the original upload-row error.
+      }
 
       setStage("error");
       setError(uploadRowError.message);
@@ -291,18 +587,23 @@ export default function NovaSchoolworkUploader({
 
     setStage("analysing");
 
-    const response = await fetch("/api/nova-plus/schoolwork/analyse", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-        "Content-Type": "application/json",
+    const response = await fetch(
+      "/api/nova-plus/schoolwork/analyse",
+      {
+        method: "POST",
+        headers: {
+          Authorization:
+            `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          upload_id: uploadId,
+        }),
       },
-      body: JSON.stringify({
-        upload_id: uploadId,
-      }),
-    });
+    );
 
-    const body = await response.json().catch(() => null);
+    const body =
+      await response.json().catch(() => null);
 
     if (!response.ok) {
       setStage("error");
@@ -314,8 +615,88 @@ export default function NovaSchoolworkUploader({
       return;
     }
 
-    setResult(body as AnalysisResult);
+    const analysis = body as AnalysisResult;
+
+    setResult(analysis);
+    setReviewState(defaultReviewState(analysis));
     setStage("review");
+  }
+
+  async function commitReview() {
+    if (!result || unresolvedCount > 0) return;
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (
+      sessionError ||
+      !session?.access_token
+    ) {
+      setError("Please sign in again.");
+      return;
+    }
+
+    const decisions = result.items.map((item) => {
+      const state = reviewState[item.item_index];
+
+      return {
+        item_index: item.item_index,
+        decision: state.decision,
+        skill_code: state.skill_code,
+        correctness: state.correctness,
+        mapping_edited:
+          state.skill_code !==
+          state.original_skill_code,
+        correctness_edited:
+          state.correctness !==
+          state.original_correctness,
+      };
+    });
+
+    setError("");
+    setStage("committing");
+
+    const response = await fetch(
+      "/api/nova-plus/schoolwork/commit",
+      {
+        method: "POST",
+        headers: {
+          Authorization:
+            `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          upload_id: result.upload.id,
+          decisions,
+        }),
+      },
+    );
+
+    const body =
+      await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setStage("review");
+      setError(
+        body?.error ||
+          "The reviewed schoolwork could not be added to the learner profile.",
+      );
+      return;
+    }
+
+    setCommitResult(
+      (body?.result ?? null) as CommitResult | null,
+    );
+
+    setStage("complete");
+
+    try {
+      await onCommitted?.();
+    } catch {
+      // The evidence commit succeeded even if the UI refresh fails.
+    }
   }
 
   return (
@@ -329,20 +710,30 @@ export default function NovaSchoolworkUploader({
         role="dialog"
         aria-modal="true"
         aria-label="Add schoolwork to NOVA+"
-        onMouseDown={(event) => event.stopPropagation()}
+        onMouseDown={(event) =>
+          event.stopPropagation()
+        }
       >
         <header className={styles.header}>
           <div>
-            <span className={styles.eyebrow}>NOVA+ · ADD WORK</span>
+            <span className={styles.eyebrow}>
+              NOVA+ · ADD WORK
+            </span>
+
             <h2>
               {stage === "review"
-                ? "Review the schoolwork analysis"
-                : "Analyse schoolwork"}
+                ? "Review before adding to the learner profile"
+                : stage === "complete"
+                  ? "Schoolwork added to NOVA+"
+                  : "Analyse schoolwork"}
             </h2>
+
             <p>
               {stage === "review"
-                ? `Nova has analysed ${learnerLabel}'s work. Nothing has been added to mastery yet.`
-                : `Upload ${learnerLabel}'s worksheet, homework or marked paper for concept-level analysis.`}
+                ? `Confirm what Nova detected in ${learnerLabel}'s work. Only included items will become mastery evidence.`
+                : stage === "complete"
+                  ? `The approved evidence has been added to ${learnerLabel}'s existing NOVA+ learner profile.`
+                  : `Upload ${learnerLabel}'s worksheet, homework or marked paper for concept-level analysis.`}
             </p>
           </div>
 
@@ -350,7 +741,11 @@ export default function NovaSchoolworkUploader({
             type="button"
             className={styles.closeButton}
             onClick={close}
-            disabled={stage === "uploading" || stage === "analysing"}
+            disabled={
+              stage === "uploading" ||
+              stage === "analysing" ||
+              stage === "committing"
+            }
             aria-label="Close schoolwork uploader"
           >
             ×
@@ -362,19 +757,28 @@ export default function NovaSchoolworkUploader({
             <>
               <div
                 className={`${styles.dropZone} ${
-                  dragActive ? styles.dropZoneActive : ""
+                  dragActive
+                    ? styles.dropZoneActive
+                    : ""
                 }`}
                 onDragOver={(event) => {
                   event.preventDefault();
                   setDragActive(true);
                 }}
-                onDragLeave={() => setDragActive(false)}
+                onDragLeave={() =>
+                  setDragActive(false)
+                }
                 onDrop={onDrop}
-                onClick={() => inputRef.current?.click()}
+                onClick={() =>
+                  inputRef.current?.click()
+                }
                 role="button"
                 tabIndex={0}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
+                  if (
+                    event.key === "Enter" ||
+                    event.key === " "
+                  ) {
                     inputRef.current?.click();
                   }
                 }}
@@ -387,7 +791,9 @@ export default function NovaSchoolworkUploader({
                   onChange={onFileChange}
                 />
 
-                <div className={styles.uploadMark}>＋</div>
+                <div className={styles.uploadMark}>
+                  ＋
+                </div>
 
                 {file ? (
                   <div className={styles.fileSelected}>
@@ -398,13 +804,22 @@ export default function NovaSchoolworkUploader({
                         ? "PDF"
                         : "Image"}
                     </span>
-                    <small>Click or drop another file to replace it.</small>
+                    <small>
+                      Click or drop another file to
+                      replace it.
+                    </small>
                   </div>
                 ) : (
                   <div>
-                    <strong>Drop schoolwork here</strong>
-                    <span>or click to choose a file</span>
-                    <small>PDF, PNG or JPG · maximum 20 MB</small>
+                    <strong>
+                      Drop schoolwork here
+                    </strong>
+                    <span>
+                      or click to choose a file
+                    </span>
+                    <small>
+                      PDF, PNG or JPG · maximum 20 MB
+                    </small>
                   </div>
                 )}
               </div>
@@ -415,15 +830,25 @@ export default function NovaSchoolworkUploader({
                   <select
                     value={subjectHint}
                     onChange={(event) =>
-                      setSubjectHint(event.target.value as SubjectHint)
+                      setSubjectHint(
+                        event.target
+                          .value as SubjectHint,
+                      )
                     }
                   >
-                    <option value="">Auto-detect</option>
-                    <option value="english">English</option>
-                    <option value="math">Mathematics</option>
+                    <option value="">
+                      Auto-detect
+                    </option>
+                    <option value="english">
+                      English
+                    </option>
+                    <option value="math">
+                      Mathematics
+                    </option>
                   </select>
                   <small>
-                    Choose this only if the subject is already known.
+                    Choose this only if the subject is
+                    already known.
                   </small>
                 </label>
 
@@ -432,84 +857,104 @@ export default function NovaSchoolworkUploader({
                   <select
                     value={levelHint}
                     onChange={(event) =>
-                      setLevelHint(event.target.value as LevelHint)
+                      setLevelHint(
+                        event.target
+                          .value as LevelHint,
+                      )
                     }
                   >
-                    <option value="">Auto-detect</option>
-                    {[1, 2, 3, 4, 5, 6].map((level) => (
-                      <option key={level} value={String(level)}>
-                        Primary {level}
-                      </option>
-                    ))}
+                    <option value="">
+                      Auto-detect
+                    </option>
+                    {[1, 2, 3, 4, 5, 6].map(
+                      (level) => (
+                        <option
+                          key={level}
+                          value={String(level)}
+                        >
+                          Primary {level}
+                        </option>
+                      ),
+                    )}
                   </select>
                   <small>
-                    A level hint improves concept matching when the worksheet is ambiguous.
+                    A level hint improves concept
+                    matching when the worksheet is
+                    ambiguous.
                   </small>
                 </label>
               </div>
 
               <div className={styles.privacyNote}>
-                <div className={styles.lockMark}>◇</div>
+                <div className={styles.lockMark}>
+                  ◇
+                </div>
                 <div>
-                  <strong>Private learner evidence</strong>
+                  <strong>
+                    Private learner evidence
+                  </strong>
                   <p>
-                    Files are stored in a private Supabase bucket. Analysis uses
-                    temporary signed access and does not automatically change the
-                    learner&apos;s mastery profile.
+                    Analysis does not affect mastery
+                    until the review step is confirmed.
                   </p>
                 </div>
               </div>
 
-              {error && <div className={styles.error}>{error}</div>}
+              {error && (
+                <div className={styles.error}>
+                  {error}
+                </div>
+              )}
             </>
           )}
 
-          {(stage === "uploading" || stage === "analysing") && (
+          {(stage === "uploading" ||
+            stage === "analysing" ||
+            stage === "committing") && (
             <div className={styles.processing}>
               <span className={styles.spinner} />
 
-              <div className={styles.processingCopy}>
+              <div
+                className={styles.processingCopy}
+              >
                 <span className={styles.eyebrow}>
                   {stage === "uploading"
                     ? "SECURE UPLOAD"
-                    : "LIVE AI ANALYSIS"}
+                    : stage === "analysing"
+                      ? "LIVE AI ANALYSIS"
+                      : "UPDATING LEARNER PROFILE"}
                 </span>
+
                 <h3>
                   {stage === "uploading"
                     ? "Uploading the schoolwork…"
-                    : "Nova is reading the work question by question…"}
+                    : stage === "analysing"
+                      ? "Nova is reading the work question by question…"
+                      : "Adding the approved evidence…"}
                 </h3>
-                <p>
-                  {stage === "uploading"
-                    ? "The file is being stored privately under the selected learner."
-                    : "A smaller multimodal model extracts the work first. A stronger reasoning model then checks correctness and maps each question to the canonical curriculum."}
-                </p>
-              </div>
 
-              <div className={styles.processingSteps}>
-                <span className={styles.completeStep}>1. File secured</span>
-                <span
-                  className={
-                    stage === "analysing"
-                      ? styles.activeStep
-                      : styles.pendingStep
-                  }
-                >
-                  2. Questions extracted
-                </span>
-                <span className={styles.pendingStep}>
-                  3. Concepts mapped
-                </span>
+                <p>
+                  {stage === "committing"
+                    ? "Only the concepts and correctness decisions you approved are being written into the existing NOVA+ learner model."
+                    : "The file is analysed in two stages before anything can become learner evidence."}
+                </p>
               </div>
             </div>
           )}
 
           {stage === "error" && (
             <div className={styles.errorState}>
-              <div className={styles.errorMark}>!</div>
-              <h3>Analysis could not be completed</h3>
+              <div className={styles.errorMark}>
+                !
+              </div>
+              <h3>
+                Analysis could not be completed
+              </h3>
               <p>{error}</p>
-              <button type="button" onClick={reset}>
+              <button
+                type="button"
+                onClick={reset}
+              >
                 Try another upload
               </button>
             </div>
@@ -517,182 +962,562 @@ export default function NovaSchoolworkUploader({
 
           {stage === "review" && result && (
             <>
-              <section className={styles.analysisSummary}>
+              <section
+                className={styles.analysisSummary}
+              >
                 <div>
                   <small>ASSIGNMENT</small>
                   <h3>
-                    {result.upload.assignment_title || "Uploaded schoolwork"}
+                    {result.upload
+                      .assignment_title ||
+                      "Uploaded schoolwork"}
                   </h3>
-                  <p>{result.analysis.overall_summary}</p>
+                  <p>
+                    {
+                      result.analysis
+                        .overall_summary
+                    }
+                  </p>
                 </div>
 
-                <div className={styles.analysisBadges}>
+                <div
+                  className={styles.analysisBadges}
+                >
                   <span>
-                    {subjectLabel(result.upload.subject)} · P
-                    {result.upload.primary_level}
+                    {subjectLabel(
+                      result.upload.subject,
+                    )}{" "}
+                    · P
+                    {
+                      result.upload
+                        .primary_level
+                    }
                   </span>
-                  <span>{result.upload.page_count} page(s)</span>
                   <span>
-                    {result.upload.teacher_marked
-                      ? "Teacher-marked"
-                      : "Unmarked / mixed"}
+                    {result.items.length} items
+                  </span>
+                  <span>
+                    {unresolvedCount > 0
+                      ? `${unresolvedCount} decisions left`
+                      : "Ready to add"}
                   </span>
                 </div>
               </section>
 
-              <section className={styles.resultMetrics}>
+              <section
+                className={styles.phase3Summary}
+              >
                 <article>
-                  <small>Questions detected</small>
-                  <strong>{result.items.length}</strong>
-                </article>
-                <article>
-                  <small>Mapped to concepts</small>
-                  <strong>{mappedCount}</strong>
-                </article>
-                <article>
-                  <small>Needs review</small>
-                  <strong>{reviewCount}</strong>
-                </article>
-                <article>
-                  <small>Analysis confidence</small>
+                  <small>INCLUDE</small>
                   <strong>
-                    {Math.round(
-                      Number(result.upload.analysis_confidence || 0) * 100,
-                    )}
-                    %
+                    {includedCount}
+                  </strong>
+                </article>
+                <article>
+                  <small>EXCLUDE</small>
+                  <strong>
+                    {excludedCount}
+                  </strong>
+                </article>
+                <article>
+                  <small>NEEDS DECISION</small>
+                  <strong>
+                    {unresolvedCount}
                   </strong>
                 </article>
               </section>
 
-              <section className={styles.reviewSection}>
-                <div className={styles.reviewHeading}>
+              <section
+                className={styles.reviewSection}
+              >
+                <div
+                  className={styles.reviewHeading}
+                >
                   <div>
-                    <span className={styles.eyebrow}>QUESTION ANALYSIS</span>
-                    <h3>What Nova detected</h3>
+                    <span
+                      className={styles.eyebrow}
+                    >
+                      REVIEW EVIDENCE
+                    </span>
+                    <h3>
+                      Confirm each question
+                    </h3>
                   </div>
+
                   <p>
-                    Phase 3 will add the confirmation controls before any of this
-                    becomes learner evidence.
+                    You can correct the concept,
+                    confirm the answer judgement, or
+                    exclude an item completely.
                   </p>
                 </div>
 
-                <div className={styles.itemList}>
-                  {result.items.map((item) => (
-                    <article
-                      key={item.item_index}
-                      className={`${styles.itemCard} ${
-                        item.needs_review ? styles.itemReview : ""
-                      }`}
-                    >
-                      <div className={styles.itemTop}>
-                        <div>
-                          <small>
-                            {item.question_number
-                              ? `QUESTION ${item.question_number}`
-                              : `ITEM ${item.item_index}`}
-                            {item.page_number > 0
-                              ? ` · PAGE ${item.page_number}`
-                              : ""}
-                          </small>
-                          <strong>{item.prompt || "Question text unclear"}</strong>
-                        </div>
+                <div
+                  className={styles.itemList}
+                >
+                  {result.items.map((item) => {
+                    const state =
+                      reviewState[
+                        item.item_index
+                      ];
 
-                        <span
-                          className={`${styles.correctness} ${
-                            styles[
-                              `correctness_${item.final_correctness}` as
-                                | "correctness_correct"
-                                | "correctness_incorrect"
-                                | "correctness_partial"
-                                | "correctness_uncertain"
-                            ]
-                          }`}
+                    if (!state) return null;
+
+                    const itemUnresolved =
+                      state.decision ===
+                        "review" ||
+                      (state.decision ===
+                        "include" &&
+                        (!state.skill_code ||
+                          state.correctness ===
+                            "uncertain"));
+
+                    return (
+                      <article
+                        key={item.item_index}
+                        className={`${styles.itemCard} ${
+                          itemUnresolved
+                            ? styles.itemReview
+                            : ""
+                        }`}
+                      >
+                        <div
+                          className={
+                            styles.itemTop
+                          }
                         >
-                          {correctnessLabel(item.final_correctness)}
-                        </span>
-                      </div>
+                          <div>
+                            <small>
+                              {item.question_number
+                                ? `QUESTION ${item.question_number}`
+                                : `ITEM ${item.item_index}`}
+                              {item.page_number >
+                              0
+                                ? ` · PAGE ${item.page_number}`
+                                : ""}
+                            </small>
+                            <strong>
+                              {item.prompt ||
+                                "Question text unclear"}
+                            </strong>
+                          </div>
 
-                      <div className={styles.answerGrid}>
-                        <div>
-                          <small>Student answer</small>
-                          <p>{item.student_answer || "No answer detected"}</p>
+                          <span
+                            className={`${styles.correctness} ${
+                              styles[
+                                `correctness_${state.correctness}` as
+                                  | "correctness_correct"
+                                  | "correctness_incorrect"
+                                  | "correctness_partial"
+                                  | "correctness_uncertain"
+                              ]
+                            }`}
+                          >
+                            {correctnessLabel(
+                              state.correctness,
+                            )}
+                          </span>
                         </div>
-                        <div>
-                          <small>Expected answer</small>
-                          <p>{item.expected_answer || "Not stated / open-ended"}</p>
-                        </div>
-                      </div>
 
-                      <div className={styles.mappingRow}>
-                        <div>
-                          <small>Canonical concept</small>
-                          <strong>
-                            {item.primary_skill?.skill_name ||
-                              "No reliable concept mapping"}
-                          </strong>
-                          {item.primary_skill && (
+                        <div
+                          className={
+                            styles.answerGrid
+                          }
+                        >
+                          <div>
+                            <small>
+                              Student answer
+                            </small>
+                            <p>
+                              {item.student_answer ||
+                                "No answer detected"}
+                            </p>
+                          </div>
+
+                          <div>
+                            <small>
+                              Expected answer
+                            </small>
+                            <p>
+                              {item.expected_answer ||
+                                "Not stated / open-ended"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div
+                          className={
+                            styles.reviewControls
+                          }
+                        >
+                          <div
+                            className={
+                              styles.decisionControl
+                            }
+                          >
+                            <small>
+                              Use in learner profile?
+                            </small>
+
+                            <div>
+                              <button
+                                type="button"
+                                className={
+                                  state.decision ===
+                                  "include"
+                                    ? styles.decisionIncludeActive
+                                    : ""
+                                }
+                                onClick={() =>
+                                  updateReview(
+                                    item.item_index,
+                                    {
+                                      decision:
+                                        "include",
+                                    },
+                                  )
+                                }
+                              >
+                                Include
+                              </button>
+
+                              <button
+                                type="button"
+                                className={
+                                  state.decision ===
+                                  "exclude"
+                                    ? styles.decisionExcludeActive
+                                    : ""
+                                }
+                                onClick={() =>
+                                  updateReview(
+                                    item.item_index,
+                                    {
+                                      decision:
+                                        "exclude",
+                                    },
+                                  )
+                                }
+                              >
+                                Exclude
+                              </button>
+                            </div>
+                          </div>
+
+                          <label>
                             <span>
-                              {item.primary_skill.topic} ·{" "}
-                              {item.primary_skill.skill_code}
+                              Correctness
                             </span>
-                          )}
+                            <select
+                              value={
+                                state.correctness
+                              }
+                              disabled={
+                                state.decision ===
+                                "exclude"
+                              }
+                              onChange={(event) =>
+                                updateReview(
+                                  item.item_index,
+                                  {
+                                    correctness:
+                                      event.target
+                                        .value as Correctness,
+                                    decision:
+                                      state.decision ===
+                                      "review"
+                                        ? "include"
+                                        : state.decision,
+                                  },
+                                )
+                              }
+                            >
+                              <option value="correct">
+                                Correct
+                              </option>
+                              <option value="incorrect">
+                                Incorrect
+                              </option>
+                              <option value="partial">
+                                Partly correct
+                              </option>
+                              <option value="uncertain">
+                                Uncertain
+                              </option>
+                            </select>
+                          </label>
+
+                          <label
+                            className={
+                              styles.conceptSelect
+                            }
+                          >
+                            <span>
+                              Canonical concept
+                            </span>
+                            <select
+                              value={
+                                state.skill_code
+                              }
+                              disabled={
+                                state.decision ===
+                                "exclude"
+                              }
+                              onChange={(event) =>
+                                updateReview(
+                                  item.item_index,
+                                  {
+                                    skill_code:
+                                      event.target
+                                        .value,
+                                    decision:
+                                      state.decision ===
+                                      "review"
+                                        ? "include"
+                                        : state.decision,
+                                  },
+                                )
+                              }
+                            >
+                              <option value="">
+                                Choose concept…
+                              </option>
+
+                              {skills.map(
+                                (skill) => (
+                                  <option
+                                    key={
+                                      skill.skill_code
+                                    }
+                                    value={
+                                      skill.skill_code
+                                    }
+                                  >
+                                    {skill.topic} —{" "}
+                                    {
+                                      skill.skill_name
+                                    }
+                                  </option>
+                                ),
+                              )}
+                            </select>
+                          </label>
                         </div>
 
-                        <div className={styles.mappingMeta}>
-                          <span>
-                            Mapping{" "}
-                            {confidenceLabel(item.mapping_confidence)}
-                          </span>
-                          <span>
-                            Reading{" "}
-                            {confidenceLabel(item.extraction_confidence)}
-                          </span>
-                          {item.needs_review && <b>Review needed</b>}
-                        </div>
-                      </div>
+                        <div
+                          className={
+                            styles.phase3EvidenceRow
+                          }
+                        >
+                          <div>
+                            <small>
+                              Evidence strength
+                            </small>
+                            <strong>
+                              {evidenceStrength(
+                                item,
+                                state,
+                              )}
+                            </strong>
+                          </div>
 
-                      {item.teacher_feedback && (
-                        <div className={styles.teacherFeedback}>
-                          <small>Teacher feedback</small>
-                          <p>{item.teacher_feedback}</p>
-                        </div>
-                      )}
+                          <div>
+                            <small>
+                              Original mapping
+                            </small>
+                            <strong>
+                              {item.primary_skill
+                                ?.skill_name ||
+                                "No reliable mapping"}
+                            </strong>
+                          </div>
 
-                      {item.reasoning_note && (
-                        <details className={styles.reasoning}>
-                          <summary>Why Nova mapped it this way</summary>
-                          <p>{item.reasoning_note}</p>
-                        </details>
-                      )}
-                    </article>
-                  ))}
+                          <div>
+                            <small>
+                              AI mapping confidence
+                            </small>
+                            <strong>
+                              {confidenceLabel(
+                                item.mapping_confidence,
+                              )}
+                            </strong>
+                          </div>
+                        </div>
+
+                        {item.teacher_feedback && (
+                          <div
+                            className={
+                              styles.teacherFeedback
+                            }
+                          >
+                            <small>
+                              Teacher feedback
+                            </small>
+                            <p>
+                              {
+                                item.teacher_feedback
+                              }
+                            </p>
+                          </div>
+                        )}
+
+                        {itemUnresolved && (
+                          <div
+                            className={
+                              styles.itemDecisionWarning
+                            }
+                          >
+                            Choose Include or Exclude.
+                            Included items also need a
+                            confirmed correctness result
+                            and canonical concept.
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
                 </div>
               </section>
 
-              <div className={styles.phaseNotice}>
+              {error && (
+                <div className={styles.error}>
+                  {error}
+                </div>
+              )}
+
+              <div
+                className={
+                  styles.phase3CommitBar
+                }
+              >
                 <div>
-                  <strong>Analysis is ready for review.</strong>
+                  <strong>
+                    {unresolvedCount > 0
+                      ? `${unresolvedCount} item${
+                          unresolvedCount === 1
+                            ? ""
+                            : "s"
+                        } still need a decision`
+                      : "Ready to update the learner profile"}
+                  </strong>
+
                   <p>
-                    This Phase 1+2 build deliberately stops here. In Phase 3,
-                    the parent/teacher will approve, edit or exclude each item
-                    before it can affect Strengths &amp; Gaps, Mastery Map,
-                    Nova Recommends, Progress or Parent Report.
+                    Only the selected primary concept
+                    from each included item becomes
+                    evidence. Supporting AI mappings
+                    remain stored but do not double
+                    count mastery.
                   </p>
                 </div>
 
-                <button type="button" onClick={close}>
-                  Done for now
+                <button
+                  type="button"
+                  disabled={
+                    unresolvedCount > 0
+                  }
+                  onClick={() =>
+                    void commitReview()
+                  }
+                >
+                  Add to Learning Profile
+                  <span>→</span>
                 </button>
               </div>
             </>
           )}
+
+          {stage === "complete" &&
+            commitResult && (
+              <div
+                className={
+                  styles.completeState
+                }
+              >
+                <div
+                  className={
+                    styles.completeMark
+                  }
+                >
+                  ✓
+                </div>
+
+                <span
+                  className={styles.eyebrow}
+                >
+                  LEARNING PROFILE UPDATED
+                </span>
+
+                <h3>
+                  Schoolwork evidence has been
+                  added
+                </h3>
+
+                <p>
+                  NOVA+ recalculated the learner&apos;s
+                  concept mastery using only the
+                  questions you approved.
+                </p>
+
+                <div
+                  className={
+                    styles.completeMetrics
+                  }
+                >
+                  <article>
+                    <small>
+                      Added
+                    </small>
+                    <strong>
+                      {
+                        commitResult.items_included
+                      }
+                    </strong>
+                  </article>
+                  <article>
+                    <small>
+                      Excluded
+                    </small>
+                    <strong>
+                      {
+                        commitResult.items_excluded
+                      }
+                    </strong>
+                  </article>
+                  <article>
+                    <small>
+                      Profile events
+                    </small>
+                    <strong>
+                      {
+                        commitResult.profile_events_written
+                      }
+                    </strong>
+                  </article>
+                </div>
+
+                <button
+                  type="button"
+                  className={
+                    styles.completeButton
+                  }
+                  onClick={close}
+                >
+                  View Updated NOVA+
+                  <span>→</span>
+                </button>
+              </div>
+            )}
         </div>
 
         {stage === "select" && (
           <footer className={styles.footer}>
-            <button type="button" className={styles.secondary} onClick={close}>
+            <button
+              type="button"
+              className={styles.secondary}
+              onClick={close}
+            >
               Cancel
             </button>
+
             <button
               type="button"
               className={styles.primary}

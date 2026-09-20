@@ -743,3 +743,332 @@
     justify-content: center;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 3 — REVIEW + COMMIT
+   ========================================================================== */
+
+.phase3Summary {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.phase3Summary article {
+  padding: 10px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.024);
+}
+
+.phase3Summary small,
+.phase3Summary strong {
+  display: block;
+}
+
+.phase3Summary small {
+  color: rgba(235, 247, 255, 0.33);
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+}
+
+.phase3Summary strong {
+  margin-top: 5px;
+  font-size: 18px;
+}
+
+.reviewControls {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns:
+    minmax(150px, 0.65fr)
+    minmax(155px, 0.65fr)
+    minmax(280px, 1.7fr);
+  gap: 7px;
+}
+
+.reviewControls label,
+.decisionControl {
+  min-width: 0;
+  padding: 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.024);
+}
+
+.reviewControls label > span,
+.decisionControl > small {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(235, 247, 255, 0.34);
+  font-size: 7px;
+  font-weight: 850;
+}
+
+.reviewControls select {
+  width: 100%;
+  min-height: 35px;
+  padding: 0 8px;
+  border: 1px solid rgba(142, 232, 255, 0.1);
+  border-radius: 8px;
+  outline: none;
+  background: rgba(2, 9, 21, 0.66);
+  color: white;
+  font: inherit;
+  font-size: 9px;
+}
+
+.reviewControls select:disabled {
+  opacity: 0.38;
+}
+
+.reviewControls option {
+  color: #071326;
+}
+
+.decisionControl > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.decisionControl button {
+  min-height: 35px;
+  border: 1px solid rgba(142, 232, 255, 0.09);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(235, 247, 255, 0.5);
+  cursor: pointer;
+  font: inherit;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.decisionControl .decisionIncludeActive {
+  border-color: rgba(77, 226, 161, 0.26);
+  background: rgba(77, 226, 161, 0.09);
+  color: #7df3ba;
+}
+
+.decisionControl .decisionExcludeActive {
+  border-color: rgba(255, 108, 114, 0.25);
+  background: rgba(255, 108, 114, 0.08);
+  color: #ff9296;
+}
+
+.phase3EvidenceRow {
+  margin-top: 7px;
+  display: grid;
+  grid-template-columns: 1fr 1.6fr 1fr;
+  gap: 6px;
+}
+
+.phase3EvidenceRow > div {
+  min-width: 0;
+  padding: 8px;
+  border-radius: 9px;
+  background: rgba(124, 58, 237, 0.035);
+}
+
+.phase3EvidenceRow small,
+.phase3EvidenceRow strong {
+  display: block;
+}
+
+.phase3EvidenceRow small {
+  color: rgba(235, 247, 255, 0.3);
+  font-size: 7px;
+}
+
+.phase3EvidenceRow strong {
+  margin-top: 4px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 8px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.itemDecisionWarning {
+  margin-top: 7px;
+  padding: 8px 9px;
+  border: 1px solid rgba(255, 174, 87, 0.12);
+  border-radius: 9px;
+  background: rgba(255, 174, 87, 0.045);
+  color: rgba(255, 198, 129, 0.78);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.phase3CommitBar {
+  position: sticky;
+  bottom: -20px;
+  z-index: 5;
+  margin: 14px -22px -20px;
+  padding: 14px 22px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 1px solid rgba(142, 232, 255, 0.1);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(3, 9, 22, 0.94),
+      rgba(3, 9, 22, 0.99)
+    );
+  backdrop-filter: blur(14px);
+}
+
+.phase3CommitBar strong {
+  font-size: 10px;
+}
+
+.phase3CommitBar p {
+  max-width: 710px;
+  margin: 4px 0 0;
+  color: rgba(235, 247, 255, 0.38);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.phase3CommitBar button,
+.completeButton {
+  min-height: 43px;
+  padding: 0 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(251, 215, 110, 0.54);
+  border-radius: 11px;
+  background: linear-gradient(135deg, #f2c45b, #d89c2e);
+  box-shadow: 0 10px 24px rgba(216, 156, 46, 0.19);
+  color: #1c1205;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.phase3CommitBar button:disabled {
+  opacity: 0.33;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.phase3CommitBar button span,
+.completeButton span {
+  font-size: 16px;
+}
+
+.completeState {
+  min-height: 450px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.completeMark {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(77, 226, 161, 0.22);
+  border-radius: 18px;
+  background: rgba(77, 226, 161, 0.07);
+  color: #7df3ba;
+  font-size: 20px;
+  font-weight: 950;
+  box-shadow: 0 0 28px rgba(77, 226, 161, 0.09);
+}
+
+.completeState h3 {
+  margin: 3px 0 0;
+  font-size: 25px;
+  letter-spacing: -0.035em;
+}
+
+.completeState > p {
+  max-width: 620px;
+  margin: 0;
+  color: rgba(235, 247, 255, 0.45);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.completeMetrics {
+  width: min(520px, 100%);
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.completeMetrics article {
+  padding: 11px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.completeMetrics small,
+.completeMetrics strong {
+  display: block;
+}
+
+.completeMetrics small {
+  color: rgba(235, 247, 255, 0.32);
+  font-size: 7px;
+}
+
+.completeMetrics strong {
+  margin-top: 5px;
+  font-size: 20px;
+}
+
+.completeButton {
+  margin-top: 10px;
+}
+
+@media (max-width: 820px) {
+  .reviewControls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .conceptSelect {
+    grid-column: 1 / -1;
+  }
+
+  .phase3EvidenceRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .phase3Summary,
+  .reviewControls,
+  .completeMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .conceptSelect {
+    grid-column: auto;
+  }
+
+  .phase3CommitBar {
+    margin-left: -14px;
+    margin-right: -14px;
+    padding-left: 14px;
+    padding-right: 14px;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .phase3CommitBar button {
+    width: 100%;
+  }
+}

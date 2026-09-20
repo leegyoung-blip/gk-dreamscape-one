@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useNovaSchoolworkEvidence } from "@/hooks/useNovaSchoolworkEvidence";
 import type {
   NovaRecommendation,
   NovaRecommendationLane,
@@ -120,15 +121,18 @@ function RecommendationCard({
   canLaunchPractice,
   isAdminPreview,
   featured = false,
+  schoolworkCount = 0,
 }: {
   item: NovaRecommendation;
   canLaunchPractice: boolean;
   isAdminPreview: boolean;
   featured?: boolean;
+  schoolworkCount?: number;
 }) {
   const meta = LANE_META[item.lane];
   const quizHref = item.quiz?.quiz_href || "";
   const mayOpen = Boolean(quizHref) && (canLaunchPractice || isAdminPreview);
+  const preview = isAdminPreview && !canLaunchPractice;
 
   return (
     <article
@@ -145,8 +149,16 @@ function RecommendationCard({
           </div>
         </div>
 
-        <div className={styles.subjectBadge}>
-          {SUBJECT_LABELS[item.subject]} · P{item.primary_level}
+        <div className={styles.cardBadges}>
+          {schoolworkCount > 0 && (
+            <span className={styles.schoolworkBadge}>
+              Work evidence · {schoolworkCount}
+            </span>
+          )}
+
+          <div className={styles.subjectBadge}>
+            {SUBJECT_LABELS[item.subject]} · P{item.primary_level}
+          </div>
         </div>
       </div>
 
@@ -177,7 +189,7 @@ function RecommendationCard({
 
         {mayOpen ? (
           <a className={styles.startButton} href={quizHref}>
-            {canLaunchPractice ? meta.actionLabel : "Open Mission"}
+            {preview ? "Preview Mission" : meta.actionLabel}
             <span>→</span>
           </a>
         ) : (
@@ -228,6 +240,14 @@ function RecommendationCard({
           <div>
             <small>Quiz coverage</small>
             <strong>{percentage(item.quiz.quiz_skill_coverage_percentage)}</strong>
+          </div>
+          <div>
+            <small>Uploaded work</small>
+            <strong>
+              {schoolworkCount > 0
+                ? `${schoolworkCount} approved item${schoolworkCount === 1 ? "" : "s"}`
+                : "None"}
+            </strong>
           </div>
         </div>
 
@@ -281,6 +301,7 @@ export default function NovaRecommendsTab({
   isAdminPreview = false,
 }: NovaRecommendsTabProps) {
   const [payload, setPayload] = useState<NovaRecommendationsPayload | null>(null);
+  const schoolworkEvidence = useNovaSchoolworkEvidence(learnerId);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -410,6 +431,10 @@ export default function NovaRecommendsTab({
                 canLaunchPractice={canLaunchPractice}
                 isAdminPreview={isAdminPreview}
                 featured
+                schoolworkCount={
+                  schoolworkEvidence.bySkillId.get(String(focus.skill_id))
+                    ?.event_count ?? 0
+                }
               />
             </section>
           )}
@@ -432,6 +457,10 @@ export default function NovaRecommendsTab({
                     item={item}
                     canLaunchPractice={canLaunchPractice}
                     isAdminPreview={isAdminPreview}
+                    schoolworkCount={
+                      schoolworkEvidence.bySkillId.get(String(item.skill_id))
+                        ?.event_count ?? 0
+                    }
                   />
                 ))}
               </div>
@@ -453,6 +482,10 @@ export default function NovaRecommendsTab({
                 item={finish}
                 canLaunchPractice={canLaunchPractice}
                 isAdminPreview={isAdminPreview}
+                schoolworkCount={
+                  schoolworkEvidence.bySkillId.get(String(finish.skill_id))
+                    ?.event_count ?? 0
+                }
               />
             </section>
           )}

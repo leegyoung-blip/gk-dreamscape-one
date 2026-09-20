@@ -690,3 +690,52 @@
   letter-spacing: .11em;
   text-transform: uppercase;
 }
+
+
+/* Phase 4 — uploaded schoolwork provenance */
+.schoolworkBadge {
+  margin-left: auto;
+  padding: 3px 5px;
+  border: 1px solid rgba(216, 180, 254, 0.15);
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.07);
+  color: #cbb2ff;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.schoolworkEvidence {
+  margin: 11px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(216, 180, 254, 0.12);
+  border-radius: 11px;
+  background:
+    linear-gradient(120deg, rgba(124, 58, 237, 0.05), rgba(83, 215, 255, 0.025));
+}
+
+.schoolworkEvidence span,
+.schoolworkEvidence strong,
+.schoolworkEvidence small {
+  display: block;
+}
+
+.schoolworkEvidence span {
+  color: #cbb2ff;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+}
+
+.schoolworkEvidence strong {
+  margin-top: 5px;
+  font-size: 9px;
+}
+
+.schoolworkEvidence small {
+  margin-top: 4px;
+  color: rgba(235, 247, 255, 0.38);
+  font-size: 8px;
+  line-height: 1.4;
+}

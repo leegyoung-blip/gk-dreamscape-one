@@ -678,3 +678,23 @@
     justify-content: space-between;
   }
 }
+
+
+/* Phase 4 — uploaded work provenance */
+.cardBadges {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.schoolworkBadge {
+  padding: 6px 8px;
+  border: 1px solid rgba(216, 180, 254, 0.15);
+  border-radius: 9px;
+  background: rgba(139, 92, 246, 0.07);
+  color: #cbb2ff;
+  font-size: 9px;
+  font-weight: 900;
+}
