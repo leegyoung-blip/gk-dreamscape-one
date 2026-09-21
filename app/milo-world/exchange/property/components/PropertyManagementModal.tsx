@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import PropertyResidentMarketPanel from "./PropertyResidentMarketPanel";
 import PropertyMaintenancePanel from "./PropertyMaintenancePanel";
 import {
@@ -37,6 +37,7 @@ type Props = PropertyTabStyles & {
   maintenanceIssues: PropertyMaintenanceIssue[];
   maintenanceActions: PropertyMaintenanceAction[];
   residentLifeProfiles: PropertyResidentLifeProfile[];
+  focusSection?: "overview" | "upgrades";
   onClose: () => void;
   onUpgrade: (unitId: string, category: string) => Promise<void>;
   onCreateRentalListing: (unitId: string, askingWeeklyRent: number, openToPurchaseOffers: boolean) => Promise<void>;
@@ -103,6 +104,7 @@ export default function PropertyManagementModal({
   maintenanceIssues,
   maintenanceActions,
   residentLifeProfiles,
+  focusSection = "overview",
   onClose,
   onUpgrade,
   onCreateRentalListing,
@@ -132,6 +134,17 @@ export default function PropertyManagementModal({
   function getCatalogRow(category: string, level: number) {
     return catalog.find((row) => row.category === category && row.level === level);
   }
+
+  useEffect(() => {
+    if (focusSection !== "upgrades") return;
+    const timer = window.setTimeout(() => {
+      document.querySelector('[data-milo-guide="property-upgrade-system"]')?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [focusSection, unit.unit_id]);
 
   return (
     <div
@@ -327,6 +340,11 @@ export default function PropertyManagementModal({
             </div>
           </div>
 
+          {categories.length === 0 ? (
+            <div style={{ marginTop: "18px", borderRadius: "18px", border: "1px dashed rgba(142,232,255,0.22)", background: "rgba(142,232,255,0.045)", padding: "20px", color: "rgba(255,255,255,0.62)", lineHeight: 1.55, fontSize: "13px" }}>
+              Upgrade choices are being prepared. Close this window and refresh the Property Exchange once, then open <strong style={{ color: "white" }}>Upgrade</strong> again.
+            </div>
+          ) : (
           <div style={{ marginTop: "20px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
             {categories.map((category) => {
               const currentLevel = Number(unit.upgrade_levels?.[category.category] || 0);
@@ -422,6 +440,7 @@ export default function PropertyManagementModal({
               );
             })}
           </div>
+          )}
         </div>
       </section>
     </div>

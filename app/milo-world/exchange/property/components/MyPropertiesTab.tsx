@@ -109,6 +109,7 @@ export default function MyPropertiesTab({
   onCancelListing,
 }: Props) {
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [selectedUnitFocus, setSelectedUnitFocus] = useState<"overview" | "upgrades">("overview");
   const [listingUnitId, setListingUnitId] = useState<string | null>(null);
   const [askingPrice, setAskingPrice] = useState(0);
   const [localMessage, setLocalMessage] = useState("");
@@ -208,6 +209,7 @@ export default function MyPropertiesTab({
           maintenanceIssues={maintenanceIssues.filter((item) => item.unit_id === selectedUnit.unit_id)}
           maintenanceActions={maintenanceActions.filter((item) => item.unit_id === selectedUnit.unit_id)}
           residentLifeProfiles={residentLifeProfiles}
+          focusSection={selectedUnitFocus}
           onClose={() => setSelectedUnitId(null)}
           onUpgrade={onUpgradeUnit}
           onCreateRentalListing={onCreateRentalListing}
@@ -376,13 +378,12 @@ export default function MyPropertiesTab({
             </button>
           </div>
 
-          <div style={{ marginTop: "17px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3,minmax(0,1fr))", gap: "10px" }}>
+          <div style={{ marginTop: "17px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(5,minmax(0,1fr))", gap: "10px" }}>
             {[
               ["For Rent", activeRentalListings.length],
               ["Applicants", rentalApplications.filter((item) => item.status === "pending").length],
               ["Tenants", activeLeases.length],
               ["Purchase Offers", purchaseOffers.filter((item) => item.status === "active").length],
-              ["Reputation", `${Math.round(Number(landlordReputation.score || 60))}/100`],
               ["Unread Messages", unreadMessages],
             ].map(([label, value]) => (
               <button
@@ -407,35 +408,56 @@ export default function MyPropertiesTab({
           </div>
         </section>
 
-        <section data-milo-guide="property-reputation" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px", border: "1px solid rgba(142,232,255,0.14)", background: "linear-gradient(145deg, rgba(83,215,255,0.05), rgba(5,13,28,0.74))" }}>
-          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", gap: "14px", alignItems: isMobile ? "stretch" : "flex-end" }}>
-            <div>
-              <p style={{ margin: 0, color: "#8ee8ff", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Landlord Reputation</p>
-              <h2 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "31px" : "39px", fontWeight: 500 }}>
-                {Math.round(Number(landlordReputation.score || 60))}/100 · {Number(landlordReputation.score || 60) >= 85 ? "Exceptional" : Number(landlordReputation.score || 60) >= 72 ? "Trusted" : Number(landlordReputation.score || 60) >= 58 ? "Established" : Number(landlordReputation.score || 60) >= 42 ? "Developing" : "At Risk"}
-              </h2>
-              <p style={{ margin: "9px 0 0", maxWidth: "830px", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55 }}>
-                Treat tenants well, keep properties in good shape and handle repairs quickly. A stronger reputation makes residents more willing to rent from you, renew their lease and negotiate fairly.
-              </p>
-            </div>
-            <button type="button" onClick={onOpenMessages} style={{ ...primaryButton, minHeight: "42px" }}>
-              Open Property Messages{unreadMessages > 0 ? ` · ${unreadMessages}` : ""}
-            </button>
-          </div>
-          <div style={{ marginTop: "17px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(5,minmax(0,1fr))", gap: "10px" }}>
-            {[
-              ["Completed Leases", landlordReputation.completed_leases],
-              ["Renewals", landlordReputation.renewals],
-              ["Tenant Happiness", `${Math.round(Number(landlordReputation.average_satisfaction || 80))}/100`],
-              ["Repairs Completed", landlordReputation.full_repairs],
-              ["Early Move-outs", landlordReputation.early_departures],
-            ].map(([label, value]) => (
-              <div key={String(label)} style={{ borderRadius: "16px", background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.08)", padding: "14px" }}>
-                <small style={{ color: "rgba(255,255,255,0.46)" }}>{label}</small>
-                <strong style={{ display: "block", marginTop: "5px", fontSize: "21px", color: label === "Early Move-outs" && Number(value) > 0 ? "#ffd18a" : "white" }}>{value}</strong>
-              </div>
-            ))}
-          </div>
+        <section
+          data-milo-guide="property-reputation"
+          style={{
+            ...glassPanel,
+            padding: isMobile ? "17px" : "20px 22px",
+            border: "1px solid rgba(142,232,255,0.14)",
+            background: "linear-gradient(145deg, rgba(83,215,255,0.05), rgba(5,13,28,0.74))",
+          }}
+        >
+          {(() => {
+            const score = Math.max(0, Math.min(100, Math.round(Number(landlordReputation.score || 60))));
+            const label = score >= 85 ? "Exceptional" : score >= 72 ? "Trusted" : score >= 58 ? "Established" : score >= 42 ? "Developing" : "At Risk";
+            const fill = score >= 72 ? "linear-gradient(90deg,#79f2ce,#8ee8ff)" : score >= 42 ? "linear-gradient(90deg,#ffd18a,#8ee8ff)" : "linear-gradient(90deg,#ff9292,#ffd18a)";
+            return (
+              <>
+                <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", gap: "12px", alignItems: isMobile ? "stretch" : "center" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ margin: 0, color: "#8ee8ff", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Landlord Reputation</p>
+                    <div style={{ marginTop: "7px", display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
+                      <strong style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "28px" : "34px", fontWeight: 500 }}>{score}/100</strong>
+                      <span style={{ color: score >= 72 ? "#79f2ce" : score >= 42 ? "#ffd18a" : "#ffb0b0", fontSize: "13px", fontWeight: 900 }}>{label}</span>
+                    </div>
+                  </div>
+                  <button type="button" onClick={onOpenMessages} style={{ ...secondaryButton, minHeight: "38px", padding: "0 15px" }}>
+                    Messages{unreadMessages > 0 ? ` · ${unreadMessages}` : ""}
+                  </button>
+                </div>
+
+                <div style={{ marginTop: "14px" }}>
+                  <div style={{ position: "relative", height: isMobile ? "15px" : "17px", borderRadius: "999px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                    <div style={{ width: `${score}%`, height: "100%", borderRadius: "999px", background: fill, transition: "width 280ms ease" }} />
+                    {[42,58,72,85].map((mark) => (
+                      <span key={mark} style={{ position: "absolute", left: `${mark}%`, top: 0, bottom: 0, width: "1px", background: "rgba(2,8,23,0.5)" }} />
+                    ))}
+                  </div>
+                  <div style={{ marginTop: "7px", display: "flex", justifyContent: "space-between", gap: "8px", color: "rgba(255,255,255,0.38)", fontSize: "9px", fontWeight: 800 }}>
+                    <span>At Risk</span><span>Developing</span><span>Established</span><span>Trusted</span><span>Exceptional</span>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: "13px", display: "flex", flexWrap: "wrap", gap: "8px 18px", color: "rgba(255,255,255,0.54)", fontSize: "11px" }}>
+                  <span>Tenant happiness <strong style={{ color: "white" }}>{Math.round(Number(landlordReputation.average_satisfaction || 80))}/100</strong></span>
+                  <span>Renewals <strong style={{ color: "white" }}>{landlordReputation.renewals}</strong></span>
+                  <span>Repairs completed <strong style={{ color: "white" }}>{landlordReputation.full_repairs}</strong></span>
+                  <span>Completed leases <strong style={{ color: "white" }}>{landlordReputation.completed_leases}</strong></span>
+                  {Number(landlordReputation.early_departures || 0) > 0 && <span style={{ color: "#ffd18a" }}>Early move-outs <strong>{landlordReputation.early_departures}</strong></span>}
+                </div>
+              </>
+            );
+          })()}
         </section>
 
         <ResidentLifePanel
@@ -525,9 +547,22 @@ export default function MyPropertiesTab({
                         <span>Issues <strong style={{ color: maintenanceIssues.some((item) => item.unit_id === unit.unit_id && ["open","ignored","temporary"].includes(item.status)) ? "#ffb0b0" : "#79f2ce" }}>{maintenanceIssues.filter((item) => item.unit_id === unit.unit_id && ["open","ignored","temporary"].includes(item.status)).length}</strong></span>
                       </div>
 
-                      <button type="button" onClick={() => setSelectedUnitId(unit.unit_id)} style={{ ...primaryButton, width: "100%", minHeight: "40px", marginTop: "13px" }}>
-                        View & Manage
-                      </button>
+                      <div style={{ marginTop: "13px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedUnitFocus("overview"); setSelectedUnitId(unit.unit_id); }}
+                          style={{ ...secondaryButton, width: "100%", minHeight: "40px" }}
+                        >
+                          Manage
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedUnitFocus("upgrades"); setSelectedUnitId(unit.unit_id); }}
+                          style={{ ...primaryButton, width: "100%", minHeight: "40px" }}
+                        >
+                          Upgrade
+                        </button>
+                      </div>
 
                       {activeResale ? (
                         <button type="button" onClick={() => void onCancelListing(activeResale.listing_id)} disabled={actionLoading} style={{ ...secondaryButton, width: "100%", minHeight: "38px", marginTop: "8px", color: "#ffd18a" }}>
@@ -551,12 +586,19 @@ export default function MyPropertiesTab({
           )}
         </section>
 
-        <section data-milo-guide="property-upgrade-overview" style={{ ...glassPanel, padding: isMobile ? "18px" : "22px", border: "1px solid rgba(121,242,206,0.15)", background: "linear-gradient(145deg, rgba(121,242,206,0.05), rgba(5,13,28,0.74))" }}>
-          <p style={{ margin: 0, color: "#79f2ce", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Property Upgrades</p>
-          <h3 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "29px" : "35px", fontWeight: 500 }}>Your upgrades stay with the property</h3>
-          <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,0.56)", lineHeight: 1.6, fontSize: "13px", maxWidth: "900px" }}>
-            Every property keeps its own upgrades, value and rent potential. If you sell it later, the next owner receives the property exactly as you developed it.
-          </p>
+        <section data-milo-guide="property-upgrade-overview" style={{ ...glassPanel, padding: isMobile ? "16px" : "18px 22px", border: "1px solid rgba(121,242,206,0.15)", background: "linear-gradient(145deg, rgba(121,242,206,0.05), rgba(5,13,28,0.74))" }}>
+          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", gap: "12px", alignItems: isMobile ? "stretch" : "center" }}>
+            <div>
+              <p style={{ margin: 0, color: "#79f2ce", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Upgrade Workshop</p>
+              <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "27px" : "32px", fontWeight: 500 }}>Build each property your way</h3>
+              <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.54)", lineHeight: 1.55, fontSize: "12px", maxWidth: "900px" }}>
+                Choose <strong style={{ color: "white" }}>Upgrade</strong> on any property above to improve its interior, fit-out, facilities, smart systems, efficiency and amenities.
+              </p>
+            </div>
+            <span style={{ alignSelf: isMobile ? "flex-start" : "center", borderRadius: "999px", padding: "8px 11px", border: "1px solid rgba(121,242,206,0.18)", background: "rgba(121,242,206,0.07)", color: upgradeCatalog.length > 0 ? "#79f2ce" : "#ffd18a", fontSize: "10px", fontWeight: 900 }}>
+              {upgradeCatalog.length > 0 ? "6 upgrade paths available" : "Loading upgrade paths…"}
+            </span>
+          </div>
         </section>
 
         <section data-milo-guide="property-my-listings" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>

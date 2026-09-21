@@ -877,11 +877,7 @@ export default function PropertyExchangeClient() {
       supabase.rpc("get_milo_exchange_recent_unit_resale_sales", { p_limit: 20 }),
       supabase.rpc("get_milo_exchange_unit_resale_listings", { p_limit: 30 }),
       supabase.rpc("get_my_milo_exchange_unit_resale_listings", { p_limit: 50 }),
-      supabase
-        .from("milo_exchange_property_upgrade_catalog")
-        .select("category,level,display_name,description,upgrade_cost,value_bonus_bps,rent_bonus_bps,appeal_bonus,quality_bonus,efficiency_bonus,display_order")
-        .order("display_order", { ascending: true })
-        .order("level", { ascending: true }),
+      supabase.rpc("get_milo_exchange_property_upgrade_catalog"),
     ]);
 
     if (propertiesResult.error) {
@@ -920,6 +916,7 @@ export default function PropertyExchangeClient() {
     if (catalogResult.error) {
       console.warn("Could not load property upgrade catalog:", catalogResult.error.message);
       setUpgradeCatalog([]);
+      setPageMessage((current) => current || "Property upgrades are temporarily unavailable. Refresh once after applying the latest Property Exchange update.");
     } else {
       setUpgradeCatalog((catalogResult.data || []).map((row) => ({
         ...row,

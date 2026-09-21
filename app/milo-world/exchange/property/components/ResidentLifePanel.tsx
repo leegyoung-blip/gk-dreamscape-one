@@ -117,6 +117,7 @@ export default function ResidentLifePanel({
               color: "rgba(255,255,255,0.58)",
               fontSize: "13px",
               lineHeight: 1.6,
+              maxWidth: "920px",
             }}
           >
             Residents have careers, savings, households and plans of their own. Their lives
@@ -217,8 +218,8 @@ export default function ResidentLifePanel({
             gridTemplateColumns: isMobile
               ? "1fr"
               : isCompact
-              ? "repeat(2,minmax(0,1fr))"
-              : "repeat(4,minmax(0,1fr))",
+              ? `repeat(${Math.min(2, Math.max(1, residents.length))},minmax(0,1fr))`
+              : `repeat(${Math.min(4, Math.max(1, residents.length))},minmax(0,1fr))`,
             gap: "13px",
           }}
         >
@@ -241,7 +242,7 @@ export default function ResidentLifePanel({
                     : "rgba(255,255,255,0.045)",
                 }}
               >
-                <div style={{ position: "relative", height: isMobile ? "180px" : "165px", background: "rgba(121,242,206,0.06)" }}>
+                <div style={{ position: "relative", height: isMobile ? "175px" : "150px", background: "rgba(121,242,206,0.06)" }}>
                   {avatar ? (
                     <img
                       src={avatar}
