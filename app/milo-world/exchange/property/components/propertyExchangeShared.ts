@@ -172,6 +172,52 @@ export type PropertyRentPayment = {
   paid_at: string;
 };
 
+
+export type PropertyMaintenanceIssue = {
+  issue_id: string;
+  unit_id: string;
+  lease_id: string | null;
+  issue_code: string;
+  title: string;
+  description: string;
+  severity: "minor" | "moderate" | "major" | "critical" | string;
+  full_repair_cost: number;
+  quick_fix_cost: number;
+  condition_damage: number;
+  satisfaction_damage: number;
+  status: "open" | "temporary" | "ignored" | "repaired" | "resolved" | string;
+  reported_at: string;
+  last_action_at: string | null;
+  recurrence_due_on: string | null;
+  resolved_at: string | null;
+  resident_message: string | null;
+};
+
+export type PropertyMaintenanceAction = {
+  action_id: string;
+  unit_id: string;
+  issue_id: string | null;
+  action: "full_repair" | "quick_fix" | "ignore" | "preventive_service" | "system_resolution" | "tenant_departure" | string;
+  cost: number;
+  condition_change: number;
+  satisfaction_change: number;
+  note: string | null;
+  created_at: string;
+};
+
+export type PropertyMaintenanceStats = {
+  open_issues: number;
+  urgent_issues: number;
+  at_risk_tenants: number;
+  average_condition: number;
+};
+
+export type PropertyMaintenanceDashboard = {
+  issues: PropertyMaintenanceIssue[];
+  actions: PropertyMaintenanceAction[];
+  stats: PropertyMaintenanceStats;
+};
+
 export type PropertyResidentDashboard = {
   rental_listings: PropertyRentalListing[];
   applications: PropertyRentalApplication[];
@@ -179,6 +225,74 @@ export type PropertyResidentDashboard = {
   purchase_offers: PropertyPurchaseOffer[];
   market_settings: PropertyUnitMarketSetting[];
   rent_payments: PropertyRentPayment[];
+};
+
+
+export type PropertyConversation = {
+  conversation_id: string;
+  resident_id: string;
+  resident_name: string;
+  resident_kind: string;
+  occupation: string;
+  unit_id: string;
+  lease_id: string | null;
+  property_name: string;
+  unit_number: number;
+  subject: string;
+  status: string;
+  last_message_at: string;
+  unread_count: number;
+};
+
+export type PropertyMessage = {
+  message_id: string;
+  conversation_id: string;
+  sender_type: "resident" | "landlord" | "system" | string;
+  message_kind: string;
+  body: string;
+  source_type: string | null;
+  source_id: string | null;
+  metadata: Record<string, unknown>;
+  read_at: string | null;
+  created_at: string;
+};
+
+export type PropertyRenewalNegotiation = {
+  negotiation_id: string;
+  conversation_id: string;
+  lease_id: string;
+  unit_id: string;
+  resident_id: string;
+  status: string;
+  initiated_by: "resident" | "landlord" | string;
+  proposed_weekly_rent: number;
+  proposed_lease_weeks: number;
+  round_number: number;
+  expires_at: string;
+  responded_at: string | null;
+  activated_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PropertyLandlordReputation = {
+  user_id: string | null;
+  score: number;
+  completed_leases: number;
+  renewals: number;
+  early_departures: number;
+  full_repairs: number;
+  ignored_issues: number;
+  average_satisfaction: number;
+  updated_at: string | null;
+};
+
+export type PropertyCommunicationsDashboard = {
+  conversations: PropertyConversation[];
+  messages: PropertyMessage[];
+  renewal_negotiations: PropertyRenewalNegotiation[];
+  reputation: PropertyLandlordReputation;
+  unread_count: number;
 };
 
 export type RecentPropertySale = {

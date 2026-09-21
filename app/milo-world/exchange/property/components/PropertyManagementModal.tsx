@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import PropertyResidentMarketPanel from "./PropertyResidentMarketPanel";
+import PropertyMaintenancePanel from "./PropertyMaintenancePanel";
 import {
   formatNumber,
   formatPercentFromBps,
@@ -15,6 +16,8 @@ import {
   type PropertyLease,
   type PropertyPurchaseOffer,
   type PropertyUnitMarketSetting,
+  type PropertyMaintenanceIssue,
+  type PropertyMaintenanceAction,
 } from "./propertyExchangeShared";
 
 type Props = PropertyTabStyles & {
@@ -30,13 +33,16 @@ type Props = PropertyTabStyles & {
   purchaseOffers: PropertyPurchaseOffer[];
   marketSetting: PropertyUnitMarketSetting | null;
   isPlayerResaleActive: boolean;
+  maintenanceIssues: PropertyMaintenanceIssue[];
+  maintenanceActions: PropertyMaintenanceAction[];
   onClose: () => void;
   onUpgrade: (unitId: string, category: string) => Promise<void>;
   onCreateRentalListing: (unitId: string, askingWeeklyRent: number, openToPurchaseOffers: boolean) => Promise<void>;
   onCancelRentalListing: (listingId: string) => Promise<void>;
-  onRespondApplication: (applicationId: string, action: "accept" | "decline") => Promise<void>;
   onTogglePurchaseOffers: (unitId: string, enabled: boolean) => Promise<void>;
-  onRespondPurchaseOffer: (offerId: string, action: "accept" | "reject") => Promise<void>;
+  onRespondMaintenanceIssue: (issueId: string, action: "full_repair" | "quick_fix" | "ignore") => Promise<void>;
+  onPreventiveService: (unitId: string) => Promise<void>;
+  onOpenMessages: () => void;
 };
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -92,13 +98,16 @@ export default function PropertyManagementModal({
   purchaseOffers,
   marketSetting,
   isPlayerResaleActive,
+  maintenanceIssues,
+  maintenanceActions,
   onClose,
   onUpgrade,
   onCreateRentalListing,
   onCancelRentalListing,
-  onRespondApplication,
   onTogglePurchaseOffers,
-  onRespondPurchaseOffer,
+  onRespondMaintenanceIssue,
+  onPreventiveService,
+  onOpenMessages,
 }: Props) {
   const image = getPropertyUnitPreviewImage(unit, properties);
 
@@ -256,11 +265,11 @@ export default function PropertyManagementModal({
               {statBar(unit.appeal, "Appeal")}
               {statBar(unit.quality, "Quality")}
               {statBar(unit.efficiency, "Efficiency")}
-              {statBar(unit.condition, "Condition", true)}
+              {statBar(unit.condition, "Condition")}
             </div>
 
             <div style={{ marginTop: "20px", borderRadius: "16px", border: "1px solid rgba(121,242,206,0.16)", background: "rgba(121,242,206,0.055)", padding: "14px", color: "rgba(255,255,255,0.66)", fontSize: "12px", lineHeight: 1.55 }}>
-              <strong style={{ color: "#79f2ce" }}>Resident market is live.</strong> This property earns rent only while a Dreamscape resident has an active lease.
+              <strong style={{ color: "#79f2ce" }}>Resident market + property care are live.</strong> Rent requires an active tenant, while condition now affects value, rent potential and tenant satisfaction.
             </div>
           </div>
         </div>
@@ -280,9 +289,23 @@ export default function PropertyManagementModal({
           secondaryButton={secondaryButton}
           onCreateRentalListing={onCreateRentalListing}
           onCancelRentalListing={onCancelRentalListing}
-          onRespondApplication={onRespondApplication}
           onTogglePurchaseOffers={onTogglePurchaseOffers}
-          onRespondPurchaseOffer={onRespondPurchaseOffer}
+          onOpenMessages={onOpenMessages}
+        />
+
+        <PropertyMaintenancePanel
+          unit={unit}
+          lease={lease}
+          issues={maintenanceIssues}
+          actions={maintenanceActions}
+          dreamTokens={dreamTokens}
+          actionLoading={actionLoading}
+          isMobile={isMobile}
+          glassPanel={glassPanel}
+          primaryButton={primaryButton}
+          secondaryButton={secondaryButton}
+          onRespondIssue={onRespondMaintenanceIssue}
+          onPreventiveService={onPreventiveService}
         />
 
         <div data-milo-guide="property-upgrade-system" style={{ padding: isMobile ? "22px" : "28px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>

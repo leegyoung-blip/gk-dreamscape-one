@@ -7,14 +7,15 @@ import { useSearchParams } from "next/navigation";
 type PlanKey =
   | "core_monthly"
   | "core_annual"
-  | "nova_monthly";
+  | "nova_monthly"
+  | "nova_annual";
 
 type PlanDetails = {
   name: string;
   access: string;
   price: string;
   cadence: string;
-  billingLabel: string;
+  billingLabel: "monthly" | "annual";
   regularPrice: string;
   launchLabel: string;
   trialEligible: boolean;
@@ -44,14 +45,24 @@ const PLAN_DETAILS: Record<PlanKey, PlanDetails> = {
     trialEligible: true,
   },
   nova_monthly: {
-    name: "Nova+",
+    name: "NOVA+",
     access: "English + Mathematics + NOVA+ Learning Intelligence",
     price: "SGD 24.90",
     cadence: "per month",
     billingLabel: "monthly",
     regularPrice: "SGD 29.90",
     launchLabel: "Launch Price",
-    trialEligible: false,
+    trialEligible: true,
+  },
+  nova_annual: {
+    name: "NOVA+",
+    access: "English + Mathematics + NOVA+ Learning Intelligence",
+    price: "SGD 249",
+    cadence: "per year",
+    billingLabel: "annual",
+    regularPrice: "SGD 299",
+    launchLabel: "Launch Price",
+    trialEligible: true,
   },
 };
 
@@ -59,20 +70,22 @@ function resolvePlan(
   plan: string | null,
   cycle: string | null,
 ): PlanKey | null {
+  const billingCycle =
+    cycle === "annual" ? "annual" : "monthly";
+
   if (plan === "core") {
-    return cycle === "annual"
+    return billingCycle === "annual"
       ? "core_annual"
       : "core_monthly";
   }
 
   if (plan === "nova") {
-    // Nova+ currently has a monthly launch price only.
-    if (cycle === "annual") return null;
-    return "nova_monthly";
+    return billingCycle === "annual"
+      ? "nova_annual"
+      : "nova_monthly";
   }
 
   // Full Access / complete is deliberately not accepted here.
-  // It is a Coming Soon plan and must not be purchasable by URL.
   return null;
 }
 
@@ -88,17 +101,32 @@ export default function DreamscapeSubscribeClient() {
     [searchParams],
   );
 
-  const plan = planKey ? PLAN_DETAILS[planKey] : null;
+  const plan =
+    planKey ? PLAN_DETAILS[planKey] : null;
 
-  const [parentName, setParentName] = useState("");
-  const [parentEmail, setParentEmail] = useState("");
-  const [learnerName, setLearnerName] = useState("");
-  const [learnerEmail, setLearnerEmail] = useState("");
+  const [parentName, setParentName] =
+    useState("");
+
+  const [parentEmail, setParentEmail] =
+    useState("");
+
+  const [learnerName, setLearnerName] =
+    useState("");
+
+  const [learnerEmail, setLearnerEmail] =
+    useState("");
+
   const [guardianAuthorised, setGuardianAuthorised] =
     useState(false);
-  const [website, setWebsite] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
+
+  const [website, setWebsite] =
+    useState("");
+
+  const [submitting, setSubmitting] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
 
   async function startSubscription() {
     setError("");
@@ -116,7 +144,9 @@ export default function DreamscapeSubscribeClient() {
       !learnerName.trim() ||
       !learnerEmail.trim()
     ) {
-      setError("Please complete all parent and learner details.");
+      setError(
+        "Please complete all parent and learner details.",
+      );
       return;
     }
 
@@ -139,28 +169,41 @@ export default function DreamscapeSubscribeClient() {
           },
           body: JSON.stringify({
             planKey,
-            parentName: parentName.trim(),
-            parentEmail: parentEmail.trim(),
-            learnerName: learnerName.trim(),
-            learnerEmail: learnerEmail.trim(),
+            parentName:
+              parentName.trim(),
+            parentEmail:
+              parentEmail.trim(),
+            learnerName:
+              learnerName.trim(),
+            learnerEmail:
+              learnerEmail.trim(),
             guardianAuthorised,
             website,
           }),
         },
       );
 
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string; redirectUrl?: string }
-        | null;
+      const payload =
+        (await response.json().catch(() => null)) as
+          | {
+              error?: string;
+              redirectUrl?: string;
+            }
+          | null;
 
-      if (!response.ok || !payload?.redirectUrl) {
+      if (
+        !response.ok ||
+        !payload?.redirectUrl
+      ) {
         throw new Error(
           payload?.error ||
             "The Dreamscape subscription could not be started.",
         );
       }
 
-      window.location.assign(payload.redirectUrl);
+      window.location.assign(
+        payload.redirectUrl,
+      );
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -185,9 +228,7 @@ export default function DreamscapeSubscribeClient() {
             </h1>
 
             <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-white/62 sm:text-base">
-              Full Access is coming soon and annual Nova+ pricing has not
-              been announced. Return to the pricing page to choose an
-              available Dreamscape plan.
+              Full Access is Coming Soon. Return to the pricing page to choose Core Missions or NOVA+.
             </p>
 
             <Link
@@ -236,6 +277,7 @@ export default function DreamscapeSubscribeClient() {
               <span className="text-xs font-black uppercase tracking-[0.12em] text-white/38">
                 Regular
               </span>
+
               <span className="text-xl font-bold text-white/38 line-through">
                 {plan.regularPrice}
               </span>
@@ -245,6 +287,7 @@ export default function DreamscapeSubscribeClient() {
               <strong className="text-4xl text-white">
                 {plan.price}
               </strong>
+
               <span className="pb-1 text-sm text-white/46">
                 {plan.cadence}
               </span>
@@ -259,6 +302,7 @@ export default function DreamscapeSubscribeClient() {
                 <p className="m-0 text-xs font-black uppercase tracking-[0.15em] text-cyan-200">
                   Up to {STANDARD_TRIAL_DAYS} days free
                 </p>
+
                 <p className="mt-2 text-sm leading-6 text-white/65">
                   Eligible first-time Core Missions users receive a{" "}
                   {STANDARD_TRIAL_DAYS}-day introductory trial on this{" "}
@@ -269,26 +313,26 @@ export default function DreamscapeSubscribeClient() {
             ) : (
               <div className="mt-6 rounded-2xl border border-violet-200/18 bg-violet-300/[0.05] p-5">
                 <p className="m-0 text-xs font-black uppercase tracking-[0.15em] text-violet-200">
-                  Nova+ launch access
+                  NOVA+ Launch Access
                 </p>
+
                 <p className="mt-2 text-sm leading-6 text-white/65">
-                  Nova+ is currently offered at the SGD 24.90/month launch
-                  price. Stripe will show the recurring amount and first
-                  billing date before you confirm.
+                  NOVA+ is currently offered at its launch price.
+                  Stripe will show the recurring amount and billing date before you confirm.
                 </p>
               </div>
             )}
 
             <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-6 text-white/60">
               Your payment method is entered securely on Stripe&apos;s
-              Checkout page. Dreamscape activates learning access only after
-              a validated Stripe subscription event confirms the subscription.
+              Checkout page. Dreamscape activates learning access only
+              after a validated Stripe subscription event confirms the subscription.
             </div>
 
             <p className="mt-5 text-xs leading-5 text-white/38">
               The subscription is for the learner email entered on this form.
-              If that learner does not yet have a Dreamscape account, an
-              invitation can be created after activation.
+              If that learner does not yet have a Dreamscape account,
+              an invitation can be created after activation.
             </p>
           </aside>
 
@@ -353,7 +397,9 @@ export default function DreamscapeSubscribeClient() {
               tabIndex={-1}
               autoComplete="off"
               value={website}
-              onChange={(event) => setWebsite(event.target.value)}
+              onChange={(event) =>
+                setWebsite(event.target.value)
+              }
               className="hidden"
             />
 
@@ -366,29 +412,26 @@ export default function DreamscapeSubscribeClient() {
                 }
                 className="mt-1 h-4 w-4 accent-cyan-300"
               />
+
               <span>
-                I am the learner&apos;s parent/guardian, or I am authorised by
-                the parent/guardian to purchase this Dreamscape Student Access
-                subscription.
+                I am the learner&apos;s parent/guardian, or I am
+                authorised by the parent/guardian to purchase this
+                Dreamscape Student Access subscription.
               </span>
             </label>
 
             <div className="mt-5 rounded-2xl border border-violet-200/14 bg-violet-300/[0.04] px-4 py-4 text-xs leading-5 text-white/52">
               {plan.trialEligible ? (
                 <>
-                  Eligible first-time Core Missions users are not charged the
-                  subscription fee during the {STANDARD_TRIAL_DAYS}-day trial.
-                  Unless cancelled before the trial ends, the selected
-                  subscription will begin automatically at {plan.price}{" "}
-                  {plan.cadence}. Users who have already used an introductory
-                  Dreamscape trial or otherwise do not qualify will see the
-                  applicable billing terms in Stripe before confirming.
+                  Eligible first-time Core Missions users are not charged
+                  the subscription fee during the {STANDARD_TRIAL_DAYS}-day trial.
+                  Unless cancelled before the trial ends, the selected subscription
+                  will begin automatically at {plan.price} {plan.cadence}.
                 </>
               ) : (
                 <>
-                  Nova+ will renew automatically at {plan.price} {plan.cadence}{" "}
-                  until cancelled. Stripe will show the recurring price and
-                  billing date before confirmation.
+                  NOVA+ renews automatically at {plan.price} {plan.cadence} until cancelled.
+                  Stripe will show the recurring price and billing date before confirmation.
                 </>
               )}
             </div>
@@ -401,7 +444,9 @@ export default function DreamscapeSubscribeClient() {
 
             <button
               type="button"
-              onClick={() => void startSubscription()}
+              onClick={() =>
+                void startSubscription()
+              }
               disabled={submitting}
               className="mt-7 min-h-14 w-full rounded-full border border-cyan-100/30 bg-gradient-to-r from-cyan-300 via-violet-300 to-orange-300 px-6 text-sm font-black uppercase tracking-[0.12em] text-[#160729] disabled:cursor-not-allowed disabled:opacity-55"
             >

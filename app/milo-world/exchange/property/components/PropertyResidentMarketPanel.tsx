@@ -30,15 +30,8 @@ type Props = PropertyTabStyles & {
     openToPurchaseOffers: boolean
   ) => Promise<void>;
   onCancelRentalListing: (listingId: string) => Promise<void>;
-  onRespondApplication: (
-    applicationId: string,
-    action: "accept" | "decline"
-  ) => Promise<void>;
   onTogglePurchaseOffers: (unitId: string, enabled: boolean) => Promise<void>;
-  onRespondPurchaseOffer: (
-    offerId: string,
-    action: "accept" | "reject"
-  ) => Promise<void>;
+  onOpenMessages: () => void;
 };
 
 function scoreLabel(score: number) {
@@ -63,9 +56,8 @@ export default function PropertyResidentMarketPanel({
   secondaryButton,
   onCreateRentalListing,
   onCancelRentalListing,
-  onRespondApplication,
   onTogglePurchaseOffers,
-  onRespondPurchaseOffer,
+  onOpenMessages,
 }: Props) {
   const [askingRent, setAskingRent] = useState(unit.rental_potential);
   const [openToOffers, setOpenToOffers] = useState(
@@ -340,9 +332,16 @@ export default function PropertyResidentMarketPanel({
               lineHeight: 1.5,
             }}
           >
-            Satisfaction is fixed during Phase 2. Phase 3 will make maintenance,
-            response time and property condition affect whether this tenant stays.
+            Satisfaction is now live. Fair rent, strong condition and prompt repairs help it recover; neglect and unresolved maintenance can make the tenant leave early.
           </div>
+
+          <button
+            type="button"
+            onClick={onOpenMessages}
+            style={{ ...primaryButton, width: "100%", minHeight: "40px", marginTop: "12px" }}
+          >
+            Open Tenant Messages
+          </button>
         </section>
       ) : rentalListing?.status === "active" ? (
         <>
@@ -567,41 +566,14 @@ export default function PropertyResidentMarketPanel({
                         </div>
                       </div>
 
-                      <div
-                        style={{
-                          marginTop: "10px",
-                          display: "grid",
-                          gridTemplateColumns: "1fr 1fr",
-                          gap: "8px",
-                        }}
+                      <button
+                        type="button"
+                        onClick={onOpenMessages}
+                        disabled={actionLoading}
+                        style={{ ...primaryButton, width: "100%", minHeight: "38px", marginTop: "10px" }}
                       >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void onRespondApplication(
-                              application.application_id,
-                              "accept"
-                            )
-                          }
-                          disabled={actionLoading}
-                          style={{ ...primaryButton, minHeight: "38px" }}
-                        >
-                          Accept Tenant
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void onRespondApplication(
-                              application.application_id,
-                              "decline"
-                            )
-                          }
-                          disabled={actionLoading}
-                          style={{ ...secondaryButton, minHeight: "38px" }}
-                        >
-                          Decline
-                        </button>
-                      </div>
+                        Open Tenant Message
+                      </button>
                     </article>
                   ))}
                 </div>
@@ -875,35 +847,14 @@ export default function PropertyResidentMarketPanel({
                       {offer.bio}
                     </p>
 
-                    <div
-                      style={{
-                        marginTop: "10px",
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "8px",
-                      }}
+                    <button
+                      type="button"
+                      onClick={onOpenMessages}
+                      disabled={actionLoading}
+                      style={{ ...primaryButton, width: "100%", minHeight: "38px", marginTop: "10px" }}
                     >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void onRespondPurchaseOffer(offer.offer_id, "accept")
-                        }
-                        disabled={actionLoading}
-                        style={{ ...primaryButton, minHeight: "38px" }}
-                      >
-                        Accept Sale
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void onRespondPurchaseOffer(offer.offer_id, "reject")
-                        }
-                        disabled={actionLoading}
-                        style={{ ...secondaryButton, minHeight: "38px" }}
-                      >
-                        Decline
-                      </button>
-                    </div>
+                      Open Purchase Message
+                    </button>
                   </article>
                 );
               })}

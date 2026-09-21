@@ -181,17 +181,32 @@ export async function createDreamscapeStripeCheckout(input: {
   parentEmail: string;
   successUrl: string;
   cancelUrl: string;
+
+  /*
+   * 0/null/undefined = no introductory trial.
+   * Positive integer 1–30 = Stripe subscription trial.
+   */
   trialDays?: number | null;
+
   environment?: DreamscapeStripeEnvironment;
 }) {
   const environment =
     input.environment || getStripeEnvironment();
 
-  const stripe = getStripeClient(environment);
+  const stripe =
+    getStripeClient(
+      environment,
+    );
 
-  const requestedTrialDays = Number(input.trialDays || 0);
+  const requestedTrialDays =
+    Number(
+      input.trialDays || 0,
+    );
+
   const trialDays =
-    Number.isInteger(requestedTrialDays) &&
+    Number.isInteger(
+      requestedTrialDays,
+    ) &&
     requestedTrialDays > 0 &&
     requestedTrialDays <= 30
       ? requestedTrialDays
@@ -199,55 +214,106 @@ export async function createDreamscapeStripeCheckout(input: {
 
   const trialMetadata = {
     dreamscape_intro_trial:
-      trialDays > 0 ? "true" : "false",
+      trialDays > 0
+        ? "true"
+        : "false",
+
     dreamscape_intro_trial_days:
-      String(trialDays),
+      String(
+        trialDays,
+      ),
   };
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    line_items: [
+  const session =
+    await stripe.checkout.sessions.create(
       {
-        price: input.priceId,
-        quantity: 1,
+        mode:
+          "subscription",
+
+        line_items: [
+          {
+            price:
+              input.priceId,
+            quantity: 1,
+          },
+        ],
+
+        /*
+         * Collect the payment method at Checkout even when Stripe
+         * starts the subscription in a free trial.
+         */
+        payment_method_collection:
+          "always",
+
+        customer_email:
+          input.parentEmail,
+
+        client_reference_id:
+          input.contractId,
+
+        success_url:
+          input.successUrl,
+
+        cancel_url:
+          input.cancelUrl,
+
+        metadata: {
+          dreamscape_contract_id:
+            input.contractId,
+
+          dreamscape_reference:
+            input.reference,
+
+          dreamscape_plan_id:
+            input.planId,
+
+          dreamscape_plan_key:
+            input.planKey,
+
+          ...trialMetadata,
+        },
+
+        subscription_data: {
+          /*
+           * Stripe receives trial_period_days only when the learner
+           * is actually eligible. Otherwise normal paid billing starts.
+           */
+          ...(trialDays > 0
+            ? {
+                trial_period_days:
+                  trialDays,
+              }
+            : {}),
+
+          metadata: {
+            dreamscape_contract_id:
+              input.contractId,
+
+            dreamscape_reference:
+              input.reference,
+
+            dreamscape_plan_id:
+              input.planId,
+
+            dreamscape_plan_key:
+              input.planKey,
+
+            ...trialMetadata,
+          },
+        },
+
+        expires_at:
+          Math.floor(
+            Date.now() / 1000,
+          ) +
+          30 * 60,
       },
-    ],
+    );
 
-    /*
-     * Always collect a payment method at the start of Checkout.
-     * Eligible users are charged only after the free-trial period ends.
-     */
-    payment_method_collection: "always",
-
-    customer_email: input.parentEmail,
-    client_reference_id: input.contractId,
-    success_url: input.successUrl,
-    cancel_url: input.cancelUrl,
-    metadata: {
-      dreamscape_contract_id: input.contractId,
-      dreamscape_reference: input.reference,
-      dreamscape_plan_id: input.planId,
-      dreamscape_plan_key: input.planKey,
-      ...trialMetadata,
-    },
-    subscription_data: {
-      ...(trialDays > 0
-        ? {
-            trial_period_days: trialDays,
-          }
-        : {}),
-      metadata: {
-        dreamscape_contract_id: input.contractId,
-        dreamscape_reference: input.reference,
-        dreamscape_plan_id: input.planId,
-        dreamscape_plan_key: input.planKey,
-        ...trialMetadata,
-      },
-    },
-    expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-  });
-
-  if (!session.id || !session.url) {
+  if (
+    !session.id ||
+    !session.url
+  ) {
     throw new Error(
       "Stripe created a Checkout Session but did not return a checkout URL.",
     );

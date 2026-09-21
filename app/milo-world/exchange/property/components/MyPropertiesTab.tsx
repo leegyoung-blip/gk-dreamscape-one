@@ -16,6 +16,10 @@ import {
   type PropertyUnit,
   type PropertyUnitMarketSetting,
   type PropertyUpgradeCatalogRow,
+  type PropertyMaintenanceIssue,
+  type PropertyMaintenanceAction,
+  type PropertyMaintenanceStats,
+  type PropertyLandlordReputation,
 } from "./propertyExchangeShared";
 
 type Props = PropertyTabStyles & {
@@ -31,6 +35,11 @@ type Props = PropertyTabStyles & {
   leases: PropertyLease[];
   purchaseOffers: PropertyPurchaseOffer[];
   marketSettings: PropertyUnitMarketSetting[];
+  maintenanceIssues: PropertyMaintenanceIssue[];
+  maintenanceActions: PropertyMaintenanceAction[];
+  maintenanceStats: PropertyMaintenanceStats;
+  landlordReputation: PropertyLandlordReputation;
+  unreadMessages: number;
   actionLoading: boolean;
   message: string;
   isMobile: boolean;
@@ -42,16 +51,11 @@ type Props = PropertyTabStyles & {
     openToPurchaseOffers: boolean
   ) => Promise<void>;
   onCancelRentalListing: (listingId: string) => Promise<void>;
-  onRespondApplication: (
-    applicationId: string,
-    action: "accept" | "decline"
-  ) => Promise<void>;
   onTogglePurchaseOffers: (unitId: string, enabled: boolean) => Promise<void>;
-  onRespondPurchaseOffer: (
-    offerId: string,
-    action: "accept" | "reject"
-  ) => Promise<void>;
   onRefreshResidentMarket: () => Promise<void>;
+  onRespondMaintenanceIssue: (issueId: string, action: "full_repair" | "quick_fix" | "ignore") => Promise<void>;
+  onPreventiveService: (unitId: string) => Promise<void>;
+  onOpenMessages: () => void;
   onCreateListing: (unitId: string, askingPrice: number) => Promise<void>;
   onCancelListing: (listingId: string) => Promise<void>;
 };
@@ -69,6 +73,11 @@ export default function MyPropertiesTab({
   leases,
   purchaseOffers,
   marketSettings,
+  maintenanceIssues,
+  maintenanceActions,
+  maintenanceStats,
+  landlordReputation,
+  unreadMessages,
   actionLoading,
   message,
   isMobile,
@@ -79,10 +88,11 @@ export default function MyPropertiesTab({
   onUpgradeUnit,
   onCreateRentalListing,
   onCancelRentalListing,
-  onRespondApplication,
   onTogglePurchaseOffers,
-  onRespondPurchaseOffer,
   onRefreshResidentMarket,
+  onRespondMaintenanceIssue,
+  onPreventiveService,
+  onOpenMessages,
   onCreateListing,
   onCancelListing,
 }: Props) {
@@ -183,13 +193,16 @@ export default function MyPropertiesTab({
             marketSettings.find((item) => item.unit_id === selectedUnit.unit_id) || null
           }
           isPlayerResaleActive={activeResaleByUnit.has(selectedUnit.unit_id)}
+          maintenanceIssues={maintenanceIssues.filter((item) => item.unit_id === selectedUnit.unit_id)}
+          maintenanceActions={maintenanceActions.filter((item) => item.unit_id === selectedUnit.unit_id)}
           onClose={() => setSelectedUnitId(null)}
           onUpgrade={onUpgradeUnit}
           onCreateRentalListing={onCreateRentalListing}
           onCancelRentalListing={onCancelRentalListing}
-          onRespondApplication={onRespondApplication}
           onTogglePurchaseOffers={onTogglePurchaseOffers}
-          onRespondPurchaseOffer={onRespondPurchaseOffer}
+          onRespondMaintenanceIssue={onRespondMaintenanceIssue}
+          onPreventiveService={onPreventiveService}
+          onOpenMessages={onOpenMessages}
         />
       )}
 
@@ -350,16 +363,87 @@ export default function MyPropertiesTab({
             </button>
           </div>
 
-          <div style={{ marginTop: "17px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,minmax(0,1fr))", gap: "10px" }}>
+          <div style={{ marginTop: "17px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3,minmax(0,1fr))", gap: "10px" }}>
             {[
               ["Rental Listings", activeRentalListings.length],
               ["Applications", rentalApplications.filter((item) => item.status === "pending").length],
               ["Active Tenants", activeLeases.length],
               ["Resident Offers", purchaseOffers.filter((item) => item.status === "active").length],
+              ["Landlord Reputation", `${Math.round(Number(landlordReputation.score || 60))}/100`],
+              ["Unread Messages", unreadMessages],
+            ].map(([label, value]) => (
+              <button
+                key={String(label)}
+                type="button"
+                onClick={() => label === "Unread Messages" && onOpenMessages()}
+                style={{
+                  borderRadius: "16px",
+                  background: "rgba(255,255,255,0.045)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  padding: "14px",
+                  color: "white",
+                  textAlign: "left",
+                  cursor: label === "Unread Messages" ? "pointer" : "default",
+                  fontFamily: "inherit",
+                }}
+              >
+                <small style={{ color: "rgba(255,255,255,0.46)" }}>{label}</small>
+                <strong style={{ display: "block", marginTop: "5px", fontSize: "22px", color: label === "Landlord Reputation" ? "#79f2ce" : label === "Unread Messages" && Number(value) > 0 ? "#ffd18a" : "white" }}>{value}</strong>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section data-milo-guide="property-reputation" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px", border: "1px solid rgba(142,232,255,0.14)", background: "linear-gradient(145deg, rgba(83,215,255,0.05), rgba(5,13,28,0.74))" }}>
+          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", gap: "14px", alignItems: isMobile ? "stretch" : "flex-end" }}>
+            <div>
+              <p style={{ margin: 0, color: "#8ee8ff", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Landlord Reputation</p>
+              <h2 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "31px" : "39px", fontWeight: 500 }}>
+                {Math.round(Number(landlordReputation.score || 60))}/100 · {Number(landlordReputation.score || 60) >= 85 ? "Exceptional" : Number(landlordReputation.score || 60) >= 72 ? "Trusted" : Number(landlordReputation.score || 60) >= 58 ? "Established" : Number(landlordReputation.score || 60) >= 42 ? "Developing" : "At Risk"}
+              </h2>
+              <p style={{ margin: "9px 0 0", maxWidth: "830px", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55 }}>
+                Residents remember completed leases, renewal history, satisfaction, repairs, ignored problems and early departures. Reputation now influences renewal behaviour and how much flexibility tenants have during negotiations.
+              </p>
+            </div>
+            <button type="button" onClick={onOpenMessages} style={{ ...primaryButton, minHeight: "42px" }}>
+              Open Property Messages{unreadMessages > 0 ? ` · ${unreadMessages}` : ""}
+            </button>
+          </div>
+          <div style={{ marginTop: "17px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(5,minmax(0,1fr))", gap: "10px" }}>
+            {[
+              ["Completed Leases", landlordReputation.completed_leases],
+              ["Renewals", landlordReputation.renewals],
+              ["Avg Satisfaction", `${Math.round(Number(landlordReputation.average_satisfaction || 80))}/100`],
+              ["Full Repairs", landlordReputation.full_repairs],
+              ["Early Departures", landlordReputation.early_departures],
             ].map(([label, value]) => (
               <div key={String(label)} style={{ borderRadius: "16px", background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.08)", padding: "14px" }}>
                 <small style={{ color: "rgba(255,255,255,0.46)" }}>{label}</small>
-                <strong style={{ display: "block", marginTop: "5px", fontSize: "22px" }}>{value}</strong>
+                <strong style={{ display: "block", marginTop: "5px", fontSize: "21px", color: label === "Early Departures" && Number(value) > 0 ? "#ffd18a" : "white" }}>{value}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section data-milo-guide="property-maintenance-overview" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px", border: "1px solid rgba(121,242,206,0.15)", background: "linear-gradient(145deg, rgba(121,242,206,0.05), rgba(5,13,28,0.74))" }}>
+          <div>
+            <p style={{ margin: 0, color: "#79f2ce", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Property Health</p>
+            <h2 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "31px" : "39px", fontWeight: 500 }}>Condition now changes the economics</h2>
+            <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55, maxWidth: "840px" }}>
+              Wear, maintenance issues and landlord decisions affect property value, rent potential and tenant satisfaction. Major neglected problems can cause an active tenant to leave early.
+            </p>
+          </div>
+
+          <div style={{ marginTop: "17px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,minmax(0,1fr))", gap: "10px" }}>
+            {[
+              ["Average Condition", `${Math.round(Number(maintenanceStats.average_condition || 100))}/100`],
+              ["Open Issues", Number(maintenanceStats.open_issues || 0)],
+              ["Urgent Issues", Number(maintenanceStats.urgent_issues || 0)],
+              ["At-risk Tenants", Number(maintenanceStats.at_risk_tenants || 0)],
+            ].map(([label, value]) => (
+              <div key={String(label)} style={{ borderRadius: "16px", background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.08)", padding: "14px" }}>
+                <small style={{ color: "rgba(255,255,255,0.46)" }}>{label}</small>
+                <strong style={{ display: "block", marginTop: "5px", fontSize: "22px", color: label === "Urgent Issues" && Number(value) > 0 ? "#ff9292" : label === "At-risk Tenants" && Number(value) > 0 ? "#ffd18a" : "white" }}>{value}</strong>
               </div>
             ))}
           </div>
@@ -409,8 +493,10 @@ export default function MyPropertiesTab({
                         <div style={{ borderRadius: "13px", padding: "10px", background: "rgba(255,255,255,0.04)" }}><small style={{ color: "rgba(255,255,255,0.42)" }}>Rent Potential</small><strong style={{ display: "block", marginTop: "4px", color: "#8ee8ff" }}>{formatNumber(unit.rental_potential)} DT/wk</strong></div>
                       </div>
 
-                      <div style={{ marginTop: "11px", display: "flex", justifyContent: "space-between", gap: "10px", color: "rgba(255,255,255,0.45)", fontSize: "11px" }}>
-                        <span>Upgrades {unit.upgrade_level_total}/30</span><span>Appeal {unit.appeal}</span>
+                      <div style={{ marginTop: "11px", display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: "7px", color: "rgba(255,255,255,0.45)", fontSize: "10px" }}>
+                        <span>Upgrades <strong style={{ color: "rgba(255,255,255,0.78)" }}>{unit.upgrade_level_total}/30</strong></span>
+                        <span>Condition <strong style={{ color: unit.condition >= 75 ? "#79f2ce" : unit.condition >= 50 ? "#ffd18a" : "#ff9292" }}>{unit.condition}</strong></span>
+                        <span>Issues <strong style={{ color: maintenanceIssues.some((item) => item.unit_id === unit.unit_id && ["open","ignored","temporary"].includes(item.status)) ? "#ffb0b0" : "#79f2ce" }}>{maintenanceIssues.filter((item) => item.unit_id === unit.unit_id && ["open","ignored","temporary"].includes(item.status)).length}</strong></span>
                       </div>
 
                       <button type="button" onClick={() => setSelectedUnitId(unit.unit_id)} style={{ ...primaryButton, width: "100%", minHeight: "40px", marginTop: "13px" }}>

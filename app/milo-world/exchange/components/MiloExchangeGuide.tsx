@@ -24,7 +24,7 @@ type Props = {
 const GUIDE_VERSIONS: Record<MiloExchangeGuidePage, string> = {
   home: "v1",
   stocks: "v1",
-  property: "v5",
+  property: "v7",
 };
 
 const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
@@ -139,10 +139,10 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       eyebrow: "Milo Guide",
       title: "Welcome to the living Property Exchange",
       description:
-        "The Property Exchange still has three areas: Property Map, My Properties and Resale Market. Phase 2 adds persistent Dreamscape residents, rental applications, real leases and optional resident purchase offers.",
+        "Property now combines buying, upgrades, resident demand, real leases, text-message negotiations, maintenance and resale across three main tabs.",
       target: "property-tabs",
       propertyTab: "map",
-      tip: "A property no longer earns rent simply because you own it. It needs an active tenant.",
+      tip: "Owning a property does not automatically create income. You need a tenant and an agreement.",
     },
     {
       eyebrow: "Step 1 · Property Map",
@@ -153,80 +153,98 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "map",
     },
     {
-      eyebrow: "Step 2 · Buy Properties",
-      title: "Every purchased unit becomes its own managed asset",
+      eyebrow: "Step 2 · Individual Assets",
+      title: "Every unit has its own history",
       description:
-        "A property you buy appears inside My Properties with its own upgrades, value, rent potential and later its own tenant history.",
+        "Each purchased unit keeps its own upgrades, value, rent potential, condition, tenant history, maintenance history and resale identity.",
       target: "property-primary-market",
       propertyTab: "map",
-      tip: "Rent potential is a guide to likely market rent—not automatic income.",
+      tip: "Rent potential is an estimate, not automatic income.",
     },
     {
       eyebrow: "Step 3 · Portfolio",
-      title: "Track value, contracted rent and occupancy separately",
+      title: "Separate asset value from actual income",
       description:
-        "My Properties now distinguishes property value from actual contracted weekly rent. Occupancy tells you how many units currently have tenants.",
-      target: "property-my-summary",
+        "My Properties shows managed value, contracted rent and occupancy. It also tracks your landlord reputation and unread resident messages.",
+      target: "property-portfolio-summary",
       propertyTab: "properties",
     },
     {
       eyebrow: "Step 4 · Resident Market",
       title: "Price the property and let residents decide",
       description:
-        "Open a vacant unit, choose an asking rent and list it. Persistent residents and businesses compare affordability, district, property type, appeal, quality and efficiency before applying.",
+        "Set an asking rent and list a vacant unit. Residents compare affordability, district, property type, appeal, quality, efficiency and condition before applying.",
       target: "property-resident-overview",
       propertyTab: "properties",
-      tip: "A high rent can produce more income if accepted, but it also narrows the pool of residents who can afford the property.",
+      tip: "Higher rent may earn more if accepted, but it narrows the applicant pool.",
     },
     {
-      eyebrow: "Step 5 · Manage a Unit",
-      title: "View & Manage is now your landlord workspace",
+      eyebrow: "Step 5 · Property Messages",
+      title: "Negotiations happen like real conversations",
       description:
-        "Open a unit to see its upgrades and resident market. Vacant units can be listed for rent, active listings can receive applications, and occupied units show the tenant, lease length and rent collected.",
+        "Applications, purchase offers, lease agreements, renewal negotiations, move-out notices and maintenance messages arrive on your Property Phone. Open it from the bottom-right corner.",
+      target: "property-phone-launcher",
+      propertyTab: "properties",
+      tip: "Accept, decline or counter renewal terms directly inside the conversation.",
+    },
+    {
+      eyebrow: "Step 6 · Reputation",
+      title: "Residents remember how you manage property",
+      description:
+        "Your landlord reputation responds to completed leases, renewals, tenant satisfaction, repairs, ignored problems and early departures. A stronger reputation helps future tenant relationships.",
+      target: "property-reputation",
+      propertyTab: "properties",
+    },
+    {
+      eyebrow: "Step 7 · Lease Lifecycle",
+      title: "A lease is a relationship, not a timer",
+      description:
+        "Before a lease ends, the tenant may text you with renewal terms. You can accept, decline or counter the weekly rent and lease length. Agreed terms begin only after the current lease ends.",
       target: "property-managed-units",
       propertyTab: "properties",
+      tip: "If no renewal is agreed, the tenant moves out and the property becomes vacant again.",
     },
     {
-      eyebrow: "Step 6 · Improve Demand",
-      title: "Upgrades now influence who wants the property",
+      eyebrow: "Step 8 · Property Health",
+      title: "Condition changes the economics",
       description:
-        "Interior, fit-out, facilities, smart systems, efficiency and amenities still increase value and rent potential. Phase 2 also uses the resulting appeal, quality and efficiency when matching residents.",
+        "Normal wear and maintenance problems affect property value, rent potential and tenant satisfaction. Preventive service reduces breakdown risk.",
+      target: "property-maintenance-overview",
+      propertyTab: "properties",
+    },
+    {
+      eyebrow: "Step 9 · Improve the Asset",
+      title: "Upgrades and maintenance do different jobs",
+      description:
+        "Upgrades improve appeal, quality, efficiency, value and rent potential. Maintenance protects the condition of the asset you already built.",
       target: "property-upgrade-overview",
       propertyTab: "properties",
-      tip: "Different residents care about different things, so the most expensive upgrade is not always the most useful one.",
+      tip: "A premium property can still lose tenants if it is poorly managed.",
     },
     {
-      eyebrow: "Step 7 · Selling",
-      title: "You now have two different sale channels",
+      eyebrow: "Step 10 · Exact-Unit Resale",
+      title: "Sell the property you actually managed",
       description:
-        "Player resale is now exact-unit too. Choose the specific vacant unit you want to sell; its upgrades, value and rent potential travel with it. Resident purchase offers remain a separate sale channel inside View & Manage.",
+        "Player resale transfers the exact unit with its upgrades and condition history. Its managed value becomes the reference for the asking-price range.",
       target: "property-my-listings",
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 8 · Resale Market",
-      title: "Trade existing properties with other players",
+      eyebrow: "Step 11 · Resale Market",
+      title: "Compare existing assets, not generic copies",
       description:
-        "The Resale Market now shows the exact unit number, managed value, rent potential and upgrade level. Buying a listing transfers that specific upgraded unit instead of a generic copy.",
+        "The Resale Market exposes each unit’s managed value, upgrades, condition and rent potential so players can compare genuinely different assets.",
       target: "property-resale-market",
       propertyTab: "resale",
     },
     {
-      eyebrow: "Step 9 · Completed Sales",
-      title: "Use transactions as market context",
+      eyebrow: "Step 12 · The Full Loop",
+      title: "Buy, improve, negotiate, manage and decide when to sell",
       description:
-        "Recent Property Sales now combines primary purchases with completed exact-unit player resales. This gives you real transaction context while resident purchase offers remain a separate source of simulated demand.",
-      target: "property-recent-sales",
-      propertyTab: "resale",
-    },
-    {
-      eyebrow: "Step 10 · Next Phase",
-      title: "A tenant is only the beginning",
-      description:
-        "Phase 3 will introduce property condition, maintenance events and changing tenant satisfaction. Ignoring problems will eventually affect renewals and whether a tenant leaves.",
+        "Property is now a long-term management game. Your pricing, communication, tenant, upgrade and maintenance decisions determine how each asset performs.",
       target: "property-virtual-notice",
       propertyTab: "map",
-      tip: "For now, tenant satisfaction stays stable so we can validate rental pricing and resident matching first.",
+      tip: "This remains a fictional Dreamscape learning market using virtual Dream Tokens.",
     },
   ],
 };
@@ -399,7 +417,8 @@ export default function MiloExchangeGuide({
         <div
           style={{
             position: "fixed",
-            right: isMobile ? "12px" : "20px",
+            right: isMobile ? "12px" : page === "property" ? "auto" : "20px",
+            left: isMobile ? "auto" : page === "property" ? "20px" : "auto",
             bottom: isMobile ? "12px" : "18px",
             zIndex: 65,
             display: "grid",
@@ -458,8 +477,8 @@ export default function MiloExchangeGuide({
           <aside
             style={{
               position: "absolute",
-              right: isMobile ? "10px" : "22px",
-              left: isMobile ? "10px" : "auto",
+              right: isMobile ? "10px" : page === "property" ? "auto" : "22px",
+              left: isMobile ? "10px" : page === "property" ? "22px" : "auto",
               top: placement === "top" ? (isMobile ? "12px" : "22px") : "auto",
               bottom: placement === "bottom" ? (isMobile ? "10px" : "22px") : "auto",
               width: isMobile ? "auto" : "min(560px, calc(100vw - 44px))",

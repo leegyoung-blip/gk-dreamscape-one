@@ -1,0 +1,520 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  formatDateTime,
+  formatNumber,
+  type PropertyConversation,
+  type PropertyLandlordReputation,
+  type PropertyMessage,
+  type PropertyPurchaseOffer,
+  type PropertyRentalApplication,
+  type PropertyRenewalNegotiation,
+} from "./propertyExchangeShared";
+
+type Props = {
+  conversations: PropertyConversation[];
+  messages: PropertyMessage[];
+  renewalNegotiations: PropertyRenewalNegotiation[];
+  rentalApplications: PropertyRentalApplication[];
+  purchaseOffers: PropertyPurchaseOffer[];
+  reputation: PropertyLandlordReputation;
+  unreadCount: number;
+  actionLoading: boolean;
+  isMobile: boolean;
+  openRequest: number;
+  onMarkRead: (conversationId: string) => Promise<void>;
+  onRespond: (
+    sourceType: "rental_application" | "purchase_offer" | "renewal",
+    sourceId: string,
+    action: "accept" | "decline" | "reject" | "counter",
+    counterWeeklyRent?: number,
+    counterLeaseWeeks?: number
+  ) => Promise<void>;
+  onRefresh: () => Promise<void>;
+};
+
+const PHONE_SRC = "/milo-world/property-exchange/dreamscape-property-phone.png";
+
+function reputationLabel(score: number) {
+  if (score >= 85) return "Exceptional";
+  if (score >= 72) return "Trusted";
+  if (score >= 58) return "Established";
+  if (score >= 42) return "Developing";
+  return "At Risk";
+}
+
+export default function PropertyPhone({
+  conversations,
+  messages,
+  renewalNegotiations,
+  rentalApplications,
+  purchaseOffers,
+  reputation,
+  unreadCount,
+  actionLoading,
+  isMobile,
+  openRequest,
+  onMarkRead,
+  onRespond,
+  onRefresh,
+}: Props) {
+  const [open, setOpen] = useState(false);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [countering, setCountering] = useState(false);
+  const [counterRent, setCounterRent] = useState(0);
+  const [counterWeeks, setCounterWeeks] = useState(12);
+
+  const selectedConversation = useMemo(
+    () => conversations.find((item) => item.conversation_id === selectedConversationId) || null,
+    [conversations, selectedConversationId]
+  );
+
+  const selectedMessages = useMemo(
+    () =>
+      messages.filter((item) => item.conversation_id === selectedConversationId),
+    [messages, selectedConversationId]
+  );
+
+  const latestMessageByConversation = useMemo(() => {
+    const map = new Map<string, PropertyMessage>();
+    for (const message of messages) {
+      const current = map.get(message.conversation_id);
+      if (!current || new Date(message.created_at).getTime() >= new Date(current.created_at).getTime()) {
+        map.set(message.conversation_id, message);
+      }
+    }
+    return map;
+  }, [messages]);
+
+  const selectedRenewal = useMemo(() => {
+    if (!selectedConversationId) return null;
+    return (
+      renewalNegotiations
+        .filter(
+          (item) =>
+            item.conversation_id === selectedConversationId &&
+            item.status === "pending_landlord"
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        )[0] || null
+    );
+  }, [renewalNegotiations, selectedConversationId]);
+
+  const pendingApplication = useMemo(() => {
+    if (!selectedConversation) return null;
+    const sourceIds = new Set(
+      selectedMessages
+        .filter((item) => item.source_type === "rental_application" && item.source_id)
+        .map((item) => item.source_id as string)
+    );
+    return (
+      rentalApplications.find(
+        (item) => sourceIds.has(item.application_id) && item.status === "pending"
+      ) || null
+    );
+  }, [rentalApplications, selectedConversation, selectedMessages]);
+
+  const activePurchaseOffer = useMemo(() => {
+    if (!selectedConversation) return null;
+    const sourceIds = new Set(
+      selectedMessages
+        .filter((item) => item.source_type === "purchase_offer" && item.source_id)
+        .map((item) => item.source_id as string)
+    );
+    return (
+      purchaseOffers.find(
+        (item) => sourceIds.has(item.offer_id) && item.status === "active"
+      ) || null
+    );
+  }, [purchaseOffers, selectedConversation, selectedMessages]);
+
+  useEffect(() => {
+    if (openRequest > 0) setOpen(true);
+  }, [openRequest]);
+
+  useEffect(() => {
+    if (!selectedRenewal) {
+      setCountering(false);
+      return;
+    }
+    setCounterRent(selectedRenewal.proposed_weekly_rent);
+    setCounterWeeks(selectedRenewal.proposed_lease_weeks);
+  }, [selectedRenewal]);
+
+  function openConversation(conversationId: string) {
+    setSelectedConversationId(conversationId);
+    setCountering(false);
+    void onMarkRead(conversationId);
+  }
+
+  async function handleRefresh() {
+    await onRefresh();
+  }
+
+  const frameWidth = isMobile ? "min(94vw, 390px)" : "390px";
+  const frameHeight = isMobile ? "min(82dvh, 690px)" : "690px";
+
+  return (
+    <>
+      {!open && (
+        <button
+          type="button"
+          data-milo-guide="property-phone-launcher"
+          onClick={() => setOpen(true)}
+          aria-label={`Open tenant messages${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
+          style={{
+            position: "fixed",
+            right: isMobile ? "12px" : "22px",
+            bottom: isMobile ? "12px" : "18px",
+            zIndex: 170,
+            width: isMobile ? "58px" : "68px",
+            height: isMobile ? "102px" : "120px",
+            padding: 0,
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
+            filter: "drop-shadow(0 18px 28px rgba(0,0,0,0.55))",
+          }}
+        >
+          <img
+            src={PHONE_SRC}
+            alt="Property messages phone"
+            style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+          />
+          {unreadCount > 0 && (
+            <span
+              style={{
+                position: "absolute",
+                top: "4px",
+                right: "-3px",
+                minWidth: "24px",
+                height: "24px",
+                borderRadius: "999px",
+                display: "grid",
+                placeItems: "center",
+                padding: "0 6px",
+                background: "#ff6262",
+                border: "2px solid #071126",
+                color: "white",
+                fontSize: "11px",
+                fontWeight: 950,
+              }}
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
+
+      {open && (
+        <div
+          data-milo-guide="property-phone"
+          style={{
+            position: "fixed",
+            right: isMobile ? "2.5vw" : "18px",
+            bottom: isMobile ? "8px" : "12px",
+            zIndex: 190,
+            width: frameWidth,
+            height: frameHeight,
+            maxWidth: "94vw",
+            maxHeight: "88dvh",
+            filter: "drop-shadow(0 34px 60px rgba(0,0,0,0.66))",
+          }}
+        >
+          <img
+            src={PHONE_SRC}
+            alt=""
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "fill",
+              pointerEvents: "none",
+              userSelect: "none",
+            }}
+          />
+
+          <div
+            style={{
+              position: "absolute",
+              left: "16%",
+              right: "16%",
+              top: "7.6%",
+              bottom: "6.3%",
+              borderRadius: isMobile ? "28px" : "32px",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              background: "linear-gradient(180deg,#f7f9fc,#eef2f7)",
+              color: "#0f172a",
+            }}
+          >
+            <header
+              style={{
+                padding: "18px 14px 10px",
+                background: "rgba(255,255,255,0.94)",
+                borderBottom: "1px solid rgba(15,23,42,0.08)",
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedConversationId) setSelectedConversationId(null);
+                    else setOpen(false);
+                  }}
+                  style={{
+                    width: "30px",
+                    height: "30px",
+                    borderRadius: "999px",
+                    border: "none",
+                    background: "rgba(15,23,42,0.06)",
+                    color: "#0f172a",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    fontWeight: 900,
+                  }}
+                  aria-label={selectedConversationId ? "Back to messages" : "Close phone"}
+                >
+                  {selectedConversationId ? "‹" : "×"}
+                </button>
+
+                <div style={{ minWidth: 0, textAlign: "center" }}>
+                  <strong style={{ display: "block", fontSize: "13px", lineHeight: 1.1 }}>
+                    {selectedConversation ? selectedConversation.resident_name : "Property Messages"}
+                  </strong>
+                  <small style={{ display: "block", marginTop: "3px", color: "#64748b", fontSize: "9px" }}>
+                    {selectedConversation
+                      ? `${selectedConversation.property_name} · Unit ${selectedConversation.unit_number}`
+                      : `${reputationLabel(reputation.score)} landlord · ${reputation.score}/100`}
+                  </small>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void handleRefresh()}
+                  disabled={actionLoading}
+                  style={{
+                    width: "30px",
+                    height: "30px",
+                    borderRadius: "999px",
+                    border: "none",
+                    background: "rgba(15,23,42,0.06)",
+                    color: "#0f172a",
+                    cursor: actionLoading ? "not-allowed" : "pointer",
+                    opacity: actionLoading ? 0.45 : 1,
+                    fontSize: "14px",
+                    fontWeight: 900,
+                  }}
+                  aria-label="Refresh tenant messages"
+                >
+                  ↻
+                </button>
+              </div>
+            </header>
+
+            {!selectedConversation ? (
+              <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px 14px" }}>
+                {conversations.length === 0 ? (
+                  <div style={{ padding: "34px 14px", textAlign: "center", color: "#64748b", fontSize: "11px", lineHeight: 1.5 }}>
+                    No resident messages yet. Rental applications, purchase offers, maintenance requests and lease negotiations will appear here.
+                  </div>
+                ) : (
+                  conversations.map((conversation) => {
+                    const latest = latestMessageByConversation.get(conversation.conversation_id);
+                    return (
+                      <button
+                        key={conversation.conversation_id}
+                        type="button"
+                        onClick={() => openConversation(conversation.conversation_id)}
+                        style={{
+                          width: "100%",
+                          border: "none",
+                          borderBottom: "1px solid rgba(15,23,42,0.07)",
+                          background: conversation.unread_count > 0 ? "rgba(52,152,219,0.08)" : "transparent",
+                          padding: "11px 8px",
+                          display: "grid",
+                          gridTemplateColumns: "36px minmax(0,1fr) auto",
+                          gap: "9px",
+                          alignItems: "center",
+                          textAlign: "left",
+                          cursor: "pointer",
+                          color: "#0f172a",
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: "36px",
+                            height: "36px",
+                            borderRadius: "50%",
+                            display: "grid",
+                            placeItems: "center",
+                            background: "linear-gradient(145deg,#dbeafe,#bfdbfe)",
+                            color: "#1d4ed8",
+                            fontWeight: 950,
+                            fontSize: "13px",
+                          }}
+                        >
+                          {conversation.resident_name.slice(0, 1).toUpperCase()}
+                        </span>
+                        <span style={{ minWidth: 0 }}>
+                          <strong style={{ display: "block", fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {conversation.resident_name}
+                          </strong>
+                          <small style={{ display: "block", marginTop: "3px", color: "#64748b", fontSize: "9px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {latest?.body || conversation.subject}
+                          </small>
+                        </span>
+                        <span style={{ display: "grid", justifyItems: "end", gap: "4px" }}>
+                          <small style={{ color: "#94a3b8", fontSize: "8px" }}>
+                            {new Intl.DateTimeFormat("en-SG", { day: "numeric", month: "short" }).format(new Date(conversation.last_message_at))}
+                          </small>
+                          {conversation.unread_count > 0 && (
+                            <span style={{ minWidth: "18px", height: "18px", borderRadius: "999px", display: "grid", placeItems: "center", padding: "0 4px", background: "#2563eb", color: "white", fontSize: "8px", fontWeight: 900 }}>
+                              {conversation.unread_count}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            ) : (
+              <>
+                <div style={{ flex: 1, overflowY: "auto", padding: "12px 10px 10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {selectedMessages.map((message) => {
+                    const mine = message.sender_type === "landlord";
+                    const system = message.sender_type === "system";
+                    return (
+                      <div
+                        key={message.message_id}
+                        style={{
+                          alignSelf: system ? "center" : mine ? "flex-end" : "flex-start",
+                          maxWidth: system ? "90%" : "84%",
+                        }}
+                      >
+                        <div
+                          style={{
+                            borderRadius: system ? "12px" : mine ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                            background: system ? "rgba(100,116,139,0.1)" : mine ? "#2f80ed" : "white",
+                            color: system ? "#64748b" : mine ? "white" : "#0f172a",
+                            border: system || mine ? "none" : "1px solid rgba(15,23,42,0.07)",
+                            padding: system ? "7px 9px" : "9px 10px",
+                            fontSize: system ? "9px" : "10px",
+                            lineHeight: 1.45,
+                            boxShadow: system || mine ? "none" : "0 3px 10px rgba(15,23,42,0.05)",
+                          }}
+                        >
+                          {message.body}
+                        </div>
+                        {!system && (
+                          <small style={{ display: "block", marginTop: "3px", padding: "0 3px", color: "#94a3b8", fontSize: "7px", textAlign: mine ? "right" : "left" }}>
+                            {formatDateTime(message.created_at)}
+                          </small>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ flexShrink: 0, padding: "8px 9px 11px", background: "rgba(255,255,255,0.97)", borderTop: "1px solid rgba(15,23,42,0.08)" }}>
+                  {selectedRenewal ? (
+                    <div style={{ display: "grid", gap: "7px" }}>
+                      {!countering ? (
+                        <>
+                          <div style={{ padding: "7px 8px", borderRadius: "10px", background: "#eff6ff", color: "#1e40af", fontSize: "9px", lineHeight: 1.4 }}>
+                            Renewal proposal: <strong>{formatNumber(selectedRenewal.proposed_weekly_rent)} DT/wk</strong> for <strong>{selectedRenewal.proposed_lease_weeks} weeks</strong>.
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "5px" }}>
+                            <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "accept")} style={actionButton("#16a34a")}>Accept</button>
+                            <button type="button" disabled={actionLoading} onClick={() => setCountering(true)} style={actionButton("#2563eb")}>Counter</button>
+                            <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "decline")} style={actionButton("#64748b")}>Decline</button>
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ display: "grid", gap: "6px" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}>
+                            <label style={{ display: "grid", gap: "3px", color: "#64748b", fontSize: "8px" }}>
+                              Weekly rent
+                              <input type="number" min={1} value={counterRent} onChange={(e) => setCounterRent(Math.max(1, Math.round(Number(e.target.value) || 1)))} style={phoneInput} />
+                            </label>
+                            <label style={{ display: "grid", gap: "3px", color: "#64748b", fontSize: "8px" }}>
+                              Weeks
+                              <input type="number" min={1} max={104} value={counterWeeks} onChange={(e) => setCounterWeeks(Math.max(1, Math.min(104, Math.round(Number(e.target.value) || 1))))} style={phoneInput} />
+                            </label>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "5px" }}>
+                            <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "counter", counterRent, counterWeeks)} style={actionButton("#2563eb")}>Send Counter</button>
+                            <button type="button" onClick={() => setCountering(false)} style={actionButton("#94a3b8")}>Cancel</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : pendingApplication ? (
+                    <div style={{ display: "grid", gap: "7px" }}>
+                      <div style={{ padding: "7px 8px", borderRadius: "10px", background: "#eff6ff", color: "#1e40af", fontSize: "9px", lineHeight: 1.4 }}>
+                        Rental offer: <strong>{formatNumber(pendingApplication.proposed_weekly_rent)} DT/wk</strong> for <strong>{pendingApplication.lease_weeks} weeks</strong> · fit {pendingApplication.fit_score}/100.
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}>
+                        <button type="button" disabled={actionLoading} onClick={() => void onRespond("rental_application", pendingApplication.application_id, "accept")} style={actionButton("#16a34a")}>Accept Tenant</button>
+                        <button type="button" disabled={actionLoading} onClick={() => void onRespond("rental_application", pendingApplication.application_id, "decline")} style={actionButton("#64748b")}>Decline</button>
+                      </div>
+                    </div>
+                  ) : activePurchaseOffer ? (
+                    <div style={{ display: "grid", gap: "7px" }}>
+                      <div style={{ padding: "7px 8px", borderRadius: "10px", background: "#fff7ed", color: "#9a3412", fontSize: "9px", lineHeight: 1.4 }}>
+                        Purchase offer: <strong>{formatNumber(activePurchaseOffer.offer_amount)} DT</strong>.
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}>
+                        <button type="button" disabled={actionLoading} onClick={() => void onRespond("purchase_offer", activePurchaseOffer.offer_id, "accept")} style={actionButton("#16a34a")}>Accept Sale</button>
+                        <button type="button" disabled={actionLoading} onClick={() => void onRespond("purchase_offer", activePurchaseOffer.offer_id, "reject")} style={actionButton("#64748b")}>Decline</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ borderRadius: "999px", background: "#f1f5f9", padding: "9px 12px", color: "#94a3b8", fontSize: "9px", textAlign: "center" }}>
+                      No response needed right now.
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function actionButton(background: string) {
+  return {
+    minHeight: "32px",
+    border: "none",
+    borderRadius: "9px",
+    background,
+    color: "white",
+    padding: "0 8px",
+    fontSize: "9px",
+    fontWeight: 900,
+    cursor: "pointer",
+  } as const;
+}
+
+const phoneInput = {
+  width: "100%",
+  minWidth: 0,
+  height: "31px",
+  borderRadius: "8px",
+  border: "1px solid rgba(15,23,42,0.14)",
+  background: "white",
+  color: "#0f172a",
+  padding: "0 7px",
+  fontSize: "10px",
+  outline: "none",
+};

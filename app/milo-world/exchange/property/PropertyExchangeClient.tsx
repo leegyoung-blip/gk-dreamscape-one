@@ -8,6 +8,7 @@ import MiloExchangeGuide from "../components/MiloExchangeGuide";
 import MyPropertiesTab from "./components/MyPropertiesTab";
 import PropertyMapTab from "./components/PropertyMapTab";
 import PropertyResaleTab from "./components/PropertyResaleTab";
+import PropertyPhone from "./components/PropertyPhone";
 import {
   PROPERTY_TYPE_LABELS,
   formatNumber,
@@ -23,8 +24,17 @@ import {
   type PropertyPurchaseOffer,
   type PropertyUnitMarketSetting,
   type PropertyResidentDashboard,
+  type PropertyMaintenanceIssue,
+  type PropertyMaintenanceAction,
+  type PropertyMaintenanceDashboard,
+  type PropertyMaintenanceStats,
   type PropertyResaleListing,
   type RecentPropertySale,
+  type PropertyConversation,
+  type PropertyMessage,
+  type PropertyRenewalNegotiation,
+  type PropertyLandlordReputation,
+  type PropertyCommunicationsDashboard,
 } from "./components/propertyExchangeShared";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -220,6 +230,30 @@ export default function PropertyExchangeClient() {
   const [leases, setLeases] = useState<PropertyLease[]>([]);
   const [purchaseOffers, setPurchaseOffers] = useState<PropertyPurchaseOffer[]>([]);
   const [marketSettings, setMarketSettings] = useState<PropertyUnitMarketSetting[]>([]);
+  const [maintenanceIssues, setMaintenanceIssues] = useState<PropertyMaintenanceIssue[]>([]);
+  const [maintenanceActions, setMaintenanceActions] = useState<PropertyMaintenanceAction[]>([]);
+  const [maintenanceStats, setMaintenanceStats] = useState<PropertyMaintenanceStats>({
+    open_issues: 0,
+    urgent_issues: 0,
+    at_risk_tenants: 0,
+    average_condition: 100,
+  });
+  const [propertyConversations, setPropertyConversations] = useState<PropertyConversation[]>([]);
+  const [propertyMessages, setPropertyMessages] = useState<PropertyMessage[]>([]);
+  const [renewalNegotiations, setRenewalNegotiations] = useState<PropertyRenewalNegotiation[]>([]);
+  const [landlordReputation, setLandlordReputation] = useState<PropertyLandlordReputation>({
+    user_id: null,
+    score: 60,
+    completed_leases: 0,
+    renewals: 0,
+    early_departures: 0,
+    full_repairs: 0,
+    ignored_issues: 0,
+    average_satisfaction: 80,
+    updated_at: null,
+  });
+  const [propertyUnreadCount, setPropertyUnreadCount] = useState(0);
+  const [phoneOpenRequest, setPhoneOpenRequest] = useState(0);
 
   const [previewProperty, setPreviewProperty] = useState<PropertyOffering | null>(null);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
@@ -360,8 +394,16 @@ export default function PropertyExchangeClient() {
 
     setUserId(user.id);
     await Promise.all([loadDreamTokens(), loadPropertyMarket(user.id)]);
+    await refreshMaintenanceSimulation(false);
     await refreshResidentSimulation(false);
-    await Promise.all([loadDreamTokens(), loadResidentDashboard()]);
+    await refreshLeaseLifecycle(false);
+    await Promise.all([
+      loadDreamTokens(),
+      loadPropertyMarket(user.id),
+      loadResidentDashboard(),
+      loadMaintenanceDashboard(),
+      loadPropertyCommunications(),
+    ]);
     setLoading(false);
   }
 
@@ -418,6 +460,190 @@ export default function PropertyExchangeClient() {
       value_at_offer: Number(item.value_at_offer || 0),
     })));
     setMarketSettings(dashboard.market_settings || []);
+  }
+
+  async function loadPropertyCommunications() {
+    const { data, error } = await supabase.rpc("get_my_milo_property_communications");
+
+    if (error) {
+      console.warn("Could not load property communications:", error.message);
+      setPropertyConversations([]);
+      setPropertyMessages([]);
+      setRenewalNegotiations([]);
+      setPropertyUnreadCount(0);
+      return;
+    }
+
+    const dashboard = (data || {}) as Partial<PropertyCommunicationsDashboard>;
+    setPropertyConversations(
+      (dashboard.conversations || []).map((item) => ({
+        ...item,
+        unit_number: Number(item.unit_number || 0),
+        unread_count: Number(item.unread_count || 0),
+      }))
+    );
+    setPropertyMessages(
+      (dashboard.messages || []).map((item) => ({
+        ...item,
+        metadata: (item.metadata || {}) as Record<string, unknown>,
+      }))
+    );
+    setRenewalNegotiations(
+      (dashboard.renewal_negotiations || []).map((item) => ({
+        ...item,
+        proposed_weekly_rent: Number(item.proposed_weekly_rent || 0),
+        proposed_lease_weeks: Number(item.proposed_lease_weeks || 0),
+        round_number: Number(item.round_number || 0),
+      }))
+    );
+    const reputation = dashboard.reputation || ({} as PropertyLandlordReputation);
+    setLandlordReputation({
+      user_id: reputation.user_id || null,
+      score: Number(reputation.score || 60),
+      completed_leases: Number(reputation.completed_leases || 0),
+      renewals: Number(reputation.renewals || 0),
+      early_departures: Number(reputation.early_departures || 0),
+      full_repairs: Number(reputation.full_repairs || 0),
+      ignored_issues: Number(reputation.ignored_issues || 0),
+      average_satisfaction: Number(reputation.average_satisfaction || 80),
+      updated_at: reputation.updated_at || null,
+    });
+    setPropertyUnreadCount(Number(dashboard.unread_count || 0));
+  }
+
+  async function refreshLeaseLifecycle(showMessage = false) {
+    const { data, error } = await supabase.rpc("refresh_my_milo_property_lease_lifecycle");
+
+    if (error) {
+      console.warn("Could not refresh property lease lifecycle:", error.message);
+      return;
+    }
+
+    if (showMessage) {
+      const result = (data || {}) as Record<string, unknown>;
+      const renewalMessages = Number(result.renewal_messages_created || 0);
+      const activated = Number(result.renewals_activated || 0);
+      const completed = Number(result.leases_completed || 0);
+      if (renewalMessages || activated || completed) {
+        setTradeMessage(
+          `Lease lifecycle refreshed · ${renewalMessages} new renewal message${renewalMessages === 1 ? "" : "s"} · ${activated} renewal${activated === 1 ? "" : "s"} activated · ${completed} lease${completed === 1 ? "" : "s"} completed.`
+        );
+      }
+    }
+  }
+
+  async function markConversationRead(conversationId: string) {
+    const { error } = await supabase.rpc("mark_milo_property_conversation_read", {
+      p_conversation_id: conversationId,
+    });
+    if (error) {
+      console.warn("Could not mark conversation read:", error.message);
+      return;
+    }
+    await loadPropertyCommunications();
+  }
+
+  async function respondPropertyCommunication(
+    sourceType: "rental_application" | "purchase_offer" | "renewal",
+    sourceId: string,
+    action: "accept" | "decline" | "reject" | "counter",
+    counterWeeklyRent?: number,
+    counterLeaseWeeks?: number
+  ) {
+    if (!userId || actionLoading) return;
+    setActionLoading(true);
+    setTradeMessage("");
+
+    const { data, error } = await supabase.rpc("respond_to_milo_property_communication", {
+      p_source_type: sourceType,
+      p_source_id: sourceId,
+      p_action: action,
+      p_counter_weekly_rent: counterWeeklyRent ?? null,
+      p_counter_lease_weeks: counterLeaseWeeks ?? null,
+    });
+
+    if (error) {
+      setTradeMessage(`Could not send message response: ${error.message}`);
+      setActionLoading(false);
+      return;
+    }
+
+    const result = (data || {}) as Record<string, unknown>;
+    setTradeMessage(String(result.message || "Message sent."));
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+    await refreshMarket(false);
+    setActionLoading(false);
+  }
+
+  async function loadMaintenanceDashboard() {
+    const { data, error } = await supabase.rpc(
+      "get_my_milo_property_maintenance_dashboard"
+    );
+
+    if (error) {
+      console.warn("Could not load property maintenance dashboard:", error.message);
+      setMaintenanceIssues([]);
+      setMaintenanceActions([]);
+      setMaintenanceStats({
+        open_issues: 0,
+        urgent_issues: 0,
+        at_risk_tenants: 0,
+        average_condition: 100,
+      });
+      return;
+    }
+
+    const dashboard = (data || {}) as Partial<PropertyMaintenanceDashboard>;
+    setMaintenanceIssues(
+      (dashboard.issues || []).map((item) => ({
+        ...item,
+        full_repair_cost: Number(item.full_repair_cost || 0),
+        quick_fix_cost: Number(item.quick_fix_cost || 0),
+        condition_damage: Number(item.condition_damage || 0),
+        satisfaction_damage: Number(item.satisfaction_damage || 0),
+      }))
+    );
+    setMaintenanceActions(
+      (dashboard.actions || []).map((item) => ({
+        ...item,
+        cost: Number(item.cost || 0),
+        condition_change: Number(item.condition_change || 0),
+        satisfaction_change: Number(item.satisfaction_change || 0),
+      }))
+    );
+    const stats = dashboard.stats || ({} as PropertyMaintenanceStats);
+    setMaintenanceStats({
+      open_issues: Number(stats.open_issues || 0),
+      urgent_issues: Number(stats.urgent_issues || 0),
+      at_risk_tenants: Number(stats.at_risk_tenants || 0),
+      average_condition: Number(stats.average_condition || 100),
+    });
+  }
+
+  async function refreshMaintenanceSimulation(showMessage = false) {
+    const { data, error } = await supabase.rpc(
+      "refresh_my_milo_property_maintenance"
+    );
+
+    if (error) {
+      console.warn("Could not refresh property maintenance:", error.message);
+      return;
+    }
+
+    if (showMessage) {
+      const result = (data || {}) as Record<string, unknown>;
+      const issuesCreated = Number(result.issues_created || 0);
+      const departures = Number(result.tenant_departures || 0);
+      if (issuesCreated > 0 || departures > 0) {
+        setTradeMessage(
+          `Property care refreshed · ${issuesCreated} new maintenance issue${
+            issuesCreated === 1 ? "" : "s"
+          } · ${departures} tenant departure${departures === 1 ? "" : "s"}.`
+        );
+      } else {
+        setTradeMessage("Property care is up to date.");
+      }
+    }
   }
 
   async function refreshResidentSimulation(showMessage = false) {
@@ -669,8 +895,16 @@ export default function PropertyExchangeClient() {
 
   async function refreshMarket(showResidentMessage = false) {
     if (!userId) return;
+    await refreshMaintenanceSimulation(false);
     await refreshResidentSimulation(showResidentMessage);
-    await Promise.all([loadDreamTokens(), loadPropertyMarket(userId), loadResidentDashboard()]);
+    await refreshLeaseLifecycle(false);
+    await Promise.all([
+      loadDreamTokens(),
+      loadPropertyMarket(userId),
+      loadResidentDashboard(),
+      loadMaintenanceDashboard(),
+      loadPropertyCommunications(),
+    ]);
   }
 
   function openPreview(property: PropertyOffering) {
@@ -975,6 +1209,84 @@ export default function PropertyExchangeClient() {
     setActionLoading(false);
   }
 
+  async function respondMaintenanceIssue(
+    issueId: string,
+    action: "full_repair" | "quick_fix" | "ignore"
+  ) {
+    if (!userId || actionLoading) return;
+    setActionLoading(true);
+    setTradeMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "respond_to_milo_property_maintenance_issue",
+      { p_issue_id: issueId, p_action: action }
+    );
+
+    if (error) {
+      setTradeMessage(`Maintenance action failed: ${error.message}`);
+      setActionLoading(false);
+      return;
+    }
+
+    const result = (data || {}) as Record<string, unknown>;
+    if (result.ok === false) {
+      const reason = String(result.reason || "maintenance_failed");
+      setTradeMessage(
+        reason === "insufficient_tokens"
+          ? `You need ${formatNumber(Number(result.required || 0))} DT for this repair.`
+          : reason === "issue_already_resolved"
+          ? "This maintenance issue has already been resolved."
+          : "This maintenance action could not be completed."
+      );
+      setActionLoading(false);
+      await refreshMarket(false);
+      return;
+    }
+
+    setTradeMessage(String(result.message || "Property maintenance updated."));
+    if (action !== "ignore") window.dispatchEvent(new Event("dream-tokens-updated"));
+    await refreshMarket(false);
+    setActionLoading(false);
+  }
+
+  async function preventiveService(unitId: string) {
+    if (!userId || actionLoading) return;
+    setActionLoading(true);
+    setTradeMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "service_my_milo_property_unit",
+      { p_unit_id: unitId }
+    );
+
+    if (error) {
+      setTradeMessage(`Preventive service failed: ${error.message}`);
+      setActionLoading(false);
+      return;
+    }
+
+    const result = (data || {}) as Record<string, unknown>;
+    if (result.ok === false) {
+      const reason = String(result.reason || "service_failed");
+      setTradeMessage(
+        reason === "insufficient_tokens"
+          ? `You need ${formatNumber(Number(result.required || 0))} DT for this service.`
+          : reason === "service_cooldown"
+          ? `This property was serviced recently. Next service: ${String(
+              result.next_available_on || "later"
+            )}.`
+          : "Preventive service could not be completed."
+      );
+      setActionLoading(false);
+      return;
+    }
+
+    setTradeMessage(String(result.message || "Preventive service completed."));
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+    await refreshMarket(false);
+    setActionLoading(false);
+  }
+
   if (loading) {
     return (
       <CenterPanel eyebrow="Milo’s Property Exchange" title="Loading the property market..." isMobile={isMobile}>
@@ -997,7 +1309,7 @@ export default function PropertyExchangeClient() {
 
   const tabs: Array<{ id: PropertyTab; label: string; description: string; icon: string }> = [
     { id: "map", label: "Property Map", description: "Explore and buy primary units", icon: "⌖" },
-    { id: "properties", label: "My Properties", description: "Upgrade, rent and manage tenants", icon: "⌂" },
+    { id: "properties", label: "My Properties", description: "Upgrade, rent, maintain and manage", icon: "⌂" },
     { id: "resale", label: "Resale Market", description: "Buy units from other owners", icon: "⇄" },
   ];
 
@@ -1123,7 +1435,7 @@ export default function PropertyExchangeClient() {
             Property Exchange
           </h1>
           <p style={{ margin: "18px auto 0", maxWidth: "760px", color: "rgba(255,255,255,0.64)", lineHeight: 1.7, fontSize: isMobile ? "15px" : "17px" }}>
-            Explore the primary market, improve individual properties, rent them to Dreamscape residents, manage active leases, or sell through the resale market.
+            Explore the primary market, improve individual properties, rent them to Dreamscape residents, maintain them over time, manage tenant satisfaction, or sell through the resale market.
           </p>
         </section>
 
@@ -1210,6 +1522,11 @@ export default function PropertyExchangeClient() {
               leases={leases}
               purchaseOffers={purchaseOffers}
               marketSettings={marketSettings}
+              maintenanceIssues={maintenanceIssues}
+              maintenanceActions={maintenanceActions}
+              maintenanceStats={maintenanceStats}
+              landlordReputation={landlordReputation}
+              unreadMessages={propertyUnreadCount}
               actionLoading={actionLoading}
               message={tradeMessage}
               isMobile={isMobile}
@@ -1217,10 +1534,11 @@ export default function PropertyExchangeClient() {
               onUpgradeUnit={upgradePropertyUnit}
               onCreateRentalListing={createRentalListing}
               onCancelRentalListing={cancelRentalListing}
-              onRespondApplication={respondRentalApplication}
               onTogglePurchaseOffers={togglePurchaseOffers}
-              onRespondPurchaseOffer={respondPurchaseOffer}
               onRefreshResidentMarket={() => refreshMarket(true)}
+              onRespondMaintenanceIssue={respondMaintenanceIssue}
+              onPreventiveService={preventiveService}
+              onOpenMessages={() => setPhoneOpenRequest((value) => value + 1)}
               onCreateListing={createResaleListing}
               onCancelListing={cancelResaleListing}
             />
@@ -1245,6 +1563,22 @@ export default function PropertyExchangeClient() {
           )}
         </div>
       </div>
+
+      <PropertyPhone
+        conversations={propertyConversations}
+        messages={propertyMessages}
+        renewalNegotiations={renewalNegotiations}
+        rentalApplications={rentalApplications}
+        purchaseOffers={purchaseOffers}
+        reputation={landlordReputation}
+        unreadCount={propertyUnreadCount}
+        actionLoading={actionLoading}
+        isMobile={isMobile}
+        openRequest={phoneOpenRequest}
+        onMarkRead={markConversationRead}
+        onRespond={respondPropertyCommunication}
+        onRefresh={() => refreshMarket(false)}
+      />
 
       <MiloExchangeGuide
         page="property"
