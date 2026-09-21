@@ -39,6 +39,10 @@ import {
   type PropertyResidentLifeEvent,
   type PropertyResidentLifeStats,
   type PropertyResidentLifeDashboard,
+  type PropertyDistrictMarket,
+  type PropertyMarketSegment,
+  type PropertyMarketHistoryPoint,
+  type PropertyMarketDashboard,
 } from "./components/propertyExchangeShared";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -266,6 +270,9 @@ export default function PropertyExchangeClient() {
     financial_pressure: 0,
     recent_life_events: 0,
   });
+  const [districtMarkets, setDistrictMarkets] = useState<PropertyDistrictMarket[]>([]);
+  const [marketSegments, setMarketSegments] = useState<PropertyMarketSegment[]>([]);
+  const [marketHistory, setMarketHistory] = useState<PropertyMarketHistoryPoint[]>([]);
   const [phoneOpenRequest, setPhoneOpenRequest] = useState(0);
 
   const [previewProperty, setPreviewProperty] = useState<PropertyOffering | null>(null);
@@ -290,7 +297,7 @@ export default function PropertyExchangeClient() {
 
     return holdings.reduce((total, holding) => {
       const property = properties.find((item) => item.id === holding.property_id);
-      const unitValue = Number(property?.current_value || holding.purchase_price || 0);
+      const unitValue = Number(property?.market_value || property?.current_value || holding.purchase_price || 0);
       return total + Number(holding.quantity || 0) * unitValue;
     }, 0);
   }, [propertyUnits, holdings, properties]);
@@ -412,6 +419,7 @@ export default function PropertyExchangeClient() {
     await refreshResidentLife(false);
     await refreshResidentSimulation(false);
     await refreshLeaseLifecycle(false);
+    await refreshDistrictMarket(false);
     await Promise.all([
       loadDreamTokens(),
       loadPropertyMarket(user.id),
@@ -419,6 +427,7 @@ export default function PropertyExchangeClient() {
       loadMaintenanceDashboard(),
       loadPropertyCommunications(),
       loadResidentLifeDashboard(),
+      loadDistrictMarketDashboard(),
     ]);
     setLoading(false);
   }
@@ -761,6 +770,91 @@ export default function PropertyExchangeClient() {
     }
   }
 
+  async function refreshDistrictMarket(showMessage = false) {
+    const { data, error } = await supabase.rpc("refresh_milo_exchange_property_market");
+    if (error) {
+      console.warn("Could not refresh property district market:", error.message);
+      return;
+    }
+
+    if (showMessage) {
+      const result = (data || {}) as Record<string, unknown>;
+      setTradeMessage(
+        `Market pulse updated · ${Number(result.segments_updated || 0)} district market segment${Number(result.segments_updated || 0) === 1 ? "" : "s"} checked.`
+      );
+    }
+  }
+
+  async function loadDistrictMarketDashboard() {
+    const { data, error } = await supabase.rpc("get_milo_exchange_property_market_dashboard");
+    if (error) {
+      console.warn("Could not load district market dashboard:", error.message);
+      setDistrictMarkets([]);
+      setMarketSegments([]);
+      setMarketHistory([]);
+      return;
+    }
+
+    const dashboard = (data || {}) as Partial<PropertyMarketDashboard>;
+    setDistrictMarkets((dashboard.districts || []).map((item) => ({
+      ...item,
+      demand_score: Number(item.demand_score || 0),
+      demand_count: Number(item.demand_count || 0),
+      available_supply: Number(item.available_supply || 0),
+      primary_available: Number(item.primary_available || 0),
+      active_rental_listings: Number(item.active_rental_listings || 0),
+      active_resale_listings: Number(item.active_resale_listings || 0),
+      owned_units: Number(item.owned_units || 0),
+      active_leases: Number(item.active_leases || 0),
+      occupancy_rate: Number(item.occupancy_rate || 0),
+      avg_weekly_rent: Number(item.avg_weekly_rent || 0),
+      value_index_bps: Number(item.value_index_bps || 10000),
+      rent_index_bps: Number(item.rent_index_bps || 10000),
+      value_change_30d_bps: Number(item.value_change_30d_bps || 0),
+      rent_change_30d_bps: Number(item.rent_change_30d_bps || 0),
+      recent_applications: Number(item.recent_applications || 0),
+      recent_purchase_offers: Number(item.recent_purchase_offers || 0),
+      recent_resale_sales: Number(item.recent_resale_sales || 0),
+    })) as PropertyDistrictMarket[]);
+    setMarketSegments((dashboard.segments || []).map((item) => ({
+      ...item,
+      demand_score: Number(item.demand_score || 0),
+      demand_count: Number(item.demand_count || 0),
+      available_supply: Number(item.available_supply || 0),
+      primary_available: Number(item.primary_available || 0),
+      active_rental_listings: Number(item.active_rental_listings || 0),
+      active_resale_listings: Number(item.active_resale_listings || 0),
+      owned_units: Number(item.owned_units || 0),
+      active_leases: Number(item.active_leases || 0),
+      occupancy_rate: Number(item.occupancy_rate || 0),
+      avg_weekly_rent: Number(item.avg_weekly_rent || 0),
+      avg_rental_ask: Number(item.avg_rental_ask || 0),
+      avg_resale_ask: Number(item.avg_resale_ask || 0),
+      recent_applications: Number(item.recent_applications || 0),
+      recent_purchase_offers: Number(item.recent_purchase_offers || 0),
+      recent_resale_sales: Number(item.recent_resale_sales || 0),
+      value_index_bps: Number(item.value_index_bps || 10000),
+      rent_index_bps: Number(item.rent_index_bps || 10000),
+      value_change_30d_bps: Number(item.value_change_30d_bps || 0),
+      rent_change_30d_bps: Number(item.rent_change_30d_bps || 0),
+    })) as PropertyMarketSegment[]);
+    setMarketHistory((dashboard.history || []).map((item) => ({
+      ...item,
+      demand_score: Number(item.demand_score || 0),
+      demand_count: Number(item.demand_count || 0),
+      available_supply: Number(item.available_supply || 0),
+      occupancy_rate: Number(item.occupancy_rate || 0),
+      avg_weekly_rent: Number(item.avg_weekly_rent || 0),
+      avg_rental_ask: Number(item.avg_rental_ask || 0),
+      avg_resale_ask: Number(item.avg_resale_ask || 0),
+      recent_applications: Number(item.recent_applications || 0),
+      recent_purchase_offers: Number(item.recent_purchase_offers || 0),
+      recent_resale_sales: Number(item.recent_resale_sales || 0),
+      value_index_bps: Number(item.value_index_bps || 10000),
+      rent_index_bps: Number(item.rent_index_bps || 10000),
+    })) as PropertyMarketHistoryPoint[]);
+  }
+
   async function loadPropertyMarket(id: string) {
     setMarketLoading(true);
 
@@ -773,12 +867,7 @@ export default function PropertyExchangeClient() {
       myListingsResult,
       catalogResult,
     ] = await Promise.all([
-      supabase
-        .from("milo_exchange_properties")
-        .select("id,code,name,district,district_slug,property_type,building_name,unit_type,description,address,current_value,listing_price,weekly_rent,available_quantity,total_quantity,area_sqm,bedrooms,preview_image_url,display_order,is_active")
-        .eq("is_active", true)
-        .in("district_slug", ["residential-hub", "commercial-hub"])
-        .order("display_order", { ascending: true }),
+      supabase.rpc("get_milo_exchange_property_market_inventory"),
       supabase
         .from("milo_exchange_property_holdings")
         .select("id,user_id,property_id,quantity,purchase_price,created_at,updated_at")
@@ -805,6 +894,10 @@ export default function PropertyExchangeClient() {
         current_value: Number(row.current_value || 0),
         listing_price: Number(row.listing_price || 0),
         weekly_rent: Number(row.weekly_rent || 0),
+        market_value: Number(row.market_value || row.current_value || row.listing_price || 0),
+        market_rent: Number(row.market_rent || row.weekly_rent || 0),
+        value_index_bps: Number(row.value_index_bps || 10000),
+        rent_index_bps: Number(row.rent_index_bps || 10000),
         available_quantity: Number(row.available_quantity || 0),
         total_quantity: Number(row.total_quantity || 0),
         area_sqm: Number(row.area_sqm || 0),
@@ -995,6 +1088,7 @@ export default function PropertyExchangeClient() {
     await refreshResidentLife(false);
     await refreshResidentSimulation(showResidentMessage);
     await refreshLeaseLifecycle(false);
+    await refreshDistrictMarket(false);
     await Promise.all([
       loadDreamTokens(),
       loadPropertyMarket(userId),
@@ -1002,6 +1096,7 @@ export default function PropertyExchangeClient() {
       loadMaintenanceDashboard(),
       loadPropertyCommunications(),
       loadResidentLifeDashboard(),
+      loadDistrictMarketDashboard(),
     ]);
   }
 
@@ -1471,7 +1566,8 @@ export default function PropertyExchangeClient() {
                   ["Unit Type", previewProperty.unit_type],
                   ["Floor Area", `${previewProperty.area_sqm} sqm`],
                   ["Dreamscape Price", `${formatNumber(previewProperty.listing_price)} DT`],
-                  ["Base Rent Potential", `${formatNumber(previewProperty.weekly_rent)} DT/week`],
+                  ["Live Market Value", `${formatNumber(previewProperty.market_value)} DT`],
+                  ["Market Rent Potential", `${formatNumber(previewProperty.market_rent)} DT/week`],
                   ["Units Available", `${previewProperty.available_quantity}`],
                   ["Your Holdings", `${holdingsByProperty.get(previewProperty.id)?.quantity || 0}`],
                 ].map(([label, value]) => (
@@ -1602,6 +1698,9 @@ export default function PropertyExchangeClient() {
               isCompact={isCompact}
               isDesktop={isDesktop}
               onOpenProperty={openPreview}
+              districtMarkets={districtMarkets}
+              marketSegments={marketSegments}
+              marketHistory={marketHistory}
             />
           )}
 

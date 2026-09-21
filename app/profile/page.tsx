@@ -2100,6 +2100,95 @@ Thank you.`;
       return;
     }
 
+    /*
+     * Cart is the one intentional exception:
+     * Profile -> Back should never return the learner to /cart.
+     *
+     * Chromium browsers expose the current session-history entries
+     * through the Navigation API, which lets us inspect the actual
+     * immediately previous URL without changing history first.
+     */
+    const navigationApi = (
+      window as Window & {
+        navigation?: {
+          currentEntry?: {
+            index?: number;
+          };
+          entries?: () => Array<{
+            index?: number;
+            url?: string;
+          }>;
+        };
+      }
+    ).navigation;
+
+    try {
+      const currentIndex =
+        navigationApi?.currentEntry?.index;
+
+      const entries =
+        navigationApi?.entries?.();
+
+      if (
+        typeof currentIndex === "number" &&
+        Array.isArray(entries)
+      ) {
+        const previousEntry =
+          entries.find(
+            (entry) =>
+              entry.index ===
+              currentIndex - 1,
+          );
+
+        if (previousEntry?.url) {
+          const previousUrl =
+            new URL(
+              previousEntry.url,
+              window.location.origin,
+            );
+
+          if (
+            previousUrl.origin ===
+              window.location.origin &&
+            (
+              previousUrl.pathname === "/cart" ||
+              previousUrl.pathname.startsWith("/cart/")
+            )
+          ) {
+            router.push("/");
+            return;
+          }
+        }
+      }
+    } catch {
+      // Fall through to referrer/history fallback.
+    }
+
+    /*
+     * Fallback for browsers without the Navigation API.
+     * This also covers direct document navigations from /cart.
+     */
+    try {
+      if (document.referrer) {
+        const referrerUrl =
+          new URL(document.referrer);
+
+        if (
+          referrerUrl.origin ===
+            window.location.origin &&
+          (
+            referrerUrl.pathname === "/cart" ||
+            referrerUrl.pathname.startsWith("/cart/")
+          )
+        ) {
+          router.push("/");
+          return;
+        }
+      }
+    } catch {
+      // Ignore malformed/blocked referrer values.
+    }
+
     if (window.history.length > 1) {
       router.back();
       return;

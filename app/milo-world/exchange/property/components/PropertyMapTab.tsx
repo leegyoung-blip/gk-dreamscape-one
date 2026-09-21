@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import DistrictMarketPanel from "./DistrictMarketPanel";
 import {
   DISTRICTS,
   PROPERTY_MAP_IMAGES,
@@ -12,6 +13,9 @@ import {
   type DistrictId,
   type PropertyHolding,
   type PropertyOffering,
+  type PropertyDistrictMarket,
+  type PropertyMarketSegment,
+  type PropertyMarketHistoryPoint,
   type PropertyTabStyles,
   type PropertyType,
 } from "./propertyExchangeShared";
@@ -24,6 +28,9 @@ type Props = PropertyTabStyles & {
   isCompact: boolean;
   isDesktop: boolean;
   onOpenProperty: (property: PropertyOffering) => void;
+  districtMarkets: PropertyDistrictMarket[];
+  marketSegments: PropertyMarketSegment[];
+  marketHistory: PropertyMarketHistoryPoint[];
 };
 
 function WorldDistrictMap({
@@ -245,7 +252,11 @@ export default function PropertyMapTab({
   isDesktop,
   glassPanel,
   primaryButton,
+  secondaryButton,
   onOpenProperty,
+  districtMarkets,
+  marketSegments,
+  marketHistory,
 }: Props) {
   const [selectedDistrict, setSelectedDistrict] = useState<DistrictId | null>(null);
   const [hoveredDistrict, setHoveredDistrict] = useState<DistrictId | null>(null);
@@ -278,6 +289,19 @@ export default function PropertyMapTab({
 
   return (
     <div style={{ display: "grid", gap: "18px" }}>
+      <DistrictMarketPanel
+        glassPanel={glassPanel}
+        primaryButton={primaryButton}
+        secondaryButton={secondaryButton}
+        districts={districtMarkets}
+        segments={marketSegments}
+        history={marketHistory}
+        selectedDistrict={selectedDistrict}
+        isMobile={isMobile}
+        isCompact={isCompact}
+        onChooseDistrict={chooseDistrict}
+      />
+
       <section
         data-milo-guide="property-world-map"
         style={{ ...glassPanel, padding: isMobile ? "16px" : "24px" }}
@@ -467,6 +491,9 @@ export default function PropertyMapTab({
                   ? Math.max(0, Math.min(100, (property.available_quantity / property.total_quantity) * 100))
                   : 0;
                 const image = getPropertyPreviewImage(property);
+                const marketGapPct = property.market_value > 0
+                  ? Math.round(((property.listing_price - property.market_value) / property.market_value) * 100)
+                  : 0;
 
                 return (
                   <article key={property.id} style={{ borderRadius: "22px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.11)", background: "rgba(255,255,255,0.055)", display: "flex", flexDirection: "column" }}>
@@ -495,16 +522,26 @@ export default function PropertyMapTab({
                         {property.building_name} · {property.area_sqm} sqm
                       </p>
 
-                      <div style={{ marginTop: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                      <div style={{ marginTop: "16px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3,minmax(0,1fr))", gap: "8px" }}>
                         <div style={{ borderRadius: "14px", background: "rgba(255,255,255,0.055)", padding: "11px" }}>
-                          <span style={{ display: "block", color: "rgba(255,255,255,0.42)", fontSize: "10px", textTransform: "uppercase", fontWeight: 850 }}>Price</span>
+                          <span style={{ display: "block", color: "rgba(255,255,255,0.42)", fontSize: "10px", textTransform: "uppercase", fontWeight: 850 }}>Dreamscape Price</span>
                           <strong style={{ display: "block", marginTop: "5px", color: "#ffd18a" }}>{formatNumber(property.listing_price)} DT</strong>
                         </div>
-                        <div style={{ borderRadius: "14px", background: "rgba(255,255,255,0.055)", padding: "11px" }}>
-                          <span style={{ display: "block", color: "rgba(255,255,255,0.42)", fontSize: "10px", textTransform: "uppercase", fontWeight: 850 }}>Base Rent Potential</span>
-                          <strong style={{ display: "block", marginTop: "5px", color: "#8ee8ff" }}>{formatNumber(property.weekly_rent)} DT</strong>
+                        <div style={{ borderRadius: "14px", background: "rgba(121,242,206,0.055)", padding: "11px" }}>
+                          <span style={{ display: "block", color: "rgba(255,255,255,0.42)", fontSize: "10px", textTransform: "uppercase", fontWeight: 850 }}>Market Value</span>
+                          <strong style={{ display: "block", marginTop: "5px", color: "#79f2ce" }}>{formatNumber(property.market_value)} DT</strong>
+                        </div>
+                        <div style={{ borderRadius: "14px", background: "rgba(142,232,255,0.055)", padding: "11px", gridColumn: isMobile ? "1 / -1" : undefined }}>
+                          <span style={{ display: "block", color: "rgba(255,255,255,0.42)", fontSize: "10px", textTransform: "uppercase", fontWeight: 850 }}>Market Rent Potential</span>
+                          <strong style={{ display: "block", marginTop: "5px", color: "#8ee8ff" }}>{formatNumber(property.market_rent)} DT/week</strong>
                         </div>
                       </div>
+
+                      {marketGapPct !== 0 && (
+                        <div style={{ marginTop: "9px", borderRadius: "12px", padding: "9px 11px", background: marketGapPct < 0 ? "rgba(121,242,206,0.07)" : "rgba(255,209,138,0.07)", border: marketGapPct < 0 ? "1px solid rgba(121,242,206,0.14)" : "1px solid rgba(255,209,138,0.14)", color: marketGapPct < 0 ? "#79f2ce" : "#ffd18a", fontSize: "11px", fontWeight: 850 }}>
+                          Dreamscape price is {Math.abs(marketGapPct)}% {marketGapPct < 0 ? "below" : "above"} the live market estimate
+                        </div>
+                      )}
 
                       <div style={{ marginTop: "14px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", color: "rgba(255,255,255,0.54)", fontSize: "12px" }}>

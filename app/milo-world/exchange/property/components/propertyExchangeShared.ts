@@ -27,6 +27,10 @@ export type PropertyOffering = {
   current_value: number;
   listing_price: number;
   weekly_rent: number;
+  market_value: number;
+  market_rent: number;
+  value_index_bps: number;
+  rent_index_bps: number;
   available_quantity: number;
   total_quantity: number;
   area_sqm: number;
@@ -365,6 +369,82 @@ export type PropertyResidentLifeDashboard = {
   residents: PropertyResidentLifeProfile[];
   events: PropertyResidentLifeEvent[];
   stats: PropertyResidentLifeStats;
+};
+
+
+export type PropertyMarketSegment = {
+  district_slug: DistrictId;
+  district_name: string;
+  property_type: PropertyType;
+  demand_score: number;
+  demand_count: number;
+  available_supply: number;
+  primary_available: number;
+  active_rental_listings: number;
+  active_resale_listings: number;
+  owned_units: number;
+  active_leases: number;
+  occupancy_rate: number;
+  avg_weekly_rent: number;
+  avg_rental_ask: number;
+  avg_resale_ask: number;
+  recent_applications: number;
+  recent_purchase_offers: number;
+  recent_resale_sales: number;
+  value_index_bps: number;
+  rent_index_bps: number;
+  value_change_30d_bps: number;
+  rent_change_30d_bps: number;
+  updated_at: string | null;
+};
+
+export type PropertyDistrictMarket = {
+  district_slug: DistrictId;
+  district_name: string;
+  demand_score: number;
+  demand_count: number;
+  available_supply: number;
+  primary_available: number;
+  active_rental_listings: number;
+  active_resale_listings: number;
+  owned_units: number;
+  active_leases: number;
+  occupancy_rate: number;
+  avg_weekly_rent: number;
+  value_index_bps: number;
+  rent_index_bps: number;
+  value_change_30d_bps: number;
+  rent_change_30d_bps: number;
+  recent_applications: number;
+  recent_purchase_offers: number;
+  recent_resale_sales: number;
+  updated_at: string | null;
+};
+
+export type PropertyMarketHistoryPoint = {
+  snapshot_date: string;
+  district_slug: DistrictId;
+  district_name: string;
+  property_type: PropertyType;
+  demand_score: number;
+  demand_count: number;
+  available_supply: number;
+  occupancy_rate: number;
+  avg_weekly_rent: number;
+  avg_rental_ask: number;
+  avg_resale_ask: number;
+  recent_applications: number;
+  recent_purchase_offers: number;
+  recent_resale_sales: number;
+  value_index_bps: number;
+  rent_index_bps: number;
+};
+
+export type PropertyMarketDashboard = {
+  districts: PropertyDistrictMarket[];
+  segments: PropertyMarketSegment[];
+  history: PropertyMarketHistoryPoint[];
+  updated_at: string | null;
 };
 
 export type RecentPropertySale = {

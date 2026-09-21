@@ -485,7 +485,7 @@ export default function MyPropertiesTab({
           <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>My Property Units</p>
           <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "42px", fontWeight: 500 }}>Choose a property to manage</h2>
           <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55 }}>
-            Each property has its own upgrades, condition, tenant history and value. Open one to manage rent, repairs and improvements.
+            Each property has its own upgrades, condition, tenant history and value. Its value and rent potential also move with demand in the district. Open one to manage rent, repairs and improvements.
           </p>
 
           {units.length === 0 ? (
