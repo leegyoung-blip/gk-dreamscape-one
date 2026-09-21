@@ -87,6 +87,100 @@ export type PropertyUpgradeCatalogRow = {
   display_order: number;
 };
 
+
+export type PropertyRentalListing = {
+  listing_id: string;
+  unit_id: string;
+  asking_weekly_rent: number;
+  market_rent_at_listing: number;
+  status: string;
+  created_at: string;
+  expires_at: string;
+};
+
+export type PropertyRentalApplication = {
+  application_id: string;
+  listing_id: string;
+  unit_id: string;
+  resident_id: string;
+  resident_name: string;
+  resident_kind: string;
+  occupation: string;
+  household_size: number;
+  max_weekly_rent: number;
+  purchase_budget: number;
+  priority_one: string | null;
+  priority_two: string | null;
+  bio: string;
+  proposed_weekly_rent: number;
+  lease_weeks: number;
+  fit_score: number;
+  reliability: number;
+  status: string;
+  applied_at: string;
+};
+
+export type PropertyLease = {
+  lease_id: string;
+  unit_id: string;
+  listing_id: string | null;
+  resident_id: string;
+  resident_name: string;
+  resident_kind: string;
+  occupation: string;
+  priority_one: string | null;
+  priority_two: string | null;
+  bio: string;
+  weekly_rent: number;
+  lease_weeks: number;
+  start_date: string;
+  end_date: string;
+  next_rent_due_on: string | null;
+  paid_weeks: number;
+  total_rent_paid: number;
+  status: string;
+  satisfaction: number;
+  created_at: string;
+};
+
+export type PropertyPurchaseOffer = {
+  offer_id: string;
+  unit_id: string;
+  resident_id: string;
+  resident_name: string;
+  resident_kind: string;
+  occupation: string;
+  bio: string;
+  offer_amount: number;
+  value_at_offer: number;
+  status: string;
+  created_at: string;
+  expires_at: string;
+};
+
+export type PropertyUnitMarketSetting = {
+  unit_id: string;
+  open_to_purchase_offers: boolean;
+  updated_at: string;
+};
+
+export type PropertyRentPayment = {
+  payment_id: string;
+  lease_id: string;
+  due_on: string;
+  amount: number;
+  paid_at: string;
+};
+
+export type PropertyResidentDashboard = {
+  rental_listings: PropertyRentalListing[];
+  applications: PropertyRentalApplication[];
+  leases: PropertyLease[];
+  purchase_offers: PropertyPurchaseOffer[];
+  market_settings: PropertyUnitMarketSetting[];
+  rent_payments: PropertyRentPayment[];
+};
+
 export type RecentPropertySale = {
   sale_id: string;
   property_id: string;

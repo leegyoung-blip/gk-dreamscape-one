@@ -12,6 +12,11 @@ import {
   type PropertyTabStyles,
   type PropertyUnit,
   type PropertyUpgradeCatalogRow,
+  type PropertyRentalListing,
+  type PropertyRentalApplication,
+  type PropertyLease,
+  type PropertyPurchaseOffer,
+  type PropertyUnitMarketSetting,
 } from "./propertyExchangeShared";
 
 type Props = PropertyTabStyles & {
@@ -22,13 +27,23 @@ type Props = PropertyTabStyles & {
   upgradeCatalog: PropertyUpgradeCatalogRow[];
   myListings: MyPropertyListing[];
   propertyPortfolioValue: number;
-  rentalPotential: number;
   totalOwnedUnits: number;
+  rentalListings: PropertyRentalListing[];
+  rentalApplications: PropertyRentalApplication[];
+  leases: PropertyLease[];
+  purchaseOffers: PropertyPurchaseOffer[];
+  marketSettings: PropertyUnitMarketSetting[];
   actionLoading: boolean;
   message: string;
   isMobile: boolean;
   isCompact: boolean;
   onUpgradeUnit: (unitId: string, category: string) => Promise<void>;
+  onCreateRentalListing: (unitId: string, askingWeeklyRent: number, openToPurchaseOffers: boolean) => Promise<void>;
+  onCancelRentalListing: (listingId: string) => Promise<void>;
+  onRespondApplication: (applicationId: string, action: "accept" | "decline") => Promise<void>;
+  onTogglePurchaseOffers: (unitId: string, enabled: boolean) => Promise<void>;
+  onRespondPurchaseOffer: (offerId: string, action: "accept" | "reject") => Promise<void>;
+  onRefreshResidentMarket: () => Promise<void>;
   onCreateListing: (propertyId: string, askingPrice: number) => Promise<void>;
   onCancelListing: (listingId: string) => Promise<void>;
 };
@@ -41,8 +56,12 @@ export default function MyPropertiesTab({
   upgradeCatalog,
   myListings,
   propertyPortfolioValue,
-  rentalPotential,
   totalOwnedUnits,
+  rentalListings,
+  rentalApplications,
+  leases,
+  purchaseOffers,
+  marketSettings,
   actionLoading,
   message,
   isMobile,
@@ -51,6 +70,12 @@ export default function MyPropertiesTab({
   primaryButton,
   secondaryButton,
   onUpgradeUnit,
+  onCreateRentalListing,
+  onCancelRentalListing,
+  onRespondApplication,
+  onTogglePurchaseOffers,
+  onRespondPurchaseOffer,
+  onRefreshResidentMarket,
   onCreateListing,
   onCancelListing,
 }: Props) {
@@ -84,6 +109,15 @@ export default function MyPropertiesTab({
       ? units.reduce((sum, unit) => sum + unit.upgrade_level_total, 0) /
         units.length
       : 0;
+
+  const activeLeases = leases.filter((lease) => lease.status === "active");
+  const contractedWeeklyRent = activeLeases.reduce(
+    (sum, lease) => sum + Number(lease.weekly_rent || 0),
+    0
+  );
+  const occupiedUnitIds = new Set(activeLeases.map((lease) => lease.unit_id));
+  const activeRentalListings = rentalListings.filter((listing) => listing.status === "active");
+  const listedUnitIds = new Set(activeRentalListings.map((listing) => listing.unit_id));
 
   function openListing(property: PropertyOffering) {
     const managedValues = units
@@ -144,10 +178,20 @@ export default function MyPropertiesTab({
           glassPanel={glassPanel}
           primaryButton={primaryButton}
           secondaryButton={secondaryButton}
+          rentalListing={rentalListings.find((item) => item.unit_id === selectedUnit.unit_id && item.status === "active") || null}
+          applications={rentalApplications.filter((item) => item.unit_id === selectedUnit.unit_id)}
+          lease={leases.find((item) => item.unit_id === selectedUnit.unit_id && item.status === "active") || null}
+          purchaseOffers={purchaseOffers.filter((item) => item.unit_id === selectedUnit.unit_id)}
+          marketSetting={marketSettings.find((item) => item.unit_id === selectedUnit.unit_id) || null}
           onClose={() => setSelectedUnitId(null)}
           onUpgrade={async (unitId, category) => {
             await onUpgradeUnit(unitId, category);
           }}
+          onCreateRentalListing={onCreateRentalListing}
+          onCancelRentalListing={onCancelRentalListing}
+          onRespondApplication={onRespondApplication}
+          onTogglePurchaseOffers={onTogglePurchaseOffers}
+          onRespondPurchaseOffer={onRespondPurchaseOffer}
         />
       )}
 
@@ -186,7 +230,7 @@ export default function MyPropertiesTab({
               {listingProperty.name}
             </h2>
             <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,0.56)", lineHeight: 1.55 }}>
-              List one unit for sale to another Exchange user. Until the exact-unit resale selector arrives in Phase 2, the compatibility layer transfers the least-upgraded matching unit when you own several identical units.
+              List one unit for sale to another Exchange user. Player-to-player resale still uses the grouped compatibility layer; resident rental and purchase offers use exact managed units.
             </p>
 
             {(() => {
@@ -259,8 +303,8 @@ export default function MyPropertiesTab({
           {[
             ["Cash", `${formatNumber(dreamTokens)} DT`, "Available to invest"],
             ["Property Value", `${formatNumber(propertyPortfolioValue)} DT`, "Includes upgrade value"],
-            ["Rent Potential", `${formatNumber(rentalPotential)} DT/wk`, "Potential, not automatic income"],
-            ["Owned Units", `${totalOwnedUnits}`, `${averageUpgradeLevel.toFixed(1)} upgrade levels avg.`],
+            ["Contracted Rent", `${formatNumber(contractedWeeklyRent)} DT/wk`, `${activeLeases.length} active tenant${activeLeases.length === 1 ? "" : "s"}`],
+            ["Occupancy", `${activeLeases.length}/${totalOwnedUnits}`, `${activeRentalListings.length} listed · ${averageUpgradeLevel.toFixed(1)} avg. upgrade levels`],
           ].map(([label, value, note]) => (
             <article key={label} style={{ ...glassPanel, padding: isMobile ? "16px" : "20px", minWidth: 0 }}>
               <span style={{ color: "rgba(255,255,255,0.48)", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 850 }}>{label}</span>
@@ -276,6 +320,31 @@ export default function MyPropertiesTab({
           </div>
         )}
 
+        <section data-milo-guide="property-resident-overview" style={{ ...glassPanel, padding: isMobile ? "18px" : "22px", border: "1px solid rgba(121,242,206,0.16)", background: "linear-gradient(145deg, rgba(121,242,206,0.055), rgba(5,13,28,0.74))" }}>
+          <div style={{ display: "grid", gridTemplateColumns: isCompact ? "1fr" : "minmax(0,1.05fr) minmax(420px,0.95fr)", gap: "18px", alignItems: "center" }}>
+            <div>
+              <p style={{ margin: 0, color: "#79f2ce", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Dreamscape Resident Market</p>
+              <h3 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "30px" : "36px", fontWeight: 500 }}>Properties earn rent only when somebody actually lives or works there</h3>
+              <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,0.56)", lineHeight: 1.6, fontSize: "13px" }}>
+                Open a vacant unit, choose your asking rent and list it. Persistent Dreamscape residents and businesses evaluate affordability, district, property type and your upgrades before applying.
+              </p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px" }}>
+              {[
+                ["Rental Listings", activeRentalListings.length, "#8ee8ff"],
+                ["Applications", rentalApplications.filter((item) => item.status === "pending").length, "#ffd18a"],
+                ["Active Tenants", activeLeases.length, "#79f2ce"],
+                ["Purchase Offers", purchaseOffers.filter((item) => item.status === "active").length, "#ffd18a"],
+              ].map(([label, value, color]) => (
+                <div key={String(label)} style={{ borderRadius: "15px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.045)", padding: "13px" }}>
+                  <small style={{ color: "rgba(255,255,255,0.43)", fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</small>
+                  <strong style={{ display: "block", marginTop: "5px", color: String(color), fontSize: "23px" }}>{String(value)}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section data-milo-guide="property-unit-management" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
           <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-end", gap: "12px" }}>
             <div>
@@ -286,12 +355,17 @@ export default function MyPropertiesTab({
                 My Property Units
               </h2>
               <p style={{ margin: "9px 0 0", maxWidth: "760px", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55 }}>
-                Each owned unit is now a persistent asset. Open a unit to improve its value, rent potential, appeal, quality and efficiency.
+                Each unit is its own asset. Open one to upgrade it, set rent, review resident applications, manage a tenant or consider purchase offers.
               </p>
             </div>
-            <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "12px" }}>
-              6 upgrade paths · 5 levels each
-            </span>
+            <div style={{ display: "flex", gap: "9px", alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "12px" }}>
+                {activeLeases.length} occupied · {activeRentalListings.length} listed
+              </span>
+              <button type="button" onClick={() => void onRefreshResidentMarket()} disabled={actionLoading} style={{ ...secondaryButton, minHeight: "36px", padding: "0 12px", fontSize: "11px", opacity: actionLoading ? 0.55 : 1 }}>
+                ↻ Resident Market
+              </button>
+            </div>
           </div>
 
           {units.length === 0 ? (
@@ -316,6 +390,9 @@ export default function MyPropertiesTab({
                     <div style={{ padding: "17px" }}>
                       <h3 style={{ margin: 0, fontSize: "19px" }}>{unit.property_name}</h3>
                       <p style={{ margin: "5px 0 0", color: "rgba(255,255,255,0.45)", fontSize: "12px" }}>{unit.district} · {unit.unit_type}</p>
+                      <span style={{ display: "inline-flex", marginTop: "8px", borderRadius: "999px", padding: "5px 8px", background: occupiedUnitIds.has(unit.unit_id) ? "rgba(121,242,206,0.09)" : listedUnitIds.has(unit.unit_id) ? "rgba(142,232,255,0.09)" : "rgba(255,209,138,0.07)", color: occupiedUnitIds.has(unit.unit_id) ? "#79f2ce" : listedUnitIds.has(unit.unit_id) ? "#8ee8ff" : "#ffd18a", fontSize: "9px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                        {occupiedUnitIds.has(unit.unit_id) ? "Tenant Active" : listedUnitIds.has(unit.unit_id) ? "Listed for Rent" : "Vacant"}
+                      </span>
 
                       <div style={{ marginTop: "14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                         <div style={{ borderRadius: "13px", padding: "11px", background: "rgba(255,255,255,0.045)" }}>
@@ -335,7 +412,7 @@ export default function MyPropertiesTab({
                       </div>
 
                       <button type="button" onClick={() => setSelectedUnitId(unit.unit_id)} style={{ ...primaryButton, width: "100%", minHeight: "42px", marginTop: "14px" }}>
-                        View & Upgrade
+                        View & Manage
                       </button>
                     </div>
                   </article>
@@ -355,8 +432,8 @@ export default function MyPropertiesTab({
               </p>
             </div>
             <div style={{ borderRadius: "17px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", padding: "15px", color: "rgba(255,255,255,0.58)", fontSize: "12px", lineHeight: 1.55 }}>
-              <strong style={{ display: "block", color: "#ffd18a", marginBottom: "5px" }}>No automatic rent</strong>
-              Rent shown here is now market potential only. Phase 2 adds rental listings, Dreamscape resident applicants, leases and actual rent collection.
+              <strong style={{ display: "block", color: "#ffd18a", marginBottom: "5px" }}>Rent now depends on occupancy</strong>
+              Rent potential is a guide, not income. Actual DT rent is earned only after you accept a resident and a lease becomes active.
             </div>
           </div>
         </section>

@@ -17,6 +17,12 @@ import {
   type PropertyOffering,
   type PropertyUnit,
   type PropertyUpgradeCatalogRow,
+  type PropertyRentalListing,
+  type PropertyRentalApplication,
+  type PropertyLease,
+  type PropertyPurchaseOffer,
+  type PropertyUnitMarketSetting,
+  type PropertyResidentDashboard,
   type PropertyResaleListing,
   type RecentPropertySale,
 } from "./components/propertyExchangeShared";
@@ -209,6 +215,11 @@ export default function PropertyExchangeClient() {
   const [myListings, setMyListings] = useState<MyPropertyListing[]>([]);
   const [propertyUnits, setPropertyUnits] = useState<PropertyUnit[]>([]);
   const [upgradeCatalog, setUpgradeCatalog] = useState<PropertyUpgradeCatalogRow[]>([]);
+  const [rentalListings, setRentalListings] = useState<PropertyRentalListing[]>([]);
+  const [rentalApplications, setRentalApplications] = useState<PropertyRentalApplication[]>([]);
+  const [leases, setLeases] = useState<PropertyLease[]>([]);
+  const [purchaseOffers, setPurchaseOffers] = useState<PropertyPurchaseOffer[]>([]);
+  const [marketSettings, setMarketSettings] = useState<PropertyUnitMarketSetting[]>([]);
 
   const [previewProperty, setPreviewProperty] = useState<PropertyOffering | null>(null);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
@@ -234,17 +245,6 @@ export default function PropertyExchangeClient() {
       const property = properties.find((item) => item.id === holding.property_id);
       const unitValue = Number(property?.current_value || holding.purchase_price || 0);
       return total + Number(holding.quantity || 0) * unitValue;
-    }, 0);
-  }, [propertyUnits, holdings, properties]);
-
-  const rentalPotential = useMemo(() => {
-    if (propertyUnits.length > 0) {
-      return propertyUnits.reduce((total, unit) => total + Number(unit.rental_potential || 0), 0);
-    }
-
-    return holdings.reduce((total, holding) => {
-      const property = properties.find((item) => item.id === holding.property_id);
-      return total + Number(holding.quantity || 0) * Number(property?.weekly_rent || 0);
     }, 0);
   }, [propertyUnits, holdings, properties]);
 
@@ -360,6 +360,8 @@ export default function PropertyExchangeClient() {
 
     setUserId(user.id);
     await Promise.all([loadDreamTokens(), loadPropertyMarket(user.id)]);
+    await refreshResidentSimulation(false);
+    await Promise.all([loadDreamTokens(), loadResidentDashboard()]);
     setLoading(false);
   }
 
@@ -371,6 +373,70 @@ export default function PropertyExchangeClient() {
       return;
     }
     setDreamTokens(Number(data || 0));
+  }
+
+  async function loadResidentDashboard() {
+    const { data, error } = await supabase.rpc("get_my_milo_property_resident_dashboard");
+
+    if (error) {
+      console.warn("Could not load resident property dashboard:", error.message);
+      setRentalListings([]);
+      setRentalApplications([]);
+      setLeases([]);
+      setPurchaseOffers([]);
+      setMarketSettings([]);
+      return;
+    }
+
+    const dashboard = (data || {}) as Partial<PropertyResidentDashboard>;
+    setRentalListings((dashboard.rental_listings || []).map((item) => ({
+      ...item,
+      asking_weekly_rent: Number(item.asking_weekly_rent || 0),
+      market_rent_at_listing: Number(item.market_rent_at_listing || 0),
+    })));
+    setRentalApplications((dashboard.applications || []).map((item) => ({
+      ...item,
+      household_size: Number(item.household_size || 0),
+      max_weekly_rent: Number(item.max_weekly_rent || 0),
+      purchase_budget: Number(item.purchase_budget || 0),
+      proposed_weekly_rent: Number(item.proposed_weekly_rent || 0),
+      lease_weeks: Number(item.lease_weeks || 0),
+      fit_score: Number(item.fit_score || 0),
+      reliability: Number(item.reliability || 0),
+    })));
+    setLeases((dashboard.leases || []).map((item) => ({
+      ...item,
+      weekly_rent: Number(item.weekly_rent || 0),
+      lease_weeks: Number(item.lease_weeks || 0),
+      paid_weeks: Number(item.paid_weeks || 0),
+      total_rent_paid: Number(item.total_rent_paid || 0),
+      satisfaction: Number(item.satisfaction || 0),
+    })));
+    setPurchaseOffers((dashboard.purchase_offers || []).map((item) => ({
+      ...item,
+      offer_amount: Number(item.offer_amount || 0),
+      value_at_offer: Number(item.value_at_offer || 0),
+    })));
+    setMarketSettings(dashboard.market_settings || []);
+  }
+
+  async function refreshResidentSimulation(showMessage = false) {
+    const { data, error } = await supabase.rpc("refresh_my_milo_property_resident_market");
+    if (error) {
+      console.warn("Could not refresh Dreamscape resident market:", error.message);
+      return;
+    }
+
+    if (showMessage) {
+      const result = (data || {}) as Record<string, unknown>;
+      const applicationsCreated = Number(result.applications_created || 0);
+      const offersCreated = Number(result.purchase_offers_created || 0);
+      if (applicationsCreated > 0 || offersCreated > 0) {
+        setTradeMessage(`Resident market refreshed · ${applicationsCreated} new application${applicationsCreated === 1 ? "" : "s"} · ${offersCreated} new purchase offer${offersCreated === 1 ? "" : "s"}.`);
+      } else {
+        setTradeMessage("Resident market is up to date.");
+      }
+    }
   }
 
   async function loadPropertyMarket(id: string) {
@@ -550,9 +616,10 @@ export default function PropertyExchangeClient() {
     setMarketLoading(false);
   }
 
-  async function refreshMarket() {
+  async function refreshMarket(showResidentMessage = false) {
     if (!userId) return;
-    await Promise.all([loadDreamTokens(), loadPropertyMarket(userId)]);
+    await refreshResidentSimulation(showResidentMessage);
+    await Promise.all([loadDreamTokens(), loadPropertyMarket(userId), loadResidentDashboard()]);
   }
 
   function openPreview(property: PropertyOffering) {
@@ -733,6 +800,100 @@ export default function PropertyExchangeClient() {
     setActionLoading(false);
   }
 
+  async function createRentalListing(unitId: string, askingWeeklyRent: number, openToPurchaseOffers: boolean) {
+    if (!userId || actionLoading) return;
+    setActionLoading(true);
+    setTradeMessage("");
+
+    const { data, error } = await supabase.rpc("create_my_milo_property_rental_listing", {
+      p_unit_id: unitId,
+      p_asking_weekly_rent: Math.round(askingWeeklyRent),
+      p_open_to_purchase_offers: openToPurchaseOffers,
+    });
+
+    if (error) {
+      setTradeMessage(`Rental listing failed: ${error.message}`);
+      setActionLoading(false);
+      return;
+    }
+
+    const result = (data || {}) as Record<string, unknown>;
+    setTradeMessage(String(result.message || "Property listed for rent."));
+    await refreshMarket(false);
+    setActionLoading(false);
+  }
+
+  async function cancelRentalListing(listingId: string) {
+    if (!userId || actionLoading) return;
+    setActionLoading(true);
+    const { data, error } = await supabase.rpc("cancel_my_milo_property_rental_listing", { p_listing_id: listingId });
+    if (error) {
+      setTradeMessage(`Could not cancel rental listing: ${error.message}`);
+      setActionLoading(false);
+      return;
+    }
+    const result = (data || {}) as Record<string, unknown>;
+    setTradeMessage(String(result.message || "Rental listing cancelled."));
+    await refreshMarket(false);
+    setActionLoading(false);
+  }
+
+  async function respondRentalApplication(applicationId: string, action: "accept" | "decline") {
+    if (!userId || actionLoading) return;
+    setActionLoading(true);
+    const { data, error } = await supabase.rpc("respond_to_milo_property_rental_application", {
+      p_application_id: applicationId,
+      p_action: action,
+    });
+    if (error) {
+      setTradeMessage(`Could not update application: ${error.message}`);
+      setActionLoading(false);
+      return;
+    }
+    const result = (data || {}) as Record<string, unknown>;
+    setTradeMessage(String(result.message || "Application updated."));
+    if (action === "accept") window.dispatchEvent(new Event("dream-tokens-updated"));
+    await refreshMarket(false);
+    setActionLoading(false);
+  }
+
+  async function togglePurchaseOffers(unitId: string, enabled: boolean) {
+    if (!userId || actionLoading) return;
+    setActionLoading(true);
+    const { data, error } = await supabase.rpc("set_my_milo_property_purchase_offers", {
+      p_unit_id: unitId,
+      p_enabled: enabled,
+    });
+    if (error) {
+      setTradeMessage(`Could not update purchase-offer setting: ${error.message}`);
+      setActionLoading(false);
+      return;
+    }
+    const result = (data || {}) as Record<string, unknown>;
+    setTradeMessage(String(result.message || "Purchase-offer setting updated."));
+    await refreshMarket(false);
+    setActionLoading(false);
+  }
+
+  async function respondPurchaseOffer(offerId: string, action: "accept" | "reject") {
+    if (!userId || actionLoading) return;
+    setActionLoading(true);
+    const { data, error } = await supabase.rpc("respond_to_milo_property_purchase_offer", {
+      p_offer_id: offerId,
+      p_action: action,
+    });
+    if (error) {
+      setTradeMessage(`Could not update purchase offer: ${error.message}`);
+      setActionLoading(false);
+      return;
+    }
+    const result = (data || {}) as Record<string, unknown>;
+    setTradeMessage(String(result.message || "Purchase offer updated."));
+    if (action === "accept") window.dispatchEvent(new Event("dream-tokens-updated"));
+    await refreshMarket(false);
+    setActionLoading(false);
+  }
+
   if (loading) {
     return (
       <CenterPanel eyebrow="Milo’s Property Exchange" title="Loading the property market..." isMobile={isMobile}>
@@ -755,7 +916,7 @@ export default function PropertyExchangeClient() {
 
   const tabs: Array<{ id: PropertyTab; label: string; description: string; icon: string }> = [
     { id: "map", label: "Property Map", description: "Explore and buy primary units", icon: "⌖" },
-    { id: "properties", label: "My Properties", description: "Holdings, rent and listings", icon: "⌂" },
+    { id: "properties", label: "My Properties", description: "Upgrade, rent and manage tenants", icon: "⌂" },
     { id: "resale", label: "Resale Market", description: "Buy units from other owners", icon: "⇄" },
   ];
 
@@ -881,7 +1042,7 @@ export default function PropertyExchangeClient() {
             Property Exchange
           </h1>
           <p style={{ margin: "18px auto 0", maxWidth: "760px", color: "rgba(255,255,255,0.64)", lineHeight: 1.7, fontSize: isMobile ? "15px" : "17px" }}>
-            Explore the primary property map, upgrade and manage the units you own, or trade with other owners in the resale market.
+            Explore the primary market, improve individual properties, rent them to Dreamscape residents, manage active leases, or sell through the resale market.
           </p>
         </section>
 
@@ -963,13 +1124,23 @@ export default function PropertyExchangeClient() {
               propertyPortfolioValue={propertyPortfolioValue}
               units={propertyUnits}
               upgradeCatalog={upgradeCatalog}
-              rentalPotential={rentalPotential}
               totalOwnedUnits={totalOwnedUnits}
+              rentalListings={rentalListings}
+              rentalApplications={rentalApplications}
+              leases={leases}
+              purchaseOffers={purchaseOffers}
+              marketSettings={marketSettings}
               actionLoading={actionLoading}
               message={tradeMessage}
               isMobile={isMobile}
               isCompact={isCompact}
               onUpgradeUnit={upgradePropertyUnit}
+              onCreateRentalListing={createRentalListing}
+              onCancelRentalListing={cancelRentalListing}
+              onRespondApplication={respondRentalApplication}
+              onTogglePurchaseOffers={togglePurchaseOffers}
+              onRespondPurchaseOffer={respondPurchaseOffer}
+              onRefreshResidentMarket={() => refreshMarket(true)}
               onCreateListing={createResaleListing}
               onCancelListing={cancelResaleListing}
             />

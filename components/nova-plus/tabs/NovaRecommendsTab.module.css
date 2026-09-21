@@ -7,6 +7,7 @@
 .focusSection,
 .buildSection,
 .finishSection,
+.cycleSection,
 .stateCard,
 .emptyState,
 .planBridge {
@@ -30,7 +31,8 @@
 .sectionHeading span,
 .cardPriority small,
 .recommendedMission small,
-.alternatives > small {
+.alternatives > small,
+.cycleEyebrow {
   color: #8dfcff;
   font-size: 11px;
   font-weight: 900;
@@ -83,7 +85,8 @@
 
 .focusSection,
 .buildSection,
-.finishSection {
+.finishSection,
+.cycleSection {
   padding: 22px;
   border-radius: 22px;
 }
@@ -101,6 +104,14 @@
 
 .finishSection {
   border-color: rgba(184, 150, 255, 0.12);
+}
+
+.cycleSection {
+  border-color: rgba(141, 252, 255, 0.16);
+  background:
+    radial-gradient(circle at 92% 4%, rgba(83, 215, 255, 0.07), transparent 30%),
+    radial-gradient(circle at 8% 94%, rgba(124, 58, 237, 0.06), transparent 28%),
+    rgba(255, 255, 255, 0.018);
 }
 
 .sectionHeading {
@@ -221,6 +232,24 @@
   font-size: 15px;
 }
 
+.cardBadges {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.schoolworkBadge {
+  padding: 6px 8px;
+  border: 1px solid rgba(216, 180, 254, 0.15);
+  border-radius: 9px;
+  background: rgba(139, 92, 246, 0.07);
+  color: #cbb2ff;
+  font-size: 9px;
+  font-weight: 900;
+}
+
 .subjectBadge {
   padding: 7px 9px;
   border-radius: 9px;
@@ -329,11 +358,13 @@
   font-size: 10px;
 }
 
-.startButton {
+.startButton,
+.retryButton {
   min-height: 44px;
   padding: 0 16px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   flex: 0 0 auto;
   border: 1px solid rgba(251, 215, 110, 0.55);
@@ -341,19 +372,33 @@
   background: linear-gradient(135deg, #f2c45b, #d89c2e);
   box-shadow: 0 10px 24px rgba(216, 156, 46, 0.24);
   color: #1c1205;
+  font: inherit;
   font-size: 12px;
   font-weight: 900;
   text-decoration: none;
+  cursor: pointer;
 }
 
-.startButton:hover {
+.startButton:hover,
+.retryButton:hover {
   filter: brightness(1.05);
   transform: translateY(-1px);
+}
+
+.startButton:disabled,
+.retryButton:disabled {
+  cursor: wait;
+  opacity: 0.58;
+  transform: none;
 }
 
 .startButton span {
   color: #3d2605;
   font-size: 18px;
+}
+
+.retryButton {
+  margin-top: 8px;
 }
 
 .viewerNotice {
@@ -484,6 +529,258 @@
 .alternatives b {
   color: #8dfcff;
   font-size: 9px;
+}
+
+/* Phase 6 — closed-loop intervention tracking */
+.cycleList {
+  display: grid;
+  gap: 12px;
+}
+
+.cycleCard {
+  padding: 18px;
+  border: 1px solid rgba(83, 215, 255, 0.16);
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, rgba(83, 215, 255, 0.035), rgba(124, 58, 237, 0.025)),
+    rgba(2, 9, 21, 0.58);
+}
+
+.cycleCardReady {
+  border-color: rgba(77, 226, 161, 0.28);
+  background:
+    radial-gradient(circle at 90% 10%, rgba(77, 226, 161, 0.07), transparent 34%),
+    linear-gradient(145deg, rgba(77, 226, 161, 0.035), rgba(83, 215, 255, 0.02)),
+    rgba(2, 9, 21, 0.62);
+}
+
+.cycleTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cycleTop h3 {
+  margin: 7px 0 0;
+  font-size: clamp(21px, 2.1vw, 28px);
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.cycleTop p {
+  margin: 7px 0 0;
+  color: rgba(235, 247, 255, 0.45);
+  font-size: 11px;
+}
+
+.activePill,
+.readyPill {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.activePill {
+  border: 1px solid rgba(83, 215, 255, 0.2);
+  background: rgba(83, 215, 255, 0.06);
+  color: #8dfcff;
+}
+
+.readyPill {
+  border: 1px solid rgba(77, 226, 161, 0.25);
+  background: rgba(77, 226, 161, 0.08);
+  color: #79f0bd;
+}
+
+.cycleReason {
+  margin-top: 14px;
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border-radius: 12px;
+  background: rgba(124, 58, 237, 0.05);
+  border: 1px solid rgba(196, 181, 253, 0.11);
+}
+
+.cycleReason > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(124, 58, 237, 0.11);
+  color: #ddd6fe;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.cycleReason p {
+  margin: 0;
+  color: rgba(235, 247, 255, 0.64);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.cycleMetrics {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cycleMetrics > div {
+  min-height: 96px;
+  padding: 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.cycleMetrics small,
+.cycleMetrics strong,
+.cycleMetrics span {
+  display: block;
+}
+
+.cycleMetrics small {
+  color: rgba(235, 247, 255, 0.38);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.cycleMetrics strong {
+  margin-top: 7px;
+  font-size: 18px;
+}
+
+.cycleMetrics i {
+  height: 4px;
+  margin-top: 10px;
+  display: block;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.cycleMetrics i b {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #53d7ff, #8dfcff);
+}
+
+.metricReady,
+.metricWaiting {
+  margin-top: 7px;
+  font-size: 9px;
+}
+
+.metricReady {
+  color: #79f0bd;
+}
+
+.metricWaiting {
+  color: rgba(235, 247, 255, 0.35);
+}
+
+.previousCheck {
+  margin-top: 10px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 174, 87, 0.11);
+  background: rgba(255, 174, 87, 0.04);
+}
+
+.previousCheck span {
+  color: rgba(255, 218, 169, 0.65);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.previousCheck strong {
+  color: #ffd8a0;
+  font-size: 14px;
+}
+
+.previousCheck p {
+  margin: 0;
+  color: rgba(235, 247, 255, 0.47);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.readyMessage {
+  margin-top: 14px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border-radius: 13px;
+  border: 1px solid rgba(77, 226, 161, 0.14);
+  background: rgba(77, 226, 161, 0.045);
+}
+
+.readyMark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(77, 226, 161, 0.1);
+  color: #79f0bd;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.readyMessage strong {
+  font-size: 13px;
+}
+
+.readyMessage p {
+  margin: 5px 0 0;
+  color: rgba(235, 247, 255, 0.48);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.cycleAction {
+  margin-top: 14px;
+  padding-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.cycleAction > small {
+  color: rgba(235, 247, 255, 0.34);
+  font-size: 9px;
+  text-align: right;
+}
+
+.cycleWarning {
+  padding: 11px 13px;
+  border: 1px solid rgba(255, 174, 87, 0.15);
+  border-radius: 12px;
+  background: rgba(255, 174, 87, 0.05);
+  color: rgba(255, 218, 169, 0.75);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .stateCard {
@@ -627,7 +924,8 @@
     width: 100%;
   }
 
-  .buildGrid {
+  .buildGrid,
+  .cycleMetrics {
     grid-template-columns: 1fr;
   }
 
@@ -640,7 +938,8 @@
   .introCard,
   .focusSection,
   .buildSection,
-  .finishSection {
+  .finishSection,
+  .cycleSection {
     padding: 17px;
   }
 
@@ -650,9 +949,22 @@
 
   .sectionHeading,
   .recommendedMission,
-  .planBridge {
+  .planBridge,
+  .cycleAction {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .cycleTop {
+    flex-direction: column;
+  }
+
+  .previousCheck {
+    grid-template-columns: 1fr;
+  }
+
+  .cycleAction > small {
+    text-align: left;
   }
 
   .subjectBadge {
@@ -677,24 +989,4 @@
     width: 100%;
     justify-content: space-between;
   }
-}
-
-
-/* Phase 4 — uploaded work provenance */
-.cardBadges {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.schoolworkBadge {
-  padding: 6px 8px;
-  border: 1px solid rgba(216, 180, 254, 0.15);
-  border-radius: 9px;
-  background: rgba(139, 92, 246, 0.07);
-  color: #cbb2ff;
-  font-size: 9px;
-  font-weight: 900;
 }

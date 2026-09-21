@@ -7,27 +7,31 @@ import { useSearchParams } from "next/navigation";
 type PlanKey =
   | "core_monthly"
   | "core_annual"
-  | "complete_monthly"
-  | "complete_annual";
+  | "nova_monthly";
+
+type PlanDetails = {
+  name: string;
+  access: string;
+  price: string;
+  cadence: string;
+  billingLabel: string;
+  regularPrice: string;
+  launchLabel: string;
+  trialEligible: boolean;
+};
 
 const STANDARD_TRIAL_DAYS = 7;
 
-const PLAN_DETAILS: Record<
-  PlanKey,
-  {
-    name: string;
-    access: string;
-    price: string;
-    cadence: string;
-    billingLabel: string;
-  }
-> = {
+const PLAN_DETAILS: Record<PlanKey, PlanDetails> = {
   core_monthly: {
     name: "Core Missions",
     access: "English + Mathematics",
     price: "SGD 19.90",
     cadence: "per month",
     billingLabel: "monthly",
+    regularPrice: "SGD 24.90",
+    launchLabel: "Launch Price",
+    trialEligible: true,
   },
   core_annual: {
     name: "Core Missions",
@@ -35,30 +39,41 @@ const PLAN_DETAILS: Record<
     price: "SGD 199",
     cadence: "per year",
     billingLabel: "annual",
+    regularPrice: "SGD 249",
+    launchLabel: "Launch Price",
+    trialEligible: true,
   },
-  complete_monthly: {
-    name: "Full Access",
-    access: "English + Mathematics + Science",
+  nova_monthly: {
+    name: "Nova+",
+    access: "English + Mathematics + NOVA+ Learning Intelligence",
     price: "SGD 24.90",
     cadence: "per month",
     billingLabel: "monthly",
-  },
-  complete_annual: {
-    name: "Full Access",
-    access: "English + Mathematics + Science",
-    price: "SGD 249",
-    cadence: "per year",
-    billingLabel: "annual",
+    regularPrice: "SGD 29.90",
+    launchLabel: "Launch Price",
+    trialEligible: false,
   },
 };
 
 function resolvePlan(
   plan: string | null,
   cycle: string | null,
-): PlanKey {
-  const planCode = plan === "complete" ? "complete" : "core";
-  const billingCycle = cycle === "annual" ? "annual" : "monthly";
-  return `${planCode}_${billingCycle}` as PlanKey;
+): PlanKey | null {
+  if (plan === "core") {
+    return cycle === "annual"
+      ? "core_annual"
+      : "core_monthly";
+  }
+
+  if (plan === "nova") {
+    // Nova+ currently has a monthly launch price only.
+    if (cycle === "annual") return null;
+    return "nova_monthly";
+  }
+
+  // Full Access / complete is deliberately not accepted here.
+  // It is a Coming Soon plan and must not be purchasable by URL.
+  return null;
 }
 
 export default function DreamscapeSubscribeClient() {
@@ -73,7 +88,7 @@ export default function DreamscapeSubscribeClient() {
     [searchParams],
   );
 
-  const plan = PLAN_DETAILS[planKey];
+  const plan = planKey ? PLAN_DETAILS[planKey] : null;
 
   const [parentName, setParentName] = useState("");
   const [parentEmail, setParentEmail] = useState("");
@@ -87,6 +102,13 @@ export default function DreamscapeSubscribeClient() {
 
   async function startSubscription() {
     setError("");
+
+    if (!planKey || !plan) {
+      setError(
+        "This Dreamscape plan is not currently available for subscription.",
+      );
+      return;
+    }
 
     if (
       !parentName.trim() ||
@@ -117,10 +139,10 @@ export default function DreamscapeSubscribeClient() {
           },
           body: JSON.stringify({
             planKey,
-            parentName,
-            parentEmail,
-            learnerName,
-            learnerEmail,
+            parentName: parentName.trim(),
+            parentEmail: parentEmail.trim(),
+            learnerName: learnerName.trim(),
+            learnerEmail: learnerEmail.trim(),
             guardianAuthorised,
             website,
           }),
@@ -147,6 +169,37 @@ export default function DreamscapeSubscribeClient() {
       );
       setSubmitting(false);
     }
+  }
+
+  if (!planKey || !plan) {
+    return (
+      <main className="min-h-screen bg-[#020813] px-5 py-8 text-white sm:px-8 sm:py-12">
+        <div className="mx-auto flex min-h-[70vh] max-w-3xl items-center justify-center">
+          <section className="w-full rounded-[30px] border border-violet-200/20 bg-white/[0.05] p-8 text-center shadow-[0_28px_90px_rgba(0,0,0,0.38)] sm:p-12">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-200">
+              Dreamscape Student Access
+            </p>
+
+            <h1 className="mt-4 text-4xl font-black tracking-[-0.05em] sm:text-5xl">
+              This plan is not open for subscription.
+            </h1>
+
+            <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-white/62 sm:text-base">
+              Full Access is coming soon and annual Nova+ pricing has not
+              been announced. Return to the pricing page to choose an
+              available Dreamscape plan.
+            </p>
+
+            <Link
+              href="/pricing"
+              className="mt-8 inline-flex min-h-14 items-center justify-center rounded-full bg-gradient-to-r from-cyan-300 via-violet-300 to-orange-300 px-7 text-sm font-black uppercase tracking-[0.1em] text-[#160729] no-underline"
+            >
+              Back to Pricing
+            </Link>
+          </section>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -179,7 +232,16 @@ export default function DreamscapeSubscribeClient() {
               {plan.access}
             </p>
 
-            <div className="mt-7 flex items-end gap-2">
+            <div className="mt-7 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span className="text-xs font-black uppercase tracking-[0.12em] text-white/38">
+                Regular
+              </span>
+              <span className="text-xl font-bold text-white/38 line-through">
+                {plan.regularPrice}
+              </span>
+            </div>
+
+            <div className="mt-2 flex items-end gap-2">
               <strong className="text-4xl text-white">
                 {plan.price}
               </strong>
@@ -188,29 +250,45 @@ export default function DreamscapeSubscribeClient() {
               </span>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-cyan-200/20 bg-cyan-300/[0.055] p-5">
-              <p className="m-0 text-xs font-black uppercase tracking-[0.15em] text-cyan-200">
-                Up to {STANDARD_TRIAL_DAYS} days free
-              </p>
-              <p className="mt-2 text-sm leading-6 text-white/65">
-                Eligible first-time Dreamscape users receive a{" "}
-                {STANDARD_TRIAL_DAYS}-day introductory trial on this{" "}
-                {plan.billingLabel} plan. Stripe will show the trial,
-                first billing date and recurring amount before you confirm.
-              </p>
-            </div>
+            <p className="mt-3 text-xs font-black uppercase tracking-[0.13em] text-violet-200">
+              {plan.launchLabel}
+            </p>
+
+            {plan.trialEligible ? (
+              <div className="mt-6 rounded-2xl border border-cyan-200/20 bg-cyan-300/[0.055] p-5">
+                <p className="m-0 text-xs font-black uppercase tracking-[0.15em] text-cyan-200">
+                  Up to {STANDARD_TRIAL_DAYS} days free
+                </p>
+                <p className="mt-2 text-sm leading-6 text-white/65">
+                  Eligible first-time Core Missions users receive a{" "}
+                  {STANDARD_TRIAL_DAYS}-day introductory trial on this{" "}
+                  {plan.billingLabel} plan. Stripe will show the trial,
+                  first billing date and recurring amount before you confirm.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-6 rounded-2xl border border-violet-200/18 bg-violet-300/[0.05] p-5">
+                <p className="m-0 text-xs font-black uppercase tracking-[0.15em] text-violet-200">
+                  Nova+ launch access
+                </p>
+                <p className="mt-2 text-sm leading-6 text-white/65">
+                  Nova+ is currently offered at the SGD 24.90/month launch
+                  price. Stripe will show the recurring amount and first
+                  billing date before you confirm.
+                </p>
+              </div>
+            )}
 
             <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-6 text-white/60">
               Your payment method is entered securely on Stripe&apos;s
-              checkout page. Dreamscape activates trial or paid learning
-              access only after a validated Stripe event confirms the
-              subscription.
+              Checkout page. Dreamscape activates learning access only after
+              a validated Stripe subscription event confirms the subscription.
             </div>
 
             <p className="mt-5 text-xs leading-5 text-white/38">
-              The subscription is for the learner email entered on this
-              form. If that learner does not yet have a Dreamscape
-              account, an invitation can be created after activation.
+              The subscription is for the learner email entered on this form.
+              If that learner does not yet have a Dreamscape account, an
+              invitation can be created after activation.
             </p>
           </aside>
 
@@ -289,20 +367,30 @@ export default function DreamscapeSubscribeClient() {
                 className="mt-1 h-4 w-4 accent-cyan-300"
               />
               <span>
-                I am the learner&apos;s parent/guardian, or I am
-                authorised by the parent/guardian to purchase this
-                Dreamscape Student Access subscription.
+                I am the learner&apos;s parent/guardian, or I am authorised by
+                the parent/guardian to purchase this Dreamscape Student Access
+                subscription.
               </span>
             </label>
 
             <div className="mt-5 rounded-2xl border border-violet-200/14 bg-violet-300/[0.04] px-4 py-4 text-xs leading-5 text-white/52">
-              Eligible first-time users are not charged the subscription
-              fee during the {STANDARD_TRIAL_DAYS}-day trial. Unless
-              cancelled before the trial ends, the selected subscription
-              will begin automatically at {plan.price} {plan.cadence}.
-              Users who have already used an introductory Dreamscape trial
-              or otherwise do not qualify will see the applicable billing
-              terms in Stripe before confirming.
+              {plan.trialEligible ? (
+                <>
+                  Eligible first-time Core Missions users are not charged the
+                  subscription fee during the {STANDARD_TRIAL_DAYS}-day trial.
+                  Unless cancelled before the trial ends, the selected
+                  subscription will begin automatically at {plan.price}{" "}
+                  {plan.cadence}. Users who have already used an introductory
+                  Dreamscape trial or otherwise do not qualify will see the
+                  applicable billing terms in Stripe before confirming.
+                </>
+              ) : (
+                <>
+                  Nova+ will renew automatically at {plan.price} {plan.cadence}{" "}
+                  until cancelled. Stripe will show the recurring price and
+                  billing date before confirmation.
+                </>
+              )}
             </div>
 
             {error && (
@@ -323,8 +411,7 @@ export default function DreamscapeSubscribeClient() {
             </button>
 
             <p className="mt-5 text-center text-xs leading-5 text-white/38">
-              By continuing, you confirm the information above and agree
-              to the{" "}
+              By continuing, you confirm the information above and agree to the{" "}
               <Link
                 href="/terms"
                 target="_blank"
@@ -332,8 +419,7 @@ export default function DreamscapeSubscribeClient() {
               >
                 Dreamscape One Terms & Conditions
               </Link>
-              , including recurring subscription terms, and acknowledge
-              the{" "}
+              , including recurring subscription terms, and acknowledge the{" "}
               <Link
                 href="/privacy"
                 target="_blank"

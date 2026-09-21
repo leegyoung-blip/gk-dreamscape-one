@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { CSSProperties } from "react";
+import PropertyResidentMarketPanel from "./PropertyResidentMarketPanel";
 import {
   formatNumber,
   formatPercentFromBps,
@@ -10,6 +10,11 @@ import {
   type PropertyTabStyles,
   type PropertyUnit,
   type PropertyUpgradeCatalogRow,
+  type PropertyRentalListing,
+  type PropertyRentalApplication,
+  type PropertyLease,
+  type PropertyPurchaseOffer,
+  type PropertyUnitMarketSetting,
 } from "./propertyExchangeShared";
 
 type Props = PropertyTabStyles & {
@@ -19,8 +24,18 @@ type Props = PropertyTabStyles & {
   dreamTokens: number;
   actionLoading: boolean;
   isMobile: boolean;
+  rentalListing: PropertyRentalListing | null;
+  applications: PropertyRentalApplication[];
+  lease: PropertyLease | null;
+  purchaseOffers: PropertyPurchaseOffer[];
+  marketSetting: PropertyUnitMarketSetting | null;
   onClose: () => void;
   onUpgrade: (unitId: string, category: string) => Promise<void>;
+  onCreateRentalListing: (unitId: string, askingWeeklyRent: number, openToPurchaseOffers: boolean) => Promise<void>;
+  onCancelRentalListing: (listingId: string) => Promise<void>;
+  onRespondApplication: (applicationId: string, action: "accept" | "decline") => Promise<void>;
+  onTogglePurchaseOffers: (unitId: string, enabled: boolean) => Promise<void>;
+  onRespondPurchaseOffer: (offerId: string, action: "accept" | "reject") => Promise<void>;
 };
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -69,10 +84,20 @@ export default function PropertyManagementModal({
   isMobile,
   glassPanel,
   primaryButton,
+  secondaryButton,
+  rentalListing,
+  applications,
+  lease,
+  purchaseOffers,
+  marketSetting,
   onClose,
   onUpgrade,
+  onCreateRentalListing,
+  onCancelRentalListing,
+  onRespondApplication,
+  onTogglePurchaseOffers,
+  onRespondPurchaseOffer,
 }: Props) {
-  const property = properties.find((item) => item.id === unit.property_id);
   const image = getPropertyUnitPreviewImage(unit, properties);
 
   const categories = useMemo(() => {
@@ -233,10 +258,29 @@ export default function PropertyManagementModal({
             </div>
 
             <div style={{ marginTop: "20px", borderRadius: "16px", border: "1px solid rgba(121,242,206,0.16)", background: "rgba(121,242,206,0.055)", padding: "14px", color: "rgba(255,255,255,0.66)", fontSize: "12px", lineHeight: 1.55 }}>
-              <strong style={{ color: "#79f2ce" }}>Phase 2:</strong> rent is no longer paid automatically. You will choose an asking rent and Dreamscape residents will decide whether to apply for this unit.
+              <strong style={{ color: "#79f2ce" }}>Resident market is live.</strong> This property earns rent only while a Dreamscape resident has an active lease.
             </div>
           </div>
         </div>
+
+        <PropertyResidentMarketPanel
+          unit={unit}
+          rentalListing={rentalListing}
+          applications={applications}
+          lease={lease}
+          purchaseOffers={purchaseOffers}
+          marketSetting={marketSetting}
+          actionLoading={actionLoading}
+          isMobile={isMobile}
+          glassPanel={glassPanel}
+          primaryButton={primaryButton}
+          secondaryButton={secondaryButton}
+          onCreateRentalListing={onCreateRentalListing}
+          onCancelRentalListing={onCancelRentalListing}
+          onRespondApplication={onRespondApplication}
+          onTogglePurchaseOffers={onTogglePurchaseOffers}
+          onRespondPurchaseOffer={onRespondPurchaseOffer}
+        />
 
         <div data-milo-guide="property-upgrade-system" style={{ padding: isMobile ? "22px" : "28px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
           <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", gap: "12px", alignItems: isMobile ? "flex-start" : "flex-end" }}>

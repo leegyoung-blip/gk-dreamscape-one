@@ -24,7 +24,7 @@ type Props = {
 const GUIDE_VERSIONS: Record<MiloExchangeGuidePage, string> = {
   home: "v1",
   stocks: "v1",
-  property: "v3",
+  property: "v4",
 };
 
 const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
@@ -137,87 +137,96 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
   property: [
     {
       eyebrow: "Milo Guide",
-      title: "Welcome to the Property Exchange",
+      title: "Welcome to the living Property Exchange",
       description:
-        "The Property Exchange has three areas: the Property Map, My Properties, and the Resale Market. Properties you own can now be managed and upgraded as individual units.",
+        "The Property Exchange still has three areas: Property Map, My Properties and Resale Market. Phase 2 adds persistent Dreamscape residents, rental applications, real leases and optional resident purchase offers.",
       target: "property-tabs",
       propertyTab: "map",
-      tip: "Upgrades change your own unit. They do not change the base market price for every player.",
+      tip: "A property no longer earns rent simply because you own it. It needs an active tenant.",
     },
     {
       eyebrow: "Step 1 · Property Map",
-      title: "Explore Dreamscape’s built districts",
+      title: "Start with the underlying asset",
       description:
-        "Use the Property Map to enter Residential Hub or Commercial Hub. Each district contains different property types and available primary-market units.",
+        "Explore Residential Hub or Commercial Hub, compare base value, rent potential and remaining supply, then purchase a primary-market unit.",
       target: "property-world-map",
       propertyTab: "map",
     },
     {
       eyebrow: "Step 2 · Buy Properties",
-      title: "Buy the asset before you improve it",
+      title: "Every purchased unit becomes its own managed asset",
       description:
-        "Compare the base market price, base rent potential and remaining supply. A purchased unit appears inside My Properties as its own manageable asset.",
+        "A property you buy appears inside My Properties with its own upgrades, value, rent potential and later its own tenant history.",
       target: "property-primary-market",
       propertyTab: "map",
-      tip: "Rent shown on the map is potential only. Automatic weekly rent has been switched off.",
+      tip: "Rent potential is a guide to likely market rent—not automatic income.",
     },
     {
-      eyebrow: "Step 3 · My Properties",
-      title: "Your value now reflects your upgrades",
+      eyebrow: "Step 3 · Portfolio",
+      title: "Track value, contracted rent and occupancy separately",
       description:
-        "My Properties shows your managed portfolio value, total rent potential and owned units. Upgrade value is included in your property portfolio.",
+        "My Properties now distinguishes property value from actual contracted weekly rent. Occupancy tells you how many units currently have tenants.",
       target: "property-my-summary",
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 4 · Manage a Unit",
-      title: "Every property is now an individual asset",
+      eyebrow: "Step 4 · Resident Market",
+      title: "Price the property and let residents decide",
       description:
-        "Open any owned unit with View & Upgrade. Its value, appeal, quality, efficiency and rent potential belong to that unit and can develop differently from another unit of the same property.",
+        "Open a vacant unit, choose an asking rent and list it. Persistent residents and businesses compare affordability, district, property type, appeal, quality and efficiency before applying.",
+      target: "property-resident-overview",
+      propertyTab: "properties",
+      tip: "A high rent can produce more income if accepted, but it also narrows the pool of residents who can afford the property.",
+    },
+    {
+      eyebrow: "Step 5 · Manage a Unit",
+      title: "View & Manage is now your landlord workspace",
+      description:
+        "Open a unit to see its upgrades and resident market. Vacant units can be listed for rent, active listings can receive applications, and occupied units show the tenant, lease length and rent collected.",
       target: "property-unit-management",
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 5 · Upgrades",
-      title: "Choose what kind of property you want to build",
+      eyebrow: "Step 6 · Improve Demand",
+      title: "Upgrades now influence who wants the property",
       description:
-        "There are six upgrade paths: Interior, Furnishing & Fit-Out, Facilities, Smart Systems, Energy Efficiency and Amenities. Each has five levels and different effects.",
+        "Interior, fit-out, facilities, smart systems, efficiency and amenities still increase value and rent potential. Phase 2 also uses the resulting appeal, quality and efficiency when matching residents.",
       target: "property-upgrade-overview",
       propertyTab: "properties",
-      tip: "The strongest property is not just the most expensive one. Phase 2 residents will care about different stats and features.",
+      tip: "Different residents care about different things, so the most expensive upgrade is not always the most useful one.",
     },
     {
-      eyebrow: "Step 6 · My Listings",
-      title: "Resale remains separate from rental",
+      eyebrow: "Step 7 · Selling",
+      title: "You now have two different sale channels",
       description:
-        "You can still list owned units for resale here. Rental listings are coming in Phase 2 and will use a different decision: keep, rent, upgrade or sell.",
+        "Player resale remains available here. Separately, a vacant exact unit can be opened to Dreamscape resident purchase offers from inside View & Manage.",
       target: "property-my-listings",
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 7 · Resale Market",
-      title: "Buy from other owners",
+      eyebrow: "Step 8 · Resale Market",
+      title: "Trade existing properties with other players",
       description:
-        "The Resale Market shows active listings created by other Dreamscape owners. Buying here transfers an existing unit instead of reducing primary inventory.",
+        "The Resale Market remains the player-to-player secondary market. Buying here transfers an existing property instead of reducing primary inventory.",
       target: "property-resale-market",
       propertyTab: "resale",
     },
     {
-      eyebrow: "Step 8 · Market Activity",
-      title: "Use completed sales as context",
+      eyebrow: "Step 9 · Completed Sales",
+      title: "Use transactions as market context",
       description:
-        "Recent Property Sales shows completed Dreamscape property transactions so you can compare asking prices with actual market activity.",
+        "Recent Property Sales shows completed player-market transactions. Resident purchase offers are a separate source of demand tied to the simulated Dreamscape population.",
       target: "property-recent-sales",
       propertyTab: "resale",
     },
     {
-      eyebrow: "Step 9 · What comes next",
-      title: "Rent will be earned, not automatic",
+      eyebrow: "Step 10 · Next Phase",
+      title: "A tenant is only the beginning",
       description:
-        "In Phase 2 you will set an asking rent and Dreamscape residents will apply to become tenants. A property earns rent only when a lease is active.",
+        "Phase 3 will introduce property condition, maintenance events and changing tenant satisfaction. Ignoring problems will eventually affect renewals and whether a tenant leaves.",
       target: "property-virtual-notice",
       propertyTab: "map",
-      tip: "Phase 3 will add condition, maintenance events and tenant satisfaction.",
+      tip: "For now, tenant satisfaction stays stable so we can validate rental pricing and resident matching first.",
     },
   ],
 };
