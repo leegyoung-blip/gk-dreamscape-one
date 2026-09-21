@@ -421,6 +421,7 @@ export default function TeachingDashboardPage() {
   const [loadMessage, setLoadMessage] = useState("");
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [viewerRole, setViewerRole] = useState<string>("regular");
+  const [hasNovaPlusRole, setHasNovaPlusRole] = useState(false);
   const [students, setStudents] = useState<DashboardStudent[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [attempts, setAttempts] = useState<DashboardAttempt[]>([]);
@@ -462,6 +463,7 @@ export default function TeachingDashboardPage() {
       if (!user) {
         setViewerId(null);
         setViewerRole("regular");
+        setHasNovaPlusRole(false);
         setSelectedStudentId(null);
         setStudents([]);
         setAttempts([]);
@@ -489,6 +491,28 @@ export default function TeachingDashboardPage() {
 
       const loadedViewerRole = normaliseRole(viewerProfile?.role) || "regular";
       setViewerRole(loadedViewerRole);
+
+      /*
+       * NOVA+ is an additive role rather than a replacement for the user's
+       * primary account role. A user can therefore be Student + NOVA+ or
+       * Teacher + NOVA+ without changing profiles.role.
+       */
+      const {
+        data: novaPlusEntitlement,
+        error: novaPlusEntitlementError,
+      } = await supabase.rpc("current_user_has_nova_plus");
+
+      if (cancelled) return;
+
+      if (novaPlusEntitlementError) {
+        console.info(
+          "Could not load the NOVA+ additional role:",
+          novaPlusEntitlementError.message,
+        );
+        setHasNovaPlusRole(false);
+      } else {
+        setHasNovaPlusRole(Boolean(novaPlusEntitlement));
+      }
 
       const accessibleStudents: DashboardStudent[] = [
         { id: user.id, label: "My learning", relationship: "self" },
@@ -1469,8 +1493,16 @@ export default function TeachingDashboardPage() {
         ? "Teacher Dashboard"
         : "Parents & Teachers";
 
-  // NOVA+ remains admin-only for now, but the UI no longer labels it as a preview.
-  const canAccessNovaPlus = normaliseRole(viewerRole) === "admin";
+  /*
+   * NOVA+ access:
+   * - admins retain access
+   * - Student + NOVA+ can open NOVA+
+   * - Teacher + NOVA+ can open NOVA+ for learners they can already view
+   * - ordinary Student / Teacher accounts do not see the NOVA+ entry
+   */
+  const canAccessNovaPlus =
+    normaliseRole(viewerRole) === "admin" ||
+    hasNovaPlusRole;
 
   return (
     <main className="dashboard-page">

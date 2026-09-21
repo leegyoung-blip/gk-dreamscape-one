@@ -5,162 +5,23 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import MiloExchangeGuide from "../components/MiloExchangeGuide";
-import PropertyResaleMarket, {
+import MyPropertiesTab from "./components/MyPropertiesTab";
+import PropertyMapTab from "./components/PropertyMapTab";
+import PropertyResaleTab from "./components/PropertyResaleTab";
+import {
+  PROPERTY_TYPE_LABELS,
+  formatNumber,
+  getPropertyPreviewImage,
   type MyPropertyListing,
+  type PropertyHolding,
+  type PropertyOffering,
+  type PropertyRentPayout,
   type PropertyResaleListing,
-} from "./components/PropertyResaleMarket";
+  type RecentPropertySale,
+} from "./components/propertyExchangeShared";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
-type DistrictId = "residential-hub" | "commercial-hub";
-type PropertyType = "apartment" | "landed" | "office" | "retail";
-
-type DistrictDefinition = {
-  id: DistrictId;
-  name: string;
-  subtitle: string;
-  description: string;
-  accent: string;
-  fill: string;
-  propertyTypes: PropertyType[];
-};
-
-type PropertyOffering = {
-  id: string;
-  code: string;
-  name: string;
-  district: string;
-  district_slug: DistrictId;
-  property_type: PropertyType;
-  building_name: string;
-  unit_type: string;
-  description: string;
-  address: string;
-  current_value: number;
-  listing_price: number;
-  weekly_rent: number;
-  available_quantity: number;
-  total_quantity: number;
-  area_sqm: number;
-  bedrooms: number | null;
-  preview_image_url: string | null;
-  display_order: number;
-  is_active: boolean;
-};
-
-type PropertyHolding = {
-  id: string;
-  user_id: string;
-  property_id: string;
-  quantity: number;
-  purchase_price: number;
-  created_at: string;
-  updated_at: string;
-};
-
-type RecentPropertySale = {
-  sale_id: string;
-  property_id: string;
-  property_name: string;
-  district: string;
-  property_type: string;
-  buyer_name: string;
-  quantity: number;
-  price_per_unit: number;
-  total_price: number;
-  sold_at: string;
-};
-
-type PropertyRentPayout = {
-  week_start: string;
-  amount: number;
-  paid_at: string;
-};
-
-const DISTRICTS: DistrictDefinition[] = [
-  {
-    id: "residential-hub",
-    name: "Residential Hub",
-    subtitle: "Homes, neighbourhood parks and community living",
-    description:
-      "The first residential district in Milo’s built world. It contains apartment developments and limited landed estates surrounded by green corridors.",
-    accent: "#79f2ce",
-    fill: "#187c69",
-    propertyTypes: ["apartment", "landed"],
-  },
-  {
-    id: "commercial-hub",
-    name: "Commercial Hub",
-    subtitle: "Offices, retail and the centre of business",
-    description:
-      "The business centre of the built world. Office towers provide workspaces while the central mall contains retail units facing the main plaza.",
-    accent: "#ffd18a",
-    fill: "#b76b23",
-    propertyTypes: ["office", "retail"],
-  },
-];
-
-const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
-  apartment: "Apartment Units",
-  landed: "Landed Properties",
-  office: "Office Units",
-  retail: "Retail Units",
-};
-
-
-const PROPERTY_ASSET_BASE = "/milo-world/property-exchange";
-
-const PROPERTY_MAP_IMAGES: Record<"full" | DistrictId, string> = {
-  full: `${PROPERTY_ASSET_BASE}/full-map.png`,
-  "residential-hub": `${PROPERTY_ASSET_BASE}/residential-hub.png`,
-  "commercial-hub": `${PROPERTY_ASSET_BASE}/commercial-hub.png`,
-};
-
-const PROPERTY_PREVIEW_IMAGES = {
-  parkview: `${PROPERTY_ASSET_BASE}/parkview-apartment.png`,
-  skyline: `${PROPERTY_ASSET_BASE}/skyline-apartment.png`,
-  gardenTerrace: `${PROPERTY_ASSET_BASE}/garden-terrace-house.png`,
-  lakeview: `${PROPERTY_ASSET_BASE}/lakeview-detached-villa.png`,
-  commerceTower: `${PROPERTY_ASSET_BASE}/commerce-tower-office.png`,
-  enterpriseExecutive: `${PROPERTY_ASSET_BASE}/enterprise-executive-office.png`,
-  standardRetail: `${PROPERTY_ASSET_BASE}/standard-retail.png`,
-  cornerRetail: `${PROPERTY_ASSET_BASE}/corner-retail.png`,
-};
-
-function getDistrictImage(districtId: DistrictId) {
-  return PROPERTY_MAP_IMAGES[districtId];
-}
-
-function getPropertyPreviewImage(property: PropertyOffering) {
-  const searchValue = [
-    property.code,
-    property.name,
-    property.building_name,
-    property.unit_type,
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  if (searchValue.includes("parkview")) return PROPERTY_PREVIEW_IMAGES.parkview;
-  if (searchValue.includes("skyline")) return PROPERTY_PREVIEW_IMAGES.skyline;
-  if (searchValue.includes("garden terrace")) {
-    return PROPERTY_PREVIEW_IMAGES.gardenTerrace;
-  }
-  if (searchValue.includes("lakeview")) return PROPERTY_PREVIEW_IMAGES.lakeview;
-  if (searchValue.includes("commerce tower")) {
-    return PROPERTY_PREVIEW_IMAGES.commerceTower;
-  }
-  if (searchValue.includes("enterprise") && searchValue.includes("office")) {
-    return PROPERTY_PREVIEW_IMAGES.enterpriseExecutive;
-  }
-  if (searchValue.includes("standard") && searchValue.includes("retail")) {
-    return PROPERTY_PREVIEW_IMAGES.standardRetail;
-  }
-  if (searchValue.includes("corner") && searchValue.includes("retail")) {
-    return PROPERTY_PREVIEW_IMAGES.cornerRetail;
-  }
-
-  return property.preview_image_url;
-}
+type PropertyTab = "map" | "properties" | "resale";
 
 function useResponsiveMode() {
   const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
@@ -171,13 +32,9 @@ function useResponsiveMode() {
       const height = window.innerHeight;
       const isPortrait = height > width;
 
-      if (width <= 720) {
-        setScreenMode("mobile");
-      } else if (width <= 1180 || isPortrait) {
-        setScreenMode("tablet");
-      } else {
-        setScreenMode("desktop");
-      }
+      if (width <= 720) setScreenMode("mobile");
+      else if (width <= 1180 || isPortrait) setScreenMode("tablet");
+      else setScreenMode("desktop");
     }
 
     checkScreenSize();
@@ -186,29 +43,6 @@ function useResponsiveMode() {
   }, []);
 
   return screenMode;
-}
-
-function formatNumber(value: number) {
-  return Math.round(Number(value || 0)).toLocaleString();
-}
-
-function formatDateTime(value: string) {
-  try {
-    return new Intl.DateTimeFormat("en-SG", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
-
-function titleCase(value: string) {
-  return value
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function ExchangeStyles() {
@@ -230,34 +64,27 @@ function ExchangeStyles() {
       }
 
       .district-map-control:focus-visible,
-      .district-zone-button:focus-visible {
+      .district-zone-button:focus-visible,
+      .property-tab-button:focus-visible {
         outline: 3px solid rgba(142,232,255,0.9);
-        outline-offset: -6px;
+        outline-offset: 3px;
       }
 
       .district-map-control,
-      .district-zone-button {
+      .district-zone-button,
+      .property-tab-button {
         transition: box-shadow 180ms ease, background 180ms ease,
           border-color 180ms ease, transform 180ms ease;
       }
 
-      .district-map-control:hover {
+      .district-map-control:hover,
+      .property-tab-button:hover {
         transform: translateY(-2px);
       }
 
       .district-zone-button:hover {
         box-shadow: inset 0 0 0 4px rgba(255,255,255,0.72),
           inset 0 0 52px rgba(126,232,255,0.2);
-      }
-
-      @keyframes districtPulse {
-        0%, 100% { opacity: 0.52; }
-        50% { opacity: 0.88; }
-      }
-
-      @keyframes mapFloat {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-4px); }
       }
     `}</style>
   );
@@ -286,7 +113,6 @@ function Background() {
           pointerEvents: "none",
         }}
       />
-
       <div
         style={{
           position: "fixed",
@@ -297,7 +123,6 @@ function Background() {
           pointerEvents: "none",
         }}
       />
-
       <div
         style={{
           position: "fixed",
@@ -308,299 +133,6 @@ function Background() {
         }}
       />
     </>
-  );
-}
-
-function WorldDistrictMap({
-  selectedDistrict,
-  hoveredDistrict,
-  onHover,
-  onSelect,
-  isMobile,
-}: {
-  selectedDistrict: DistrictId | null;
-  hoveredDistrict: DistrictId | null;
-  onHover: (district: DistrictId | null) => void;
-  onSelect: (district: DistrictId) => void;
-  isMobile: boolean;
-}) {
-  function districtIsActive(id: DistrictId) {
-    return selectedDistrict === id || hoveredDistrict === id;
-  }
-
-  const zones: Array<{
-    id: DistrictId;
-    label: string;
-    hint: string;
-    sideStyle: CSSProperties;
-    accent: string;
-  }> = [
-    {
-      id: "residential-hub",
-      label: "Residential Hub",
-      hint: "Apartments and landed homes",
-      sideStyle: { left: "1.5%" },
-      accent: "#79f2ce",
-    },
-    {
-      id: "commercial-hub",
-      label: "Commercial Hub",
-      hint: "Offices and retail units",
-      sideStyle: { right: "1.5%" },
-      accent: "#ffd18a",
-    },
-  ];
-
-  return (
-    <div
-      style={{
-        position: "relative",
-        borderRadius: isMobile ? "22px" : "28px",
-        overflow: "hidden",
-        border: "1px solid rgba(126,232,255,0.22)",
-        background: "#06111a",
-        boxShadow: "0 22px 54px rgba(0,0,0,0.34)",
-      }}
-    >
-      <img
-        src={PROPERTY_MAP_IMAGES.full}
-        alt="World map with the Residential Hub and Commercial Hub divided by a river and surrounded by undeveloped forest"
-        style={{
-          display: "block",
-          width: "100%",
-          height: "auto",
-          aspectRatio: "3 / 2",
-          objectFit: "cover",
-        }}
-      />
-
-      {zones.map((zone) => {
-        const isActive = districtIsActive(zone.id);
-
-        return (
-          <button
-            key={zone.id}
-            type="button"
-            className="district-map-control"
-            aria-label={`Open ${zone.label}`}
-            onMouseEnter={() => onHover(zone.id)}
-            onMouseLeave={() => onHover(null)}
-            onFocus={() => onHover(zone.id)}
-            onBlur={() => onHover(null)}
-            onClick={() => onSelect(zone.id)}
-            style={{
-              position: "absolute",
-              top: "4%",
-              bottom: "4%",
-              width: "45.5%",
-              ...zone.sideStyle,
-              padding: 0,
-              borderRadius: isMobile ? "16px" : "24px",
-              border: isActive
-                ? `3px solid ${zone.accent}`
-                : "2px solid transparent",
-              background: isActive
-                ? `linear-gradient(180deg, transparent 52%, ${zone.accent}25 100%)`
-                : "transparent",
-              boxShadow: isActive
-                ? `inset 0 0 62px ${zone.accent}24, 0 0 34px ${zone.accent}2b`
-                : "none",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            <span
-              style={{
-                position: "absolute",
-                left: "50%",
-                bottom: isMobile ? "10px" : "18px",
-                transform: "translateX(-50%)",
-                width: isMobile ? "88%" : "min(330px, 82%)",
-                borderRadius: "15px",
-                padding: isMobile ? "9px 10px" : "12px 16px",
-                color: "white",
-                background: "rgba(3,12,21,0.86)",
-                border: `1px solid ${zone.accent}72`,
-                backdropFilter: "blur(12px)",
-                WebkitBackdropFilter: "blur(12px)",
-                boxShadow: "0 12px 28px rgba(0,0,0,0.34)",
-                textAlign: "center",
-              }}
-            >
-              <strong
-                style={{
-                  display: "block",
-                  color: zone.accent,
-                  fontSize: isMobile ? "13px" : "18px",
-                }}
-              >
-                {zone.label}
-              </strong>
-              {!isMobile && (
-                <small
-                  style={{
-                    display: "block",
-                    marginTop: "4px",
-                    color: "rgba(255,255,255,0.62)",
-                    fontSize: "12px",
-                  }}
-                >
-                  {zone.hint}
-                </small>
-              )}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function DistrictDetailMap({
-  districtId,
-  activeType,
-  onChooseType,
-  isMobile,
-}: {
-  districtId: DistrictId;
-  activeType: PropertyType | "all";
-  onChooseType: (type: PropertyType) => void;
-  isMobile: boolean;
-}) {
-  const isResidential = districtId === "residential-hub";
-  const topType: PropertyType = isResidential ? "apartment" : "office";
-  const bottomType: PropertyType = isResidential ? "landed" : "retail";
-  const district = DISTRICTS.find((item) => item.id === districtId)!;
-
-  function zoneIsActive(type: PropertyType) {
-    return activeType === type;
-  }
-
-  return (
-    <div
-      style={{
-        position: "relative",
-        borderRadius: "24px",
-        border: "1px solid rgba(255,255,255,0.12)",
-        overflow: "hidden",
-        background: "rgba(3,15,25,0.82)",
-        boxShadow: "0 18px 44px rgba(0,0,0,0.28)",
-      }}
-    >
-      <img
-        src={getDistrictImage(districtId)}
-        alt={`${district.name} detailed map`}
-        style={{
-          display: "block",
-          width: "100%",
-          height: "auto",
-          aspectRatio: "4 / 3",
-          objectFit: "cover",
-        }}
-      />
-
-      {[
-        { type: topType, top: "0%", height: "50%" },
-        { type: bottomType, top: "50%", height: "50%" },
-      ].map((zone) => (
-        <button
-          key={zone.type}
-          type="button"
-          className="district-zone-button"
-          aria-label={`Show ${PROPERTY_TYPE_LABELS[zone.type]}`}
-          onClick={() => onChooseType(zone.type)}
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: zone.top,
-            height: zone.height,
-            padding: 0,
-            border: zoneIsActive(zone.type)
-              ? `4px solid ${district.accent}`
-              : "4px solid transparent",
-            background: zoneIsActive(zone.type)
-              ? `linear-gradient(180deg, transparent 55%, ${district.accent}1f)`
-              : "transparent",
-            boxShadow: zoneIsActive(zone.type)
-              ? `inset 0 0 46px ${district.accent}20`
-              : "none",
-            cursor: "pointer",
-          }}
-        />
-      ))}
-
-      {activeType !== "all" && (
-        <button
-          type="button"
-          onClick={() => onChooseType(activeType as PropertyType)}
-          aria-label={`Selected category: ${PROPERTY_TYPE_LABELS[activeType as PropertyType]}`}
-          style={{
-            position: "absolute",
-            right: isMobile ? "10px" : "16px",
-            bottom: isMobile ? "10px" : "16px",
-            minHeight: "34px",
-            padding: "0 12px",
-            borderRadius: "999px",
-            border: `1px solid ${district.accent}80`,
-            background: "rgba(3,12,21,0.84)",
-            color: district.accent,
-            fontSize: "11px",
-            fontWeight: 900,
-            fontFamily: "inherit",
-            pointerEvents: "none",
-          }}
-        >
-          {PROPERTY_TYPE_LABELS[activeType as PropertyType]}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function UnitPreviewIllustration({ property }: { property: PropertyOffering }) {
-  const imageUrl = getPropertyPreviewImage(property);
-
-  if (imageUrl) {
-    return (
-      <img
-        src={imageUrl}
-        alt={`${property.name} interior preview`}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          objectPosition: "center",
-          display: "block",
-        }}
-      />
-    );
-  }
-
-  return (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        minHeight: "220px",
-        display: "grid",
-        placeItems: "center",
-        padding: "24px",
-        textAlign: "center",
-        background:
-          "linear-gradient(145deg, rgba(15,35,48,0.96), rgba(4,13,23,0.98))",
-        color: "rgba(255,255,255,0.62)",
-      }}
-    >
-      <div>
-        <strong style={{ display: "block", color: "white", fontSize: "18px" }}>
-          {property.name}
-        </strong>
-        <span style={{ display: "block", marginTop: "8px", fontSize: "13px" }}>
-          Preview image not found
-        </span>
-      </div>
-    </div>
   );
 }
 
@@ -628,17 +160,7 @@ function CenterPanel({
     >
       <ExchangeStyles />
       <Background />
-
-      <div
-        style={{
-          position: "relative",
-          zIndex: 5,
-          minHeight: "100vh",
-          display: "grid",
-          placeItems: "center",
-          padding: isMobile ? "18px" : "32px",
-        }}
-      >
+      <div style={{ position: "relative", zIndex: 5, minHeight: "100vh", display: "grid", placeItems: "center", padding: isMobile ? "18px" : "32px" }}>
         <section
           style={{
             width: "min(760px, 100%)",
@@ -651,39 +173,13 @@ function CenterPanel({
             WebkitBackdropFilter: "blur(20px)",
           }}
         >
-          <p
-            style={{
-              margin: 0,
-              color: "#8ee8ff",
-              fontSize: "13px",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              fontWeight: 900,
-            }}
-          >
+          <p style={{ margin: 0, color: "#8ee8ff", fontSize: "13px", letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 900 }}>
             {eyebrow}
           </p>
-
-          <h1
-            style={{
-              margin: "14px 0 0",
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontSize: isMobile ? "40px" : "58px",
-              fontWeight: 500,
-              lineHeight: 1,
-            }}
-          >
+          <h1 style={{ margin: "14px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "40px" : "58px", fontWeight: 500, lineHeight: 1 }}>
             {title}
           </h1>
-
-          <div
-            style={{
-              marginTop: "22px",
-              color: "rgba(255,255,255,0.76)",
-              fontSize: "16px",
-              lineHeight: 1.65,
-            }}
-          >
+          <div style={{ marginTop: "22px", color: "rgba(255,255,255,0.76)", fontSize: "16px", lineHeight: 1.65 }}>
             {children}
           </div>
         </section>
@@ -701,6 +197,7 @@ export default function PropertyExchangeClient() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [marketLoading, setMarketLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<PropertyTab>("map");
 
   const [userId, setUserId] = useState<string | null>(null);
   const [dreamTokens, setDreamTokens] = useState(0);
@@ -711,35 +208,20 @@ export default function PropertyExchangeClient() {
   const [myListings, setMyListings] = useState<MyPropertyListing[]>([]);
   const [latestRentPayout, setLatestRentPayout] = useState<PropertyRentPayout | null>(null);
 
-  const [selectedDistrict, setSelectedDistrict] = useState<DistrictId | null>(null);
-  const [hoveredDistrict, setHoveredDistrict] = useState<DistrictId | null>(null);
-  const [activeType, setActiveType] = useState<PropertyType | "all">("all");
   const [previewProperty, setPreviewProperty] = useState<PropertyOffering | null>(null);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
-
   const [pageMessage, setPageMessage] = useState("");
   const [tradeMessage, setTradeMessage] = useState("");
 
-  const selectedDistrictDefinition =
-    DISTRICTS.find((district) => district.id === selectedDistrict) || null;
+  const holdingsByProperty = useMemo(
+    () => new Map(holdings.map((holding) => [holding.property_id, holding])),
+    [holdings]
+  );
 
-  const visibleProperties = useMemo(() => {
-    if (!selectedDistrict) return [];
-
-    return properties.filter((property) => {
-      if (property.district_slug !== selectedDistrict) return false;
-      if (activeType !== "all" && property.property_type !== activeType) return false;
-      return property.is_active;
-    });
-  }, [properties, selectedDistrict, activeType]);
-
-  const holdingsByProperty = useMemo(() => {
-    return new Map(holdings.map((holding) => [holding.property_id, holding]));
-  }, [holdings]);
-
-  const totalOwnedUnits = useMemo(() => {
-    return holdings.reduce((total, holding) => total + Number(holding.quantity || 0), 0);
-  }, [holdings]);
+  const totalOwnedUnits = useMemo(
+    () => holdings.reduce((total, holding) => total + Number(holding.quantity || 0), 0),
+    [holdings]
+  );
 
   const propertyPortfolioValue = useMemo(() => {
     return holdings.reduce((total, holding) => {
@@ -778,8 +260,7 @@ export default function PropertyExchangeClient() {
     borderRadius: isMobile ? "22px" : "28px",
     border: "1px solid rgba(132,218,255,0.18)",
     background: "rgba(5,13,28,0.72)",
-    boxShadow:
-      "0 28px 80px rgba(0,0,0,0.42), inset 0 0 42px rgba(83,215,255,0.035)",
+    boxShadow: "0 28px 80px rgba(0,0,0,0.42), inset 0 0 42px rgba(83,215,255,0.035)",
     backdropFilter: "blur(18px)",
     WebkitBackdropFilter: "blur(18px)",
   };
@@ -840,21 +321,16 @@ export default function PropertyExchangeClient() {
   };
 
   useEffect(() => {
-    loadPage();
+    void loadPage();
   }, []);
 
   useEffect(() => {
     if (!userId) return;
-
     function handleFocus() {
       void refreshMarket();
     }
-
     window.addEventListener("focus", handleFocus);
-
-    return () => {
-      window.removeEventListener("focus", handleFocus);
-    };
+    return () => window.removeEventListener("focus", handleFocus);
   }, [userId]);
 
   async function loadPage() {
@@ -873,28 +349,17 @@ export default function PropertyExchangeClient() {
     }
 
     setUserId(user.id);
-
-    await Promise.all([
-      loadDreamTokens(user.id),
-      loadPropertyMarket(user.id),
-    ]);
-
+    await Promise.all([loadDreamTokens(), loadPropertyMarket(user.id)]);
     setLoading(false);
   }
 
-  async function loadDreamTokens(_id: string) {
-    // The ledger is the single source of truth. The RPC aggregates server-side
-    // so the browser does not need to download the user's entire transaction history.
-    const { data, error } = await supabase.rpc(
-      "get_my_virtual_dream_token_balance"
-    );
-
+  async function loadDreamTokens() {
+    const { data, error } = await supabase.rpc("get_my_virtual_dream_token_balance");
     if (error) {
       console.warn("Could not load Dreamscape Tokens:", error.message);
       setDreamTokens(0);
       return;
     }
-
     setDreamTokens(Number(data || 0));
   }
 
@@ -911,28 +376,18 @@ export default function PropertyExchangeClient() {
     ] = await Promise.all([
       supabase
         .from("milo_exchange_properties")
-        .select(
-          "id,code,name,district,district_slug,property_type,building_name,unit_type,description,address,current_value,listing_price,weekly_rent,available_quantity,total_quantity,area_sqm,bedrooms,preview_image_url,display_order,is_active"
-        )
+        .select("id,code,name,district,district_slug,property_type,building_name,unit_type,description,address,current_value,listing_price,weekly_rent,available_quantity,total_quantity,area_sqm,bedrooms,preview_image_url,display_order,is_active")
         .eq("is_active", true)
         .in("district_slug", ["residential-hub", "commercial-hub"])
         .order("display_order", { ascending: true }),
       supabase
         .from("milo_exchange_property_holdings")
-        .select(
-          "id,user_id,property_id,quantity,purchase_price,created_at,updated_at"
-        )
+        .select("id,user_id,property_id,quantity,purchase_price,created_at,updated_at")
         .eq("user_id", id)
         .order("created_at", { ascending: false }),
-      supabase.rpc("get_milo_exchange_recent_property_sales", {
-        p_limit: 20,
-      }),
-      supabase.rpc("get_milo_exchange_property_resale_listings", {
-        p_limit: 20,
-      }),
-      supabase.rpc("get_my_milo_exchange_property_listings", {
-        p_limit: 30,
-      }),
+      supabase.rpc("get_milo_exchange_recent_property_sales", { p_limit: 20 }),
+      supabase.rpc("get_milo_exchange_property_resale_listings", { p_limit: 20 }),
+      supabase.rpc("get_my_milo_exchange_property_listings", { p_limit: 30 }),
       supabase
         .from("milo_exchange_property_rent_payouts")
         .select("week_start,amount,paid_at")
@@ -945,22 +400,21 @@ export default function PropertyExchangeClient() {
     if (propertiesResult.error) {
       console.warn("Could not load property inventory:", propertiesResult.error.message);
       setProperties([]);
-      setPageMessage(
-        "The property market database is not ready. Run the supplied Property Exchange SQL in Supabase."
-      );
+      setPageMessage("The property market database is not ready. Check the Property Exchange database setup.");
     } else {
-      const nextProperties = (propertiesResult.data || []).map((row) => ({
-        ...row,
-        current_value: Number(row.current_value || 0),
-        listing_price: Number(row.listing_price || 0),
-        weekly_rent: Number(row.weekly_rent || 0),
-        available_quantity: Number(row.available_quantity || 0),
-        total_quantity: Number(row.total_quantity || 0),
-        area_sqm: Number(row.area_sqm || 0),
-        bedrooms: row.bedrooms === null ? null : Number(row.bedrooms),
-        display_order: Number(row.display_order || 0),
-      })) as PropertyOffering[];
-      setProperties(nextProperties);
+      setProperties(
+        (propertiesResult.data || []).map((row) => ({
+          ...row,
+          current_value: Number(row.current_value || 0),
+          listing_price: Number(row.listing_price || 0),
+          weekly_rent: Number(row.weekly_rent || 0),
+          available_quantity: Number(row.available_quantity || 0),
+          total_quantity: Number(row.total_quantity || 0),
+          area_sqm: Number(row.area_sqm || 0),
+          bedrooms: row.bedrooms === null ? null : Number(row.bedrooms),
+          display_order: Number(row.display_order || 0),
+        })) as PropertyOffering[]
+      );
     }
 
     if (holdingsResult.error) {
@@ -1040,7 +494,6 @@ export default function PropertyExchangeClient() {
     }
 
     if (rentPayoutResult.error) {
-      // This is non-fatal so the page still works before the rental migration is applied.
       console.warn("Could not load property rent payout history:", rentPayoutResult.error.message);
       setLatestRentPayout(null);
     } else if (rentPayoutResult.data) {
@@ -1058,20 +511,7 @@ export default function PropertyExchangeClient() {
 
   async function refreshMarket() {
     if (!userId) return;
-
-    await Promise.all([loadDreamTokens(userId), loadPropertyMarket(userId)]);
-  }
-
-  function chooseDistrict(id: DistrictId) {
-    setSelectedDistrict(id);
-    setActiveType("all");
-    setTradeMessage("");
-
-    window.setTimeout(() => {
-      document
-        .getElementById("district-detail-section")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 60);
+    await Promise.all([loadDreamTokens(), loadPropertyMarket(userId)]);
   }
 
   function openPreview(property: PropertyOffering) {
@@ -1084,14 +524,12 @@ export default function PropertyExchangeClient() {
     if (!userId) return;
 
     const quantity = Math.max(1, Math.floor(Number(purchaseQuantity) || 1));
-
     if (quantity > property.available_quantity) {
       setTradeMessage("There are not enough units available for that purchase.");
       return;
     }
 
     const total = quantity * property.listing_price;
-
     if (total > dreamTokens) {
       setTradeMessage("You do not have enough Dreamscape Tokens for this purchase.");
       return;
@@ -1099,7 +537,6 @@ export default function PropertyExchangeClient() {
 
     setActionLoading(true);
     setTradeMessage("");
-
     const { data, error } = await supabase.rpc("buy_milo_exchange_property", {
       p_property_id: property.id,
       p_quantity: quantity,
@@ -1113,38 +550,25 @@ export default function PropertyExchangeClient() {
     }
 
     const result = (data || {}) as Record<string, unknown>;
-    setTradeMessage(
-      String(
-        result.message ||
-          `Purchased ${quantity} ${property.unit_type}${quantity === 1 ? "" : "s"}.`
-      )
-    );
-
+    setTradeMessage(String(result.message || `Purchased ${quantity} ${property.unit_type}${quantity === 1 ? "" : "s"}.`));
     window.dispatchEvent(new Event("dream-tokens-updated"));
     await refreshMarket();
-
-    // Close the modal after refresh so it can never show stale availability/holdings.
     setPreviewProperty(null);
     setActionLoading(false);
   }
 
   async function buyResaleProperty(listing: PropertyResaleListing) {
     if (!userId || actionLoading) return;
-
     if (listing.asking_price > dreamTokens) {
-      setTradeMessage(
-        `You need ${formatNumber(listing.asking_price)} DT to purchase this resale property.`
-      );
+      setTradeMessage(`You need ${formatNumber(listing.asking_price)} DT to purchase this resale property.`);
       return;
     }
 
     setActionLoading(true);
     setTradeMessage("");
-
-    const { data, error } = await supabase.rpc(
-      "buy_milo_exchange_property_listing",
-      { p_listing_id: listing.listing_id }
-    );
+    const { data, error } = await supabase.rpc("buy_milo_exchange_property_listing", {
+      p_listing_id: listing.listing_id,
+    });
 
     if (error) {
       console.warn("Resale property purchase failed:", error.message);
@@ -1154,12 +578,8 @@ export default function PropertyExchangeClient() {
     }
 
     const result = (data || {}) as Record<string, unknown>;
-
     if (result.ok === false || result.success === false) {
-      const reason = String(
-        result.reason || "This resale listing is no longer available."
-      );
-
+      const reason = String(result.reason || "This resale listing is no longer available.");
       setTradeMessage(
         reason === "listing_not_active"
           ? "This property has already been purchased."
@@ -1171,18 +591,12 @@ export default function PropertyExchangeClient() {
           ? "This property is no longer available from the seller."
           : reason
       );
-
       setActionLoading(false);
       await refreshMarket();
       return;
     }
 
-    setTradeMessage(
-      `Purchased ${listing.property_name} for ${formatNumber(
-        listing.asking_price
-      )} DT from ${listing.seller_name}.`
-    );
-
+    setTradeMessage(`Purchased ${listing.property_name} for ${formatNumber(listing.asking_price)} DT from ${listing.seller_name}.`);
     window.dispatchEvent(new Event("dream-tokens-updated"));
     await refreshMarket();
     setActionLoading(false);
@@ -1190,17 +604,13 @@ export default function PropertyExchangeClient() {
 
   async function createResaleListing(propertyId: string, askingPrice: number) {
     if (!userId || actionLoading) return;
-
     setActionLoading(true);
     setTradeMessage("");
 
-    const { data, error } = await supabase.rpc(
-      "create_milo_exchange_property_listing",
-      {
-        p_property_id: propertyId,
-        p_asking_price: Math.round(askingPrice),
-      }
-    );
+    const { data, error } = await supabase.rpc("create_milo_exchange_property_listing", {
+      p_property_id: propertyId,
+      p_asking_price: Math.round(askingPrice),
+    });
 
     if (error) {
       console.warn("Could not create property resale listing:", error.message);
@@ -1211,13 +621,10 @@ export default function PropertyExchangeClient() {
 
     const result = (data || {}) as Record<string, unknown>;
     const property = properties.find((item) => item.id === propertyId);
-
     setTradeMessage(
       result.already_listed
         ? `${property?.name || "This property"} is already listed for resale.`
-        : `${property?.name || "Property"} is now listed for ${formatNumber(
-            askingPrice
-          )} DT.`
+        : `${property?.name || "Property"} is now listed for ${formatNumber(askingPrice)} DT.`
     );
 
     await refreshMarket();
@@ -1226,14 +633,12 @@ export default function PropertyExchangeClient() {
 
   async function cancelResaleListing(listingId: string) {
     if (!userId || actionLoading) return;
-
     setActionLoading(true);
     setTradeMessage("");
 
-    const { error } = await supabase.rpc(
-      "cancel_milo_exchange_property_listing",
-      { p_listing_id: listingId }
-    );
+    const { error } = await supabase.rpc("cancel_milo_exchange_property_listing", {
+      p_listing_id: listingId,
+    });
 
     if (error) {
       console.warn("Could not cancel resale listing:", error.message);
@@ -1249,8 +654,8 @@ export default function PropertyExchangeClient() {
 
   if (loading) {
     return (
-      <CenterPanel eyebrow="Milo’s Property Exchange" title="Loading the property map..." isMobile={isMobile}>
-        <p>Preparing districts, property inventory and public sale records.</p>
+      <CenterPanel eyebrow="Milo’s Property Exchange" title="Loading the property market..." isMobile={isMobile}>
+        <p>Preparing the map, your property portfolio and the resale market.</p>
       </CenterPanel>
     );
   }
@@ -1258,10 +663,7 @@ export default function PropertyExchangeClient() {
   if (!userId) {
     return (
       <CenterPanel eyebrow="Exchange Access" title="Log in to enter the Property Exchange" isMobile={isMobile}>
-        <p>
-          Your Dreamscape account is required to save property holdings, process
-          token purchases and show your units in the Exchange portfolio.
-        </p>
+        <p>Your Dreamscape account is required to save property holdings, process token purchases and manage resale listings.</p>
         <div style={{ marginTop: "24px", display: "flex", flexWrap: "wrap", gap: "12px" }}>
           <Link href="/login" style={primaryButton}>Log In</Link>
           <Link href="/milo-world/exchange" style={secondaryButton}>Exchange Home</Link>
@@ -1269,6 +671,15 @@ export default function PropertyExchangeClient() {
       </CenterPanel>
     );
   }
+
+  const tabs: Array<{ id: PropertyTab; label: string; description: string; icon: string }> = [
+    { id: "map", label: "Property Map", description: "Explore and buy primary units", icon: "⌖" },
+    { id: "properties", label: "My Properties", description: "Holdings, rent and listings", icon: "⌂" },
+    { id: "resale", label: "Resale Market", description: "Buy units from other owners", icon: "⇄" },
+  ];
+
+  const tabStyles = { glassPanel, primaryButton, secondaryButton };
+  const previewImage = getPropertyPreviewImage(previewProperty || undefined);
 
   return (
     <main className="milo-scrollbar" style={pageShell}>
@@ -1293,18 +704,14 @@ export default function PropertyExchangeClient() {
           <section
             className="milo-scrollbar"
             onClick={(event) => event.stopPropagation()}
-            style={{
-              ...glassPanel,
-              width: "min(1040px, 100%)",
-              maxHeight: "92dvh",
-              overflowY: "auto",
-              display: "grid",
-              gridTemplateColumns: "1fr",
-              overflowX: "hidden",
-            }}
+            style={{ ...glassPanel, width: "min(1040px, 100%)", maxHeight: "92dvh", overflowY: "auto", display: "grid", gridTemplateColumns: "1fr", overflowX: "hidden" }}
           >
-            <div style={{ width: "100%", aspectRatio: "2 / 1", minHeight: isMobile ? "220px" : "420px" }}>
-              <UnitPreviewIllustration property={previewProperty} />
+            <div style={{ width: "100%", aspectRatio: "2 / 1", minHeight: isMobile ? "220px" : "420px", background: "rgba(255,255,255,0.04)" }}>
+              {previewImage ? (
+                <img src={previewImage} alt={`${previewProperty.name} interior preview`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              ) : (
+                <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.5)" }}>Preview image not found</div>
+              )}
             </div>
 
             <div style={{ padding: isMobile ? "22px" : "32px", position: "relative" }}>
@@ -1312,19 +719,7 @@ export default function PropertyExchangeClient() {
                 type="button"
                 onClick={() => setPreviewProperty(null)}
                 aria-label="Close property preview"
-                style={{
-                  position: "absolute",
-                  top: "18px",
-                  right: "18px",
-                  width: "40px",
-                  height: "40px",
-                  borderRadius: "999px",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  cursor: "pointer",
-                  fontSize: "20px",
-                }}
+                style={{ position: "absolute", top: "18px", right: "18px", width: "40px", height: "40px", borderRadius: "999px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", cursor: "pointer", fontSize: "20px" }}
               >
                 ×
               </button>
@@ -1332,18 +727,11 @@ export default function PropertyExchangeClient() {
               <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 900 }}>
                 {previewProperty.district} · {PROPERTY_TYPE_LABELS[previewProperty.property_type]}
               </p>
-
               <h2 style={{ margin: "14px 48px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "44px", fontWeight: 500, lineHeight: 1.02 }}>
                 {previewProperty.name}
               </h2>
-
-              <p style={{ margin: "12px 0 0", color: "rgba(255,255,255,0.56)", fontSize: "14px" }}>
-                {previewProperty.address}
-              </p>
-
-              <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.72)", lineHeight: 1.65 }}>
-                {previewProperty.description}
-              </p>
+              <p style={{ margin: "12px 0 0", color: "rgba(255,255,255,0.56)", fontSize: "14px" }}>{previewProperty.address}</p>
+              <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.72)", lineHeight: 1.65 }}>{previewProperty.description}</p>
 
               <div style={{ marginTop: "22px", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
                 {[
@@ -1355,18 +743,14 @@ export default function PropertyExchangeClient() {
                   ["Your Holdings", `${holdingsByProperty.get(previewProperty.id)?.quantity || 0}`],
                 ].map(([label, value]) => (
                   <div key={label} style={{ borderRadius: "16px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.06)", padding: "14px" }}>
-                    <span style={{ display: "block", color: "rgba(255,255,255,0.46)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 850 }}>
-                      {label}
-                    </span>
+                    <span style={{ display: "block", color: "rgba(255,255,255,0.46)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 850 }}>{label}</span>
                     <strong style={{ display: "block", marginTop: "7px", fontSize: "16px" }}>{value}</strong>
                   </div>
                 ))}
               </div>
 
               <label style={{ marginTop: "22px", display: "grid", gap: "8px" }}>
-                <span style={{ color: "rgba(255,255,255,0.64)", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 900 }}>
-                  Purchase quantity
-                </span>
+                <span style={{ color: "rgba(255,255,255,0.64)", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 900 }}>Purchase quantity</span>
                 <input
                   type="number"
                   min={1}
@@ -1382,59 +766,27 @@ export default function PropertyExchangeClient() {
 
               <div style={{ marginTop: "14px", display: "flex", justifyContent: "space-between", gap: "12px", borderRadius: "16px", background: "rgba(255,209,138,0.09)", border: "1px solid rgba(255,209,138,0.18)", padding: "15px" }}>
                 <span style={{ color: "rgba(255,255,255,0.58)" }}>Purchase total</span>
-                <strong style={{ color: "#ffd18a" }}>
-                  {formatNumber(purchaseQuantity * previewProperty.listing_price)} DT
-                </strong>
+                <strong style={{ color: "#ffd18a" }}>{formatNumber(purchaseQuantity * previewProperty.listing_price)} DT</strong>
               </div>
 
               <button
                 type="button"
-                onClick={() => buyProperty(previewProperty)}
+                onClick={() => void buyProperty(previewProperty)}
                 disabled={actionLoading || previewProperty.available_quantity <= 0}
-                style={{
-                  ...primaryButton,
-                  width: "100%",
-                  marginTop: "16px",
-                  background:
-                    previewProperty.available_quantity <= 0
-                      ? "rgba(255,255,255,0.08)"
-                      : "rgba(83,215,255,0.18)",
-                  opacity: actionLoading ? 0.6 : 1,
-                  cursor:
-                    actionLoading || previewProperty.available_quantity <= 0
-                      ? "not-allowed"
-                      : "pointer",
-                }}
+                style={{ ...primaryButton, width: "100%", marginTop: "16px", background: previewProperty.available_quantity <= 0 ? "rgba(255,255,255,0.08)" : "rgba(83,215,255,0.18)", opacity: actionLoading ? 0.6 : 1, cursor: actionLoading || previewProperty.available_quantity <= 0 ? "not-allowed" : "pointer" }}
               >
-                {previewProperty.available_quantity <= 0
-                  ? "Sold Out"
-                  : actionLoading
-                  ? "Processing Purchase..."
-                  : "Purchase Unit"}
+                {previewProperty.available_quantity <= 0 ? "Sold Out" : actionLoading ? "Processing Purchase..." : "Purchase Unit"}
               </button>
 
-              {tradeMessage && (
-                <p style={{ margin: "14px 0 0", color: "#ffd18a", fontWeight: 800, lineHeight: 1.5 }}>
-                  {tradeMessage}
-                </p>
-              )}
+              {tradeMessage && <p style={{ margin: "14px 0 0", color: "#ffd18a", fontWeight: 800, lineHeight: 1.5 }}>{tradeMessage}</p>}
             </div>
           </section>
         </div>
       )}
 
       <div style={contentWrap}>
-        <header
-          style={{
-            display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            justifyContent: "space-between",
-            alignItems: isMobile ? "stretch" : "center",
-            gap: "12px",
-          }}
-        >
+        <header style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "stretch" : "center", gap: "12px" }}>
           <Link href="/milo-world/exchange" style={navButtonStyle}>← Exchange Home</Link>
-
           <div style={{ display: "flex", flexWrap: "wrap", gap: "9px", justifyContent: isMobile ? "flex-start" : "flex-end" }}>
             <Link href="/milo-world/exchange/stocks" style={navButtonStyle}>Stock Exchange</Link>
             <Link href="/profile" style={navButtonStyle}>{formatNumber(dreamTokens)} DT</Link>
@@ -1442,68 +794,14 @@ export default function PropertyExchangeClient() {
           </div>
         </header>
 
-        <section style={{ marginTop: isMobile ? "38px" : "52px", textAlign: "center" }}>
-          <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", letterSpacing: "0.24em", textTransform: "uppercase", fontWeight: 900 }}>
-            Milo’s Exchange
-          </p>
+        <section style={{ marginTop: isMobile ? "34px" : "46px", textAlign: "center" }}>
+          <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", letterSpacing: "0.24em", textTransform: "uppercase", fontWeight: 900 }}>Milo’s Exchange</p>
           <h1 style={{ margin: "14px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "46px" : isCompact ? "64px" : "78px", fontWeight: 500, lineHeight: 0.96 }}>
             Property Exchange
           </h1>
           <p style={{ margin: "18px auto 0", maxWidth: "760px", color: "rgba(255,255,255,0.64)", lineHeight: 1.7, fontSize: isMobile ? "15px" : "17px" }}>
-            Explore the first two built districts, compare unit supply and weekly
-            rent, and purchase virtual properties directly from Dreamscape.
+            Explore the primary property map, manage your own portfolio and listings, or trade with other owners in the resale market.
           </p>
-        </section>
-
-        <section data-milo-guide="property-summary" style={{ marginTop: "28px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", gap: "12px" }}>
-          {[
-            { label: "Cash Holdings", value: `${formatNumber(dreamTokens)} DT`, note: "Ledger balance" },
-            { label: "Property Value", value: `${formatNumber(propertyPortfolioValue)} DT`, note: "Current reference value" },
-            { label: "Weekly Rent Rate", value: `${formatNumber(weeklyRentalIncome)} DT`, note: "Automatic Monday payout" },
-            { label: "Units Owned", value: `${totalOwnedUnits}`, note: "Across all properties" },
-          ].map((item) => (
-            <article key={item.label} style={{ ...glassPanel, padding: isMobile ? "16px" : "20px" }}>
-              <span style={{ color: "rgba(255,255,255,0.48)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 850 }}>
-                {item.label}
-              </span>
-              <strong style={{ display: "block", marginTop: "9px", fontSize: isMobile ? "21px" : "27px", letterSpacing: "-0.04em" }}>
-                {item.value}
-              </strong>
-              <span style={{ display: "block", marginTop: "6px", color: "rgba(255,255,255,0.4)", fontSize: "11px", lineHeight: 1.4 }}>
-                {item.note}
-              </span>
-            </article>
-          ))}
-        </section>
-
-        <section
-          style={{
-            ...glassPanel,
-            marginTop: "12px",
-            padding: isMobile ? "14px 16px" : "15px 20px",
-            display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            justifyContent: "space-between",
-            gap: "10px",
-            alignItems: isMobile ? "flex-start" : "center",
-          }}
-        >
-          <div>
-            <strong style={{ color: "#79f2ce", fontSize: "13px" }}>Rental income is now a real DT payout.</strong>
-            <p style={{ margin: "5px 0 0", color: "rgba(255,255,255,0.52)", fontSize: "12px", lineHeight: 1.5 }}>
-              Every Monday, the server pays one week of rent for the units held at payout time. Duplicate payouts are blocked by the database.
-            </p>
-          </div>
-          <div style={{ flexShrink: 0, textAlign: isMobile ? "left" : "right" }}>
-            <span style={{ display: "block", color: "rgba(255,255,255,0.42)", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 850 }}>
-              Last rental payout
-            </span>
-            <strong style={{ display: "block", marginTop: "4px", color: latestRentPayout ? "#79f2ce" : "rgba(255,255,255,0.6)", fontSize: "13px" }}>
-              {latestRentPayout
-                ? `+${formatNumber(latestRentPayout.amount)} DT · ${formatDateTime(latestRentPayout.paid_at)}`
-                : "No payout yet"}
-            </strong>
-          </div>
         </section>
 
         {pageMessage && (
@@ -1512,275 +810,116 @@ export default function PropertyExchangeClient() {
           </p>
         )}
 
-        <section data-milo-guide="property-world-map" style={{ ...glassPanel, marginTop: "18px", padding: isMobile ? "16px" : "24px" }}>
-          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-end", gap: "12px", marginBottom: "20px" }}>
-            <div>
-              <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 900 }}>
-                World Development Map
-              </p>
-              <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "44px", fontWeight: 500 }}>
-                Choose a built district
-              </h2>
-            </div>
-            <span style={{ color: "rgba(255,255,255,0.46)", fontSize: "13px" }}>
-              The surrounding forest is reserved for future development.
-            </span>
+        <section data-milo-guide="property-tabs" style={{ ...glassPanel, marginTop: "26px", padding: isMobile ? "9px" : "11px" }}>
+          <div className="milo-scrollbar" role="tablist" aria-label="Property Exchange sections" style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, minmax(150px, 1fr))" : "repeat(3, minmax(0, 1fr))", gap: "8px", overflowX: isMobile ? "auto" : "visible" }}>
+            {tabs.map((tab) => {
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className="property-tab-button"
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setTradeMessage("");
+                  }}
+                  style={{
+                    minWidth: isMobile ? "150px" : 0,
+                    minHeight: isMobile ? "62px" : "76px",
+                    borderRadius: "18px",
+                    border: active ? "1px solid rgba(132,218,255,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                    background: active ? "linear-gradient(135deg, rgba(83,215,255,0.16), rgba(255,209,138,0.08))" : "rgba(255,255,255,0.04)",
+                    color: "white",
+                    padding: isMobile ? "10px" : "13px 16px",
+                    display: "grid",
+                    gridTemplateColumns: isMobile ? "1fr" : "38px minmax(0,1fr)",
+                    gap: "10px",
+                    alignItems: "center",
+                    textAlign: isMobile ? "center" : "left",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    boxShadow: active ? "0 0 28px rgba(83,215,255,0.08)" : "none",
+                  }}
+                >
+                  {!isMobile && (
+                    <span style={{ width: "38px", height: "38px", borderRadius: "12px", display: "grid", placeItems: "center", background: active ? "rgba(142,232,255,0.16)" : "rgba(255,255,255,0.06)", color: active ? "#8ee8ff" : "rgba(255,255,255,0.62)", fontSize: "20px", fontWeight: 900 }}>
+                      {tab.icon}
+                    </span>
+                  )}
+                  <span>
+                    <strong style={{ display: "block", fontSize: isMobile ? "12px" : "15px" }}>{tab.label}</strong>
+                    {!isMobile && <small style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,0.43)", lineHeight: 1.3 }}>{tab.description}</small>}
+                  </span>
+                </button>
+              );
+            })}
           </div>
+        </section>
 
-          <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "minmax(0, 1.5fr) minmax(300px, 0.5fr)" : "1fr", gap: "18px", alignItems: "stretch" }}>
-            <WorldDistrictMap
-              selectedDistrict={selectedDistrict}
-              hoveredDistrict={hoveredDistrict}
-              onHover={setHoveredDistrict}
-              onSelect={chooseDistrict}
+        <div style={{ marginTop: "18px" }}>
+          {activeTab === "map" && (
+            <PropertyMapTab
+              {...tabStyles}
+              properties={properties}
+              holdings={holdings}
+              marketLoading={marketLoading}
               isMobile={isMobile}
+              isCompact={isCompact}
+              isDesktop={isDesktop}
+              onOpenProperty={openPreview}
             />
+          )}
 
-            <div style={{ display: "grid", gap: "12px" }}>
-              {DISTRICTS.map((district) => {
-                const isSelected = selectedDistrict === district.id;
-                const available = properties
-                  .filter((property) => property.district_slug === district.id)
-                  .reduce((total, property) => total + property.available_quantity, 0);
+          {activeTab === "properties" && (
+            <MyPropertiesTab
+              {...tabStyles}
+              dreamTokens={dreamTokens}
+              properties={properties}
+              holdings={holdings}
+              myListings={myListings}
+              propertyPortfolioValue={propertyPortfolioValue}
+              weeklyRentalIncome={weeklyRentalIncome}
+              totalOwnedUnits={totalOwnedUnits}
+              latestRentPayout={latestRentPayout}
+              actionLoading={actionLoading}
+              message={tradeMessage}
+              isMobile={isMobile}
+              isCompact={isCompact}
+              onOpenProperty={openPreview}
+              onCreateListing={createResaleListing}
+              onCancelListing={cancelResaleListing}
+            />
+          )}
 
-                return (
-                  <button
-                    key={district.id}
-                    type="button"
-                    onMouseEnter={() => setHoveredDistrict(district.id)}
-                    onMouseLeave={() => setHoveredDistrict(null)}
-                    onClick={() => chooseDistrict(district.id)}
-                    style={{
-                      flex: 1,
-                      minHeight: "170px",
-                      borderRadius: "22px",
-                      padding: "20px",
-                      textAlign: "left",
-                      color: "white",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      border: isSelected
-                        ? `1px solid ${district.accent}`
-                        : "1px solid rgba(255,255,255,0.12)",
-                      position: "relative",
-                      overflow: "hidden",
-                      backgroundImage: `linear-gradient(180deg, rgba(2,9,18,0.12) 15%, rgba(2,9,18,0.92) 88%), url(${getDistrictImage(district.id)})`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                      boxShadow: isSelected
-                        ? `0 0 30px ${district.accent}2e, inset 0 0 44px ${district.accent}1a`
-                        : "inset 0 0 24px rgba(0,0,0,0.22)",
-                    }}
-                  >
-                    <span style={{ color: district.accent, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 900, textShadow: "0 2px 10px rgba(0,0,0,0.9)" }}>
-                      Built District
-                    </span>
-                    <strong style={{ display: "block", marginTop: "10px", fontSize: "23px", textShadow: "0 3px 14px rgba(0,0,0,0.9)" }}>
-                      {district.name}
-                    </strong>
-                    <span style={{ display: "block", marginTop: "8px", color: "rgba(255,255,255,0.78)", fontSize: "13px", lineHeight: 1.5, textShadow: "0 2px 10px rgba(0,0,0,0.9)" }}>
-                      {district.subtitle}
-                    </span>
-                    <span style={{ display: "block", marginTop: "14px", color: district.accent, fontWeight: 900, fontSize: "13px" }}>
-                      {available} units currently available →
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {selectedDistrictDefinition && (
-          <section id="district-detail-section" style={{ ...glassPanel, marginTop: "18px", padding: isMobile ? "16px" : "24px", scrollMarginTop: "20px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "0.92fr 1.08fr" : "1fr", gap: "22px", alignItems: "start" }}>
-              <div>
-                <p style={{ margin: 0, color: selectedDistrictDefinition.accent, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.18em", fontWeight: 900 }}>
-                  District Detail
-                </p>
-                <h2 style={{ margin: "12px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "38px" : "50px", fontWeight: 500, lineHeight: 1 }}>
-                  {selectedDistrictDefinition.name}
-                </h2>
-                <p style={{ margin: "16px 0 0", color: "rgba(255,255,255,0.66)", lineHeight: 1.65 }}>
-                  {selectedDistrictDefinition.description}
-                </p>
-
-                <div style={{ marginTop: "20px", display: "flex", flexWrap: "wrap", gap: "9px" }}>
-                  <button
-                    type="button"
-                    onClick={() => setActiveType("all")}
-                    style={{
-                      minHeight: "40px",
-                      padding: "0 15px",
-                      borderRadius: "999px",
-                      border: activeType === "all" ? `1px solid ${selectedDistrictDefinition.accent}` : "1px solid rgba(255,255,255,0.14)",
-                      background: activeType === "all" ? `${selectedDistrictDefinition.fill}66` : "rgba(255,255,255,0.06)",
-                      color: "white",
-                      cursor: "pointer",
-                      fontWeight: 850,
-                    }}
-                  >
-                    All Units
-                  </button>
-
-                  {selectedDistrictDefinition.propertyTypes.map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setActiveType(type)}
-                      style={{
-                        minHeight: "40px",
-                        padding: "0 15px",
-                        borderRadius: "999px",
-                        border: activeType === type ? `1px solid ${selectedDistrictDefinition.accent}` : "1px solid rgba(255,255,255,0.14)",
-                        background: activeType === type ? `${selectedDistrictDefinition.fill}66` : "rgba(255,255,255,0.06)",
-                        color: "white",
-                        cursor: "pointer",
-                        fontWeight: 850,
-                      }}
-                    >
-                      {PROPERTY_TYPE_LABELS[type]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <DistrictDetailMap
-                districtId={selectedDistrictDefinition.id}
-                activeType={activeType}
-                onChooseType={setActiveType}
-                isMobile={isMobile}
-              />
-            </div>
-
-            <div style={{ marginTop: "26px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: "25px" }}>Available Units</h3>
-                <p style={{ margin: "6px 0 0", color: "rgba(255,255,255,0.48)", fontSize: "13px" }}>
-                  Inventory decreases immediately after a completed purchase.
-                </p>
-              </div>
-              {marketLoading && <span style={{ color: "#8ee8ff", fontWeight: 800 }}>Refreshing market...</span>}
-            </div>
-
-            {visibleProperties.length === 0 ? (
-              <div style={{ marginTop: "18px", minHeight: "150px", display: "grid", placeItems: "center", borderRadius: "20px", border: "1px dashed rgba(255,255,255,0.14)", color: "rgba(255,255,255,0.54)", textAlign: "center", padding: "22px" }}>
-                No active units are available in this category yet.
-              </div>
-            ) : (
-              <div style={{ marginTop: "18px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : isCompact ? "repeat(2, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))", gap: "14px" }}>
-                {visibleProperties.map((property) => {
-                  const ownQuantity = holdingsByProperty.get(property.id)?.quantity || 0;
-                  const availabilityPct = property.total_quantity > 0
-                    ? Math.max(0, Math.min(100, (property.available_quantity / property.total_quantity) * 100))
-                    : 0;
-
-                  return (
-                    <article key={property.id} style={{ borderRadius: "22px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.11)", background: "rgba(255,255,255,0.055)", display: "flex", flexDirection: "column" }}>
-                      <div style={{ aspectRatio: "2 / 1", overflow: "hidden" }}>
-                        <UnitPreviewIllustration property={property} />
-                      </div>
-
-                      <div style={{ padding: "18px", display: "flex", flexDirection: "column", flex: 1 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "flex-start" }}>
-                          <span style={{ color: selectedDistrictDefinition.accent, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 900 }}>
-                            {PROPERTY_TYPE_LABELS[property.property_type]}
-                          </span>
-                          {ownQuantity > 0 && (
-                            <span style={{ borderRadius: "999px", padding: "5px 9px", background: "rgba(121,242,206,0.12)", color: "#9affdf", fontSize: "10px", fontWeight: 900 }}>
-                              You own {ownQuantity}
-                            </span>
-                          )}
-                        </div>
-
-                        <h3 style={{ margin: "10px 0 0", fontSize: "20px", lineHeight: 1.18 }}>
-                          {property.name}
-                        </h3>
-                        <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,0.48)", fontSize: "12px" }}>
-                          {property.building_name} · {property.area_sqm} sqm
-                        </p>
-
-                        <div style={{ marginTop: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                          <div style={{ borderRadius: "14px", background: "rgba(255,255,255,0.055)", padding: "11px" }}>
-                            <span style={{ display: "block", color: "rgba(255,255,255,0.42)", fontSize: "10px", textTransform: "uppercase", fontWeight: 850 }}>Price</span>
-                            <strong style={{ display: "block", marginTop: "5px", color: "#ffd18a" }}>{formatNumber(property.listing_price)} DT</strong>
-                          </div>
-                          <div style={{ borderRadius: "14px", background: "rgba(255,255,255,0.055)", padding: "11px" }}>
-                            <span style={{ display: "block", color: "rgba(255,255,255,0.42)", fontSize: "10px", textTransform: "uppercase", fontWeight: 850 }}>Weekly Rent</span>
-                            <strong style={{ display: "block", marginTop: "5px", color: "#8ee8ff" }}>{formatNumber(property.weekly_rent)} DT</strong>
-                          </div>
-                        </div>
-
-                        <div style={{ marginTop: "14px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", color: "rgba(255,255,255,0.54)", fontSize: "12px" }}>
-                            <span>Available inventory</span>
-                            <strong style={{ color: property.available_quantity > 0 ? "white" : "#ffb0b0" }}>
-                              {property.available_quantity} / {property.total_quantity}
-                            </strong>
-                          </div>
-                          <div style={{ height: "6px", marginTop: "8px", borderRadius: "999px", background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                            <div style={{ width: `${availabilityPct}%`, height: "100%", borderRadius: "999px", background: selectedDistrictDefinition.accent, transition: "width 260ms ease" }} />
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => openPreview(property)}
-                          style={{ ...primaryButton, width: "100%", marginTop: "18px" }}
-                        >
-                          View Property
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        )}
-
-        <div data-milo-guide="property-resale-market">
-        <PropertyResaleMarket
-          properties={properties}
-          holdings={holdings}
-          resaleListings={resaleListings}
-          myListings={myListings}
-          recentSales={recentSales}
-          dreamTokens={dreamTokens}
-          actionLoading={actionLoading}
-          marketLoading={marketLoading}
-          message={tradeMessage}
-          isMobile={isMobile}
-          isCompact={isCompact}
-          glassPanel={glassPanel}
-          primaryButton={primaryButton}
-          secondaryButton={secondaryButton}
-          onRefresh={() => {
-            void refreshMarket();
-          }}
-          onBuy={buyResaleProperty}
-          onCreateListing={createResaleListing}
-          onCancelListing={cancelResaleListing}
-          onOpenProperty={(propertyId) => {
-            const property = properties.find((item) => item.id === propertyId);
-            if (property) openPreview(property);
-          }}
-        />
+          {activeTab === "resale" && (
+            <PropertyResaleTab
+              {...tabStyles}
+              properties={properties}
+              resaleListings={resaleListings}
+              recentSales={recentSales}
+              dreamTokens={dreamTokens}
+              actionLoading={actionLoading}
+              marketLoading={marketLoading}
+              message={tradeMessage}
+              isMobile={isMobile}
+              isCompact={isCompact}
+              onRefresh={() => void refreshMarket()}
+              onBuy={buyResaleProperty}
+              onOpenProperty={openPreview}
+            />
+          )}
         </div>
-
-        <section data-milo-guide="property-virtual-notice" style={{ ...glassPanel, marginTop: "18px", padding: isMobile ? "18px" : "24px" }}>
-          <h2 style={{ margin: 0, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "30px" : "38px", fontWeight: 500 }}>
-            Virtual Property Notice
-          </h2>
-          <p style={{ margin: "12px 0 0", color: "rgba(255,255,255,0.62)", lineHeight: 1.65 }}>
-            Property units in this Exchange exist only inside Dreamscape. They do
-            not represent real-world land, securities, legal title or financial
-            investment. Dreamscape Tokens have no cash value and cannot be cashed out.
-          </p>
-        </section>
       </div>
 
-      <MiloExchangeGuide page="property" isMobile={isMobile} />
+      <MiloExchangeGuide
+        page="property"
+        isMobile={isMobile}
+        onStepChange={(step) => {
+          if (step.propertyTab) setActiveTab(step.propertyTab);
+        }}
+      />
     </main>
   );
 }

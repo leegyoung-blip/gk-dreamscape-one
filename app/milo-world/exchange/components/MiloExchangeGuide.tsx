@@ -12,6 +12,7 @@ export type MiloExchangeGuideStep = {
   tip?: string;
   target?: string;
   section?: "portfolio" | "market" | "trade";
+  propertyTab?: "map" | "properties" | "resale";
 };
 
 type Props = {
@@ -20,7 +21,11 @@ type Props = {
   onStepChange?: (step: MiloExchangeGuideStep, index: number) => void;
 };
 
-const GUIDE_VERSION = "v1";
+const GUIDE_VERSIONS: Record<MiloExchangeGuidePage, string> = {
+  home: "v1",
+  stocks: "v1",
+  property: "v2",
+};
 
 const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
   home: [
@@ -134,37 +139,68 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       eyebrow: "Milo Guide",
       title: "Welcome to the Property Exchange",
       description:
-        "Here you can explore Dreamscape districts, purchase primary-market units, earn the displayed virtual rental rate, and trade owned units through the resale market.",
+        "The Property Exchange now has three clear areas: the Property Map, My Properties, and the Resale Market. I’ll show you what each tab is for.",
+      target: "property-tabs",
+      propertyTab: "map",
+      tip: "You can switch between the three tabs anytime without leaving the Property Exchange.",
     },
     {
-      eyebrow: "Step 1 · Portfolio",
-      title: "Read your property position first",
+      eyebrow: "Step 1 · Property Map",
+      title: "Explore Dreamscape’s built districts",
       description:
-        "These cards show available cash, current property value, the displayed weekly rental amount and how many units you own.",
-      target: "property-summary",
-    },
-    {
-      eyebrow: "Step 2 · Primary Market",
-      title: "Choose a built district",
-      description:
-        "Start on the world map. Residential Hub contains apartments and landed homes; Commercial Hub contains office and retail units.",
+        "Use the Property Map to enter Residential Hub or Commercial Hub. Each district contains different property types and available primary-market units.",
       target: "property-world-map",
-      tip: "After choosing a district, you can filter its available unit types and open individual property previews.",
+      propertyTab: "map",
     },
     {
-      eyebrow: "Step 3 · Resale Market",
-      title: "Trade units between owners",
+      eyebrow: "Step 2 · Buy Properties",
+      title: "Compare before you purchase",
       description:
-        "The secondary market lets owners list one unit for resale and lets other users buy active listings. Resales transfer existing units instead of reducing primary inventory.",
-      target: "property-resale-market",
-      tip: "Resale asking prices are currently constrained around the reference value.",
+        "After choosing a district, compare unit price, weekly rent and remaining supply. Open a property to review its details and choose how many units to purchase.",
+      target: "property-primary-market",
+      propertyTab: "map",
+      tip: "Primary-market purchases reduce the available Dreamscape inventory immediately.",
     },
     {
-      eyebrow: "Step 4 · Virtual Market",
+      eyebrow: "Step 3 · My Properties",
+      title: "Track what you own",
+      description:
+        "My Properties brings your holdings together with current property value, weekly rental rate, units owned and your latest rental payout.",
+      target: "property-my-summary",
+      propertyTab: "properties",
+    },
+    {
+      eyebrow: "Step 4 · My Listings",
+      title: "Manage units you want to sell",
+      description:
+        "From My Properties you can list an owned unit for resale, review active and previous listings, or cancel an active listing.",
+      target: "property-my-listings",
+      propertyTab: "properties",
+      tip: "Resale asking prices are currently limited to 85–115% of the reference value.",
+    },
+    {
+      eyebrow: "Step 5 · Resale Market",
+      title: "Buy from other owners",
+      description:
+        "The Resale Market shows active listings created by other Dreamscape owners. Buying here transfers an existing unit instead of reducing primary inventory.",
+      target: "property-resale-market",
+      propertyTab: "resale",
+    },
+    {
+      eyebrow: "Step 6 · Market Activity",
+      title: "Use recent sales as context",
+      description:
+        "Recent Property Sales shows completed Dreamscape property transactions so you can compare asking prices with actual market activity.",
+      target: "property-recent-sales",
+      propertyTab: "resale",
+    },
+    {
+      eyebrow: "Step 7 · Virtual Market",
       title: "Keep the market in context",
       description:
-        "All properties, prices, rent and ownership here exist only inside Dreamscape. They are not real land, securities or cash investments.",
+        "All properties, prices, rent and ownership here exist only inside Dreamscape. They are learning tools, not real land, securities or cash investments.",
       target: "property-virtual-notice",
+      propertyTab: "map",
     },
   ],
 };
@@ -181,7 +217,7 @@ export default function MiloExchangeGuide({
   onStepChange,
 }: Props) {
   const steps = useMemo(() => GUIDE_STEPS[page], [page]);
-  const storageKey = `dreamscape:milo-exchange-guide:${page}:${GUIDE_VERSION}`;
+  const storageKey = `dreamscape:milo-exchange-guide:${page}:${GUIDE_VERSIONS[page]}`;
   const [open, setOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [placement, setPlacement] = useState<"top" | "bottom">("bottom");
