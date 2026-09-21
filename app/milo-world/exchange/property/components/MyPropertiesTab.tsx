@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import PropertyManagementModal from "./PropertyManagementModal";
+import ResidentLifePanel from "./ResidentLifePanel";
 import {
   formatDateTime,
   formatNumber,
@@ -20,6 +21,9 @@ import {
   type PropertyMaintenanceAction,
   type PropertyMaintenanceStats,
   type PropertyLandlordReputation,
+  type PropertyResidentLifeProfile,
+  type PropertyResidentLifeEvent,
+  type PropertyResidentLifeStats,
 } from "./propertyExchangeShared";
 
 type Props = PropertyTabStyles & {
@@ -39,6 +43,9 @@ type Props = PropertyTabStyles & {
   maintenanceActions: PropertyMaintenanceAction[];
   maintenanceStats: PropertyMaintenanceStats;
   landlordReputation: PropertyLandlordReputation;
+  residentLifeProfiles: PropertyResidentLifeProfile[];
+  residentLifeEvents: PropertyResidentLifeEvent[];
+  residentLifeStats: PropertyResidentLifeStats;
   unreadMessages: number;
   actionLoading: boolean;
   message: string;
@@ -53,6 +60,7 @@ type Props = PropertyTabStyles & {
   onCancelRentalListing: (listingId: string) => Promise<void>;
   onTogglePurchaseOffers: (unitId: string, enabled: boolean) => Promise<void>;
   onRefreshResidentMarket: () => Promise<void>;
+  onRefreshResidentLife: () => Promise<void>;
   onRespondMaintenanceIssue: (issueId: string, action: "full_repair" | "quick_fix" | "ignore") => Promise<void>;
   onPreventiveService: (unitId: string) => Promise<void>;
   onOpenMessages: () => void;
@@ -77,6 +85,9 @@ export default function MyPropertiesTab({
   maintenanceActions,
   maintenanceStats,
   landlordReputation,
+  residentLifeProfiles,
+  residentLifeEvents,
+  residentLifeStats,
   unreadMessages,
   actionLoading,
   message,
@@ -90,6 +101,7 @@ export default function MyPropertiesTab({
   onCancelRentalListing,
   onTogglePurchaseOffers,
   onRefreshResidentMarket,
+  onRefreshResidentLife,
   onRespondMaintenanceIssue,
   onPreventiveService,
   onOpenMessages,
@@ -424,6 +436,19 @@ export default function MyPropertiesTab({
             ))}
           </div>
         </section>
+
+        <ResidentLifePanel
+          residents={residentLifeProfiles}
+          events={residentLifeEvents}
+          stats={residentLifeStats}
+          isMobile={isMobile}
+          isCompact={isCompact}
+          actionLoading={actionLoading}
+          glassPanel={glassPanel}
+          secondaryButton={secondaryButton}
+          onRefresh={() => void onRefreshResidentLife()}
+          onOpenMessages={onOpenMessages}
+        />
 
         <section data-milo-guide="property-maintenance-overview" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px", border: "1px solid rgba(121,242,206,0.15)", background: "linear-gradient(145deg, rgba(121,242,206,0.05), rgba(5,13,28,0.74))" }}>
           <div>

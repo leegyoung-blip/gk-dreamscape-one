@@ -10,6 +10,8 @@ import {
   type PropertyPurchaseOffer,
   type PropertyRentalApplication,
   type PropertyRenewalNegotiation,
+  type PropertyResidentLifeProfile,
+  type PropertyResidentLifeEvent,
 } from "./propertyExchangeShared";
 
 type Props = {
@@ -19,6 +21,8 @@ type Props = {
   rentalApplications: PropertyRentalApplication[];
   purchaseOffers: PropertyPurchaseOffer[];
   reputation: PropertyLandlordReputation;
+  residentLifeProfiles: PropertyResidentLifeProfile[];
+  residentLifeEvents: PropertyResidentLifeEvent[];
   unreadCount: number;
   actionLoading: boolean;
   isMobile: boolean;
@@ -51,6 +55,8 @@ export default function PropertyPhone({
   rentalApplications,
   purchaseOffers,
   reputation,
+  residentLifeProfiles,
+  residentLifeEvents,
   unreadCount,
   actionLoading,
   isMobile,
@@ -64,6 +70,7 @@ export default function PropertyPhone({
   const [countering, setCountering] = useState(false);
   const [counterRent, setCounterRent] = useState(0);
   const [counterWeeks, setCounterWeeks] = useState(12);
+  const [showResidentProfile, setShowResidentProfile] = useState(false);
 
   const selectedConversation = useMemo(
     () => conversations.find((item) => item.conversation_id === selectedConversationId) || null,
@@ -74,6 +81,24 @@ export default function PropertyPhone({
     () =>
       messages.filter((item) => item.conversation_id === selectedConversationId),
     [messages, selectedConversationId]
+  );
+
+  const selectedResidentProfile = useMemo(
+    () =>
+      selectedConversation
+        ? residentLifeProfiles.find((item) => item.resident_id === selectedConversation.resident_id) || null
+        : null,
+    [residentLifeProfiles, selectedConversation]
+  );
+
+  const selectedResidentEvents = useMemo(
+    () =>
+      selectedConversation
+        ? residentLifeEvents
+            .filter((item) => item.resident_id === selectedConversation.resident_id)
+            .slice(0, 3)
+        : [],
+    [residentLifeEvents, selectedConversation]
   );
 
   const latestMessageByConversation = useMemo(() => {
@@ -147,6 +172,7 @@ export default function PropertyPhone({
   function openConversation(conversationId: string) {
     setSelectedConversationId(conversationId);
     setCountering(false);
+    setShowResidentProfile(false);
     void onMarkRead(conversationId);
   }
 
@@ -318,6 +344,78 @@ export default function PropertyPhone({
                 </button>
               </div>
             </header>
+
+            {selectedConversation && selectedResidentProfile && (
+              <div
+                style={{
+                  flexShrink: 0,
+                  borderBottom: "1px solid rgba(15,23,42,0.08)",
+                  background: "rgba(255,255,255,0.78)",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowResidentProfile((value) => !value)}
+                  style={{
+                    width: "100%",
+                    border: "none",
+                    background: "transparent",
+                    padding: "8px 12px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "8px",
+                    color: "#0f172a",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <span style={{ minWidth: 0 }}>
+                    <strong style={{ display: "block", fontSize: "9px" }}>Resident profile</strong>
+                    <small style={{ display: "block", marginTop: "2px", color: "#64748b", fontSize: "8px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {String(selectedResidentProfile.life_stage || "Resident").replaceAll("_", " ")} · {selectedResidentProfile.household_size} in household/team
+                      {selectedResidentProfile.move_intent ? " · considering a move" : ""}
+                    </small>
+                  </span>
+                  <span style={{ color: "#64748b", fontSize: "11px" }}>{showResidentProfile ? "⌃" : "⌄"}</span>
+                </button>
+
+                {showResidentProfile && (
+                  <div style={{ padding: "0 12px 10px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                      {[
+                        ["Income", `${formatNumber(selectedResidentProfile.monthly_income)} DT/mo`],
+                        ["Savings", `${formatNumber(selectedResidentProfile.savings)} DT`],
+                        ["Rent budget", `${formatNumber(selectedResidentProfile.max_weekly_rent)} DT/wk`],
+                        ["Pressure", `${selectedResidentProfile.financial_pressure}/100`],
+                      ].map(([label, value]) => (
+                        <div key={String(label)} style={{ borderRadius: "9px", background: "rgba(15,23,42,0.045)", padding: "6px 7px" }}>
+                          <small style={{ display: "block", color: "#94a3b8", fontSize: "7px" }}>{label}</small>
+                          <strong style={{ display: "block", marginTop: "2px", color: "#334155", fontSize: "8px" }}>{value}</strong>
+                        </div>
+                      ))}
+                    </div>
+
+                    {selectedResidentProfile.move_intent && (
+                      <div style={{ marginTop: "6px", borderRadius: "9px", background: "rgba(245,158,11,0.09)", color: "#92400e", padding: "6px 7px", fontSize: "8px", lineHeight: 1.35 }}>
+                        Moving plan: {String(selectedResidentProfile.move_reason || "life plans changed").replaceAll("_", " ")}
+                      </div>
+                    )}
+
+                    {selectedResidentEvents.length > 0 && (
+                      <div style={{ marginTop: "7px", display: "grid", gap: "5px" }}>
+                        {selectedResidentEvents.map((event) => (
+                          <div key={event.event_id} style={{ borderLeft: "2px solid #79f2ce", paddingLeft: "6px" }}>
+                            <strong style={{ display: "block", color: "#334155", fontSize: "8px" }}>{event.title}</strong>
+                            <small style={{ display: "block", marginTop: "1px", color: "#64748b", fontSize: "7px", lineHeight: 1.3 }}>{event.description}</small>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {!selectedConversation ? (
               <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px 14px" }}>

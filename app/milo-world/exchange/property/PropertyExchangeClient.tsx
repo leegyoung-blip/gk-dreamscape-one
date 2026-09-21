@@ -35,6 +35,10 @@ import {
   type PropertyRenewalNegotiation,
   type PropertyLandlordReputation,
   type PropertyCommunicationsDashboard,
+  type PropertyResidentLifeProfile,
+  type PropertyResidentLifeEvent,
+  type PropertyResidentLifeStats,
+  type PropertyResidentLifeDashboard,
 } from "./components/propertyExchangeShared";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -253,6 +257,15 @@ export default function PropertyExchangeClient() {
     updated_at: null,
   });
   const [propertyUnreadCount, setPropertyUnreadCount] = useState(0);
+  const [residentLifeProfiles, setResidentLifeProfiles] = useState<PropertyResidentLifeProfile[]>([]);
+  const [residentLifeEvents, setResidentLifeEvents] = useState<PropertyResidentLifeEvent[]>([]);
+  const [residentLifeStats, setResidentLifeStats] = useState<PropertyResidentLifeStats>({
+    connected_residents: 0,
+    active_tenants: 0,
+    considering_move: 0,
+    financial_pressure: 0,
+    recent_life_events: 0,
+  });
   const [phoneOpenRequest, setPhoneOpenRequest] = useState(0);
 
   const [previewProperty, setPreviewProperty] = useState<PropertyOffering | null>(null);
@@ -395,6 +408,7 @@ export default function PropertyExchangeClient() {
     setUserId(user.id);
     await Promise.all([loadDreamTokens(), loadPropertyMarket(user.id)]);
     await refreshMaintenanceSimulation(false);
+    await refreshResidentLife(false);
     await refreshResidentSimulation(false);
     await refreshLeaseLifecycle(false);
     await Promise.all([
@@ -403,6 +417,7 @@ export default function PropertyExchangeClient() {
       loadResidentDashboard(),
       loadMaintenanceDashboard(),
       loadPropertyCommunications(),
+      loadResidentLifeDashboard(),
     ]);
     setLoading(false);
   }
@@ -460,6 +475,86 @@ export default function PropertyExchangeClient() {
       value_at_offer: Number(item.value_at_offer || 0),
     })));
     setMarketSettings(dashboard.market_settings || []);
+  }
+
+  async function loadResidentLifeDashboard() {
+    const { data, error } = await supabase.rpc("get_my_milo_property_resident_life");
+
+    if (error) {
+      console.warn("Could not load resident life dashboard:", error.message);
+      setResidentLifeProfiles([]);
+      setResidentLifeEvents([]);
+      setResidentLifeStats({
+        connected_residents: 0,
+        active_tenants: 0,
+        considering_move: 0,
+        financial_pressure: 0,
+        recent_life_events: 0,
+      });
+      return;
+    }
+
+    const dashboard = (data || {}) as Partial<PropertyResidentLifeDashboard>;
+    setResidentLifeProfiles((dashboard.residents || []).map((item) => ({
+      ...item,
+      household_size: Number(item.household_size || 0),
+      monthly_income: Number(item.monthly_income || 0),
+      max_weekly_rent: Number(item.max_weekly_rent || 0),
+      purchase_budget: Number(item.purchase_budget || 0),
+      reliability: Number(item.reliability || 0),
+      career_level: Number(item.career_level || 1),
+      savings: Number(item.savings || 0),
+      financial_pressure: Number(item.financial_pressure || 0),
+      mobility_score: Number(item.mobility_score || 0),
+      life_event_count: Number(item.life_event_count || 0),
+      unit_number: item.unit_number == null ? null : Number(item.unit_number),
+      current_weekly_rent: item.current_weekly_rent == null ? null : Number(item.current_weekly_rent),
+      satisfaction: item.satisfaction == null ? null : Number(item.satisfaction),
+      move_intent: Boolean(item.move_intent),
+    })));
+    setResidentLifeEvents((dashboard.events || []).map((item) => ({
+      ...item,
+      income_before: Number(item.income_before || 0),
+      income_after: Number(item.income_after || 0),
+      household_before: Number(item.household_before || 0),
+      household_after: Number(item.household_after || 0),
+      savings_before: Number(item.savings_before || 0),
+      savings_after: Number(item.savings_after || 0),
+      financial_pressure_before: Number(item.financial_pressure_before || 0),
+      financial_pressure_after: Number(item.financial_pressure_after || 0),
+      move_intent_after: Boolean(item.move_intent_after),
+      metadata: (item.metadata || {}) as Record<string, unknown>,
+    })));
+    const stats = dashboard.stats || ({} as PropertyResidentLifeStats);
+    setResidentLifeStats({
+      connected_residents: Number(stats.connected_residents || 0),
+      active_tenants: Number(stats.active_tenants || 0),
+      considering_move: Number(stats.considering_move || 0),
+      financial_pressure: Number(stats.financial_pressure || 0),
+      recent_life_events: Number(stats.recent_life_events || 0),
+    });
+  }
+
+  async function refreshResidentLife(showMessage = false) {
+    const { data, error } = await supabase.rpc("refresh_my_milo_property_resident_life");
+
+    if (error) {
+      console.warn("Could not refresh resident life:", error.message);
+      return;
+    }
+
+    if (showMessage) {
+      const result = (data || {}) as Record<string, unknown>;
+      const world = (result.world || {}) as Record<string, unknown>;
+      const events = Number(world.life_events_created || 0);
+      const messages = Number(result.messages_created || 0);
+      const moves = Number(world.move_intent_changes || 0);
+      if (events || messages || moves) {
+        setTradeMessage(`Resident life updated · ${events} life event${events === 1 ? "" : "s"} · ${messages} new message${messages === 1 ? "" : "s"} · ${moves} moving-plan change${moves === 1 ? "" : "s"}.`);
+      } else {
+        setTradeMessage("Resident life is up to date.");
+      }
+    }
   }
 
   async function loadPropertyCommunications() {
@@ -896,6 +991,7 @@ export default function PropertyExchangeClient() {
   async function refreshMarket(showResidentMessage = false) {
     if (!userId) return;
     await refreshMaintenanceSimulation(false);
+    await refreshResidentLife(false);
     await refreshResidentSimulation(showResidentMessage);
     await refreshLeaseLifecycle(false);
     await Promise.all([
@@ -904,6 +1000,7 @@ export default function PropertyExchangeClient() {
       loadResidentDashboard(),
       loadMaintenanceDashboard(),
       loadPropertyCommunications(),
+      loadResidentLifeDashboard(),
     ]);
   }
 
@@ -1526,6 +1623,9 @@ export default function PropertyExchangeClient() {
               maintenanceActions={maintenanceActions}
               maintenanceStats={maintenanceStats}
               landlordReputation={landlordReputation}
+              residentLifeProfiles={residentLifeProfiles}
+              residentLifeEvents={residentLifeEvents}
+              residentLifeStats={residentLifeStats}
               unreadMessages={propertyUnreadCount}
               actionLoading={actionLoading}
               message={tradeMessage}
@@ -1536,6 +1636,16 @@ export default function PropertyExchangeClient() {
               onCancelRentalListing={cancelRentalListing}
               onTogglePurchaseOffers={togglePurchaseOffers}
               onRefreshResidentMarket={() => refreshMarket(true)}
+              onRefreshResidentLife={async () => {
+                await refreshResidentLife(true);
+                await refreshResidentSimulation(false);
+                await refreshLeaseLifecycle(false);
+                await Promise.all([
+                  loadResidentLifeDashboard(),
+                  loadResidentDashboard(),
+                  loadPropertyCommunications(),
+                ]);
+              }}
               onRespondMaintenanceIssue={respondMaintenanceIssue}
               onPreventiveService={preventiveService}
               onOpenMessages={() => setPhoneOpenRequest((value) => value + 1)}
@@ -1571,6 +1681,8 @@ export default function PropertyExchangeClient() {
         rentalApplications={rentalApplications}
         purchaseOffers={purchaseOffers}
         reputation={landlordReputation}
+        residentLifeProfiles={residentLifeProfiles}
+        residentLifeEvents={residentLifeEvents}
         unreadCount={propertyUnreadCount}
         actionLoading={actionLoading}
         isMobile={isMobile}

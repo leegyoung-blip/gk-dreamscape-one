@@ -295,6 +295,78 @@ export type PropertyCommunicationsDashboard = {
   unread_count: number;
 };
 
+export type PropertyResidentLifeProfile = {
+  resident_id: string;
+  display_name: string;
+  resident_kind: string;
+  occupation: string;
+  household_size: number;
+  monthly_income: number;
+  max_weekly_rent: number;
+  purchase_budget: number;
+  preferred_district: string | null;
+  preferred_property_type: string | null;
+  reliability: number;
+  priority_one: string | null;
+  priority_two: string | null;
+  bio: string;
+  avatar_key: string | null;
+  employment_status: string | null;
+  employer_name: string | null;
+  career_level: number;
+  life_stage: string | null;
+  savings: number;
+  financial_pressure: number;
+  mobility_score: number;
+  move_intent: boolean;
+  move_reason: string | null;
+  move_intent_since: string | null;
+  last_life_event_type: string | null;
+  last_life_event_at: string | null;
+  life_event_count: number;
+  relationship_to_user: string;
+  unit_id: string | null;
+  lease_id: string | null;
+  property_name: string | null;
+  unit_number: number | null;
+  current_weekly_rent: number | null;
+  lease_end_date: string | null;
+  satisfaction: number | null;
+};
+
+export type PropertyResidentLifeEvent = {
+  event_id: string;
+  resident_id: string;
+  event_type: string;
+  title: string;
+  description: string;
+  income_before: number;
+  income_after: number;
+  household_before: number;
+  household_after: number;
+  savings_before: number;
+  savings_after: number;
+  financial_pressure_before: number;
+  financial_pressure_after: number;
+  move_intent_after: boolean;
+  metadata: Record<string, unknown>;
+  occurred_at: string;
+};
+
+export type PropertyResidentLifeStats = {
+  connected_residents: number;
+  active_tenants: number;
+  considering_move: number;
+  financial_pressure: number;
+  recent_life_events: number;
+};
+
+export type PropertyResidentLifeDashboard = {
+  residents: PropertyResidentLifeProfile[];
+  events: PropertyResidentLifeEvent[];
+  stats: PropertyResidentLifeStats;
+};
+
 export type RecentPropertySale = {
   sale_id: string;
   unit_id: string | null;

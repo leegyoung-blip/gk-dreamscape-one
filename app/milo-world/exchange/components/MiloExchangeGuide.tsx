@@ -24,7 +24,7 @@ type Props = {
 const GUIDE_VERSIONS: Record<MiloExchangeGuidePage, string> = {
   home: "v1",
   stocks: "v1",
-  property: "v7",
+  property: "v8",
 };
 
 const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
@@ -196,16 +196,25 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 7 · Lease Lifecycle",
+      eyebrow: "Step 7 · Resident Life",
+      title: "Residents keep living after they move in",
+      description:
+        "Careers, household or team size, savings and financial pressure now change over time. A promotion can increase a tenant’s budget, while a job change, business expansion or growing household can make them consider moving.",
+      target: "property-resident-life",
+      propertyTab: "properties",
+      tip: "The same resident can return later with a different income, budget and housing need.",
+    },
+    {
+      eyebrow: "Step 8 · Lease Lifecycle",
       title: "A lease is a relationship, not a timer",
       description:
-        "Before a lease ends, the tenant may text you with renewal terms. You can accept, decline or counter the weekly rent and lease length. Agreed terms begin only after the current lease ends.",
+        "Before a lease ends, the tenant may text you with renewal terms. You can accept, decline or counter the weekly rent and lease length. Resident life changes can also make them decide not to renew.",
       target: "property-managed-units",
       propertyTab: "properties",
       tip: "If no renewal is agreed, the tenant moves out and the property becomes vacant again.",
     },
     {
-      eyebrow: "Step 8 · Property Health",
+      eyebrow: "Step 9 · Property Health",
       title: "Condition changes the economics",
       description:
         "Normal wear and maintenance problems affect property value, rent potential and tenant satisfaction. Preventive service reduces breakdown risk.",
@@ -213,7 +222,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 9 · Improve the Asset",
+      eyebrow: "Step 10 · Improve the Asset",
       title: "Upgrades and maintenance do different jobs",
       description:
         "Upgrades improve appeal, quality, efficiency, value and rent potential. Maintenance protects the condition of the asset you already built.",
@@ -222,7 +231,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "A premium property can still lose tenants if it is poorly managed.",
     },
     {
-      eyebrow: "Step 10 · Exact-Unit Resale",
+      eyebrow: "Step 11 · Exact-Unit Resale",
       title: "Sell the property you actually managed",
       description:
         "Player resale transfers the exact unit with its upgrades and condition history. Its managed value becomes the reference for the asking-price range.",
@@ -230,7 +239,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 11 · Resale Market",
+      eyebrow: "Step 12 · Resale Market",
       title: "Compare existing assets, not generic copies",
       description:
         "The Resale Market exposes each unit’s managed value, upgrades, condition and rent potential so players can compare genuinely different assets.",
@@ -238,7 +247,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "resale",
     },
     {
-      eyebrow: "Step 12 · The Full Loop",
+      eyebrow: "Step 13 · The Full Loop",
       title: "Buy, improve, negotiate, manage and decide when to sell",
       description:
         "Property is now a long-term management game. Your pricing, communication, tenant, upgrade and maintenance decisions determine how each asset performs.",

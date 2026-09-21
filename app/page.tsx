@@ -1092,7 +1092,7 @@ export default function Home() {
                   borderTop: isMobile ? "1px solid rgba(142,232,255,0.12)" : "none",
                 }}
               >
-                <NovaPlusScreenshotPlaceholder
+                <NovaPlusScreenshot
                   label="MY LEARNING"
                   filename="/home/nova-plus-my-learning.png"
                   accent="#8ee8ff"
@@ -1198,7 +1198,7 @@ export default function Home() {
                   borderTop: isMobile ? "1px solid rgba(255,174,92,0.12)" : "none",
                 }}
               >
-                <NovaPlusScreenshotPlaceholder
+                <NovaPlusScreenshot
                   label="REPORT DOWNLOAD"
                   filename="/home/nova-plus-report.png"
                   accent="#ffbd73"
@@ -2018,7 +2018,7 @@ function TrustCard({
   );
 }
 
-function NovaPlusScreenshotPlaceholder({
+function NovaPlusScreenshot({
   label,
   filename,
   accent,
@@ -2028,107 +2028,36 @@ function NovaPlusScreenshotPlaceholder({
   accent: string;
 }) {
   return (
-    <div
+    <figure
       style={{
         position: "relative",
         width: "100%",
         minHeight: "100%",
+        margin: 0,
         borderRadius: "22px",
-        border: `1px dashed ${accent}66`,
+        border: `1px solid ${accent}44`,
         background:
-          "linear-gradient(145deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018)), repeating-linear-gradient(135deg, rgba(255,255,255,0.018) 0 12px, rgba(255,255,255,0.006) 12px 24px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+          "linear-gradient(145deg, rgba(255,255,255,0.045), rgba(255,255,255,0.014))",
         overflow: "hidden",
+        boxShadow:
+          "0 22px 54px rgba(0,0,0,0.24), inset 0 0 20px rgba(255,255,255,0.02)",
       }}
     >
-      <div
-        aria-hidden="true"
+      <img
+        src={filename}
+        alt={`NOVA+ ${label} screenshot`}
+        loading="lazy"
         style={{
-          position: "absolute",
-          top: "18px",
-          left: "18px",
-          right: "18px",
-          height: "34px",
-          borderRadius: "12px",
-          border: "1px solid rgba(255,255,255,0.08)",
-          background: "rgba(1,6,15,0.46)",
-          display: "flex",
-          alignItems: "center",
-          gap: "7px",
-          padding: "0 12px",
+          width: "100%",
+          height: "100%",
+          minHeight: "100%",
+          objectFit: "contain",
+          objectPosition: "center",
+          display: "block",
+          background: "#050b16",
         }}
-      >
-        {[0, 1, 2].map((dot) => (
-          <span
-            key={dot}
-            style={{
-              width: "7px",
-              height: "7px",
-              borderRadius: "999px",
-              background: dot === 0 ? accent : "rgba(255,255,255,0.2)",
-            }}
-          />
-        ))}
-      </div>
-
-      <div style={{ position: "relative", zIndex: 2, padding: "74px 26px 30px", textAlign: "center" }}>
-        <div
-          style={{
-            width: "58px",
-            height: "58px",
-            margin: "0 auto",
-            borderRadius: "18px",
-            border: `1px solid ${accent}55`,
-            background: `${accent}12`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: accent,
-            fontSize: "24px",
-            fontWeight: 900,
-          }}
-        >
-          +
-        </div>
-        <p
-          style={{
-            margin: "18px 0 0",
-            color: accent,
-            fontSize: "11px",
-            fontWeight: 900,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-          }}
-        >
-          NOVA+ Screenshot
-        </p>
-        <p
-          style={{
-            margin: "9px 0 0",
-            color: "white",
-            fontSize: "20px",
-            fontWeight: 800,
-            lineHeight: 1.25,
-          }}
-        >
-          {label}
-        </p>
-        <p
-          style={{
-            margin: "10px 0 0",
-            color: "rgba(255,255,255,0.45)",
-            fontSize: "12px",
-            lineHeight: 1.55,
-          }}
-        >
-          Replace this placeholder with
-          <br />
-          <strong style={{ color: "rgba(255,255,255,0.68)" }}>{filename}</strong>
-        </p>
-      </div>
-    </div>
+      />
+    </figure>
   );
 }
 
@@ -2198,7 +2127,7 @@ function NovaPlusFeatureCard({
       </div>
 
       <div style={{ flex: 1, minHeight: "330px", padding: "0 14px 14px" }}>
-        <NovaPlusScreenshotPlaceholder label={eyebrow.toUpperCase()} filename={filename} accent={accent} />
+        <NovaPlusScreenshot label={eyebrow.toUpperCase()} filename={filename} accent={accent} />
       </div>
     </article>
   );

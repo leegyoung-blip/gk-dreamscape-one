@@ -83,10 +83,26 @@ export default function NovaPlusDashboard() {
   }
 
   return (
-    <main className={styles.page}>
+    <main
+      className={styles.page}
+      style={{
+        width: "100%",
+        maxWidth: "none",
+        marginLeft: 0,
+        marginRight: 0,
+      }}
+    >
       <div className={styles.grid} aria-hidden="true" />
 
-      <section className={styles.hero}>
+      <section
+        className={styles.hero}
+        style={{
+          width: "100%",
+          maxWidth: "none",
+          marginLeft: 0,
+          marginRight: 0,
+        }}
+      >
         <div className={styles.heroCopy}>
           <div className={styles.brandLine}>
             <span className={styles.kicker}>NOVA+</span>
@@ -168,7 +184,16 @@ export default function NovaPlusDashboard() {
         </div>
       </section>
 
-      <nav className={styles.tabs} aria-label="NOVA+ sections">
+      <nav
+        className={styles.tabs}
+        aria-label="NOVA+ sections"
+        style={{
+          width: "100%",
+          maxWidth: "none",
+          marginLeft: 0,
+          marginRight: 0,
+        }}
+      >
         {TABS.map((item) => (
           <button
             key={item.key}
@@ -182,7 +207,15 @@ export default function NovaPlusDashboard() {
         ))}
       </nav>
 
-      <section className={styles.content}>
+      <section
+        className={styles.content}
+        style={{
+          width: "100%",
+          maxWidth: "none",
+          marginLeft: 0,
+          marginRight: 0,
+        }}
+      >
         {loading && !profile ? (
           <div className={styles.stateCard}>
             <span className={styles.spinner} />
