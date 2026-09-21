@@ -170,6 +170,7 @@ export default function MiloExchangeMainPage() {
   const [properties, setProperties] = useState<ExchangeProperty[]>([]);
   const [propertyHoldings, setPropertyHoldings] = useState<PropertyHolding[]>([]);
   const [propertyMarketReady, setPropertyMarketReady] = useState(false);
+  const [managedPropertyValue, setManagedPropertyValue] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<TokenTransaction[]>([]);
 
   const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>([]);
@@ -193,6 +194,8 @@ export default function MiloExchangeMainPage() {
   }, [stockHoldings, stocks]);
 
   const propertyPortfolioValue = useMemo(() => {
+    if (managedPropertyValue !== null) return managedPropertyValue;
+
     return propertyHoldings.reduce((total, holding) => {
       const property = properties.find(
         (item) => item.id === holding.property_id
@@ -204,7 +207,7 @@ export default function MiloExchangeMainPage() {
 
       return total + Number(holding.quantity || 0) * unitValue;
     }, 0);
-  }, [propertyHoldings, properties]);
+  }, [managedPropertyValue, propertyHoldings, properties]);
 
   const propertyUnitCount = useMemo(() => {
     return propertyHoldings.reduce(
@@ -322,6 +325,7 @@ export default function MiloExchangeMainPage() {
     if (propertiesResult.error) {
       setProperties([]);
       setPropertyHoldings([]);
+      setManagedPropertyValue(null);
       setPropertyMarketReady(false);
       return;
     }
@@ -340,6 +344,18 @@ export default function MiloExchangeMainPage() {
 
     setProperties((propertiesResult.data || []) as ExchangeProperty[]);
     setPropertyHoldings((holdingsResult.data || []) as PropertyHolding[]);
+
+    const managedValueResult = await supabase.rpc(
+      "get_my_milo_exchange_property_portfolio_value"
+    );
+
+    if (managedValueResult.error) {
+      console.warn("Could not load managed property value:", managedValueResult.error.message);
+      setManagedPropertyValue(null);
+    } else {
+      setManagedPropertyValue(Number(managedValueResult.data || 0));
+    }
+
     setPropertyMarketReady(true);
   }
 

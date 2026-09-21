@@ -46,6 +46,47 @@ export type PropertyHolding = {
   updated_at: string;
 };
 
+export type PropertyUnit = {
+  unit_id: string;
+  property_id: string;
+  unit_number: number;
+  property_name: string;
+  district: string;
+  property_type: string;
+  building_name: string;
+  unit_type: string;
+  purchase_price: number;
+  base_value: number;
+  current_value: number;
+  base_weekly_rent: number;
+  rental_potential: number;
+  area_sqm: number;
+  bedrooms: number | null;
+  preview_image_url: string | null;
+  upgrade_spend: number;
+  upgrade_level_total: number;
+  appeal: number;
+  quality: number;
+  efficiency: number;
+  condition: number;
+  upgrade_levels: Record<string, number>;
+  acquired_at: string;
+};
+
+export type PropertyUpgradeCatalogRow = {
+  category: string;
+  level: number;
+  display_name: string;
+  description: string;
+  upgrade_cost: number;
+  value_bonus_bps: number;
+  rent_bonus_bps: number;
+  appeal_bonus: number;
+  quality_bonus: number;
+  efficiency_bonus: number;
+  display_order: number;
+};
+
 export type RecentPropertySale = {
   sale_id: string;
   property_id: string;
@@ -57,12 +98,6 @@ export type RecentPropertySale = {
   price_per_unit: number;
   total_price: number;
   sold_at: string;
-};
-
-export type PropertyRentPayout = {
-  week_start: string;
-  amount: number;
-  paid_at: string;
 };
 
 export type PropertyResaleListing = {
@@ -177,6 +212,14 @@ export function getPropertyPreviewImage(property: PropertyOffering | undefined) 
   return property.preview_image_url;
 }
 
+export function getPropertyUnitPreviewImage(
+  unit: PropertyUnit,
+  properties: PropertyOffering[]
+) {
+  const property = properties.find((item) => item.id === unit.property_id);
+  return getPropertyPreviewImage(property) || unit.preview_image_url;
+}
+
 export function formatNumber(value: number) {
   return Math.round(Number(value || 0)).toLocaleString();
 }
@@ -193,12 +236,30 @@ export function formatDateTime(value: string | null) {
   }
 }
 
+export function formatShortDate(value: string | null) {
+  if (!value) return "—";
+  try {
+    return new Intl.DateTimeFormat("en-SG", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
 export function titleCase(value: string) {
   return value
     .split(/[-_\s]+/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+export function formatPercentFromBps(bps: number) {
+  const value = Number(bps || 0) / 100;
+  return `${value % 1 === 0 ? value.toFixed(0) : value.toFixed(1)}%`;
 }
 
 export type PropertyTabStyles = {

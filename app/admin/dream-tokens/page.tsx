@@ -18,12 +18,14 @@ type AdminUser = {
   username: string | null;
   role: string | null;
   created_at: string;
+  isSimulationUser: boolean;
   dreamTokenBalance: number;
   dreamGemBalance: number;
 };
 
 
 type AdminSection =
+  | "overview"
   | "currency"
   | "organisations"
   | "teachers"
@@ -34,6 +36,49 @@ type AdminSection =
   | "affiliates"
   | "schoolwork-ai"
   | "nova-plus-access";
+
+type AdminGroup =
+  | "overview"
+  | "economy"
+  | "users-access"
+  | "partners"
+  | "learning-ai";
+
+function adminGroupForSection(
+  section: AdminSection
+): AdminGroup {
+  if (section === "overview") return "overview";
+  if (section === "currency") return "economy";
+
+  if (
+    section === "roles" ||
+    section === "student-access" ||
+    section === "teachers" ||
+    section === "nova-plus-access"
+  ) {
+    return "users-access";
+  }
+
+  if (
+    section === "organisations" ||
+    section === "creators" ||
+    section === "affiliates"
+  ) {
+    return "partners";
+  }
+
+  return "learning-ai";
+}
+
+function defaultSectionForGroup(
+  group: AdminGroup
+): AdminSection {
+  if (group === "overview") return "overview";
+  if (group === "economy") return "currency";
+  if (group === "users-access") return "roles";
+  if (group === "partners") return "organisations";
+  return "objectives";
+}
 
 type DirectoryUser = {
   user_id: string;
@@ -159,7 +204,7 @@ export default function DreamTokensAdminPage() {
   const router = useRouter();
 
   const [activeSection, setActiveSection] =
-    useState<AdminSection>("currency");
+    useState<AdminSection>("overview");
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [search, setSearch] = useState("");
@@ -183,6 +228,39 @@ export default function DreamTokensAdminPage() {
 
   const selectedUser = users.find((user) => user.id === selectedUserId);
   const totalUsers = users.length;
+
+  const activeGroup = useMemo(
+    () => adminGroupForSection(activeSection),
+    [activeSection]
+  );
+
+  const realUsers = useMemo(
+    () => users.filter((user) => !user.isSimulationUser),
+    [users]
+  );
+
+  const syntheticAgents = useMemo(
+    () => users.filter((user) => user.isSimulationUser),
+    [users]
+  );
+
+  const realUserDreamTokens = useMemo(
+    () =>
+      realUsers.reduce(
+        (total, user) => total + user.dreamTokenBalance,
+        0
+      ),
+    [realUsers]
+  );
+
+  const agentDreamTokens = useMemo(
+    () =>
+      syntheticAgents.reduce(
+        (total, user) => total + user.dreamTokenBalance,
+        0
+      ),
+    [syntheticAgents]
+  );
 
   const totalDreamTokens = useMemo(() => {
     return users.reduce((total, user) => total + user.dreamTokenBalance, 0);
@@ -306,10 +384,22 @@ export default function DreamTokensAdminPage() {
         return;
       }
 
+      /*
+       * CURRENT DT SOURCE OF TRUTH
+       * --------------------------
+       * dream_token_transactions remains the transaction/audit ledger.
+       * The database trigger update_profile_dream_token_balance_trigger keeps
+       * profiles.dream_token_balance synchronized on INSERT / UPDATE / DELETE.
+       *
+       * Do NOT download the full ledger here to rebuild balances in the
+       * browser. The ledger now contains thousands of rows and PostgREST result
+       * limits can return a partial data set, which previously made real users
+       * appear as 0 DT and produced an incorrect admin total.
+       */
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select(
-          "id, email, username, role, created_at, dream_gem_balance"
+          "id, email, username, role, created_at, is_simulation_user, dream_token_balance, dream_gem_balance"
         )
         .order("created_at", { ascending: false });
 
@@ -321,40 +411,6 @@ export default function DreamTokensAdminPage() {
         return;
       }
 
-      const userIds = (profiles || []).map((profile) => profile.id);
-
-      let tokenRows: { user_id: string; amount: number }[] = [];
-
-      if (userIds.length > 0) {
-        const { data: transactions, error: tokenError } = await supabase
-          .from("dream_token_transactions")
-          .select("user_id, amount")
-          .eq("token_kind", "virtual")
-          .in("user_id", userIds);
-
-        if (!isMounted) return;
-
-        if (tokenError) {
-          setPageMessage(
-            `Unable to load Dream Token balances: ${tokenError.message}`
-          );
-          setIsLoading(false);
-          return;
-        }
-
-        tokenRows = transactions || [];
-      }
-
-      const tokenBalanceByUser = tokenRows.reduce<Record<string, number>>(
-        (balances, transaction) => {
-          balances[transaction.user_id] =
-            (balances[transaction.user_id] || 0) +
-            Number(transaction.amount || 0);
-          return balances;
-        },
-        {}
-      );
-
       const usersWithBalances: AdminUser[] = (profiles || []).map(
         (profile) => ({
           id: profile.id,
@@ -362,7 +418,8 @@ export default function DreamTokensAdminPage() {
           username: profile.username,
           role: profile.role || "regular",
           created_at: profile.created_at,
-          dreamTokenBalance: tokenBalanceByUser[profile.id] || 0,
+          isSimulationUser: Boolean(profile.is_simulation_user),
+          dreamTokenBalance: Number(profile.dream_token_balance || 0),
           dreamGemBalance: Number(profile.dream_gem_balance || 0),
         })
       );
@@ -413,19 +470,45 @@ export default function DreamTokensAdminPage() {
       return;
     }
 
+    /*
+     * The insert above fires update_profile_dream_token_balance_trigger.
+     * Re-read the synchronized profile balance rather than independently
+     * calculating a second wallet value in the UI.
+     */
+    const {
+      data: updatedProfile,
+      error: updatedProfileError,
+    } = await supabase
+      .from("profiles")
+      .select("dream_token_balance")
+      .eq("id", selectedUserId)
+      .maybeSingle();
+
+    const exactBalance =
+      !updatedProfileError && updatedProfile
+        ? Number(updatedProfile.dream_token_balance || 0)
+        : null;
+
     setUsers((currentUsers) =>
       currentUsers.map((user) =>
         user.id === selectedUserId
           ? {
               ...user,
-              dreamTokenBalance: user.dreamTokenBalance + finalTokenAmount,
+              dreamTokenBalance:
+                exactBalance !== null
+                  ? exactBalance
+                  : user.dreamTokenBalance + finalTokenAmount,
             }
           : user
       )
     );
 
     window.dispatchEvent(new Event("dream-tokens-updated"));
-    setTokenMessage("Dream Tokens updated successfully.");
+    setTokenMessage(
+      updatedProfileError
+        ? "Dream Tokens updated. The current balance will refresh on the next page load."
+        : "Dream Tokens updated successfully."
+    );
     setIsSubmittingTokens(false);
   }
 
@@ -532,9 +615,8 @@ export default function DreamTokensAdminPage() {
           </h1>
 
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/62">
-            Manage Dream Tokens, Dream Gems, organisation access, creator
-            partners, teacher licences, objectives, Schoolwork AI, NOVA+ access,
-            and Dreamscape account operations.
+            Monitor Dreamscape at a glance, then manage the economy, users,
+            access, partners, learning systems, Schoolwork AI and NOVA+.
           </p>
 
           {pageMessage && (
@@ -544,134 +626,172 @@ export default function DreamTokensAdminPage() {
           )}
         </section>
 
-        <section className="mt-8 grid grid-cols-1 gap-3 rounded-[28px] border border-cyan-200/16 bg-white/[0.04] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:grid-cols-2 xl:grid-cols-5 2xl:grid-cols-10">
-          <button
-            type="button"
-            onClick={() => setActiveSection("currency")}
-            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
-              activeSection === "currency"
-                ? "border-yellow-200/35 bg-yellow-200/12 text-[#ffd18a] shadow-[0_0_28px_rgba(250,204,21,0.08)]"
-                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
-            }`}
-          >
-            Dream Currency
-          </button>
+        <section className="mt-8 rounded-[28px] border border-cyan-200/16 bg-white/[0.04] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            {(
+              [
+                {
+                  id: "overview",
+                  label: "Overview",
+                  description: "Platform health",
+                },
+                {
+                  id: "economy",
+                  label: "Economy",
+                  description: "DT & Dream Gems",
+                },
+                {
+                  id: "users-access",
+                  label: "Users & Access",
+                  description: "Roles & learners",
+                },
+                {
+                  id: "partners",
+                  label: "Partners",
+                  description: "Organisations & creators",
+                },
+                {
+                  id: "learning-ai",
+                  label: "Learning & AI",
+                  description: "Objectives & intelligence",
+                },
+              ] as {
+                id: AdminGroup;
+                label: string;
+                description: string;
+              }[]
+            ).map((group) => {
+              const isActive = activeGroup === group.id;
 
-          <button
-            type="button"
-            onClick={() => setActiveSection("organisations")}
-            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
-              activeSection === "organisations"
-                ? "border-emerald-200/40 bg-emerald-300/12 text-emerald-100 shadow-[0_0_28px_rgba(52,211,153,0.1)]"
-                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
-            }`}
-          >
-            Organisations & Licensing
-          </button>
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() =>
+                    setActiveSection(defaultSectionForGroup(group.id))
+                  }
+                  className={`min-h-[76px] rounded-2xl border px-5 py-3 text-left transition ${
+                    isActive
+                      ? "border-cyan-200/35 bg-cyan-300/10 text-white shadow-[0_0_28px_rgba(83,215,255,0.08)]"
+                      : "border-white/10 bg-white/[0.025] text-white/58 hover:border-white/20 hover:text-white"
+                  }`}
+                >
+                  <span className="block text-sm font-extrabold uppercase tracking-[0.11em]">
+                    {group.label}
+                  </span>
+                  <small className="mt-1 block text-[11px] normal-case tracking-normal text-white/35">
+                    {group.description}
+                  </small>
+                </button>
+              );
+            })}
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setActiveSection("teachers")}
-            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
-              activeSection === "teachers"
-                ? "border-cyan-200/40 bg-cyan-300/12 text-[#8dfcff] shadow-[0_0_28px_rgba(83,215,255,0.1)]"
-                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
-            }`}
-          >
-            Teacher Rosters
-          </button>
+          {activeGroup !== "overview" && (
+            <div className="mt-3 flex flex-wrap gap-2 border-t border-white/8 pt-3">
+              {activeGroup === "economy" && (
+                <AdminSubTab
+                  active={activeSection === "currency"}
+                  onClick={() => setActiveSection("currency")}
+                >
+                  Dream Currency
+                </AdminSubTab>
+              )}
 
-          <button
-            type="button"
-            onClick={() => setActiveSection("roles")}
-            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
-              activeSection === "roles"
-                ? "border-violet-200/40 bg-violet-300/12 text-violet-100 shadow-[0_0_28px_rgba(167,139,250,0.1)]"
-                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
-            }`}
-          >
-            User Roles
-          </button>
+              {activeGroup === "users-access" && (
+                <>
+                  <AdminSubTab
+                    active={activeSection === "roles"}
+                    onClick={() => setActiveSection("roles")}
+                  >
+                    User Roles
+                  </AdminSubTab>
 
-          <button
-            type="button"
-            onClick={() => setActiveSection("student-access")}
-            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
-              activeSection === "student-access"
-                ? "border-sky-200/40 bg-sky-300/12 text-sky-100 shadow-[0_0_28px_rgba(56,189,248,0.1)]"
-                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
-            }`}
-          >
-            Student Access
-          </button>
+                  <AdminSubTab
+                    active={activeSection === "student-access"}
+                    onClick={() => setActiveSection("student-access")}
+                  >
+                    Student Access
+                  </AdminSubTab>
 
-          <button
-            type="button"
-            onClick={() => setActiveSection("creators")}
-            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
-              activeSection === "creators"
-                ? "border-amber-200/40 bg-amber-300/12 text-amber-100 shadow-[0_0_28px_rgba(251,191,36,0.1)]"
-                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
-            }`}
-          >
-            Creator Partners
-          </button>
+                  <AdminSubTab
+                    active={activeSection === "teachers"}
+                    onClick={() => setActiveSection("teachers")}
+                  >
+                    Teacher Rosters
+                  </AdminSubTab>
 
-          <button
-            type="button"
-            onClick={() => setActiveSection("objectives")}
-            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
-              activeSection === "objectives"
-                ? "border-cyan-200/40 bg-cyan-300/12 text-[#8dfcff] shadow-[0_0_28px_rgba(83,215,255,0.1)]"
-                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
-            }`}
-          >
-            Objectives
-          </button>
+                  <AdminSubTab
+                    active={activeSection === "nova-plus-access"}
+                    onClick={() => setActiveSection("nova-plus-access")}
+                  >
+                    NOVA+ Access
+                  </AdminSubTab>
+                </>
+              )}
 
-          <button
-            type="button"
-            onClick={() => setActiveSection("affiliates")}
-            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
-              activeSection === "affiliates"
-                ? "border-pink-200/40 bg-pink-300/12 text-pink-100 shadow-[0_0_28px_rgba(244,114,182,0.1)]"
-                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
-            }`}
-          >
-            Affiliates
-          </button>
+              {activeGroup === "partners" && (
+                <>
+                  <AdminSubTab
+                    active={activeSection === "organisations"}
+                    onClick={() => setActiveSection("organisations")}
+                  >
+                    Organisations & Licensing
+                  </AdminSubTab>
 
-          <button
-            type="button"
-            onClick={() => setActiveSection("schoolwork-ai")}
-            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
-              activeSection === "schoolwork-ai"
-                ? "border-cyan-200/40 bg-cyan-300/12 text-[#8dfcff] shadow-[0_0_28px_rgba(83,215,255,0.1)]"
-                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
-            }`}
-          >
-            Schoolwork AI
-          </button>
+                  <AdminSubTab
+                    active={activeSection === "creators"}
+                    onClick={() => setActiveSection("creators")}
+                  >
+                    Creator Partners
+                  </AdminSubTab>
 
-          <button
-            type="button"
-            onClick={() => setActiveSection("nova-plus-access")}
-            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
-              activeSection === "nova-plus-access"
-                ? "border-violet-200/40 bg-violet-300/12 text-violet-100 shadow-[0_0_28px_rgba(167,139,250,0.1)]"
-                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
-            }`}
-          >
-            NOVA+ Access
-          </button>
+                  <AdminSubTab
+                    active={activeSection === "affiliates"}
+                    onClick={() => setActiveSection("affiliates")}
+                  >
+                    Affiliates
+                  </AdminSubTab>
+                </>
+              )}
+
+              {activeGroup === "learning-ai" && (
+                <>
+                  <AdminSubTab
+                    active={activeSection === "objectives"}
+                    onClick={() => setActiveSection("objectives")}
+                  >
+                    Objectives
+                  </AdminSubTab>
+
+                  <AdminSubTab
+                    active={activeSection === "schoolwork-ai"}
+                    onClick={() => setActiveSection("schoolwork-ai")}
+                  >
+                    Schoolwork AI
+                  </AdminSubTab>
+                </>
+              )}
+            </div>
+          )}
         </section>
 
-        {activeSection === "currency" ? (
+        {activeSection === "overview" ? (
+          <AdminOverview
+            isLoading={isLoading}
+            users={users}
+            totalDreamTokens={totalDreamTokens}
+            totalDreamGems={totalDreamGems}
+            realUserDreamTokens={realUserDreamTokens}
+            agentDreamTokens={agentDreamTokens}
+            onNavigate={setActiveSection}
+          />
+        ) : activeSection === "currency" ? (
           <>
         <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-3xl border border-cyan-200/16 bg-white/[0.045] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.22)] backdrop-blur-xl">
             <p className="text-xs uppercase tracking-[0.18em] text-white/42">
-              Loaded Users
+              Loaded Accounts
             </p>
             <p className="mt-2 text-4xl font-extrabold tracking-[-0.04em] text-white">
               {isLoading ? "..." : totalUsers.toLocaleString()}
@@ -708,6 +828,13 @@ export default function DreamTokensAdminPage() {
             </p>
           </div>
         </section>
+
+        <div className="mt-4 rounded-2xl border border-yellow-200/10 bg-yellow-200/[0.035] px-5 py-3 text-xs leading-5 text-white/42">
+          Current DT balances are read from{" "}
+          <code className="text-[#ffd18a]">profiles.dream_token_balance</code>.
+          The transaction ledger remains the audit history and its database
+          trigger keeps the profile balance synchronized.
+        </div>
 
         <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1fr)_440px]">
           <section className="rounded-[32px] border border-cyan-200/18 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-7">
@@ -1070,6 +1197,275 @@ export default function DreamTokensAdminPage() {
         }
       `}</style>
     </main>
+  );
+}
+
+
+function AdminSubTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-4 py-2 text-xs font-extrabold uppercase tracking-[0.1em] transition ${
+        active
+          ? "border-cyan-200/28 bg-cyan-300/10 text-[#8dfcff]"
+          : "border-white/8 bg-white/[0.025] text-white/42 hover:border-white/16 hover:text-white/70"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function AdminOverview({
+  isLoading,
+  users,
+  totalDreamTokens,
+  totalDreamGems,
+  realUserDreamTokens,
+  agentDreamTokens,
+  onNavigate,
+}: {
+  isLoading: boolean;
+  users: AdminUser[];
+  totalDreamTokens: number;
+  totalDreamGems: number;
+  realUserDreamTokens: number;
+  agentDreamTokens: number;
+  onNavigate: (section: AdminSection) => void;
+}) {
+  const realUsers =
+    users.filter((user) => !user.isSimulationUser);
+
+  const agents =
+    users.filter((user) => user.isSimulationUser);
+
+  const dtCoverage =
+    totalDreamTokens > 0
+      ? Math.round(
+          (realUserDreamTokens / totalDreamTokens) *
+            1000
+        ) / 10
+      : 0;
+
+  return (
+    <div className="mt-8 grid gap-6">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <OverviewMetric
+          label="Real Users"
+          value={
+            isLoading
+              ? "..."
+              : realUsers.length.toLocaleString()
+          }
+          detail="Non-simulation accounts"
+          tone="cyan"
+        />
+
+        <OverviewMetric
+          label="Synthetic Agents"
+          value={
+            isLoading
+              ? "..."
+              : agents.length.toLocaleString()
+          }
+          detail="Simulation economy accounts"
+          tone="violet"
+        />
+
+        <OverviewMetric
+          label="Total Virtual DT"
+          value={
+            isLoading
+              ? "..."
+              : totalDreamTokens.toLocaleString()
+          }
+          detail="Current synchronized wallet balances"
+          tone="gold"
+        />
+
+        <OverviewMetric
+          label="Total Dream Gems"
+          value={
+            isLoading
+              ? "..."
+              : totalDreamGems.toLocaleString()
+          }
+          detail="Across all loaded accounts"
+          tone="pink"
+        />
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
+        <div className="rounded-[32px] border border-yellow-200/14 bg-[linear-gradient(145deg,rgba(80,54,8,.16),rgba(4,20,48,.86))] p-6 shadow-[0_24px_70px_rgba(0,0,0,.24)] sm:p-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
+                Economy Snapshot
+              </p>
+              <h2 className="mt-2 text-3xl font-bold tracking-[-0.04em]">
+                Dream Token distribution
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/45">
+                The current balance comes directly from the synchronized
+                profile wallet. The transaction ledger is retained as the
+                audit trail rather than re-summed in the browser.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onNavigate("currency")}
+              className="w-fit rounded-full border border-yellow-200/25 bg-yellow-200/10 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.1em] text-[#ffe0a3]"
+            >
+              Open Economy →
+            </button>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-white/8 bg-black/15 p-5">
+              <p className="text-xs uppercase tracking-[0.14em] text-white/35">
+                Real-user DT
+              </p>
+              <strong className="mt-2 block text-3xl tracking-[-0.04em] text-[#ffd18a]">
+                {isLoading
+                  ? "..."
+                  : realUserDreamTokens.toLocaleString()}
+              </strong>
+            </div>
+
+            <div className="rounded-2xl border border-white/8 bg-black/15 p-5">
+              <p className="text-xs uppercase tracking-[0.14em] text-white/35">
+                Agent DT
+              </p>
+              <strong className="mt-2 block text-3xl tracking-[-0.04em] text-violet-200">
+                {isLoading
+                  ? "..."
+                  : agentDreamTokens.toLocaleString()}
+              </strong>
+            </div>
+
+            <div className="rounded-2xl border border-white/8 bg-black/15 p-5">
+              <p className="text-xs uppercase tracking-[0.14em] text-white/35">
+                Real-user share
+              </p>
+              <strong className="mt-2 block text-3xl tracking-[-0.04em] text-cyan-100">
+                {isLoading ? "..." : `${dtCoverage}%`}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[32px] border border-cyan-200/14 bg-white/[0.04] p-6 shadow-[0_24px_70px_rgba(0,0,0,.24)] sm:p-7">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8dfcff]">
+            Quick Access
+          </p>
+
+          <h2 className="mt-2 text-2xl font-bold tracking-[-0.035em]">
+            Administration areas
+          </h2>
+
+          <div className="mt-5 grid gap-2">
+            <OverviewLink
+              title="Users & Access"
+              detail="Roles, student access, teacher rosters and NOVA+."
+              onClick={() => onNavigate("roles")}
+            />
+            <OverviewLink
+              title="Partners"
+              detail="Organisations, creator partners and affiliates."
+              onClick={() => onNavigate("organisations")}
+            />
+            <OverviewLink
+              title="Learning & AI"
+              detail="Objectives and Schoolwork AI operations."
+              onClick={() => onNavigate("objectives")}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-emerald-200/12 bg-emerald-300/[0.035] px-5 py-4 text-sm leading-6 text-emerald-50/65">
+        <strong className="text-emerald-100">
+          DT wallet audit status:
+        </strong>{" "}
+        the ledger and profile balances are synchronized. Admin now uses
+        <code className="mx-1 text-emerald-100">
+          profiles.dream_token_balance
+        </code>
+        for current balances, avoiding incomplete client-side ledger scans.
+      </section>
+    </div>
+  );
+}
+
+function OverviewMetric({
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone: "cyan" | "violet" | "gold" | "pink";
+}) {
+  const toneClass =
+    tone === "gold"
+      ? "border-yellow-200/16 bg-yellow-300/[0.05] text-[#ffd18a]"
+      : tone === "violet"
+        ? "border-violet-200/16 bg-violet-300/[0.05] text-violet-100"
+        : tone === "pink"
+          ? "border-fuchsia-200/16 bg-fuchsia-300/[0.05] text-[#e7b7ff]"
+          : "border-cyan-200/16 bg-cyan-300/[0.04] text-[#8dfcff]";
+
+  return (
+    <article
+      className={`rounded-3xl border p-5 shadow-[0_20px_60px_rgba(0,0,0,.2)] ${toneClass}`}
+    >
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/38">
+        {label}
+      </p>
+      <strong className="mt-3 block text-4xl tracking-[-0.045em]">
+        {value}
+      </strong>
+      <small className="mt-2 block text-xs text-white/34">
+        {detail}
+      </small>
+    </article>
+  );
+}
+
+function OverviewLink({
+  title,
+  detail,
+  onClick,
+}: {
+  title: string;
+  detail: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-2xl border border-white/8 bg-black/15 px-4 py-4 text-left transition hover:border-cyan-200/18 hover:bg-cyan-300/[0.04]"
+    >
+      <strong className="block text-sm text-white">
+        {title}
+      </strong>
+      <small className="mt-1 block text-xs leading-5 text-white/34">
+        {detail}
+      </small>
+    </button>
   );
 }
 

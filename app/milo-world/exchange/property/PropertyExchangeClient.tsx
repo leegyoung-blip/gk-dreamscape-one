@@ -15,7 +15,8 @@ import {
   type MyPropertyListing,
   type PropertyHolding,
   type PropertyOffering,
-  type PropertyRentPayout,
+  type PropertyUnit,
+  type PropertyUpgradeCatalogRow,
   type PropertyResaleListing,
   type RecentPropertySale,
 } from "./components/propertyExchangeShared";
@@ -206,7 +207,8 @@ export default function PropertyExchangeClient() {
   const [recentSales, setRecentSales] = useState<RecentPropertySale[]>([]);
   const [resaleListings, setResaleListings] = useState<PropertyResaleListing[]>([]);
   const [myListings, setMyListings] = useState<MyPropertyListing[]>([]);
-  const [latestRentPayout, setLatestRentPayout] = useState<PropertyRentPayout | null>(null);
+  const [propertyUnits, setPropertyUnits] = useState<PropertyUnit[]>([]);
+  const [upgradeCatalog, setUpgradeCatalog] = useState<PropertyUpgradeCatalogRow[]>([]);
 
   const [previewProperty, setPreviewProperty] = useState<PropertyOffering | null>(null);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
@@ -219,24 +221,32 @@ export default function PropertyExchangeClient() {
   );
 
   const totalOwnedUnits = useMemo(
-    () => holdings.reduce((total, holding) => total + Number(holding.quantity || 0), 0),
-    [holdings]
+    () => propertyUnits.length || holdings.reduce((total, holding) => total + Number(holding.quantity || 0), 0),
+    [propertyUnits, holdings]
   );
 
   const propertyPortfolioValue = useMemo(() => {
+    if (propertyUnits.length > 0) {
+      return propertyUnits.reduce((total, unit) => total + Number(unit.current_value || 0), 0);
+    }
+
     return holdings.reduce((total, holding) => {
       const property = properties.find((item) => item.id === holding.property_id);
       const unitValue = Number(property?.current_value || holding.purchase_price || 0);
       return total + Number(holding.quantity || 0) * unitValue;
     }, 0);
-  }, [holdings, properties]);
+  }, [propertyUnits, holdings, properties]);
 
-  const weeklyRentalIncome = useMemo(() => {
+  const rentalPotential = useMemo(() => {
+    if (propertyUnits.length > 0) {
+      return propertyUnits.reduce((total, unit) => total + Number(unit.rental_potential || 0), 0);
+    }
+
     return holdings.reduce((total, holding) => {
       const property = properties.find((item) => item.id === holding.property_id);
       return total + Number(holding.quantity || 0) * Number(property?.weekly_rent || 0);
     }, 0);
-  }, [holdings, properties]);
+  }, [propertyUnits, holdings, properties]);
 
   const pageShell: CSSProperties = {
     position: "relative",
@@ -372,7 +382,7 @@ export default function PropertyExchangeClient() {
       salesResult,
       resaleResult,
       myListingsResult,
-      rentPayoutResult,
+      catalogResult,
     ] = await Promise.all([
       supabase
         .from("milo_exchange_properties")
@@ -389,12 +399,10 @@ export default function PropertyExchangeClient() {
       supabase.rpc("get_milo_exchange_property_resale_listings", { p_limit: 20 }),
       supabase.rpc("get_my_milo_exchange_property_listings", { p_limit: 30 }),
       supabase
-        .from("milo_exchange_property_rent_payouts")
-        .select("week_start,amount,paid_at")
-        .eq("user_id", id)
-        .order("paid_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+        .from("milo_exchange_property_upgrade_catalog")
+        .select("category,level,display_name,description,upgrade_cost,value_bonus_bps,rent_bonus_bps,appeal_bonus,quality_bonus,efficiency_bonus,display_order")
+        .order("display_order", { ascending: true })
+        .order("level", { ascending: true }),
     ]);
 
     if (propertiesResult.error) {
@@ -402,108 +410,141 @@ export default function PropertyExchangeClient() {
       setProperties([]);
       setPageMessage("The property market database is not ready. Check the Property Exchange database setup.");
     } else {
-      setProperties(
-        (propertiesResult.data || []).map((row) => ({
-          ...row,
-          current_value: Number(row.current_value || 0),
-          listing_price: Number(row.listing_price || 0),
-          weekly_rent: Number(row.weekly_rent || 0),
-          available_quantity: Number(row.available_quantity || 0),
-          total_quantity: Number(row.total_quantity || 0),
-          area_sqm: Number(row.area_sqm || 0),
-          bedrooms: row.bedrooms === null ? null : Number(row.bedrooms),
-          display_order: Number(row.display_order || 0),
-        })) as PropertyOffering[]
-      );
+      setProperties((propertiesResult.data || []).map((row) => ({
+        ...row,
+        current_value: Number(row.current_value || 0),
+        listing_price: Number(row.listing_price || 0),
+        weekly_rent: Number(row.weekly_rent || 0),
+        available_quantity: Number(row.available_quantity || 0),
+        total_quantity: Number(row.total_quantity || 0),
+        area_sqm: Number(row.area_sqm || 0),
+        bedrooms: row.bedrooms === null ? null : Number(row.bedrooms),
+        display_order: Number(row.display_order || 0),
+      })) as PropertyOffering[]);
     }
 
     if (holdingsResult.error) {
       console.warn("Could not load property holdings:", holdingsResult.error.message);
       setHoldings([]);
     } else {
-      setHoldings(
-        (holdingsResult.data || []).map((row) => ({
-          ...row,
-          quantity: Number(row.quantity || 0),
-          purchase_price: Number(row.purchase_price || 0),
-        })) as PropertyHolding[]
-      );
+      setHoldings((holdingsResult.data || []).map((row) => ({
+        ...row,
+        quantity: Number(row.quantity || 0),
+        purchase_price: Number(row.purchase_price || 0),
+      })) as PropertyHolding[]);
+    }
+
+    if (catalogResult.error) {
+      console.warn("Could not load property upgrade catalog:", catalogResult.error.message);
+      setUpgradeCatalog([]);
+    } else {
+      setUpgradeCatalog((catalogResult.data || []).map((row) => ({
+        ...row,
+        level: Number(row.level || 0),
+        upgrade_cost: Number(row.upgrade_cost || 0),
+        value_bonus_bps: Number(row.value_bonus_bps || 0),
+        rent_bonus_bps: Number(row.rent_bonus_bps || 0),
+        appeal_bonus: Number(row.appeal_bonus || 0),
+        quality_bonus: Number(row.quality_bonus || 0),
+        efficiency_bonus: Number(row.efficiency_bonus || 0),
+        display_order: Number(row.display_order || 0),
+      })) as PropertyUpgradeCatalogRow[]);
     }
 
     if (salesResult.error) {
       console.warn("Could not load recent property sales:", salesResult.error.message);
       setRecentSales([]);
     } else {
-      setRecentSales(
-        (salesResult.data || []).map((row: Record<string, unknown>) => ({
-          sale_id: String(row.sale_id || ""),
-          property_id: String(row.property_id || ""),
-          property_name: String(row.property_name || "Property Unit"),
-          district: String(row.district || ""),
-          property_type: String(row.property_type || ""),
-          buyer_name: String(row.buyer_name || "Dreamscape User"),
-          quantity: Number(row.quantity || 0),
-          price_per_unit: Number(row.price_per_unit || 0),
-          total_price: Number(row.total_price || 0),
-          sold_at: String(row.sold_at || ""),
-        }))
-      );
+      setRecentSales((salesResult.data || []).map((row: Record<string, unknown>) => ({
+        sale_id: String(row.sale_id || ""),
+        property_id: String(row.property_id || ""),
+        property_name: String(row.property_name || "Property Unit"),
+        district: String(row.district || ""),
+        property_type: String(row.property_type || ""),
+        buyer_name: String(row.buyer_name || "Dreamscape User"),
+        quantity: Number(row.quantity || 0),
+        price_per_unit: Number(row.price_per_unit || 0),
+        total_price: Number(row.total_price || 0),
+        sold_at: String(row.sold_at || ""),
+      })));
     }
 
     if (resaleResult.error) {
       console.warn("Could not load property resale listings:", resaleResult.error.message);
       setResaleListings([]);
     } else {
-      setResaleListings(
-        (resaleResult.data || []).map((row: Record<string, unknown>) => ({
-          listing_id: String(row.listing_id || ""),
-          property_id: String(row.property_id || ""),
-          property_name: String(row.property_name || "Property Unit"),
-          district: String(row.district || ""),
-          property_type: String(row.property_type || ""),
-          seller_name: String(row.seller_name || "Dreamscape User"),
-          asking_price: Number(row.asking_price || 0),
-          current_value: Number(row.current_value || 0),
-          primary_listing_price: Number(row.primary_listing_price || 0),
-          expires_at: String(row.expires_at || ""),
-        }))
-      );
+      setResaleListings((resaleResult.data || []).map((row: Record<string, unknown>) => ({
+        listing_id: String(row.listing_id || ""),
+        property_id: String(row.property_id || ""),
+        property_name: String(row.property_name || "Property Unit"),
+        district: String(row.district || ""),
+        property_type: String(row.property_type || ""),
+        seller_name: String(row.seller_name || "Dreamscape User"),
+        asking_price: Number(row.asking_price || 0),
+        current_value: Number(row.current_value || 0),
+        primary_listing_price: Number(row.primary_listing_price || 0),
+        expires_at: String(row.expires_at || ""),
+      })));
     }
 
     if (myListingsResult.error) {
       console.warn("Could not load your property resale listings:", myListingsResult.error.message);
       setMyListings([]);
     } else {
-      setMyListings(
-        (myListingsResult.data || []).map((row: Record<string, unknown>) => ({
-          listing_id: String(row.listing_id || ""),
+      setMyListings((myListingsResult.data || []).map((row: Record<string, unknown>) => ({
+        listing_id: String(row.listing_id || ""),
+        property_id: String(row.property_id || ""),
+        property_name: String(row.property_name || "Property Unit"),
+        district: String(row.district || ""),
+        property_type: String(row.property_type || ""),
+        asking_price: Number(row.asking_price || 0),
+        current_value: Number(row.current_value || 0),
+        primary_listing_price: Number(row.primary_listing_price || 0),
+        status: String(row.status || ""),
+        created_at: String(row.created_at || ""),
+        expires_at: String(row.expires_at || ""),
+        sold_at: row.sold_at ? String(row.sold_at) : null,
+        buyer_name: row.buyer_name ? String(row.buyer_name) : null,
+      })));
+    }
+
+    const syncResult = await supabase.rpc("sync_my_milo_exchange_property_units");
+    if (syncResult.error) {
+      console.warn("Could not sync managed property units:", syncResult.error.message);
+      setPropertyUnits([]);
+    } else {
+      const unitsResult = await supabase.rpc("get_my_milo_exchange_property_units");
+      if (unitsResult.error) {
+        console.warn("Could not load managed property units:", unitsResult.error.message);
+        setPropertyUnits([]);
+      } else {
+        setPropertyUnits((unitsResult.data || []).map((row: Record<string, unknown>) => ({
+          unit_id: String(row.unit_id || ""),
           property_id: String(row.property_id || ""),
+          unit_number: Number(row.unit_number || 0),
           property_name: String(row.property_name || "Property Unit"),
           district: String(row.district || ""),
           property_type: String(row.property_type || ""),
-          asking_price: Number(row.asking_price || 0),
+          building_name: String(row.building_name || ""),
+          unit_type: String(row.unit_type || ""),
+          purchase_price: Number(row.purchase_price || 0),
+          base_value: Number(row.base_value || 0),
           current_value: Number(row.current_value || 0),
-          primary_listing_price: Number(row.primary_listing_price || 0),
-          status: String(row.status || ""),
-          created_at: String(row.created_at || ""),
-          expires_at: String(row.expires_at || ""),
-          sold_at: row.sold_at ? String(row.sold_at) : null,
-          buyer_name: row.buyer_name ? String(row.buyer_name) : null,
-        }))
-      );
-    }
-
-    if (rentPayoutResult.error) {
-      console.warn("Could not load property rent payout history:", rentPayoutResult.error.message);
-      setLatestRentPayout(null);
-    } else if (rentPayoutResult.data) {
-      setLatestRentPayout({
-        week_start: String(rentPayoutResult.data.week_start || ""),
-        amount: Number(rentPayoutResult.data.amount || 0),
-        paid_at: String(rentPayoutResult.data.paid_at || ""),
-      });
-    } else {
-      setLatestRentPayout(null);
+          base_weekly_rent: Number(row.base_weekly_rent || 0),
+          rental_potential: Number(row.rental_potential || 0),
+          area_sqm: Number(row.area_sqm || 0),
+          bedrooms: row.bedrooms === null || row.bedrooms === undefined ? null : Number(row.bedrooms),
+          preview_image_url: row.preview_image_url ? String(row.preview_image_url) : null,
+          upgrade_spend: Number(row.upgrade_spend || 0),
+          upgrade_level_total: Number(row.upgrade_level_total || 0),
+          appeal: Number(row.appeal || 0),
+          quality: Number(row.quality || 0),
+          efficiency: Number(row.efficiency || 0),
+          condition: Number(row.condition || 100),
+          upgrade_levels: (row.upgrade_levels || {}) as Record<string, number>,
+          acquired_at: String(row.acquired_at || ""),
+        })) as PropertyUnit[]);
+      }
     }
 
     setMarketLoading(false);
@@ -652,6 +693,46 @@ export default function PropertyExchangeClient() {
     setActionLoading(false);
   }
 
+  async function upgradePropertyUnit(unitId: string, category: string) {
+    if (!userId || actionLoading) return;
+
+    setActionLoading(true);
+    setTradeMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "upgrade_my_milo_exchange_property_unit",
+      { p_unit_id: unitId, p_category: category }
+    );
+
+    if (error) {
+      console.warn("Property upgrade failed:", error.message);
+      setTradeMessage(`Upgrade failed: ${error.message}`);
+      setActionLoading(false);
+      return;
+    }
+
+    const result = (data || {}) as Record<string, unknown>;
+    if (result.ok === false) {
+      const reason = String(result.reason || "upgrade_failed");
+      setTradeMessage(
+        reason === "insufficient_tokens"
+          ? "You do not have enough Dream Tokens for this upgrade."
+          : reason === "max_level"
+          ? "This upgrade is already at maximum level."
+          : reason === "unit_not_found"
+          ? "This property unit could not be found."
+          : "The upgrade could not be completed."
+      );
+      setActionLoading(false);
+      return;
+    }
+
+    setTradeMessage(`Upgrade installed. Property value and rent potential have been recalculated.`);
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+    await refreshMarket();
+    setActionLoading(false);
+  }
+
   if (loading) {
     return (
       <CenterPanel eyebrow="Milo’s Property Exchange" title="Loading the property market..." isMobile={isMobile}>
@@ -738,7 +819,7 @@ export default function PropertyExchangeClient() {
                   ["Unit Type", previewProperty.unit_type],
                   ["Floor Area", `${previewProperty.area_sqm} sqm`],
                   ["Dreamscape Price", `${formatNumber(previewProperty.listing_price)} DT`],
-                  ["Weekly Rent Rate", `${formatNumber(previewProperty.weekly_rent)} DT/week`],
+                  ["Base Rent Potential", `${formatNumber(previewProperty.weekly_rent)} DT/week`],
                   ["Units Available", `${previewProperty.available_quantity}`],
                   ["Your Holdings", `${holdingsByProperty.get(previewProperty.id)?.quantity || 0}`],
                 ].map(([label, value]) => (
@@ -800,7 +881,7 @@ export default function PropertyExchangeClient() {
             Property Exchange
           </h1>
           <p style={{ margin: "18px auto 0", maxWidth: "760px", color: "rgba(255,255,255,0.64)", lineHeight: 1.7, fontSize: isMobile ? "15px" : "17px" }}>
-            Explore the primary property map, manage your own portfolio and listings, or trade with other owners in the resale market.
+            Explore the primary property map, upgrade and manage the units you own, or trade with other owners in the resale market.
           </p>
         </section>
 
@@ -880,14 +961,15 @@ export default function PropertyExchangeClient() {
               holdings={holdings}
               myListings={myListings}
               propertyPortfolioValue={propertyPortfolioValue}
-              weeklyRentalIncome={weeklyRentalIncome}
+              units={propertyUnits}
+              upgradeCatalog={upgradeCatalog}
+              rentalPotential={rentalPotential}
               totalOwnedUnits={totalOwnedUnits}
-              latestRentPayout={latestRentPayout}
               actionLoading={actionLoading}
               message={tradeMessage}
               isMobile={isMobile}
               isCompact={isCompact}
-              onOpenProperty={openPreview}
+              onUpgradeUnit={upgradePropertyUnit}
               onCreateListing={createResaleListing}
               onCancelListing={cancelResaleListing}
             />

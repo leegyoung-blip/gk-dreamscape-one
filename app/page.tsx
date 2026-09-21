@@ -33,43 +33,22 @@ const worlds: World[] = [
 
 const productPreviews = [
   {
-    eyebrow: "Learn",
-    title: "Learning Missions",
-    text: "Build English, Math, Science and Thinking Skills through curriculum-based missions, topic challenges and progressive practice.",
+    eyebrow: "Curriculum Missions",
+    title: "Master the School Curriculum",
+    text: "Build English, Mathematics and Science skills through progressive missions, topic challenges and meaningful practice designed to feel like part of the adventure.",
     imageSrc: "/home/preview-learning-missions.png",
   },
   {
-    eyebrow: "Earn & Upgrade",
+    eyebrow: "Explore & Upgrade",
     title: "Power Nova’s Rover",
-    text: "Learning earns Dream Tokens and eligible Dream Gems that can unlock upgrades, strengthen Nova’s rover and open new experiences.",
+    text: "Learning earns Dream Tokens and eligible Dream Gems that can unlock upgrades, strengthen Nova’s rover and open new experiences across Skyforge.",
     imageSrc: "/home/preview-rover.png",
   },
   {
-    eyebrow: "Build & Customise",
-    title: "Nova’s Home",
-    text: "Use what you earn beyond the quiz screen. Furnish Nova’s home, unlock zones, collect items and return to a world that keeps growing.",
+    eyebrow: "Build Your World",
+    title: "Make Nova’s World Your Own",
+    text: "Use what you earn beyond the quiz screen. Furnish Nova’s home, unlock zones, collect items and return to a world that keeps growing with your progress.",
     imageSrc: "/home/preview-nova-home.png",
-  },
-];
-
-const journeySteps = [
-  {
-    number: "01",
-    title: "Learn",
-    text: "Complete English, Math, Science and Thinking challenges designed for each learning stage.",
-    detail: "Curriculum practice",
-  },
-  {
-    number: "02",
-    title: "Earn",
-    text: "Collect Dream Tokens, eligible Dream Gems and achievements through meaningful learning activity.",
-    detail: "DT · DG · Rewards",
-  },
-  {
-    number: "03",
-    title: "Build",
-    text: "Upgrade Nova’s rover, customise her home and unlock new experiences that make progress visible.",
-    detail: "Rover · Home · Unlocks",
   },
 ];
 
@@ -666,7 +645,7 @@ export default function Home() {
               {[
                 { label: "HOME", target: "home" },
                 { label: "HOW IT WORKS", target: "how-it-works" },
-                { label: "FOR PARENTS", target: "for-parents" },
+                { label: "NOVA+ FOR PARENTS", target: "for-parents" },
               ].map((item) => (
                 <button
                   key={item.label}
@@ -784,266 +763,8 @@ export default function Home() {
         >
           <section
             id="how-it-works"
-            aria-labelledby="how-it-works-heading"
+            aria-labelledby="inside-nova-heading"
             style={{
-              width: "100%",
-              scrollMarginTop: isMobile ? "92px" : "108px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              textAlign: "center",
-            }}
-          >
-            <p style={{ margin: 0, color: "#ffbd73", fontSize: "12px", fontWeight: 900, letterSpacing: "0.22em", textTransform: "uppercase" }}>
-              Why Dreamscape One
-            </p>
-
-            <h2
-              id="how-it-works-heading"
-              style={{
-                margin: "18px 0 0",
-                maxWidth: "1040px",
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isMobile ? "42px" : "64px",
-                fontWeight: 400,
-                lineHeight: 1.06,
-                color: "white",
-              }}
-            >
-              Practice shouldn’t feel like more homework.
-            </h2>
-
-            <p
-              style={{
-                margin: "23px 0 0",
-                maxWidth: "880px",
-                color: "rgba(255,255,255,0.72)",
-                fontSize: isMobile ? "17px" : "20px",
-                fontWeight: 300,
-                lineHeight: 1.7,
-              }}
-            >
-              Dreamscape connects curriculum learning with missions, rewards and a persistent world children have a reason to return to.
-            </p>
-
-            <div
-              style={{
-                marginTop: isMobile ? "36px" : "48px",
-                width: "100%",
-                display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
-                gap: isMobile ? "14px" : "18px",
-              }}
-            >
-              {journeySteps.map((step, index) => (
-                <article
-                  key={step.number}
-                  style={{
-                    position: "relative",
-                    minHeight: "240px",
-                    padding: "28px 27px",
-                    borderRadius: "24px",
-                    border: "1px solid rgba(142,232,255,0.2)",
-                    background:
-                      "linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.018))",
-                    textAlign: "left",
-                    boxShadow: "0 22px 58px rgba(0,0,0,0.24)",
-                    display: "flex",
-                    flexDirection: "column",
-                  }}
-                >
-                  <div
-                    style={{
-                      minHeight: "22px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "16px",
-                    }}
-                  >
-                    <p style={{ margin: 0, color: "#ffbd73", fontSize: "12px", fontWeight: 900, letterSpacing: "0.16em" }}>
-                      {step.number}
-                    </p>
-                    {!isMobile && (
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          color: "rgba(142,232,255,0.5)",
-                          fontSize: "22px",
-                          lineHeight: 1,
-                          visibility: index < journeySteps.length - 1 ? "visible" : "hidden",
-                        }}
-                      >
-                        →
-                      </span>
-                    )}
-                  </div>
-
-                  <h3 style={{ margin: "16px 0 0", color: "white", fontSize: "28px", fontWeight: 800 }}>
-                    {step.title}
-                  </h3>
-                  <p
-                    style={{
-                      margin: "15px 0 0",
-                      color: "rgba(255,255,255,0.66)",
-                      fontSize: "15px",
-                      fontWeight: 300,
-                      lineHeight: 1.62,
-                      maxWidth: "92%",
-                    }}
-                  >
-                    {step.text}
-                  </p>
-                  <p
-                    style={{
-                      margin: "auto 0 0",
-                      paddingTop: "22px",
-                      color: "#8ee8ff",
-                      fontSize: "11px",
-                      fontWeight: 900,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {step.detail}
-                  </p>
-                </article>
-              ))}
-            </div>
-
-            <p
-              style={{
-                margin: "30px 0 0",
-                color: "rgba(255,255,255,0.84)",
-                fontSize: isMobile ? "15px" : "17px",
-                fontWeight: 800,
-                lineHeight: 1.5,
-              }}
-            >
-              Learning is the engine that moves the adventure forward.
-            </p>
-          </section>
-
-          <section
-            id="inside-dreamscape"
-            aria-labelledby="inside-dreamscape-heading"
-            style={{
-              marginTop: isMobile ? "78px" : "108px",
-              width: "100%",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              textAlign: "center",
-            }}
-          >
-            <p style={{ margin: 0, color: "#8ee8ff", fontSize: "13px", fontWeight: 800, letterSpacing: "0.28em", textTransform: "uppercase" }}>
-              See Inside Nova
-            </p>
-
-            <h2
-              id="inside-dreamscape-heading"
-              style={{
-                margin: "20px 0 0",
-                maxWidth: "1000px",
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isMobile ? "40px" : "60px",
-                fontWeight: 400,
-                lineHeight: 1.08,
-                color: "white",
-              }}
-            >
-              One learning world. Many reasons to come back.
-            </h2>
-
-            <p
-              style={{
-                margin: "23px 0 0",
-                maxWidth: "900px",
-                color: "rgba(255,255,255,0.7)",
-                fontSize: isMobile ? "17px" : "19px",
-                fontWeight: 300,
-                lineHeight: 1.72,
-              }}
-            >
-              Curriculum learning powers the rewards, upgrades and spaces children interact with across Nova’s World.
-            </p>
-
-            <div
-              style={{
-                marginTop: isMobile ? "38px" : "50px",
-                width: "100%",
-                display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
-                gap: isMobile ? "22px" : "26px",
-                alignItems: "stretch",
-              }}
-            >
-              {productPreviews.map((preview) => (
-                <ProductPreviewCard key={preview.title} {...preview} />
-              ))}
-            </div>
-          </section>
-
-          <section
-            aria-labelledby="grows-heading"
-            style={{
-              marginTop: isMobile ? "84px" : "112px",
-              width: "100%",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              textAlign: "center",
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                color: "#53d7ff",
-                fontSize: "13px",
-                fontWeight: 800,
-                letterSpacing: "0.26em",
-                textTransform: "uppercase",
-              }}
-            >
-              One Connected Ecosystem
-            </p>
-
-            <h2
-              id="grows-heading"
-              style={{
-                margin: "20px 0 0",
-                maxWidth: "1040px",
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isMobile ? "42px" : "62px",
-                fontWeight: 400,
-                lineHeight: 1.08,
-                color: "white",
-              }}
-            >
-              A learning world that grows with them.
-            </h2>
-
-            <p
-              style={{
-                margin: "23px 0 0",
-                maxWidth: "840px",
-                color: "rgba(255,255,255,0.68)",
-                fontSize: isMobile ? "17px" : "19px",
-                fontWeight: 300,
-                lineHeight: 1.68,
-              }}
-            >
-              From school mastery to real-world capability — one world that evolves as they grow.
-            </p>
-
-            <GrowthJourney isMobile={isMobile} />
-          </section>
-
-          <section
-            id="for-parents"
-            aria-labelledby="parents-heading"
-            style={{
-              marginTop: isMobile ? "84px" : "112px",
               width: "100%",
               scrollMarginTop: isMobile ? "92px" : "108px",
               display: "flex",
@@ -1062,161 +783,236 @@ export default function Home() {
                 textTransform: "uppercase",
               }}
             >
-              For Parents
+              See Inside Nova
             </p>
 
             <h2
-              id="parents-heading"
+              id="inside-nova-heading"
               style={{
                 margin: "20px 0 0",
-                maxWidth: "1040px",
+                maxWidth: "1080px",
                 fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isMobile ? "42px" : "62px",
+                fontSize: isMobile ? "42px" : "64px",
                 fontWeight: 400,
-                lineHeight: 1.08,
+                lineHeight: 1.06,
                 color: "white",
               }}
             >
-              See the learning behind the adventure.
+              Practice shouldn’t feel like more homework.
             </h2>
 
             <p
               style={{
                 margin: "23px 0 0",
                 maxWidth: "900px",
-                color: "rgba(255,255,255,0.7)",
+                color: "rgba(255,255,255,0.72)",
+                fontSize: isMobile ? "17px" : "20px",
+                fontWeight: 300,
+                lineHeight: 1.72,
+              }}
+            >
+              Children still need meaningful practice. DREAMSCAPE turns it into missions, upgrades and spaces they have a reason to return to — so curriculum learning feels connected to a larger adventure.
+            </p>
+
+            <div
+              style={{
+                marginTop: isMobile ? "38px" : "52px",
+                width: "100%",
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+                gap: isMobile ? "22px" : "26px",
+                alignItems: "stretch",
+              }}
+            >
+              {productPreviews.map((preview) => (
+                <ProductPreviewCard key={preview.title} {...preview} />
+              ))}
+            </div>
+          </section>
+
+          <section
+            aria-labelledby="grows-heading"
+            style={{
+              position: "relative",
+              marginTop: isMobile ? "84px" : "116px",
+              width: "100vw",
+              marginLeft: "calc(50% - 50vw)",
+              marginRight: "calc(50% - 50vw)",
+              padding: isMobile ? "72px 20px 76px" : "96px 5vw 102px",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              background: isMobile
+                ? "linear-gradient(180deg, #38145f 0%, #6d287d 42%, #b55261 72%, #ef7d36 100%)"
+                : "linear-gradient(105deg, #351259 0%, #64257e 30%, #9c3f72 57%, #d85e4d 78%, #f28b37 100%)",
+              boxShadow: "inset 0 1px rgba(255,255,255,0.08), inset 0 -1px rgba(255,255,255,0.08)",
+            }}
+          >
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "none",
+                background:
+                  "radial-gradient(circle at 12% 35%, rgba(192,134,255,0.22), transparent 26%), radial-gradient(circle at 88% 55%, rgba(255,199,112,0.22), transparent 28%), linear-gradient(180deg, rgba(5,5,18,0.08), rgba(5,5,18,0.2))",
+              }}
+            />
+
+            <div
+              style={{
+                position: "relative",
+                zIndex: 2,
+                width: "100%",
+                maxWidth: "1540px",
+                margin: "0 auto",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  color: "rgba(255,255,255,0.82)",
+                  fontSize: "13px",
+                  fontWeight: 900,
+                  letterSpacing: "0.27em",
+                  textTransform: "uppercase",
+                }}
+              >
+                One Connected Ecosystem
+              </p>
+
+              <h2
+                id="grows-heading"
+                style={{
+                  margin: "20px 0 0",
+                  maxWidth: "1040px",
+                  fontFamily: 'Georgia, "Times New Roman", serif',
+                  fontSize: isMobile ? "42px" : "64px",
+                  fontWeight: 400,
+                  lineHeight: 1.06,
+                  color: "white",
+                  textShadow: "0 12px 34px rgba(39,9,46,0.24)",
+                }}
+              >
+                A world that grows with them.
+              </h2>
+
+              <p
+                style={{
+                  margin: "23px 0 0",
+                  maxWidth: "900px",
+                  color: "rgba(255,255,255,0.82)",
+                  fontSize: isMobile ? "17px" : "20px",
+                  fontWeight: 300,
+                  lineHeight: 1.68,
+                }}
+              >
+                Start with school mastery in Nova. Grow into money, business and real-world decision-making with Milo.
+              </p>
+
+              <GrowthJourney isMobile={isMobile} />
+            </div>
+          </section>
+
+          <section
+            id="for-parents"
+            aria-labelledby="parents-heading"
+            style={{
+              marginTop: isMobile ? "88px" : "120px",
+              width: "100%",
+              scrollMarginTop: isMobile ? "92px" : "108px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "13px",
+                fontWeight: 900,
+                letterSpacing: "0.27em",
+                textTransform: "uppercase",
+              }}
+            >
+              For Parents · Powered by NOVA+
+            </p>
+
+            <h2
+              id="parents-heading"
+              style={{
+                margin: "20px 0 0",
+                maxWidth: "1120px",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "42px" : "62px",
+                fontWeight: 400,
+                lineHeight: 1.07,
+                color: "white",
+              }}
+            >
+              Know how your child is learning — not just what they scored.
+            </h2>
+
+            <p
+              style={{
+                margin: "23px 0 0",
+                maxWidth: "960px",
+                color: "rgba(255,255,255,0.72)",
                 fontSize: isMobile ? "17px" : "19px",
                 fontWeight: 300,
                 lineHeight: 1.72,
               }}
             >
-              Dreamscape turns learning activity into clear, useful insight — showing what learners are doing well, where they may need support and what to work on next.
+              NOVA+ turns learning activity into an evolving picture of progress, strengths, gaps and mastery — helping families understand what is happening now and what should come next.
             </p>
 
             <div
               style={{
-                marginTop: isMobile ? "38px" : "50px",
-                width: "100%",
-                padding: isMobile ? "10px" : "14px",
-                borderRadius: isMobile ? "24px" : "32px",
-                border: "1px solid rgba(83,215,255,0.3)",
-                background:
-                  "radial-gradient(circle at 20% 0%, rgba(83,215,255,0.12), transparent 34%), rgba(3,10,23,0.76)",
-                boxShadow:
-                  "0 30px 80px rgba(0,0,0,0.38), 0 0 32px rgba(83,215,255,0.07)",
-                overflow: "hidden",
+                marginTop: isMobile ? "34px" : "42px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "10px",
+                padding: isMobile ? "12px 16px" : "13px 20px",
+                borderRadius: "999px",
+                border: "1px solid rgba(142,232,255,0.3)",
+                background: "linear-gradient(90deg, rgba(83,215,255,0.1), rgba(197,140,255,0.1))",
+                color: "rgba(255,255,255,0.9)",
+                fontSize: isMobile ? "12px" : "13px",
+                fontWeight: 800,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
               }}
             >
-              <img
-                src="/home/parent-learning-coach.png"
-                alt="Nova Personal Learning Coach showing a parent-facing summary of recent learning performance"
-                style={{
-                  width: "100%",
-                  height: "auto",
-                  display: "block",
-                  borderRadius: isMobile ? "17px" : "23px",
-                }}
-              />
+              <span aria-hidden="true" style={{ color: "#8ee8ff" }}>✦</span>
+              NOVA+ Learning Intelligence
             </div>
 
             <div
               style={{
-                marginTop: isMobile ? "24px" : "30px",
+                marginTop: isMobile ? "36px" : "52px",
                 width: "100%",
                 display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : "repeat(3, minmax(0, 1fr))",
-                gap: isMobile ? "14px" : "18px",
-              }}
-            >
-              {[
-                {
-                  title: "Know what matters",
-                  text: "Nova summarises recent performance and brings the most important learning signals to the surface.",
-                },
-                {
-                  title: "See strengths and weaknesses",
-                  text: "Subject performance makes it easier to understand where learning is secure and where more practice may help.",
-                },
-                {
-                  title: "Stay involved without micromanaging",
-                  text: "Weekly planning and parent updates help families follow learning without hovering over every activity.",
-                },
-              ].map((point) => (
-                <article
-                  key={point.title}
-                  style={{
-                    minHeight: isMobile ? "auto" : "184px",
-                    padding: "26px 25px",
-                    borderRadius: "22px",
-                    border: "1px solid rgba(142,232,255,0.18)",
-                    background:
-                      "linear-gradient(145deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018))",
-                    textAlign: "left",
-                  }}
-                >
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      width: "34px",
-                      height: "34px",
-                      borderRadius: "999px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#8ee8ff",
-                      border: "1px solid rgba(142,232,255,0.3)",
-                      background: "rgba(83,215,255,0.08)",
-                      fontWeight: 900,
-                    }}
-                  >
-                    ✓
-                  </div>
-                  <h3
-                    style={{
-                      margin: "18px 0 0",
-                      color: "white",
-                      fontSize: "22px",
-                      fontWeight: 800,
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {point.title}
-                  </h3>
-                  <p
-                    style={{
-                      margin: "12px 0 0",
-                      color: "rgba(255,255,255,0.65)",
-                      fontSize: "15px",
-                      fontWeight: 300,
-                      lineHeight: 1.62,
-                    }}
-                  >
-                    {point.text}
-                  </p>
-                </article>
-              ))}
-            </div>
-
-            <div
-              style={{
-                marginTop: isMobile ? "26px" : "36px",
-                width: "100%",
-                display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "0.72fr 1.28fr",
+                gridTemplateColumns: isMobile ? "1fr" : "0.82fr 1.18fr",
                 alignItems: "stretch",
                 overflow: "hidden",
-                borderRadius: isMobile ? "26px" : "32px",
-                border: "1px solid rgba(197,140,255,0.22)",
+                borderRadius: isMobile ? "26px" : "34px",
+                border: "1px solid rgba(83,215,255,0.24)",
                 background:
-                  "radial-gradient(circle at 8% 20%, rgba(197,140,255,0.13), transparent 35%), linear-gradient(145deg, rgba(12,12,38,0.92), rgba(3,11,25,0.9))",
-                boxShadow: "0 28px 72px rgba(0,0,0,0.3)",
+                  "radial-gradient(circle at 8% 18%, rgba(83,215,255,0.11), transparent 30%), linear-gradient(145deg, rgba(7,23,43,0.96), rgba(8,8,29,0.96))",
+                boxShadow: "0 30px 78px rgba(0,0,0,0.32)",
               }}
             >
               <div
                 style={{
-                  padding: isMobile ? "30px 24px" : "42px 38px",
+                  padding: isMobile ? "32px 24px" : "50px 44px",
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "center",
@@ -1226,67 +1022,186 @@ export default function Home() {
                 <p
                   style={{
                     margin: 0,
-                    color: "#d7b5ff",
+                    color: "#8ee8ff",
                     fontSize: "11px",
                     fontWeight: 900,
                     letterSpacing: "0.18em",
                     textTransform: "uppercase",
                   }}
                 >
-                  Deeper Detail
+                  My Learning
                 </p>
                 <h3
                   style={{
                     margin: "15px 0 0",
                     color: "white",
                     fontFamily: 'Georgia, "Times New Roman", serif',
-                    fontSize: isMobile ? "31px" : "39px",
+                    fontSize: isMobile ? "32px" : "43px",
                     fontWeight: 400,
-                    lineHeight: 1.1,
+                    lineHeight: 1.08,
                   }}
                 >
-                  Every answer is still there when you want the detail.
+                  A clearer picture every week.
                 </h3>
                 <p
                   style={{
-                    margin: "18px 0 0",
-                    color: "rgba(255,255,255,0.66)",
-                    fontSize: "16px",
+                    margin: "19px 0 0",
+                    color: "rgba(255,255,255,0.68)",
+                    fontSize: isMobile ? "15px" : "17px",
                     fontWeight: 300,
-                    lineHeight: 1.68,
+                    lineHeight: 1.7,
                   }}
                 >
-                  The Teaching Dashboard provides the underlying view of weekly quiz activity, subject performance and recorded learning history behind Nova’s summaries.
+                  Bring recent activity, subject performance and learning signals together in one place so families can see how learning is developing over time.
+                </p>
+                <div
+                  style={{
+                    marginTop: "24px",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "9px",
+                  }}
+                >
+                  {["Weekly progress", "Learning profile", "Subject signals"].map((label) => (
+                    <span
+                      key={label}
+                      style={{
+                        padding: "8px 11px",
+                        borderRadius: "999px",
+                        border: "1px solid rgba(142,232,255,0.18)",
+                        background: "rgba(83,215,255,0.06)",
+                        color: "rgba(255,255,255,0.76)",
+                        fontSize: "11px",
+                        fontWeight: 800,
+                      }}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  minHeight: isMobile ? "320px" : "480px",
+                  padding: isMobile ? "12px" : "18px",
+                  display: "flex",
+                  alignItems: "stretch",
+                  background: "rgba(0,0,0,0.18)",
+                  borderLeft: isMobile ? "none" : "1px solid rgba(142,232,255,0.12)",
+                  borderTop: isMobile ? "1px solid rgba(142,232,255,0.12)" : "none",
+                }}
+              >
+                <NovaPlusScreenshotPlaceholder
+                  label="MY LEARNING"
+                  filename="/home/nova-plus-my-learning.png"
+                  accent="#8ee8ff"
+                />
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: isMobile ? "22px" : "28px",
+                width: "100%",
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                gap: isMobile ? "20px" : "24px",
+                alignItems: "stretch",
+              }}
+            >
+              <NovaPlusFeatureCard
+                eyebrow="Strengths & Gaps"
+                title="Find the gaps before they grow."
+                text="See performance at concept level rather than relying on one overall score, making it easier to understand exactly where extra practice may help."
+                filename="/home/nova-plus-strengths-gaps.png"
+                accent="#8ee8ff"
+              />
+              <NovaPlusFeatureCard
+                eyebrow="Mastery Map"
+                title="Watch mastery develop over time."
+                text="Connect evidence across the curriculum so parents can see which areas are developing, secure or still need attention."
+                filename="/home/nova-plus-mastery-map.png"
+                accent="#c58cff"
+              />
+            </div>
+
+            <div
+              style={{
+                marginTop: isMobile ? "22px" : "28px",
+                width: "100%",
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "0.74fr 1.26fr",
+                alignItems: "stretch",
+                overflow: "hidden",
+                borderRadius: isMobile ? "26px" : "34px",
+                border: "1px solid rgba(255,174,92,0.28)",
+                background:
+                  "radial-gradient(circle at 8% 20%, rgba(255,174,92,0.12), transparent 34%), linear-gradient(145deg, rgba(28,13,33,0.96), rgba(8,10,28,0.96))",
+                boxShadow: "0 30px 78px rgba(0,0,0,0.3)",
+              }}
+            >
+              <div
+                style={{
+                  padding: isMobile ? "32px 24px" : "48px 42px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  textAlign: "left",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#ffbd73",
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Learning Reports
+                </p>
+                <h3
+                  style={{
+                    margin: "15px 0 0",
+                    color: "white",
+                    fontFamily: 'Georgia, "Times New Roman", serif',
+                    fontSize: isMobile ? "32px" : "42px",
+                    fontWeight: 400,
+                    lineHeight: 1.08,
+                  }}
+                >
+                  Progress you can take with you.
+                </h3>
+                <p
+                  style={{
+                    margin: "19px 0 0",
+                    color: "rgba(255,255,255,0.68)",
+                    fontSize: isMobile ? "15px" : "17px",
+                    fontWeight: 300,
+                    lineHeight: 1.7,
+                  }}
+                >
+                  Download a clear NOVA+ learning report whenever you want a deeper view of progress, strengths and areas to support next.
                 </p>
               </div>
 
               <div
                 style={{
-                  minHeight: isMobile ? "250px" : "360px",
-                  padding: isMobile ? "10px" : "14px",
+                  minHeight: isMobile ? "320px" : "430px",
+                  padding: isMobile ? "12px" : "18px",
                   display: "flex",
-                  alignItems: "center",
+                  alignItems: "stretch",
                   background: "rgba(0,0,0,0.16)",
-                  borderLeft: isMobile
-                    ? "none"
-                    : "1px solid rgba(197,140,255,0.14)",
-                  borderTop: isMobile
-                    ? "1px solid rgba(197,140,255,0.14)"
-                    : "none",
+                  borderLeft: isMobile ? "none" : "1px solid rgba(255,174,92,0.12)",
+                  borderTop: isMobile ? "1px solid rgba(255,174,92,0.12)" : "none",
                 }}
               >
-                <img
-                  src="/home/parent-teaching-dashboard.png"
-                  alt="Teaching Dashboard monthly learning activity view"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    maxHeight: isMobile ? "320px" : "390px",
-                    objectFit: "cover",
-                    objectPosition: "center",
-                    display: "block",
-                    borderRadius: "20px",
-                  }}
+                <NovaPlusScreenshotPlaceholder
+                  label="REPORT DOWNLOAD"
+                  filename="/home/nova-plus-report.png"
+                  accent="#ffbd73"
                 />
               </div>
             </div>
@@ -2103,320 +2018,348 @@ function TrustCard({
   );
 }
 
-function GrowthJourney({ isMobile }: { isMobile: boolean }) {
-  const novaSkills = ["English", "Mathematics", "Science", "Thinking Skills"];
-  const miloSkills = ["Financial Literacy", "Business", "Entrepreneurship", "Decision Making"];
-
-
+function NovaPlusScreenshotPlaceholder({
+  label,
+  filename,
+  accent,
+}: {
+  label: string;
+  filename: string;
+  accent: string;
+}) {
   return (
     <div
       style={{
         position: "relative",
-        marginTop: isMobile ? "38px" : "52px",
         width: "100%",
+        minHeight: "100%",
+        borderRadius: "22px",
+        border: `1px dashed ${accent}66`,
+        background:
+          "linear-gradient(145deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018)), repeating-linear-gradient(135deg, rgba(255,255,255,0.018) 0 12px, rgba(255,255,255,0.006) 12px 24px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         overflow: "hidden",
-        borderRadius: isMobile ? "28px" : "36px",
-        border: "1px solid rgba(255,255,255,0.12)",
-        background: isMobile
-          ? "linear-gradient(180deg, rgba(5,28,45,0.92) 0%, rgba(4,12,25,0.96) 46%, rgba(24,12,43,0.94) 100%)"
-          : "linear-gradient(100deg, rgba(5,31,49,0.92) 0%, rgba(4,13,27,0.96) 54%, rgba(29,14,49,0.94) 100%)",
-        boxShadow:
-          "0 34px 88px rgba(0,0,0,0.36), inset 0 0 44px rgba(83,215,255,0.025)",
       }}
     >
       <div
         aria-hidden="true"
         style={{
           position: "absolute",
-          inset: 0,
-          pointerEvents: "none",
-          background: isMobile
-            ? "radial-gradient(circle at 50% 10%, rgba(83,215,255,0.16), transparent 31%), radial-gradient(circle at 50% 92%, rgba(197,140,255,0.16), transparent 33%)"
-            : "radial-gradient(circle at 13% 50%, rgba(83,215,255,0.17), transparent 27%), radial-gradient(circle at 89% 48%, rgba(197,140,255,0.17), transparent 28%)",
+          top: "18px",
+          left: "18px",
+          right: "18px",
+          height: "34px",
+          borderRadius: "12px",
+          border: "1px solid rgba(255,255,255,0.08)",
+          background: "rgba(1,6,15,0.46)",
+          display: "flex",
+          alignItems: "center",
+          gap: "7px",
+          padding: "0 12px",
         }}
+      >
+        {[0, 1, 2].map((dot) => (
+          <span
+            key={dot}
+            style={{
+              width: "7px",
+              height: "7px",
+              borderRadius: "999px",
+              background: dot === 0 ? accent : "rgba(255,255,255,0.2)",
+            }}
+          />
+        ))}
+      </div>
+
+      <div style={{ position: "relative", zIndex: 2, padding: "74px 26px 30px", textAlign: "center" }}>
+        <div
+          style={{
+            width: "58px",
+            height: "58px",
+            margin: "0 auto",
+            borderRadius: "18px",
+            border: `1px solid ${accent}55`,
+            background: `${accent}12`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: accent,
+            fontSize: "24px",
+            fontWeight: 900,
+          }}
+        >
+          +
+        </div>
+        <p
+          style={{
+            margin: "18px 0 0",
+            color: accent,
+            fontSize: "11px",
+            fontWeight: 900,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+          }}
+        >
+          NOVA+ Screenshot
+        </p>
+        <p
+          style={{
+            margin: "9px 0 0",
+            color: "white",
+            fontSize: "20px",
+            fontWeight: 800,
+            lineHeight: 1.25,
+          }}
+        >
+          {label}
+        </p>
+        <p
+          style={{
+            margin: "10px 0 0",
+            color: "rgba(255,255,255,0.45)",
+            fontSize: "12px",
+            lineHeight: 1.55,
+          }}
+        >
+          Replace this placeholder with
+          <br />
+          <strong style={{ color: "rgba(255,255,255,0.68)" }}>{filename}</strong>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function NovaPlusFeatureCard({
+  eyebrow,
+  title,
+  text,
+  filename,
+  accent,
+}: {
+  eyebrow: string;
+  title: string;
+  text: string;
+  filename: string;
+  accent: string;
+}) {
+  return (
+    <article
+      style={{
+        minHeight: "610px",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        borderRadius: "30px",
+        border: `1px solid ${accent}36`,
+        background:
+          "linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.018))",
+        boxShadow: "0 28px 70px rgba(0,0,0,0.27)",
+      }}
+    >
+      <div style={{ padding: "32px 30px 28px", textAlign: "left" }}>
+        <p
+          style={{
+            margin: 0,
+            color: accent,
+            fontSize: "11px",
+            fontWeight: 900,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+          }}
+        >
+          {eyebrow}
+        </p>
+        <h3
+          style={{
+            margin: "14px 0 0",
+            color: "white",
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontSize: "34px",
+            fontWeight: 400,
+            lineHeight: 1.1,
+          }}
+        >
+          {title}
+        </h3>
+        <p
+          style={{
+            margin: "16px 0 0",
+            color: "rgba(255,255,255,0.66)",
+            fontSize: "15px",
+            fontWeight: 300,
+            lineHeight: 1.66,
+          }}
+        >
+          {text}
+        </p>
+      </div>
+
+      <div style={{ flex: 1, minHeight: "330px", padding: "0 14px 14px" }}>
+        <NovaPlusScreenshotPlaceholder label={eyebrow.toUpperCase()} filename={filename} accent={accent} />
+      </div>
+    </article>
+  );
+}
+
+function GrowthJourney({ isMobile }: { isMobile: boolean }) {
+  const novaSkills = ["English", "Mathematics", "Science", "Thinking Skills"];
+  const miloSkills = ["Financial Literacy", "Business", "Entrepreneurship", "Decision Making"];
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        marginTop: isMobile ? "42px" : "58px",
+        width: "100%",
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) minmax(210px, 0.34fr) minmax(0, 1fr)",
+        gap: isMobile ? "34px" : "34px",
+        alignItems: "center",
+      }}
+    >
+      <JourneyWorld
+        world="nova"
+        imageSrc="/nova/nova-character.png"
+        audience="Ages 6–12"
+        title="Nova’s World"
+        skills={novaSkills}
+        summary="Build strong academic foundations through curriculum missions, thinking challenges, rewards and play."
+        isMobile={isMobile}
       />
 
-      {isMobile ? (
+      <div
+        aria-label="Progression from Nova to Milo"
+        style={{
+          position: "relative",
+          minHeight: isMobile ? "230px" : "360px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: isMobile ? "8px 0" : "0 6px",
+        }}
+      >
+        {!isMobile && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: "-52px",
+              right: "-52px",
+              top: "50%",
+              height: "2px",
+              transform: "translateY(-50%)",
+              background: "linear-gradient(90deg, rgba(221,179,255,0.78), rgba(255,255,255,0.82), rgba(255,207,141,0.8))",
+              boxShadow: "0 0 24px rgba(255,255,255,0.22)",
+            }}
+          />
+        )}
+
+        {isMobile && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: "50%",
+              width: "2px",
+              transform: "translateX(-50%)",
+              background: "linear-gradient(180deg, rgba(221,179,255,0.75), rgba(255,255,255,0.82), rgba(255,207,141,0.8))",
+              boxShadow: "0 0 20px rgba(255,255,255,0.2)",
+            }}
+          />
+        )}
+
         <div
           style={{
             position: "relative",
             zIndex: 2,
-            padding: "38px 20px 40px",
+            padding: "12px 17px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.36)",
+            background: "rgba(39,14,51,0.48)",
+            backdropFilter: "blur(12px)",
+            color: "white",
+            fontSize: "11px",
+            fontWeight: 900,
+            letterSpacing: "0.15em",
+            textTransform: "uppercase",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Grows With Them
+        </div>
+
+        <div
+          style={{
+            position: "relative",
+            zIndex: 2,
+            marginTop: "22px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
+            gap: "10px",
           }}
         >
-          <JourneyWorld
-            world="nova"
-            imageSrc="/nova/nova-character.png"
-            audience="Ages 6–12"
-            title="Nova’s World"
-            skills={novaSkills}
-            summary="Build strong academic foundations through missions, rewards and play."
-            footer="Learn · Earn · Build"
-            isMobile
-          />
-
-          <div
-            aria-label="Progression from Nova to Milo"
-            style={{
-              width: "100%",
-              maxWidth: "340px",
-              padding: "30px 0 28px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-            }}
-          >
-            <div
-              aria-hidden="true"
-              style={{
-                width: "2px",
-                height: "50px",
-                background: "linear-gradient(180deg, #53d7ff, #9ba8ff)",
-                boxShadow: "0 0 18px rgba(83,215,255,0.42)",
-              }}
-            />
-
-            <div
-              style={{
-                margin: "12px 0",
-                padding: "10px 16px",
-                borderRadius: "999px",
-                border: "1px solid rgba(176,177,255,0.34)",
-                background: "rgba(6,11,25,0.82)",
-                color: "white",
-                fontSize: "11px",
-                fontWeight: 900,
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-              }}
-            >
-              Grows With Them
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              {["Foundations", "Independence", "Real-World Skills"].map((stage, index) => (
-                <div key={stage} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-                  <span
-                    style={{
-                      color: index === 0 ? "#8ee8ff" : index === 1 ? "#b5bdff" : "#d5b5ff",
-                      fontSize: "11px",
-                      fontWeight: 900,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {stage}
-                  </span>
-                  {index < 2 && (
-                    <span aria-hidden="true" style={{ color: "rgba(255,255,255,0.38)", fontSize: "16px" }}>
-                      ↓
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <p
-              style={{
-                margin: "16px 0 0",
-                color: "rgba(255,255,255,0.62)",
-                fontSize: "13px",
-                fontWeight: 600,
-                lineHeight: 1.5,
-              }}
-            >
-              School mastery develops into real-world capability.
-            </p>
-
-            <div
-              aria-hidden="true"
-              style={{
-                marginTop: "14px",
-                width: "2px",
-                height: "50px",
-                background: "linear-gradient(180deg, #9ba8ff, #c58cff)",
-                boxShadow: "0 0 18px rgba(197,140,255,0.35)",
-              }}
-            />
-            <span aria-hidden="true" style={{ marginTop: "-6px", color: "#c58cff", fontSize: "24px", lineHeight: 1 }}>
-              ↓
-            </span>
-          </div>
-
-          <JourneyWorld
-            world="milo"
-            imageSrc="/milo-world/milo-character.png"
-            audience="Ages 13+"
-            title="Milo’s World"
-            skills={miloSkills}
-            summary="Apply what you’ve learned to money, business and real-world choices."
-            footer="Money · Business · Create"
-            isMobile
-          />
-        </div>
-      ) : (
-        <div
-          style={{
-            position: "relative",
-            zIndex: 2,
-            minHeight: "520px",
-            padding: "48px 46px",
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1.08fr) minmax(230px, 0.38fr) minmax(0, 0.82fr)",
-            gap: "28px",
-            alignItems: "center",
-          }}
-        >
-          <JourneyWorld
-            world="nova"
-            imageSrc="/nova/nova-character.png"
-            audience="Ages 6–12"
-            title="Nova’s World"
-            skills={novaSkills}
-            summary="Build strong academic foundations through missions, rewards and play."
-            footer="Learn · Earn · Build"
-          />
-
-          <div
-            aria-label="Progression from Nova to Milo"
-            style={{
-              position: "relative",
-              alignSelf: "stretch",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              minWidth: 0,
-            }}
-          >
-            <div
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                top: "50%",
-                left: "-42px",
-                right: "-42px",
-                height: "2px",
-                transform: "translateY(-50%)",
-                background: "linear-gradient(90deg, #53d7ff 0%, #9ba8ff 50%, #c58cff 100%)",
-                boxShadow: "0 0 22px rgba(119,188,255,0.38)",
-              }}
-            />
-
-            <div
-              style={{
-                position: "relative",
-                zIndex: 2,
-                width: "100%",
-                minHeight: "310px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <div
+          {["Learn", "Think", "Become Independent", "Build Real-World Skills"].map((stage, index) => (
+            <div key={stage} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+              <span
                 style={{
-                  padding: "11px 17px",
-                  borderRadius: "999px",
-                  border: "1px solid rgba(176,177,255,0.34)",
-                  background: "rgba(5,11,25,0.92)",
-                  boxShadow: "0 14px 32px rgba(0,0,0,0.28)",
-                  color: "white",
-                  fontSize: "11px",
+                  padding: "8px 11px",
+                  borderRadius: "10px",
+                  background: "rgba(35,13,47,0.4)",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  color: "rgba(255,255,255,0.92)",
+                  fontSize: "10px",
                   fontWeight: 900,
-                  letterSpacing: "0.15em",
+                  letterSpacing: "0.1em",
                   textTransform: "uppercase",
                   whiteSpace: "nowrap",
+                  backdropFilter: "blur(10px)",
                 }}
               >
-                Grows With Them
-              </div>
-
-              <div
-                style={{
-                  marginTop: "24px",
-                  width: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                  alignItems: "center",
-                }}
-              >
-                {["Foundations", "Independence", "Real-World Skills"].map((stage, index) => (
-                  <div
-                    key={stage}
-                    style={{
-                      width: "100%",
-                      maxWidth: "195px",
-                      padding: "9px 10px",
-                      borderRadius: "12px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(3,9,21,0.72)",
-                      color: index === 0 ? "#8ee8ff" : index === 1 ? "#b5bdff" : "#d5b5ff",
-                      fontSize: "10px",
-                      fontWeight: 900,
-                      letterSpacing: "0.11em",
-                      textTransform: "uppercase",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {stage}
-                  </div>
-                ))}
-              </div>
-
-              <p
-                style={{
-                  margin: "24px 0 0",
-                  maxWidth: "220px",
-                  color: "rgba(255,255,255,0.62)",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  lineHeight: 1.5,
-                }}
-              >
-                School mastery develops into real-world capability.
-              </p>
-
-              <span
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  right: "-50px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "#c58cff",
-                  fontSize: "34px",
-                  textShadow: "0 0 20px rgba(197,140,255,0.5)",
-                }}
-              >
-                →
+                {stage}
               </span>
+              {index < 3 && (
+                <span aria-hidden="true" style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px" }}>
+                  {isMobile ? "↓" : "·"}
+                </span>
+              )}
             </div>
-          </div>
-
-          <JourneyWorld
-            world="milo"
-            imageSrc="/milo-world/milo-character.png"
-            audience="Ages 13+"
-            title="Milo’s World"
-            skills={miloSkills}
-            summary="Apply what you’ve learned to money, business and real-world choices."
-            footer="Money · Business · Create"
-          />
+          ))}
         </div>
-      )}
+
+        {!isMobile && (
+          <span
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              right: "-58px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "rgba(255,235,207,0.9)",
+              fontSize: "36px",
+              textShadow: "0 0 20px rgba(255,184,111,0.34)",
+            }}
+          >
+            →
+          </span>
+        )}
+      </div>
+
+      <JourneyWorld
+        world="milo"
+        imageSrc="/milo-world/milo-character.png"
+        audience="Ages 13+"
+        title="Milo’s World"
+        skills={miloSkills}
+        summary="Apply what you have learned to money, business, entrepreneurship and real-world choices."
+        isMobile={isMobile}
+      />
     </div>
   );
 }
@@ -2428,7 +2371,6 @@ function JourneyWorld({
   title,
   skills,
   summary,
-  footer,
   isMobile = false,
 }: {
   world: "nova" | "milo";
@@ -2437,7 +2379,6 @@ function JourneyWorld({
   title: string;
   skills: string[];
   summary: string;
-  footer: string;
   isMobile?: boolean;
 }) {
   const isNova = world === "nova";
@@ -2448,37 +2389,42 @@ function JourneyWorld({
         position: "relative",
         width: "100%",
         minWidth: 0,
+        minHeight: isMobile ? "auto" : "460px",
+        padding: isMobile ? "32px 20px" : "38px 30px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
+        justifyContent: "center",
         textAlign: "center",
-        padding: isMobile ? "6px 4px" : isNova ? "8px 18px 8px 4px" : "8px 4px 8px 14px",
+        borderRadius: "30px",
+        border: "1px solid rgba(255,255,255,0.22)",
+        background: isNova ? "rgba(48,18,74,0.28)" : "rgba(105,47,35,0.24)",
+        backdropFilter: "blur(12px)",
+        boxShadow: "0 24px 64px rgba(35,8,36,0.2)",
       }}
     >
       <div
         style={{
-          width: isMobile ? "136px" : isNova ? "158px" : "142px",
-          height: isMobile ? "136px" : isNova ? "158px" : "142px",
+          width: isMobile ? "138px" : "158px",
+          height: isMobile ? "138px" : "158px",
           borderRadius: "999px",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          border: isNova ? "1px solid rgba(83,215,255,0.5)" : "1px solid rgba(197,140,255,0.42)",
+          border: isNova ? "1px solid rgba(225,193,255,0.56)" : "1px solid rgba(255,214,158,0.54)",
           background: isNova
-            ? "radial-gradient(circle, rgba(83,215,255,0.17), rgba(2,8,19,0.3) 68%, rgba(2,8,19,0.58))"
-            : "radial-gradient(circle, rgba(197,140,255,0.16), rgba(2,8,19,0.3) 68%, rgba(2,8,19,0.58))",
-          boxShadow: isNova
-            ? "0 0 34px rgba(83,215,255,0.12)"
-            : "0 0 32px rgba(197,140,255,0.1)",
+            ? "radial-gradient(circle, rgba(197,140,255,0.24), rgba(42,16,68,0.22) 70%)"
+            : "radial-gradient(circle, rgba(255,174,92,0.23), rgba(103,44,30,0.2) 70%)",
           overflow: "hidden",
+          boxShadow: isNova ? "0 0 34px rgba(197,140,255,0.15)" : "0 0 34px rgba(255,174,92,0.13)",
         }}
       >
         <img
           src={imageSrc}
           alt={title}
           style={{
-            width: isMobile ? "126px" : isNova ? "148px" : "132px",
-            height: isMobile ? "126px" : isNova ? "148px" : "132px",
+            width: isMobile ? "128px" : "148px",
+            height: isMobile ? "128px" : "148px",
             objectFit: "contain",
             display: "block",
             transform: !isNova ? "scale(1.08)" : "none",
@@ -2488,11 +2434,11 @@ function JourneyWorld({
 
       <p
         style={{
-          margin: "22px 0 0",
-          color: isNova ? "#8ee8ff" : "#d5b5ff",
+          margin: "21px 0 0",
+          color: isNova ? "#e3c2ff" : "#ffddb5",
           fontSize: "12px",
           fontWeight: 900,
-          letterSpacing: "0.19em",
+          letterSpacing: "0.18em",
           textTransform: "uppercase",
         }}
       >
@@ -2501,12 +2447,12 @@ function JourneyWorld({
 
       <h3
         style={{
-          margin: "10px 0 0",
+          margin: "9px 0 0",
           color: "white",
           fontFamily: 'Georgia, "Times New Roman", serif',
-          fontSize: isMobile ? "34px" : isNova ? "40px" : "36px",
+          fontSize: isMobile ? "34px" : "40px",
           fontWeight: 400,
-          lineHeight: 1.15,
+          lineHeight: 1.14,
         }}
       >
         {title}
@@ -2515,11 +2461,11 @@ function JourneyWorld({
       <p
         style={{
           margin: "14px 0 0",
-          maxWidth: isNova ? "520px" : "430px",
-          color: "rgba(255,255,255,0.67)",
+          maxWidth: "490px",
+          color: "rgba(255,255,255,0.78)",
           fontSize: isMobile ? "14px" : "15px",
           fontWeight: 400,
-          lineHeight: 1.58,
+          lineHeight: 1.6,
         }}
       >
         {summary}
@@ -2529,7 +2475,7 @@ function JourneyWorld({
         style={{
           marginTop: "22px",
           width: "100%",
-          maxWidth: isNova ? "520px" : "420px",
+          maxWidth: "500px",
           display: "grid",
           gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
           gap: "10px",
@@ -2540,14 +2486,14 @@ function JourneyWorld({
             key={skill}
             style={{
               minHeight: isMobile ? "44px" : "48px",
-              padding: isMobile ? "10px 12px" : "11px 14px",
+              padding: isMobile ? "10px 10px" : "11px 13px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               borderRadius: "14px",
-              border: isNova ? "1px solid rgba(142,232,255,0.16)" : "1px solid rgba(213,181,255,0.16)",
-              background: "rgba(255,255,255,0.045)",
-              color: "rgba(255,255,255,0.9)",
+              border: "1px solid rgba(255,255,255,0.16)",
+              background: "rgba(255,255,255,0.08)",
+              color: "rgba(255,255,255,0.94)",
               fontSize: isMobile ? "13px" : "14px",
               fontWeight: 700,
               lineHeight: 1.3,
@@ -2558,19 +2504,6 @@ function JourneyWorld({
           </div>
         ))}
       </div>
-
-      <p
-        style={{
-          margin: "22px 0 0",
-          color: isNova ? "#8ee8ff" : "#d5b5ff",
-          fontSize: "11px",
-          fontWeight: 900,
-          letterSpacing: "0.13em",
-          textTransform: "uppercase",
-        }}
-      >
-        {footer}
-      </p>
     </article>
   );
 }

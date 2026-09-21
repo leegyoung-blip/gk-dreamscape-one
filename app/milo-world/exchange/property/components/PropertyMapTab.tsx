@@ -501,7 +501,7 @@ export default function PropertyMapTab({
                           <strong style={{ display: "block", marginTop: "5px", color: "#ffd18a" }}>{formatNumber(property.listing_price)} DT</strong>
                         </div>
                         <div style={{ borderRadius: "14px", background: "rgba(255,255,255,0.055)", padding: "11px" }}>
-                          <span style={{ display: "block", color: "rgba(255,255,255,0.42)", fontSize: "10px", textTransform: "uppercase", fontWeight: 850 }}>Weekly Rent</span>
+                          <span style={{ display: "block", color: "rgba(255,255,255,0.42)", fontSize: "10px", textTransform: "uppercase", fontWeight: 850 }}>Base Rent Potential</span>
                           <strong style={{ display: "block", marginTop: "5px", color: "#8ee8ff" }}>{formatNumber(property.weekly_rent)} DT</strong>
                         </div>
                       </div>
