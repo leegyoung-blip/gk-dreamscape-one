@@ -173,6 +173,49 @@ export async function POST(request: Request) {
       );
     }
 
+    /*
+     * The evidence transaction has COMMITTED at this point.
+     *
+     * Mastery is deliberately refreshed in a separate RPC so a slow mastery
+     * calculation can never roll back the reviewed schoolwork evidence.
+     */
+    const affectedSkillIds = Array.isArray(
+      data?.affected_skill_ids,
+    )
+      ? data.affected_skill_ids
+          .map((value: unknown) => String(value || "").trim())
+          .filter(Boolean)
+      : [];
+
+    let masteryRefreshed = false;
+    let masteryRefreshWarning: string | null = null;
+
+    if (affectedSkillIds.length > 0) {
+      const {
+        error: masteryRefreshError,
+      } = await (client as any).rpc(
+        "refresh_learner_skill_mastery_for_skills",
+        {
+          p_student_user_id:
+            uploadRow.student_user_id,
+          p_skill_ids:
+            affectedSkillIds,
+        },
+      );
+
+      if (masteryRefreshError) {
+        masteryRefreshWarning =
+          "The schoolwork was added successfully, but the immediate mastery refresh did not finish. NOVA+ will recalculate it on the next profile refresh.";
+
+        console.error(
+          "NOVA+ targeted schoolwork mastery refresh failed",
+          masteryRefreshError,
+        );
+      } else {
+        masteryRefreshed = true;
+      }
+    }
+
     const includedSkillCodes = [
       ...new Set(
         body.decisions
@@ -237,7 +280,13 @@ export async function POST(request: Request) {
 
     return json({
       status: "approved",
-      result: data,
+      result: {
+        ...data,
+        mastery_refreshed:
+          masteryRefreshed,
+        mastery_refresh_warning:
+          masteryRefreshWarning,
+      },
       impact: {
         questions_added: Number(
           data?.items_included || 0,
