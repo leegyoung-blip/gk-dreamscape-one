@@ -75,7 +75,7 @@ function actionLabel(action: string) {
   if (action === "full_repair") return "Full repair";
   if (action === "quick_fix") return "Quick fix";
   if (action === "ignore") return "Ignored";
-  if (action === "preventive_service") return "Preventive service";
+  if (action === "preventive_service") return "Regular servicing";
   if (action === "system_resolution") return "Temporary fix held";
   if (action === "tenant_departure") return "Tenant departed";
   return action;
@@ -146,7 +146,7 @@ export default function PropertyMaintenancePanel({
               fontWeight: 500,
             }}
           >
-            Maintenance & tenant satisfaction
+            Keep your property healthy
           </h3>
           <p
             style={{
@@ -157,9 +157,7 @@ export default function PropertyMaintenancePanel({
               lineHeight: 1.6,
             }}
           >
-            Condition now affects this unit’s value and rent potential. When a tenant is
-            present, unresolved problems also reduce satisfaction and can eventually make
-            the tenant leave.
+            A well-kept property holds its value and keeps tenants happier. Fix problems early before they become more expensive or affect the tenancy.
           </p>
         </div>
       </div>
@@ -233,7 +231,7 @@ export default function PropertyMaintenancePanel({
               fontWeight: 900,
             }}
           >
-            Tenant Satisfaction
+            Tenant Happiness
           </span>
           {lease ? (
             <>
@@ -277,7 +275,7 @@ export default function PropertyMaintenancePanel({
               fontWeight: 900,
             }}
           >
-            Open Maintenance
+            Repairs Needed
           </span>
           <strong
             style={{
@@ -311,12 +309,12 @@ export default function PropertyMaintenancePanel({
         }}
       >
         <div>
-          <strong style={{ display: "block", color: "#79f2ce" }}>Preventive service</strong>
+          <strong style={{ display: "block", color: "#79f2ce" }}>Regular servicing</strong>
           <p style={{ margin: "6px 0 0", color: "rgba(255,255,255,0.53)", fontSize: "12px", lineHeight: 1.55 }}>
-            Service the property before something fails. It restores some condition and cuts breakdown risk for 21 days.
+            Spend a little now to reduce the chance of bigger problems later. Servicing also restores some condition.
           </p>
           <small style={{ display: "block", marginTop: "7px", color: "rgba(255,255,255,0.4)" }}>
-            Estimated service cost: {formatNumber(estimatedServiceCost)} DT · 14-day service cooldown
+            Estimated cost: {formatNumber(estimatedServiceCost)} DT · available again after 14 days
           </small>
         </div>
         <button
@@ -349,7 +347,7 @@ export default function PropertyMaintenancePanel({
             letterSpacing: "0.16em",
           }}
         >
-          Maintenance Requests
+          Repair Requests
         </p>
 
         {unresolved.length === 0 ? (

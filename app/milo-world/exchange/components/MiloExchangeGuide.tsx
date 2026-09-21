@@ -137,43 +137,43 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
   property: [
     {
       eyebrow: "Milo Guide",
-      title: "Welcome to the living Property Exchange",
+      title: "Welcome to your Dreamscape property journey",
       description:
-        "Property now combines buying, upgrades, resident demand, real leases, text-message negotiations, maintenance and resale across three main tabs.",
+        "Buy properties, improve them, meet residents, agree on rent, look after tenants and sell when the time is right.",
       target: "property-tabs",
       propertyTab: "map",
       tip: "Owning a property does not automatically create income. You need a tenant and an agreement.",
     },
     {
       eyebrow: "Step 1 · Property Map",
-      title: "Start with the underlying asset",
+      title: "Choose your first property",
       description:
-        "Explore Residential Hub or Commercial Hub, compare base value, rent potential and remaining supply, then purchase a primary-market unit.",
+        "Explore Residential Hub or Commercial Hub, compare prices and rent potential, then choose a property to buy.",
       target: "property-world-map",
       propertyTab: "map",
     },
     {
-      eyebrow: "Step 2 · Individual Assets",
-      title: "Every unit has its own history",
+      eyebrow: "Step 2 · Your Property",
+      title: "Every property becomes unique",
       description:
-        "Each purchased unit keeps its own upgrades, value, rent potential, condition, tenant history, maintenance history and resale identity.",
+        "Your upgrades, condition, tenants and maintenance choices stay with that property over time.",
       target: "property-primary-market",
       propertyTab: "map",
       tip: "Rent potential is an estimate, not automatic income.",
     },
     {
       eyebrow: "Step 3 · Portfolio",
-      title: "Separate asset value from actual income",
+      title: "See how your portfolio is doing",
       description:
-        "My Properties shows managed value, contracted rent and occupancy. It also tracks your landlord reputation and unread resident messages.",
+        "My Properties shows what your portfolio is worth, how much rent is coming in, which homes are occupied and which residents need your attention.",
       target: "property-portfolio-summary",
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 4 · Resident Market",
-      title: "Price the property and let residents decide",
+      eyebrow: "Step 4 · Finding Tenants",
+      title: "Set the rent and see who applies",
       description:
-        "Set an asking rent and list a vacant unit. Residents compare affordability, district, property type, appeal, quality, efficiency and condition before applying.",
+        "Choose a weekly rent and list a vacant property. Dreamscape residents decide whether it suits their budget, lifestyle and needs.",
       target: "property-resident-overview",
       propertyTab: "properties",
       tip: "Higher rent may earn more if accepted, but it narrows the applicant pool.",
@@ -189,68 +189,68 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
     },
     {
       eyebrow: "Step 6 · Reputation",
-      title: "Residents remember how you manage property",
+      title: "Build a reputation residents trust",
       description:
-        "Your landlord reputation responds to completed leases, renewals, tenant satisfaction, repairs, ignored problems and early departures. A stronger reputation helps future tenant relationships.",
+        "Fair rent, good maintenance and happy tenants build your reputation. Poor treatment makes future relationships harder.",
       target: "property-reputation",
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 7 · Resident Life",
-      title: "Residents keep living after they move in",
+      eyebrow: "Step 7 · Resident Stories",
+      title: "Residents have lives of their own",
       description:
-        "Careers, household or team size, savings and financial pressure now change over time. A promotion can increase a tenant’s budget, while a job change, business expansion or growing household can make them consider moving.",
+        "Careers, families, savings and businesses can change over time. Those changes may affect what a resident can afford or whether they need a different property.",
       target: "property-resident-life",
       propertyTab: "properties",
       tip: "The same resident can return later with a different income, budget and housing need.",
     },
     {
-      eyebrow: "Step 8 · Lease Lifecycle",
-      title: "A lease is a relationship, not a timer",
+      eyebrow: "Step 8 · Lease Renewal",
+      title: "Talk things through before a lease ends",
       description:
-        "Before a lease ends, the tenant may text you with renewal terms. You can accept, decline or counter the weekly rent and lease length. Resident life changes can also make them decide not to renew.",
+        "Before a lease ends, your tenant may message you about staying. You can accept, decline or suggest different rent and lease terms.",
       target: "property-managed-units",
       propertyTab: "properties",
       tip: "If no renewal is agreed, the tenant moves out and the property becomes vacant again.",
     },
     {
-      eyebrow: "Step 9 · Property Health",
-      title: "Condition changes the economics",
+      eyebrow: "Step 9 · Property Care",
+      title: "Take care of your property",
       description:
-        "Normal wear and maintenance problems affect property value, rent potential and tenant satisfaction. Preventive service reduces breakdown risk.",
+        "Wear and repair problems can lower value and upset tenants. Regular servicing helps keep the property in good shape.",
       target: "property-maintenance-overview",
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 10 · Improve the Asset",
-      title: "Upgrades and maintenance do different jobs",
+      eyebrow: "Step 10 · Upgrades",
+      title: "Improve it, then look after it",
       description:
-        "Upgrades improve appeal, quality, efficiency, value and rent potential. Maintenance protects the condition of the asset you already built.",
+        "Upgrades can make a property more attractive and valuable. Maintenance protects what you have already built.",
       target: "property-upgrade-overview",
       propertyTab: "properties",
       tip: "A premium property can still lose tenants if it is poorly managed.",
     },
     {
-      eyebrow: "Step 11 · Exact-Unit Resale",
-      title: "Sell the property you actually managed",
+      eyebrow: "Step 11 · Selling",
+      title: "Sell when the time feels right",
       description:
-        "Player resale transfers the exact unit with its upgrades and condition history. Its managed value becomes the reference for the asking-price range.",
+        "When you sell, the property keeps its upgrades and condition. Choose an asking price and list it for other players.",
       target: "property-my-listings",
       propertyTab: "properties",
     },
     {
       eyebrow: "Step 12 · Resale Market",
-      title: "Compare existing assets, not generic copies",
+      title: "Compare real player-owned properties",
       description:
-        "The Resale Market exposes each unit’s managed value, upgrades, condition and rent potential so players can compare genuinely different assets.",
+        "Every resale listing reflects how that owner developed and cared for the property, so two homes of the same type can be very different.",
       target: "property-resale-market",
       propertyTab: "resale",
     },
     {
       eyebrow: "Step 13 · The Full Loop",
-      title: "Buy, improve, negotiate, manage and decide when to sell",
+      title: "Build your own property story",
       description:
-        "Property is now a long-term management game. Your pricing, communication, tenant, upgrade and maintenance decisions determine how each asset performs.",
+        "Your choices about rent, tenants, upgrades, repairs and selling shape how each property performs over time.",
       target: "property-virtual-notice",
       propertyTab: "map",
       tip: "This remains a fictional Dreamscape learning market using virtual Dream Tokens.",

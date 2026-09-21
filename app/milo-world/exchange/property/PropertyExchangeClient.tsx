@@ -308,7 +308,8 @@ export default function PropertyExchangeClient() {
   const contentWrap: CSSProperties = {
     position: "relative",
     zIndex: 5,
-    width: "min(1440px, calc(100% - 32px))",
+    width: isMobile ? "calc(100% - 20px)" : "calc(100% - 32px)",
+    maxWidth: "none",
     margin: "0 auto",
     padding: isMobile ? "16px 0 82px" : "26px 0 96px",
   };
@@ -1405,9 +1406,9 @@ export default function PropertyExchangeClient() {
   }
 
   const tabs: Array<{ id: PropertyTab; label: string; description: string; icon: string }> = [
-    { id: "map", label: "Property Map", description: "Explore and buy primary units", icon: "⌖" },
-    { id: "properties", label: "My Properties", description: "Upgrade, rent, maintain and manage", icon: "⌂" },
-    { id: "resale", label: "Resale Market", description: "Buy units from other owners", icon: "⇄" },
+    { id: "map", label: "Property Map", description: "Explore Dreamscape and buy properties", icon: "⌖" },
+    { id: "properties", label: "My Properties", description: "Manage homes, tenants and upgrades", icon: "⌂" },
+    { id: "resale", label: "Resale Market", description: "Buy properties from other owners", icon: "⇄" },
   ];
 
   const tabStyles = { glassPanel, primaryButton, secondaryButton };
@@ -1532,7 +1533,7 @@ export default function PropertyExchangeClient() {
             Property Exchange
           </h1>
           <p style={{ margin: "18px auto 0", maxWidth: "760px", color: "rgba(255,255,255,0.64)", lineHeight: 1.7, fontSize: isMobile ? "15px" : "17px" }}>
-            Explore the primary market, improve individual properties, rent them to Dreamscape residents, maintain them over time, manage tenant satisfaction, or sell through the resale market.
+            Browse Dreamscape, buy a place, improve it, find tenants, look after your properties and grow your portfolio over time.
           </p>
         </section>
 

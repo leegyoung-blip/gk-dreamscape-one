@@ -579,7 +579,7 @@ export default function DreamTokensAdminPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-[#020813] px-5 py-8 text-white sm:px-8 sm:py-10">
+    <main className="relative min-h-screen w-full max-w-none overflow-x-hidden bg-[#020813] px-4 py-8 text-white sm:px-6 sm:py-10 lg:px-8 2xl:px-10">
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(126,232,255,0.2),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(168,85,247,0.16),transparent_36%),linear-gradient(180deg,#041124_0%,#020813_100%)]" />
         <div className="absolute left-[-120px] top-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/10 blur-3xl" />
@@ -604,8 +604,8 @@ export default function DreamTokensAdminPage() {
         </button>
       </div>
 
-      <div className="relative z-10 mx-auto mt-10 max-w-7xl">
-        <section>
+      <div className="relative z-10 mt-10 w-full max-w-none">
+        <section className="w-full max-w-none">
           <p className="m-0 text-xs font-bold uppercase tracking-[0.3em] text-[#7ee8ff]">
             Dreamscape Admin
           </p>
@@ -626,7 +626,7 @@ export default function DreamTokensAdminPage() {
           )}
         </section>
 
-        <section className="mt-8 rounded-[28px] border border-cyan-200/16 bg-white/[0.04] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+        <section className="mt-8 w-full max-w-none rounded-[28px] border border-cyan-200/16 bg-white/[0.04] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.2)] backdrop-blur-xl">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {(
               [
@@ -1257,7 +1257,7 @@ function AdminOverview({
       : 0;
 
   return (
-    <div className="mt-8 grid gap-6">
+    <div className="mt-8 grid w-full max-w-none gap-6">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <OverviewMetric
           label="Real Users"
@@ -1533,8 +1533,8 @@ function SelectedUserSummary({
 
 function AffiliateManagementPanel() {
   return (
-    <section className="mt-8">
-      <div className="grid gap-4 sm:grid-cols-3">
+    <section className="mt-8 w-full max-w-none">
+      <div className="grid w-full gap-4 sm:grid-cols-3">
         <AdminMetricCard
           label="Affiliate Applications"
           value="Review"
@@ -2032,8 +2032,8 @@ function TeacherLicensingPanel() {
   ).length;
 
   return (
-    <section className="mt-8">
-      <div className="grid gap-4 sm:grid-cols-3">
+    <section className="mt-8 w-full max-w-none">
+      <div className="grid w-full gap-4 sm:grid-cols-3">
         <AdminMetricCard
           label="Teacher Accounts"
           value={isLoading ? "..." : teachers.length.toLocaleString()}

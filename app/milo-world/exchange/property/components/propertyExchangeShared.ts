@@ -561,6 +561,12 @@ export function formatPercentFromBps(bps: number) {
   return `${value % 1 === 0 ? value.toFixed(0) : value.toFixed(1)}%`;
 }
 
+export function getResidentAvatarSrc(avatarKey: string | null | undefined) {
+  const clean = String(avatarKey || "").trim().toLowerCase();
+  if (!clean) return null;
+  return `/milo-world/property-exchange/residents/${clean}.jpg`;
+}
+
 export type PropertyTabStyles = {
   glassPanel: CSSProperties;
   primaryButton: CSSProperties;

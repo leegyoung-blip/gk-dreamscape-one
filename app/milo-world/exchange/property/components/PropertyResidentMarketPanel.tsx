@@ -5,6 +5,7 @@ import {
   formatDateTime,
   formatNumber,
   formatShortDate,
+  getResidentAvatarSrc,
   type PropertyLease,
   type PropertyPurchaseOffer,
   type PropertyRentalApplication,
@@ -12,6 +13,7 @@ import {
   type PropertyTabStyles,
   type PropertyUnit,
   type PropertyUnitMarketSetting,
+  type PropertyResidentLifeProfile,
 } from "./propertyExchangeShared";
 
 type Props = PropertyTabStyles & {
@@ -22,6 +24,7 @@ type Props = PropertyTabStyles & {
   purchaseOffers: PropertyPurchaseOffer[];
   marketSetting: PropertyUnitMarketSetting | null;
   isPlayerResaleActive: boolean;
+  residentLifeProfiles: PropertyResidentLifeProfile[];
   actionLoading: boolean;
   isMobile: boolean;
   onCreateRentalListing: (
@@ -49,6 +52,7 @@ export default function PropertyResidentMarketPanel({
   purchaseOffers,
   marketSetting,
   isPlayerResaleActive,
+  residentLifeProfiles,
   actionLoading,
   isMobile,
   glassPanel,
@@ -75,6 +79,11 @@ export default function PropertyResidentMarketPanel({
     [purchaseOffers]
   );
 
+  function residentAvatar(residentId: string) {
+    const profile = residentLifeProfiles.find((item) => item.resident_id === residentId);
+    return getResidentAvatarSrc(profile?.avatar_key);
+  }
+
   if (isPlayerResaleActive) {
     return (
       <div
@@ -86,13 +95,13 @@ export default function PropertyResidentMarketPanel({
         }}
       >
         <p style={{ margin: 0, color: "#ffd18a", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>
-          Player Resale Active
+          For Sale
         </p>
         <h3 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "30px" : "38px", fontWeight: 500 }}>
           This unit is currently for sale
         </h3>
         <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.56)", fontSize: "13px", lineHeight: 1.6, maxWidth: "760px" }}>
-          Rental listings and Dreamscape resident purchase offers are paused while an exact-unit player resale is active. Cancel the resale listing from My Properties if you want to return this unit to the resident market.
+          This property is listed for sale, so rental applications and resident purchase offers are paused. Cancel the sale listing if you want to rent it out again.
         </p>
       </div>
     );
@@ -112,7 +121,7 @@ export default function PropertyResidentMarketPanel({
 
     if (rent > Math.max(unit.rental_potential * 3, 1)) {
       setLocalMessage(
-        "That rent is far above this unit’s market potential. Keep it below 3× the current potential so the resident market remains meaningful."
+        "That rent is much higher than this property’s current potential. Try a lower amount so residents have a realistic chance of applying."
       );
       return;
     }
@@ -162,7 +171,7 @@ export default function PropertyResidentMarketPanel({
               letterSpacing: "0.18em",
             }}
           >
-            Resident Market
+            Rent & Resident Interest
           </p>
           <h3
             style={{
@@ -183,9 +192,7 @@ export default function PropertyResidentMarketPanel({
               lineHeight: 1.55,
             }}
           >
-            You choose the asking rent. Residents compare the price with their
-            budget, the district and this unit’s appeal, quality and efficiency
-            before deciding whether to apply.
+            Set the weekly rent, then see who is interested. Residents look at price, location and the quality of the property before deciding whether to apply.
           </p>
         </div>
 
@@ -240,30 +247,17 @@ export default function PropertyResidentMarketPanel({
               flexWrap: "wrap",
             }}
           >
-            <div>
-              <span
-                style={{
-                  color: "#79f2ce",
-                  fontSize: "11px",
-                  fontWeight: 900,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                }}
-              >
-                Active Tenant
-              </span>
-              <h4 style={{ margin: "8px 0 0", fontSize: "22px" }}>
-                {lease.resident_name}
-              </h4>
-              <p
-                style={{
-                  margin: "5px 0 0",
-                  color: "rgba(255,255,255,0.48)",
-                  fontSize: "12px",
-                }}
-              >
-                {lease.occupation} · {lease.resident_kind}
-              </p>
+            <div style={{ display: "grid", gridTemplateColumns: "58px minmax(0,1fr)", gap: "12px", alignItems: "center" }}>
+              {residentAvatar(lease.resident_id) ? (
+                <img src={residentAvatar(lease.resident_id) || ""} alt={lease.resident_name} style={{ width: "58px", height: "58px", borderRadius: "50%", objectFit: "cover", border: "2px solid rgba(121,242,206,0.35)" }} />
+              ) : (
+                <span style={{ width: "58px", height: "58px", borderRadius: "50%", display: "grid", placeItems: "center", background: "rgba(121,242,206,0.14)", color: "#79f2ce", fontWeight: 950, fontSize: "20px" }}>{lease.resident_name.slice(0,1)}</span>
+              )}
+              <div>
+                <span style={{ color: "#79f2ce", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em" }}>Current Tenant</span>
+                <h4 style={{ margin: "6px 0 0", fontSize: "22px" }}>{lease.resident_name}</h4>
+                <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,0.48)", fontSize: "12px" }}>{lease.occupation}</p>
+              </div>
             </div>
             <strong style={{ color: "#8ee8ff", fontSize: "22px" }}>
               {formatNumber(lease.weekly_rent)} DT/wk
@@ -332,7 +326,7 @@ export default function PropertyResidentMarketPanel({
               lineHeight: 1.5,
             }}
           >
-            Satisfaction is now live. Fair rent, strong condition and prompt repairs help it recover; neglect and unresolved maintenance can make the tenant leave early.
+            Keep the property in good condition and respond to repairs quickly to keep your tenant happy and more likely to stay.
           </div>
 
           <button
@@ -340,7 +334,7 @@ export default function PropertyResidentMarketPanel({
             onClick={onOpenMessages}
             style={{ ...primaryButton, width: "100%", minHeight: "40px", marginTop: "12px" }}
           >
-            Open Tenant Messages
+            Read Messages
           </button>
         </section>
       ) : rentalListing?.status === "active" ? (
@@ -372,7 +366,7 @@ export default function PropertyResidentMarketPanel({
                   letterSpacing: "0.12em",
                 }}
               >
-                Active Rental Listing
+                Listed for Rent
               </span>
               <strong
                 style={{ display: "block", marginTop: "8px", fontSize: "26px" }}
@@ -387,7 +381,7 @@ export default function PropertyResidentMarketPanel({
                   lineHeight: 1.5,
                 }}
               >
-                Market potential when listed: {formatNumber(
+                Suggested rent when listed: {formatNumber(
                   rentalListing.market_rent_at_listing
                 )} DT/wk
               </p>
@@ -435,7 +429,7 @@ export default function PropertyResidentMarketPanel({
                       letterSpacing: "0.12em",
                     }}
                   >
-                    Resident Applications
+                    Rental Applicants
                   </span>
                   <strong style={{ display: "block", marginTop: "5px" }}>
                     {pendingApplications.length} waiting
@@ -459,8 +453,7 @@ export default function PropertyResidentMarketPanel({
                     lineHeight: 1.5,
                   }}
                 >
-                  No applications yet. Residents review price, affordability and
-                  property fit when the market refreshes.
+                  No applications yet. Try checking again later, or adjust the rent if the property is not attracting interest.
                 </div>
               ) : (
                 <div style={{ marginTop: "10px", display: "grid", gap: "10px" }}>
@@ -482,19 +475,16 @@ export default function PropertyResidentMarketPanel({
                           alignItems: "flex-start",
                         }}
                       >
-                        <div>
-                          <strong style={{ display: "block", fontSize: "15px" }}>
-                            {application.resident_name}
-                          </strong>
-                          <small
-                            style={{
-                              display: "block",
-                              marginTop: "4px",
-                              color: "rgba(255,255,255,0.45)",
-                            }}
-                          >
-                            {application.occupation} · Reliability {application.reliability}/100
-                          </small>
+                        <div style={{ display: "grid", gridTemplateColumns: "48px minmax(0,1fr)", gap: "10px", alignItems: "center" }}>
+                          {residentAvatar(application.resident_id) ? (
+                            <img src={residentAvatar(application.resident_id) || ""} alt={application.resident_name} style={{ width: "48px", height: "48px", borderRadius: "50%", objectFit: "cover", border: "1px solid rgba(255,255,255,0.16)" }} />
+                          ) : (
+                            <span style={{ width: "48px", height: "48px", borderRadius: "50%", display: "grid", placeItems: "center", background: "rgba(142,232,255,0.12)", color: "#8ee8ff", fontWeight: 950 }}>{application.resident_name.slice(0,1)}</span>
+                          )}
+                          <span>
+                            <strong style={{ display: "block", fontSize: "15px" }}>{application.resident_name}</strong>
+                            <small style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,0.45)" }}>{application.occupation} · Reliability {application.reliability}/100</small>
+                          </span>
                         </div>
                         <span
                           style={{
@@ -572,7 +562,7 @@ export default function PropertyResidentMarketPanel({
                         disabled={actionLoading}
                         style={{ ...primaryButton, width: "100%", minHeight: "38px", marginTop: "10px" }}
                       >
-                        Open Tenant Message
+                        Read Message
                       </button>
                     </article>
                   ))}
@@ -606,7 +596,7 @@ export default function PropertyResidentMarketPanel({
                 letterSpacing: "0.12em",
               }}
             >
-              Set Weekly Rent
+              Choose Your Rent
             </span>
             <div
               style={{
@@ -706,7 +696,7 @@ export default function PropertyResidentMarketPanel({
                 letterSpacing: "0.12em",
               }}
             >
-              Pricing Matters
+              Finding the Right Price
             </span>
             <p
               style={{
@@ -754,10 +744,10 @@ export default function PropertyResidentMarketPanel({
                   letterSpacing: "0.12em",
                 }}
               >
-                Resident Purchase Interest
+                Purchase Offers
               </span>
               <strong style={{ display: "block", marginTop: "5px" }}>
-                Open this unit to direct offers
+                Let residents make offers
               </strong>
             </div>
             <button
@@ -807,17 +797,16 @@ export default function PropertyResidentMarketPanel({
                         alignItems: "flex-start",
                       }}
                     >
-                      <span>
-                        <strong style={{ display: "block" }}>{offer.resident_name}</strong>
-                        <small
-                          style={{
-                            display: "block",
-                            marginTop: "4px",
-                            color: "rgba(255,255,255,0.44)",
-                          }}
-                        >
-                          {offer.occupation} · expires {formatDateTime(offer.expires_at)}
-                        </small>
+                      <span style={{ display: "grid", gridTemplateColumns: "46px minmax(0,1fr)", gap: "10px", alignItems: "center" }}>
+                        {residentAvatar(offer.resident_id) ? (
+                          <img src={residentAvatar(offer.resident_id) || ""} alt={offer.resident_name} style={{ width: "46px", height: "46px", borderRadius: "50%", objectFit: "cover", border: "1px solid rgba(255,209,138,0.25)" }} />
+                        ) : (
+                          <span style={{ width: "46px", height: "46px", borderRadius: "50%", display: "grid", placeItems: "center", background: "rgba(255,209,138,0.12)", color: "#ffd18a", fontWeight: 950 }}>{offer.resident_name.slice(0,1)}</span>
+                        )}
+                        <span>
+                          <strong style={{ display: "block" }}>{offer.resident_name}</strong>
+                          <small style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,0.44)" }}>{offer.occupation} · expires {formatDateTime(offer.expires_at)}</small>
+                        </span>
                       </span>
                       <span style={{ textAlign: "right" }}>
                         <strong style={{ display: "block", color: "#ffd18a" }}>
@@ -853,7 +842,7 @@ export default function PropertyResidentMarketPanel({
                       disabled={actionLoading}
                       style={{ ...primaryButton, width: "100%", minHeight: "38px", marginTop: "10px" }}
                     >
-                      Open Purchase Message
+                      Read Offer
                     </button>
                   </article>
                 );

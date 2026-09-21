@@ -312,6 +312,47 @@ function hasCurriculumDeveloperRole(
   );
 }
 
+
+type CancellationKind =
+  | "paid"
+  | "trial";
+
+type CancellationStep =
+  | "closed"
+  | "retention"
+  | "reason";
+
+const CANCELLATION_REASONS = [
+  {
+    code: "too_expensive",
+    label: "It costs too much",
+  },
+  {
+    code: "not_using_enough",
+    label: "We are not using it enough",
+  },
+  {
+    code: "learning_needs_changed",
+    label: "It no longer fits the learner’s needs",
+  },
+  {
+    code: "technical_issues",
+    label: "We had technical problems",
+  },
+  {
+    code: "taking_break",
+    label: "We are taking a break",
+  },
+  {
+    code: "switching_plan",
+    label: "We want a different plan",
+  },
+  {
+    code: "other",
+    label: "Other reason",
+  },
+] as const;
+
 export default function ProfilePage() {
   const router = useRouter();
 
@@ -372,6 +413,36 @@ export default function ProfilePage() {
 
   const [membershipError, setMembershipError] =
     useState("");
+
+  const [
+    cancellationStep,
+    setCancellationStep,
+  ] = useState<CancellationStep>("closed");
+
+  const [
+    cancellationKind,
+    setCancellationKind,
+  ] = useState<CancellationKind>("paid");
+
+  const [
+    cancellationReason,
+    setCancellationReason,
+  ] = useState("");
+
+  const [
+    cancellationComments,
+    setCancellationComments,
+  ] = useState("");
+
+  const [
+    cancellationFlowError,
+    setCancellationFlowError,
+  ] = useState("");
+
+  const [
+    isSubmittingCancellation,
+    setIsSubmittingCancellation,
+  ] = useState(false);
 
   const [showDeleteAccount, setShowDeleteAccount] =
     useState(false);
@@ -1159,6 +1230,27 @@ export default function ProfilePage() {
     setIsLoadingMembership(false);
   }
 
+  function openCancellationFlow(
+    kind: CancellationKind,
+  ) {
+    setCancellationKind(kind);
+    setCancellationReason("");
+    setCancellationComments("");
+    setCancellationFlowError("");
+    setCancellationStep("retention");
+  }
+
+  function closeCancellationFlow() {
+    if (isSubmittingCancellation) {
+      return;
+    }
+
+    setCancellationStep("closed");
+    setCancellationReason("");
+    setCancellationComments("");
+    setCancellationFlowError("");
+  }
+
   async function runMembershipAction(
     action:
       | "payment_method"
@@ -1170,9 +1262,12 @@ export default function ProfilePage() {
       | "resume_membership"
       | "cancel_trial"
       | "keep_trial",
-  ) {
+    options?: {
+      skipConfirmation?: boolean;
+    },
+  ): Promise<boolean> {
     if (!membershipDetails) {
-      return;
+      return false;
     }
 
     if (
@@ -1182,79 +1277,87 @@ export default function ProfilePage() {
       setMembershipError(
         "Choose the new membership plan first.",
       );
-      return;
+      return false;
     }
 
     if (
+      !options?.skipConfirmation &&
       action === "change_plan" &&
       !window.confirm(
         "Schedule this plan change for the next paid billing cycle? Your current access remains unchanged until the new plan starts.",
       )
     ) {
-      return;
+      return false;
     }
 
     if (
+      !options?.skipConfirmation &&
       action === "cancel_plan_change" &&
       !window.confirm(
         "Cancel the pending membership plan change and keep the current plan?",
       )
     ) {
-      return;
+      return false;
     }
 
     if (
+      !options?.skipConfirmation &&
       action === "cancel_period_end" &&
       !window.confirm(
         "Stop future renewal? Paid learning access will remain available through the current paid period.",
       )
     ) {
-      return;
+      return false;
     }
 
     if (
+      !options?.skipConfirmation &&
       action === "keep_subscription" &&
       !window.confirm(
         "Keep this membership renewing normally?",
       )
     ) {
-      return;
+      return false;
     }
 
     if (
+      !options?.skipConfirmation &&
       action === "cancel_trial" &&
       !window.confirm(
         "Cancel the free trial? You will not be charged when the trial ends, and learning access will remain available until the trial end date.",
       )
     ) {
-      return;
+      return false;
     }
 
     if (
+      !options?.skipConfirmation &&
       action === "keep_trial" &&
       !window.confirm(
         "Keep the free trial continuing into the selected paid subscription when the trial ends?",
       )
     ) {
-      return;
+      return false;
     }
 
     if (
+      !options?.skipConfirmation &&
       action === "pause_membership" &&
       !window.confirm(
         "Pause membership now? Learning access stops immediately and Stripe stops generating subscription invoices while paused. Unused paid time is credited by Stripe and can be applied when the membership is resumed.",
       )
     ) {
-      return;
+      return false;
     }
 
     if (
+      !options?.skipConfirmation &&
       action === "resume_membership" &&
       !window.confirm(
         "Resume membership now? Stripe may charge the payment method to begin the resumed billing period. Learning access is restored after Stripe confirms the subscription is active.",
       )
     ) {
-      return;
+      return false;
     }
 
     setIsWorkingMembership(true);
@@ -1319,7 +1422,7 @@ export default function ProfilePage() {
       ) {
         window.location.href =
           payload.redirectUrl;
-        return;
+        return true;
       }
 
       const labels: Record<
@@ -1359,15 +1462,177 @@ export default function ProfilePage() {
           "dreamscape-membership-updated",
         ),
       );
+
+      setIsWorkingMembership(false);
+      return true;
     } catch (error) {
       setMembershipError(
         error instanceof Error
           ? error.message
           : "The membership action could not be completed.",
       );
+
+      setIsWorkingMembership(false);
+      return false;
+    }
+  }
+
+  async function submitCancellationRequest() {
+    if (!membershipDetails) {
+      return;
     }
 
-    setIsWorkingMembership(false);
+    if (!cancellationReason) {
+      setCancellationFlowError(
+        "Please choose a reason before confirming cancellation.",
+      );
+      return;
+    }
+
+    setIsSubmittingCancellation(true);
+    setCancellationFlowError("");
+
+    let feedbackId = "";
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error(
+          "Please sign in again.",
+        );
+      }
+
+      const cancellationAction =
+        cancellationKind === "trial"
+          ? "cancel_trial"
+          : "cancel_period_end";
+
+      const feedbackResponse =
+        await fetch(
+          "/api/profile/cancellation-feedback",
+          {
+            method: "POST",
+            headers: {
+              Authorization:
+                `Bearer ${session.access_token}`,
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              mode: "create",
+              contractId:
+                membershipDetails.contractId,
+              cancellationAction,
+              reasonCode:
+                cancellationReason,
+              comments:
+                cancellationComments.trim(),
+            }),
+          },
+        );
+
+      const feedbackPayload =
+        (await feedbackResponse
+          .json()
+          .catch(() => null)) as
+          | {
+              id?: string;
+              error?: string;
+            }
+          | null;
+
+      if (
+        !feedbackResponse.ok ||
+        !feedbackPayload?.id
+      ) {
+        throw new Error(
+          feedbackPayload?.error ||
+            "Your cancellation reason could not be saved.",
+        );
+      }
+
+      feedbackId =
+        feedbackPayload.id;
+
+      const cancelled =
+        await runMembershipAction(
+          cancellationAction,
+          {
+            skipConfirmation: true,
+          },
+        );
+
+      if (!cancelled) {
+        throw new Error(
+          "The cancellation could not be completed. Your reason was saved, but the membership remains unchanged.",
+        );
+      }
+
+      await fetch(
+        "/api/profile/cancellation-feedback",
+        {
+          method: "POST",
+          headers: {
+            Authorization:
+              `Bearer ${session.access_token}`,
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            mode: "resolve",
+            feedbackId,
+            outcome: "completed",
+          }),
+        },
+      ).catch(() => null);
+
+      setCancellationStep("closed");
+      setCancellationReason("");
+      setCancellationComments("");
+      setCancellationFlowError("");
+      setShowSettings(false);
+    } catch (error) {
+      if (feedbackId) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.access_token) {
+          await fetch(
+            "/api/profile/cancellation-feedback",
+            {
+              method: "POST",
+              headers: {
+                Authorization:
+                  `Bearer ${session.access_token}`,
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                mode: "resolve",
+                feedbackId,
+                outcome: "failed",
+                failureMessage:
+                  error instanceof Error
+                    ? error.message
+                    : "Cancellation failed.",
+              }),
+            },
+          ).catch(() => null);
+        }
+      }
+
+      setCancellationFlowError(
+        error instanceof Error
+          ? error.message
+          : "The cancellation could not be completed.",
+      );
+    }
+
+    setIsSubmittingCancellation(false);
   }
 
   async function openDeleteAccount() {
@@ -1829,6 +2094,20 @@ Thank you.`;
     hasStaffAccess ||
     hasStudentRewardsAccess;
 
+  function goBackToPreviousPage() {
+    if (typeof window === "undefined") {
+      router.push("/");
+      return;
+    }
+
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push("/");
+  }
+
   async function logout() {
     localStorage.removeItem("seen-prologue");
     localStorage.removeItem(
@@ -1854,15 +2133,15 @@ Thank you.`;
         <div className="absolute bottom-[-140px] right-[-120px] h-[380px] w-[380px] rounded-full bg-violet-500/10 blur-3xl" />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-6xl">
+      <div className="relative z-10 w-full max-w-none">
         {/* Top navigation */}
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
-            onClick={() => router.push("/")}
+            onClick={goBackToPreviousPage}
             className="rounded-full border border-cyan-200/25 bg-white/[0.06] px-4 py-2.5 text-xs font-bold uppercase tracking-[0.1em] text-white shadow-[0_14px_34px_rgba(0,0,0,0.25)] backdrop-blur-xl transition hover:scale-[1.02] hover:border-cyan-200/45 sm:px-5"
           >
-            ← Back to World
+            ← Back
           </button>
 
           <div className="flex items-center gap-2 sm:gap-3">
@@ -2341,7 +2620,7 @@ Thank you.`;
       {/* Settings modal */}
       {showSettings && (
         <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-[#020813]/84 px-4 py-6 backdrop-blur-md sm:py-10">
-          <div className="relative w-full max-w-4xl overflow-hidden rounded-[30px] border border-cyan-200/22 bg-[#051126] shadow-[0_30px_90px_rgba(0,0,0,0.58)]">
+          <div className="relative w-full max-w-none overflow-hidden rounded-[30px] border border-cyan-200/22 bg-[#051126] shadow-[0_30px_90px_rgba(0,0,0,0.58)]">
             <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[#051126]/95 px-5 py-5 backdrop-blur-xl sm:px-7">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
@@ -2588,7 +2867,7 @@ Thank you.`;
                     </p>
 
                     <p className="mt-2 text-sm leading-6 text-white/46">
-                      Basic Dreamscape access remains available. View the current Core and Full plans when you are ready to upgrade.
+                      Basic Dreamscape access remains available. View the current Core and NOVA+ plans when you are ready to upgrade.
                     </p>
 
                     <button
@@ -2817,44 +3096,6 @@ Thank you.`;
                             Membership Status
                           </p>
 
-                          {membershipDetails.canCancelTrial && (
-                            <>
-                              <button
-                                type="button"
-                                disabled={isWorkingMembership}
-                                onClick={() =>
-                                  void runMembershipAction("cancel_trial")
-                                }
-                                className="mt-4 min-h-[46px] w-full rounded-full border border-red-200/20 bg-red-300/[0.07] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-red-100 transition hover:bg-red-300/[0.13] disabled:opacity-45"
-                              >
-                                Cancel Trial
-                              </button>
-
-                              <p className="mt-2 text-xs leading-5 text-white/38">
-                                You keep access until the trial ends. No subscription charge will be made after the trial.
-                              </p>
-                            </>
-                          )}
-
-                          {membershipDetails.canKeepTrial && (
-                            <>
-                              <button
-                                type="button"
-                                disabled={isWorkingMembership}
-                                onClick={() =>
-                                  void runMembershipAction("keep_trial")
-                                }
-                                className="mt-4 min-h-[46px] w-full rounded-full border border-green-200/22 bg-green-300/[0.10] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-green-50 transition hover:bg-green-300/[0.16] disabled:opacity-45"
-                              >
-                                Keep Trial
-                              </button>
-
-                              <p className="mt-2 text-xs leading-5 text-white/38">
-                                Continue the trial and allow your selected paid subscription to begin when the trial ends.
-                              </p>
-                            </>
-                          )}
-
                           {membershipDetails.canPause && (
                             <>
                               <button
@@ -2893,31 +3134,6 @@ Thank you.`;
                             </>
                           )}
 
-                          {membershipDetails.canCancelAtPeriodEnd && (
-                            <button
-                              type="button"
-                              disabled={isWorkingMembership}
-                              onClick={() =>
-                                void runMembershipAction("cancel_period_end")
-                              }
-                              className="mt-4 min-h-[46px] w-full rounded-full border border-red-200/20 bg-red-300/[0.07] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-red-100 transition hover:bg-red-300/[0.13] disabled:opacity-45"
-                            >
-                              Stop Future Renewal
-                            </button>
-                          )}
-
-                          {membershipDetails.canKeepSubscription && (
-                            <button
-                              type="button"
-                              disabled={isWorkingMembership}
-                              onClick={() =>
-                                void runMembershipAction("keep_subscription")
-                              }
-                              className="mt-4 min-h-[46px] w-full rounded-full border border-green-200/22 bg-green-300/[0.10] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-green-50 transition hover:bg-green-300/[0.16] disabled:opacity-45"
-                            >
-                              Keep Membership
-                            </button>
-                          )}
                         </div>
                       </div>
                     ) : (
@@ -3051,6 +3267,170 @@ Thank you.`;
                   </div>
                 </div>
               </section>
+
+              {/* Membership cancellation */}
+              <section className="rounded-[26px] border border-red-200/14 bg-red-300/[0.025] p-5 sm:p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-red-200/70">
+                  Membership
+                </p>
+
+                <h3 className="mt-3 text-2xl font-bold text-white">
+                  Cancel membership
+                </h3>
+
+                {isLoadingMembership ? (
+                  <p className="mt-5 text-sm leading-6 text-white/46">
+                    Loading membership details...
+                  </p>
+                ) : !membershipDetails ? (
+                  <div className="mt-5 rounded-2xl border border-white/9 bg-black/16 p-4">
+                    <p className="text-sm font-bold text-white/78">
+                      No paid membership to cancel.
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-white/38">
+                      This account does not currently have a paid Dreamscape subscription linked to it.
+                    </p>
+                  </div>
+                ) : membershipDetails.provider !== "stripe" ? (
+                  <div className="mt-5 rounded-2xl border border-amber-200/16 bg-amber-300/[0.06] p-4">
+                    <p className="text-sm font-bold text-amber-100">
+                      This membership is not managed through Stripe.
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-white/42">
+                      Use Support for cancellation or billing changes.
+                    </p>
+                  </div>
+                ) : membershipDetails.isTrial ? (
+                  membershipDetails.canCancelTrial ? (
+                    <>
+                      <p className="mt-4 text-sm leading-6 text-white/54">
+                        Cancel the free trial before it converts to a paid subscription. Access remains available until{" "}
+                        <strong className="text-white/78">
+                          {formatMembershipDate(membershipDetails.trialEndsAt)}
+                        </strong>
+                        , and Stripe will not charge the subscription fee after the trial ends.
+                      </p>
+
+                      <button
+                        type="button"
+                        disabled={isWorkingMembership}
+                        onClick={() =>
+                          openCancellationFlow("trial")
+                        }
+                        className="mt-5 min-h-[50px] w-full rounded-full border border-red-200/24 bg-red-400/[0.09] px-5 text-xs font-extrabold uppercase tracking-[0.13em] text-red-100 transition hover:bg-red-400/[0.15] disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        Cancel Free Trial
+                      </button>
+                    </>
+                  ) : membershipDetails.canKeepTrial ? (
+                    <>
+                      <div className="mt-5 rounded-2xl border border-amber-200/18 bg-amber-300/[0.06] p-4">
+                        <p className="text-sm font-bold text-amber-100">
+                          Trial cancellation is scheduled.
+                        </p>
+                        <p className="mt-2 text-xs leading-5 text-white/44">
+                          Access remains available through{" "}
+                          {formatMembershipDate(membershipDetails.trialEndsAt)}.
+                          No subscription charge will be made afterward.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isWorkingMembership}
+                        onClick={() =>
+                          void runMembershipAction("keep_trial")
+                        }
+                        className="mt-4 min-h-[50px] w-full rounded-full border border-green-200/22 bg-green-300/[0.10] px-5 text-xs font-extrabold uppercase tracking-[0.13em] text-green-50 transition hover:bg-green-300/[0.16] disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        Keep Trial & Membership
+                      </button>
+                    </>
+                  ) : (
+                    <p className="mt-5 text-sm leading-6 text-white/46">
+                      This trial cannot be changed from the profile right now.
+                    </p>
+                  )
+                ) : membershipDetails.canCancelAtPeriodEnd ? (
+                  <>
+                    <p className="mt-4 text-sm leading-6 text-white/54">
+                      Cancel future renewal directly with Stripe. Your current paid access remains active through{" "}
+                      <strong className="text-white/78">
+                        {formatMembershipDate(membershipDetails.currentPeriodEnd)}
+                      </strong>
+                      .
+                    </p>
+
+                    <button
+                      type="button"
+                      disabled={isWorkingMembership}
+                      onClick={() =>
+                        openCancellationFlow("paid")
+                      }
+                      className="mt-5 min-h-[50px] w-full rounded-full border border-red-200/24 bg-red-400/[0.09] px-5 text-xs font-extrabold uppercase tracking-[0.13em] text-red-100 transition hover:bg-red-400/[0.15] disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      Cancel Membership
+                    </button>
+
+                    <p className="mt-3 text-xs leading-5 text-white/34">
+                      This stops renewal at the end of the current billing period. It does not delete the Dreamscape account or remove progress, DT or DG.
+                    </p>
+                  </>
+                ) : membershipDetails.canKeepSubscription ? (
+                  <>
+                    <div className="mt-5 rounded-2xl border border-amber-200/18 bg-amber-300/[0.06] p-4">
+                      <p className="text-sm font-bold text-amber-100">
+                        Membership cancellation is scheduled.
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-white/44">
+                        Current paid access remains active through{" "}
+                        {formatMembershipDate(membershipDetails.currentPeriodEnd)}.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isWorkingMembership}
+                      onClick={() =>
+                        void runMembershipAction("keep_subscription")
+                      }
+                      className="mt-4 min-h-[50px] w-full rounded-full border border-green-200/22 bg-green-300/[0.10] px-5 text-xs font-extrabold uppercase tracking-[0.13em] text-green-50 transition hover:bg-green-300/[0.16] disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      Keep Membership
+                    </button>
+                  </>
+                ) : membershipDetails.isPaused ? (
+                  <div className="mt-5 rounded-2xl border border-amber-200/16 bg-amber-300/[0.06] p-4">
+                    <p className="text-sm font-bold text-amber-100">
+                      Membership is currently paused.
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-white/42">
+                      Resume the membership first if you want to schedule the Stripe subscription to end at a billing-period boundary.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-5 rounded-2xl border border-white/9 bg-black/16 p-4">
+                    <p className="text-sm font-bold text-white/72">
+                      Cancellation is not available for the current membership status.
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-white/38">
+                      If this looks incorrect, refresh membership details or contact Support.
+                    </p>
+                  </div>
+                )}
+
+                {membershipMessage && (
+                  <p className="mt-4 rounded-2xl border border-green-200/18 bg-green-300/[0.08] px-4 py-3 text-sm text-green-100">
+                    {membershipMessage}
+                  </p>
+                )}
+
+                {membershipError && (
+                  <p className="mt-4 rounded-2xl border border-red-200/18 bg-red-300/[0.08] px-4 py-3 text-sm text-red-100">
+                    {membershipError}
+                  </p>
+                )}
+              </section>
             </div>
 
             <div className="border-t border-white/10 bg-white/[0.02] px-5 py-4 sm:px-7">
@@ -3062,6 +3442,218 @@ Thank you.`;
                 Done
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation retention modal */}
+      {cancellationStep === "retention" && membershipDetails && (
+        <div className="fixed inset-0 z-[155] flex items-center justify-center overflow-y-auto bg-[#020813]/88 px-4 py-8 backdrop-blur-md">
+          <div className="relative w-full max-w-2xl overflow-hidden rounded-[32px] border border-cyan-200/24 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(168,85,247,0.14),transparent_36%),#071022] p-6 shadow-[0_34px_110px_rgba(0,0,0,0.68)] sm:p-8">
+            <button
+              type="button"
+              disabled={isSubmittingCancellation}
+              onClick={closeCancellationFlow}
+              aria-label="Close cancellation message"
+              className="absolute right-5 top-5 rounded-full border border-white/14 bg-white/[0.07] px-3 py-1.5 text-white transition hover:bg-white/[0.12] disabled:opacity-40"
+            >
+              ✕
+            </button>
+
+            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-200">
+              Before You Go
+            </p>
+
+            <h2 className="mt-4 max-w-xl text-4xl font-bold tracking-[-0.045em] text-white sm:text-5xl">
+              Don&apos;t leave your learning momentum behind.
+            </h2>
+
+            <p className="mt-5 max-w-xl text-sm leading-7 text-white/60 sm:text-base">
+              Your saved progress, Dream Tokens and Dream Gems are not deleted when you cancel. But when your current access ends, paid Learning Missions, membership benefits and NOVA+ intelligence will stop until you subscribe again.
+            </p>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-cyan-200/14 bg-cyan-300/[0.055] p-4">
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-cyan-100/60">
+                  Current Plan
+                </p>
+                <p className="mt-2 text-sm font-extrabold text-white">
+                  {membershipDetails.planName}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-violet-200/14 bg-violet-300/[0.055] p-4">
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-violet-100/60">
+                  Learning Progress
+                </p>
+                <p className="mt-2 text-sm font-extrabold text-white">
+                  Stays saved
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200/14 bg-amber-300/[0.055] p-4">
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-amber-100/60">
+                  Paid Access
+                </p>
+                <p className="mt-2 text-sm font-extrabold text-white">
+                  {cancellationKind === "trial"
+                    ? `Ends ${formatMembershipDate(membershipDetails.trialEndsAt)}`
+                    : `Through ${formatMembershipDate(membershipDetails.currentPeriodEnd)}`}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-7 rounded-2xl border border-white/9 bg-white/[0.035] p-5">
+              <p className="text-sm font-extrabold text-white">
+                Keep uninterrupted access
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/48">
+                Stay on your current membership to keep learning without interruption and continue building on the progress already made.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={isSubmittingCancellation}
+              onClick={closeCancellationFlow}
+              className="mt-6 min-h-[54px] w-full rounded-full bg-gradient-to-r from-cyan-300 via-violet-300 to-orange-300 px-6 text-xs font-black uppercase tracking-[0.14em] text-[#160729] transition hover:scale-[1.005] disabled:opacity-50"
+            >
+              Keep My Membership
+            </button>
+
+            <button
+              type="button"
+              disabled={isSubmittingCancellation}
+              onClick={() => {
+                setCancellationFlowError("");
+                setCancellationStep("reason");
+              }}
+              className="mt-3 min-h-[50px] w-full rounded-full border border-white/14 bg-white/[0.035] px-6 text-xs font-extrabold uppercase tracking-[0.13em] text-white/64 transition hover:bg-white/[0.07] hover:text-white disabled:opacity-40"
+            >
+              Continue to Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation reason modal */}
+      {cancellationStep === "reason" && membershipDetails && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center overflow-y-auto bg-[#020813]/92 px-4 py-8 backdrop-blur-md">
+          <div className="relative w-full max-w-2xl overflow-hidden rounded-[32px] border border-red-200/22 bg-[#090d1a] p-6 shadow-[0_34px_110px_rgba(0,0,0,0.7)] sm:p-8">
+            <button
+              type="button"
+              disabled={isSubmittingCancellation}
+              onClick={closeCancellationFlow}
+              aria-label="Close cancellation reason"
+              className="absolute right-5 top-5 rounded-full border border-white/14 bg-white/[0.07] px-3 py-1.5 text-white transition hover:bg-white/[0.12] disabled:opacity-40"
+            >
+              ✕
+            </button>
+
+            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-red-200/80">
+              One Last Question
+            </p>
+
+            <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
+              What made you decide to cancel?
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-white/50">
+              Your answer helps us understand what Dreamscape should improve.
+            </p>
+
+            <div className="mt-6 grid gap-2">
+              {CANCELLATION_REASONS.map((reason) => {
+                const selected =
+                  cancellationReason === reason.code;
+
+                return (
+                  <label
+                    key={reason.code}
+                    className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 transition ${
+                      selected
+                        ? "border-cyan-200/38 bg-cyan-300/[0.10]"
+                        : "border-white/9 bg-white/[0.03] hover:bg-white/[0.055]"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="dreamscape-cancellation-reason"
+                      value={reason.code}
+                      checked={selected}
+                      onChange={() => {
+                        setCancellationReason(reason.code);
+                        setCancellationFlowError("");
+                      }}
+                      className="h-4 w-4 accent-cyan-300"
+                    />
+
+                    <span className="text-sm font-semibold text-white/78">
+                      {reason.label}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+
+            <label className="mt-5 block">
+              <span className="text-xs font-bold uppercase tracking-[0.13em] text-white/40">
+                Anything else? <span className="normal-case tracking-normal text-white/26">(optional)</span>
+              </span>
+
+              <textarea
+                value={cancellationComments}
+                onChange={(event) => {
+                  setCancellationComments(
+                    event.target.value.slice(0, 1000),
+                  );
+                  setCancellationFlowError("");
+                }}
+                rows={4}
+                placeholder="Tell us what would have made Dreamscape more useful for your family..."
+                className="mt-2 w-full resize-none rounded-2xl border border-white/11 bg-black/24 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-white/24 focus:border-cyan-200/36"
+              />
+
+              <p className="mt-1 text-right text-[10px] text-white/26">
+                {cancellationComments.length}/1000
+              </p>
+            </label>
+
+            {cancellationFlowError && (
+              <p className="mt-4 rounded-2xl border border-red-200/18 bg-red-300/[0.08] px-4 py-3 text-sm leading-6 text-red-100">
+                {cancellationFlowError}
+              </p>
+            )}
+
+            <button
+              type="button"
+              disabled={
+                isSubmittingCancellation ||
+                !cancellationReason
+              }
+              onClick={() =>
+                void submitCancellationRequest()
+              }
+              className="mt-6 min-h-[54px] w-full rounded-full border border-red-200/28 bg-red-500/20 px-6 text-xs font-black uppercase tracking-[0.14em] text-red-50 transition hover:bg-red-500/28 disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              {isSubmittingCancellation
+                ? "Cancelling..."
+                : cancellationKind === "trial"
+                  ? "Confirm Trial Cancellation"
+                  : "Confirm Membership Cancellation"}
+            </button>
+
+            <button
+              type="button"
+              disabled={isSubmittingCancellation}
+              onClick={() => {
+                setCancellationFlowError("");
+                setCancellationStep("retention");
+              }}
+              className="mt-3 min-h-[48px] w-full rounded-full border border-white/12 bg-white/[0.035] px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white/64 transition hover:bg-white/[0.07] disabled:opacity-40"
+            >
+              Go Back
+            </button>
           </div>
         </div>
       )}

@@ -141,11 +141,11 @@ export default function MyPropertiesTab({
 
   function openResaleListing(unit: PropertyUnit) {
     if (occupiedUnitIds.has(unit.unit_id)) {
-      setLocalMessage("This unit has an active tenant and cannot be listed for sale.");
+      setLocalMessage("This property currently has a tenant, so it cannot be listed for sale yet.");
       return;
     }
     if (rentalListedUnitIds.has(unit.unit_id)) {
-      setLocalMessage("Cancel the rental listing before listing this unit for resale.");
+      setLocalMessage("Take this property off the rental market before listing it for sale.");
       return;
     }
     setListingUnitId(unit.unit_id);
@@ -162,7 +162,7 @@ export default function MyPropertiesTab({
 
     if (price < min || price > max) {
       setLocalMessage(
-        `Choose an asking price between ${formatNumber(min)} and ${formatNumber(max)} DT.`
+        `Set an asking price between ${formatNumber(min)} and ${formatNumber(max)} DT.`
       );
       return;
     }
@@ -207,6 +207,7 @@ export default function MyPropertiesTab({
           isPlayerResaleActive={activeResaleByUnit.has(selectedUnit.unit_id)}
           maintenanceIssues={maintenanceIssues.filter((item) => item.unit_id === selectedUnit.unit_id)}
           maintenanceActions={maintenanceActions.filter((item) => item.unit_id === selectedUnit.unit_id)}
+          residentLifeProfiles={residentLifeProfiles}
           onClose={() => setSelectedUnitId(null)}
           onUpgrade={onUpgradeUnit}
           onCreateRentalListing={onCreateRentalListing}
@@ -245,7 +246,7 @@ export default function MyPropertiesTab({
             <button
               type="button"
               onClick={() => setListingUnitId(null)}
-              aria-label="Close exact-unit resale form"
+              aria-label="Close property sale form"
               style={{
                 position: "absolute",
                 top: "16px",
@@ -264,13 +265,13 @@ export default function MyPropertiesTab({
             </button>
 
             <p style={{ margin: 0, color: "#ffd18a", fontSize: "12px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.16em" }}>
-              Exact-Unit Resale
+              List Property for Sale
             </p>
             <h2 style={{ margin: "12px 48px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "32px" : "40px", fontWeight: 500 }}>
               {listingUnit.property_name} · Unit {listingUnit.unit_number}
             </h2>
             <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,0.56)", lineHeight: 1.55 }}>
-              This exact managed unit will transfer to the buyer with all of its upgrades intact.
+              Choose your asking price. If the property sells, its upgrades and condition go with it to the new owner.
             </p>
 
             {(() => {
@@ -335,7 +336,7 @@ export default function MyPropertiesTab({
                 disabled={actionLoading}
                 style={{ ...primaryButton, flex: 1, minWidth: "190px", opacity: actionLoading ? 0.55 : 1 }}
               >
-                {actionLoading ? "Creating Listing..." : "List This Exact Unit"}
+                {actionLoading ? "Creating Listing..." : "List Property for Sale"}
               </button>
               <button type="button" onClick={() => setListingUnitId(null)} style={secondaryButton}>
                 Cancel
@@ -352,8 +353,8 @@ export default function MyPropertiesTab({
         >
           {[
             ["Cash", `${formatNumber(dreamTokens)} DT`, "Available DT"],
-            ["Property Value", `${formatNumber(propertyPortfolioValue)} DT`, "Exact managed-unit value"],
-            ["Contracted Rent", `${formatNumber(contractedWeeklyRent)} DT/wk`, `${activeLeases.length} active tenant${activeLeases.length === 1 ? "" : "s"}`],
+            ["Property Value", `${formatNumber(propertyPortfolioValue)} DT`, "Current portfolio value"],
+            ["Weekly Rent", `${formatNumber(contractedWeeklyRent)} DT/wk`, `${activeLeases.length} active tenant${activeLeases.length === 1 ? "" : "s"}`],
             ["Occupancy", `${activeLeases.length} / ${totalOwnedUnits}`, `${activeRentalListings.length} listed for rent`],
           ].map(([label, value, detail]) => (
             <article key={label} style={{ ...glassPanel, padding: isMobile ? "15px" : "18px", borderRadius: "20px" }}>
@@ -367,21 +368,21 @@ export default function MyPropertiesTab({
         <section data-milo-guide="property-resident-overview" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
           <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", gap: "14px", alignItems: isMobile ? "stretch" : "flex-end" }}>
             <div>
-              <p style={{ margin: 0, color: "#79f2ce", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Dreamscape Resident Market</p>
-              <h2 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "31px" : "39px", fontWeight: 500 }}>Tenants, applications and offers</h2>
+              <p style={{ margin: 0, color: "#79f2ce", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Tenant & Buyer Activity</p>
+              <h2 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "31px" : "39px", fontWeight: 500 }}>Your property activity</h2>
             </div>
             <button type="button" onClick={() => void onRefreshResidentMarket()} disabled={actionLoading} style={{ ...secondaryButton, minHeight: "42px" }}>
-              ↻ Resident Market
+              ↻ Check for Updates
             </button>
           </div>
 
           <div style={{ marginTop: "17px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3,minmax(0,1fr))", gap: "10px" }}>
             {[
-              ["Rental Listings", activeRentalListings.length],
-              ["Applications", rentalApplications.filter((item) => item.status === "pending").length],
-              ["Active Tenants", activeLeases.length],
-              ["Resident Offers", purchaseOffers.filter((item) => item.status === "active").length],
-              ["Landlord Reputation", `${Math.round(Number(landlordReputation.score || 60))}/100`],
+              ["For Rent", activeRentalListings.length],
+              ["Applicants", rentalApplications.filter((item) => item.status === "pending").length],
+              ["Tenants", activeLeases.length],
+              ["Purchase Offers", purchaseOffers.filter((item) => item.status === "active").length],
+              ["Reputation", `${Math.round(Number(landlordReputation.score || 60))}/100`],
               ["Unread Messages", unreadMessages],
             ].map(([label, value]) => (
               <button
@@ -400,7 +401,7 @@ export default function MyPropertiesTab({
                 }}
               >
                 <small style={{ color: "rgba(255,255,255,0.46)" }}>{label}</small>
-                <strong style={{ display: "block", marginTop: "5px", fontSize: "22px", color: label === "Landlord Reputation" ? "#79f2ce" : label === "Unread Messages" && Number(value) > 0 ? "#ffd18a" : "white" }}>{value}</strong>
+                <strong style={{ display: "block", marginTop: "5px", fontSize: "22px", color: label === "Reputation" ? "#79f2ce" : label === "Unread Messages" && Number(value) > 0 ? "#ffd18a" : "white" }}>{value}</strong>
               </button>
             ))}
           </div>
@@ -414,7 +415,7 @@ export default function MyPropertiesTab({
                 {Math.round(Number(landlordReputation.score || 60))}/100 · {Number(landlordReputation.score || 60) >= 85 ? "Exceptional" : Number(landlordReputation.score || 60) >= 72 ? "Trusted" : Number(landlordReputation.score || 60) >= 58 ? "Established" : Number(landlordReputation.score || 60) >= 42 ? "Developing" : "At Risk"}
               </h2>
               <p style={{ margin: "9px 0 0", maxWidth: "830px", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55 }}>
-                Residents remember completed leases, renewal history, satisfaction, repairs, ignored problems and early departures. Reputation now influences renewal behaviour and how much flexibility tenants have during negotiations.
+                Treat tenants well, keep properties in good shape and handle repairs quickly. A stronger reputation makes residents more willing to rent from you, renew their lease and negotiate fairly.
               </p>
             </div>
             <button type="button" onClick={onOpenMessages} style={{ ...primaryButton, minHeight: "42px" }}>
@@ -425,13 +426,13 @@ export default function MyPropertiesTab({
             {[
               ["Completed Leases", landlordReputation.completed_leases],
               ["Renewals", landlordReputation.renewals],
-              ["Avg Satisfaction", `${Math.round(Number(landlordReputation.average_satisfaction || 80))}/100`],
-              ["Full Repairs", landlordReputation.full_repairs],
-              ["Early Departures", landlordReputation.early_departures],
+              ["Tenant Happiness", `${Math.round(Number(landlordReputation.average_satisfaction || 80))}/100`],
+              ["Repairs Completed", landlordReputation.full_repairs],
+              ["Early Move-outs", landlordReputation.early_departures],
             ].map(([label, value]) => (
               <div key={String(label)} style={{ borderRadius: "16px", background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.08)", padding: "14px" }}>
                 <small style={{ color: "rgba(255,255,255,0.46)" }}>{label}</small>
-                <strong style={{ display: "block", marginTop: "5px", fontSize: "21px", color: label === "Early Departures" && Number(value) > 0 ? "#ffd18a" : "white" }}>{value}</strong>
+                <strong style={{ display: "block", marginTop: "5px", fontSize: "21px", color: label === "Early Move-outs" && Number(value) > 0 ? "#ffd18a" : "white" }}>{value}</strong>
               </div>
             ))}
           </div>
@@ -452,23 +453,23 @@ export default function MyPropertiesTab({
 
         <section data-milo-guide="property-maintenance-overview" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px", border: "1px solid rgba(121,242,206,0.15)", background: "linear-gradient(145deg, rgba(121,242,206,0.05), rgba(5,13,28,0.74))" }}>
           <div>
-            <p style={{ margin: 0, color: "#79f2ce", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Property Health</p>
-            <h2 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "31px" : "39px", fontWeight: 500 }}>Condition now changes the economics</h2>
+            <p style={{ margin: 0, color: "#79f2ce", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Property Care</p>
+            <h2 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "31px" : "39px", fontWeight: 500 }}>Keep your properties in shape</h2>
             <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55, maxWidth: "840px" }}>
-              Wear, maintenance issues and landlord decisions affect property value, rent potential and tenant satisfaction. Major neglected problems can cause an active tenant to leave early.
+              Good maintenance protects your property value and keeps tenants happy. Ignore serious problems for too long and a tenant may decide to leave.
             </p>
           </div>
 
           <div style={{ marginTop: "17px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,minmax(0,1fr))", gap: "10px" }}>
             {[
               ["Average Condition", `${Math.round(Number(maintenanceStats.average_condition || 100))}/100`],
-              ["Open Issues", Number(maintenanceStats.open_issues || 0)],
-              ["Urgent Issues", Number(maintenanceStats.urgent_issues || 0)],
-              ["At-risk Tenants", Number(maintenanceStats.at_risk_tenants || 0)],
+              ["Repairs Needed", Number(maintenanceStats.open_issues || 0)],
+              ["Urgent Repairs", Number(maintenanceStats.urgent_issues || 0)],
+              ["Tenants at Risk", Number(maintenanceStats.at_risk_tenants || 0)],
             ].map(([label, value]) => (
               <div key={String(label)} style={{ borderRadius: "16px", background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.08)", padding: "14px" }}>
                 <small style={{ color: "rgba(255,255,255,0.46)" }}>{label}</small>
-                <strong style={{ display: "block", marginTop: "5px", fontSize: "22px", color: label === "Urgent Issues" && Number(value) > 0 ? "#ff9292" : label === "At-risk Tenants" && Number(value) > 0 ? "#ffd18a" : "white" }}>{value}</strong>
+                <strong style={{ display: "block", marginTop: "5px", fontSize: "22px", color: label === "Urgent Repairs" && Number(value) > 0 ? "#ff9292" : label === "Tenants at Risk" && Number(value) > 0 ? "#ffd18a" : "white" }}>{value}</strong>
               </div>
             ))}
           </div>
@@ -482,14 +483,14 @@ export default function MyPropertiesTab({
 
         <section data-milo-guide="property-managed-units" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
           <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>My Property Units</p>
-          <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "42px", fontWeight: 500 }}>Manage exact assets</h2>
+          <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "42px", fontWeight: 500 }}>Choose a property to manage</h2>
           <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55 }}>
-            Each card is one real managed unit. Upgrades, tenants and resale listings belong to that exact unit.
+            Each property has its own upgrades, condition, tenant history and value. Open one to manage rent, repairs and improvements.
           </p>
 
           {units.length === 0 ? (
             <div style={{ marginTop: "18px", minHeight: "130px", display: "grid", placeItems: "center", borderRadius: "17px", border: "1px dashed rgba(132,218,255,0.18)", color: "rgba(255,255,255,0.5)" }}>
-              Purchase a property from the Property Map to begin.
+              Buy your first property from the Property Map to get started.
             </div>
           ) : (
             <div style={{ marginTop: "18px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : isCompact ? "repeat(2,minmax(0,1fr))" : "repeat(3,minmax(0,1fr))", gap: "14px" }}>
@@ -530,7 +531,7 @@ export default function MyPropertiesTab({
 
                       {activeResale ? (
                         <button type="button" onClick={() => void onCancelListing(activeResale.listing_id)} disabled={actionLoading} style={{ ...secondaryButton, width: "100%", minHeight: "38px", marginTop: "8px", color: "#ffd18a" }}>
-                          Cancel Resale · {formatNumber(activeResale.asking_price)} DT
+                          Cancel Sale · {formatNumber(activeResale.asking_price)} DT
                         </button>
                       ) : (
                         <button
@@ -539,7 +540,7 @@ export default function MyPropertiesTab({
                           disabled={actionLoading || occupied || listedForRent}
                           style={{ ...secondaryButton, width: "100%", minHeight: "38px", marginTop: "8px", opacity: actionLoading || occupied || listedForRent ? 0.45 : 1 }}
                         >
-                          {occupied ? "Tenant Active" : listedForRent ? "Cancel Rental Listing First" : "List Exact Unit for Resale"}
+                          {occupied ? "Tenant Active" : listedForRent ? "Cancel Rental Listing First" : "List for Sale"}
                         </button>
                       )}
                     </div>
@@ -551,24 +552,24 @@ export default function MyPropertiesTab({
         </section>
 
         <section data-milo-guide="property-upgrade-overview" style={{ ...glassPanel, padding: isMobile ? "18px" : "22px", border: "1px solid rgba(121,242,206,0.15)", background: "linear-gradient(145deg, rgba(121,242,206,0.05), rgba(5,13,28,0.74))" }}>
-          <p style={{ margin: 0, color: "#79f2ce", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Asset Identity</p>
-          <h3 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "29px" : "35px", fontWeight: 500 }}>Upgrades now travel with the property</h3>
+          <p style={{ margin: 0, color: "#79f2ce", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Property Upgrades</p>
+          <h3 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "29px" : "35px", fontWeight: 500 }}>Your upgrades stay with the property</h3>
           <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,0.56)", lineHeight: 1.6, fontSize: "13px", maxWidth: "900px" }}>
-            Player resale is no longer based on a generic property type. The buyer receives the exact unit shown in the listing, including its upgrade levels, value and rent potential.
+            Every property keeps its own upgrades, value and rent potential. If you sell it later, the next owner receives the property exactly as you developed it.
           </p>
         </section>
 
         <section data-milo-guide="property-my-listings" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" }}>
             <div>
-              <p style={{ margin: 0, color: "#ffd18a", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.18em", fontWeight: 900 }}>My Resale Activity</p>
-              <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "32px" : "39px", fontWeight: 500 }}>Exact-Unit Listings</h2>
+              <p style={{ margin: 0, color: "#ffd18a", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.18em", fontWeight: 900 }}>Selling</p>
+              <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "32px" : "39px", fontWeight: 500 }}>My Sale Listings</h2>
             </div>
             <span style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px" }}>{activeMyListings.length} active</span>
           </div>
 
           {activeMyListings.length === 0 && recentMyListings.length === 0 ? (
-            <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.55)" }}>You have not created any exact-unit resale listings yet.</p>
+            <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.55)" }}>You do not have any properties listed for sale yet.</p>
           ) : (
             <div className="milo-scrollbar" style={{ marginTop: "17px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))", gap: "9px", maxHeight: "560px", overflowY: "auto", paddingRight: "3px" }}>
               {[...activeMyListings, ...recentMyListings].map((listing) => (

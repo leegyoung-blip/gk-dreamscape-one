@@ -18,6 +18,7 @@ import {
   type PropertyUnitMarketSetting,
   type PropertyMaintenanceIssue,
   type PropertyMaintenanceAction,
+  type PropertyResidentLifeProfile,
 } from "./propertyExchangeShared";
 
 type Props = PropertyTabStyles & {
@@ -35,6 +36,7 @@ type Props = PropertyTabStyles & {
   isPlayerResaleActive: boolean;
   maintenanceIssues: PropertyMaintenanceIssue[];
   maintenanceActions: PropertyMaintenanceAction[];
+  residentLifeProfiles: PropertyResidentLifeProfile[];
   onClose: () => void;
   onUpgrade: (unitId: string, category: string) => Promise<void>;
   onCreateRentalListing: (unitId: string, askingWeeklyRent: number, openToPurchaseOffers: boolean) => Promise<void>;
@@ -100,6 +102,7 @@ export default function PropertyManagementModal({
   isPlayerResaleActive,
   maintenanceIssues,
   maintenanceActions,
+  residentLifeProfiles,
   onClose,
   onUpgrade,
   onCreateRentalListing,
@@ -282,6 +285,7 @@ export default function PropertyManagementModal({
           purchaseOffers={purchaseOffers}
           marketSetting={marketSetting}
           isPlayerResaleActive={isPlayerResaleActive}
+          residentLifeProfiles={residentLifeProfiles}
           actionLoading={actionLoading}
           isMobile={isMobile}
           glassPanel={glassPanel}
@@ -318,7 +322,7 @@ export default function PropertyManagementModal({
                 Improve this property
               </h3>
               <p style={{ margin: "9px 0 0", maxWidth: "760px", color: "rgba(255,255,255,0.52)", fontSize: "13px", lineHeight: 1.55 }}>
-                Upgrades change this unit’s own value, rent potential and management stats. They do not raise the base market price of every property of the same type.
+                Choose how to improve this property. Upgrades can raise its value, rent potential and appeal to future tenants or buyers.
               </p>
             </div>
           </div>

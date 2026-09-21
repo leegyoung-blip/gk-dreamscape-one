@@ -294,14 +294,14 @@ export default function PropertyMapTab({
         >
           <div>
             <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 900 }}>
-              World Development Map
+              Dreamscape Property Map
             </p>
             <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "44px", fontWeight: 500 }}>
-              Choose a built district
+              Choose a district to explore
             </h2>
           </div>
           <span style={{ color: "rgba(255,255,255,0.46)", fontSize: "13px" }}>
-            The surrounding forest is reserved for future development.
+            More districts will open as Dreamscape grows.
           </span>
         </div>
 
@@ -356,7 +356,7 @@ export default function PropertyMapTab({
                     {district.subtitle}
                   </span>
                   <span style={{ display: "block", marginTop: "16px", color: "rgba(255,255,255,0.72)", fontSize: "12px", fontWeight: 800 }}>
-                    {formatNumber(available)} primary units available →
+                    {formatNumber(available)} properties available →
                   </span>
                 </button>
               );
@@ -447,12 +447,12 @@ export default function PropertyMapTab({
 
           <div style={{ marginTop: "26px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: "25px" }}>Available Units</h3>
+              <h3 style={{ margin: 0, fontSize: "25px" }}>Properties for Sale</h3>
               <p style={{ margin: "6px 0 0", color: "rgba(255,255,255,0.48)", fontSize: "13px" }}>
-                Inventory decreases immediately after a completed purchase.
+                These are the properties currently available to buy.
               </p>
             </div>
-            {marketLoading && <span style={{ color: "#8ee8ff", fontWeight: 800 }}>Refreshing market...</span>}
+            {marketLoading && <span style={{ color: "#8ee8ff", fontWeight: 800 }}>Checking availability...</span>}
           </div>
 
           {visibleProperties.length === 0 ? (
@@ -508,7 +508,7 @@ export default function PropertyMapTab({
 
                       <div style={{ marginTop: "14px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", color: "rgba(255,255,255,0.54)", fontSize: "12px" }}>
-                          <span>Available inventory</span>
+                          <span>Available now</span>
                           <strong style={{ color: property.available_quantity > 0 ? "white" : "#ffb0b0" }}>
                             {property.available_quantity} / {property.total_quantity}
                           </strong>

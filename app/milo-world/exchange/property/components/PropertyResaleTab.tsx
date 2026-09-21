@@ -49,13 +49,13 @@ export default function PropertyResaleTab({
         <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-end", gap: "14px" }}>
           <div>
             <p style={{ margin: 0, color: "#ffd18a", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.18em", fontWeight: 900 }}>
-              Exact-Unit Secondary Market
+              Owner Resale Market
             </p>
             <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "42px", fontWeight: 500 }}>
               Property Resales
             </h2>
             <p style={{ margin: "10px 0 0", maxWidth: "820px", color: "rgba(255,255,255,0.52)", fontSize: "13px", lineHeight: 1.55 }}>
-              Every listing is one specific managed unit. If you buy it, its installed upgrades, property value and rental potential transfer with the unit.
+              Buy properties listed by other Dreamscape owners. Any upgrades, condition and rent potential shown on the card come with the property you purchase.
             </p>
           </div>
 
@@ -72,7 +72,7 @@ export default function PropertyResaleTab({
 
         {resaleListings.length === 0 ? (
           <div style={{ marginTop: "20px", minHeight: "150px", display: "grid", placeItems: "center", padding: "24px", borderRadius: "18px", border: "1px dashed rgba(255,209,138,0.2)", background: "rgba(255,255,255,0.025)", color: "rgba(255,255,255,0.52)", textAlign: "center" }}>
-            No exact-unit resale properties are available right now.
+            No owner-listed properties are available right now.
           </div>
         ) : (
           <div style={{ marginTop: "20px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : isCompact ? "repeat(2, minmax(0,1fr))" : "repeat(3, minmax(0,1fr))", gap: "14px" }}>
@@ -96,7 +96,7 @@ export default function PropertyResaleTab({
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "flex-start" }}>
                       <div>
                         <span style={{ display: "inline-flex", minHeight: "24px", alignItems: "center", padding: "0 9px", borderRadius: "999px", background: "rgba(255,209,138,0.09)", color: "#ffd18a", fontSize: "9px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                          Exact Unit
+                          Owner Listing
                         </span>
                         <h3 style={{ margin: "9px 0 0", fontSize: "19px" }}>{listing.property_name}</h3>
                         <p style={{ margin: "5px 0 0", color: "rgba(255,255,255,0.45)", fontSize: "12px" }}>
@@ -117,7 +117,7 @@ export default function PropertyResaleTab({
                         <strong style={{ display: "block", marginTop: "4px", color: "#ffd18a" }}>{formatNumber(listing.asking_price)} DT</strong>
                       </div>
                       <div style={{ borderRadius: "13px", padding: "11px", background: "rgba(255,255,255,0.045)" }}>
-                        <small style={{ color: "rgba(255,255,255,0.42)" }}>Managed Value</small>
+                        <small style={{ color: "rgba(255,255,255,0.42)" }}>Current Value</small>
                         <strong style={{ display: "block", marginTop: "4px" }}>{formatNumber(listing.current_value)} DT</strong>
                       </div>
                       <div style={{ borderRadius: "13px", padding: "11px", background: "rgba(255,255,255,0.045)" }}>
@@ -157,13 +157,13 @@ export default function PropertyResaleTab({
 
       <section data-milo-guide="property-recent-sales" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
         <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.18em", fontWeight: 900 }}>
-          Public Market Record
+          Market Activity
         </p>
         <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "42px", fontWeight: 500 }}>
           Recent Property Sales
         </h2>
         <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: 1.55 }}>
-          Primary purchases and completed exact-unit player resales are shown together so the market has a visible transaction history.
+          See what properties have been selling for across Dreamscape, including new purchases and owner-to-owner sales.
         </p>
 
         {recentSales.length === 0 ? (
@@ -176,7 +176,7 @@ export default function PropertyResaleTab({
                   <span style={{ minWidth: 0 }}>
                     <strong style={{ display: "block" }}>{sale.property_name}{sale.unit_number ? ` · Unit ${sale.unit_number}` : ""}</strong>
                     <small style={{ display: "block", marginTop: "5px", color: "rgba(255,255,255,0.46)" }}>
-                      {sale.district} · {titleCase(sale.property_type)} · {sale.sale_source === "player_resale" ? "Player Resale" : "Primary Sale"}
+                      {sale.district} · {titleCase(sale.property_type)} · {sale.sale_source === "player_resale" ? "Owner Resale" : "New Sale"}
                     </small>
                   </span>
                   <strong style={{ color: "#ffd18a", whiteSpace: "nowrap" }}>{formatNumber(sale.total_price)} DT</strong>

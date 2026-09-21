@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   formatDateTime,
   formatNumber,
+  getResidentAvatarSrc,
   type PropertyConversation,
   type PropertyLandlordReputation,
   type PropertyMessage,
@@ -90,6 +91,8 @@ export default function PropertyPhone({
         : null,
     [residentLifeProfiles, selectedConversation]
   );
+
+  const selectedResidentAvatar = getResidentAvatarSrc(selectedResidentProfile?.avatar_key);
 
   const selectedResidentEvents = useMemo(
     () =>
@@ -370,12 +373,19 @@ export default function PropertyPhone({
                     textAlign: "left",
                   }}
                 >
-                  <span style={{ minWidth: 0 }}>
-                    <strong style={{ display: "block", fontSize: "9px" }}>Resident profile</strong>
-                    <small style={{ display: "block", marginTop: "2px", color: "#64748b", fontSize: "8px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {String(selectedResidentProfile.life_stage || "Resident").replaceAll("_", " ")} · {selectedResidentProfile.household_size} in household/team
-                      {selectedResidentProfile.move_intent ? " · considering a move" : ""}
-                    </small>
+                  <span style={{ minWidth: 0, display: "grid", gridTemplateColumns: "34px minmax(0,1fr)", gap: "8px", alignItems: "center" }}>
+                    {selectedResidentAvatar ? (
+                      <img src={selectedResidentAvatar} alt={selectedResidentProfile.display_name} style={{ width: "34px", height: "34px", borderRadius: "50%", objectFit: "cover" }} />
+                    ) : (
+                      <span style={{ width: "34px", height: "34px", borderRadius: "50%", display: "grid", placeItems: "center", background: "#dbeafe", color: "#1d4ed8", fontWeight: 900 }}>{selectedResidentProfile.display_name.slice(0,1)}</span>
+                    )}
+                    <span style={{ minWidth: 0 }}>
+                      <strong style={{ display: "block", fontSize: "9px" }}>About this resident</strong>
+                      <small style={{ display: "block", marginTop: "2px", color: "#64748b", fontSize: "8px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {String(selectedResidentProfile.life_stage || "Resident").replaceAll("_", " ")} · {selectedResidentProfile.household_size} in {selectedResidentProfile.resident_kind === "business" ? "team" : "household"}
+                        {selectedResidentProfile.move_intent ? " · thinking of moving" : ""}
+                      </small>
+                    </span>
                   </span>
                   <span style={{ color: "#64748b", fontSize: "11px" }}>{showResidentProfile ? "⌃" : "⌄"}</span>
                 </button>
@@ -387,7 +397,7 @@ export default function PropertyPhone({
                         ["Income", `${formatNumber(selectedResidentProfile.monthly_income)} DT/mo`],
                         ["Savings", `${formatNumber(selectedResidentProfile.savings)} DT`],
                         ["Rent budget", `${formatNumber(selectedResidentProfile.max_weekly_rent)} DT/wk`],
-                        ["Pressure", `${selectedResidentProfile.financial_pressure}/100`],
+                        ["Budget pressure", `${selectedResidentProfile.financial_pressure}/100`],
                       ].map(([label, value]) => (
                         <div key={String(label)} style={{ borderRadius: "9px", background: "rgba(15,23,42,0.045)", padding: "6px 7px" }}>
                           <small style={{ display: "block", color: "#94a3b8", fontSize: "7px" }}>{label}</small>
@@ -398,7 +408,7 @@ export default function PropertyPhone({
 
                     {selectedResidentProfile.move_intent && (
                       <div style={{ marginTop: "6px", borderRadius: "9px", background: "rgba(245,158,11,0.09)", color: "#92400e", padding: "6px 7px", fontSize: "8px", lineHeight: 1.35 }}>
-                        Moving plan: {String(selectedResidentProfile.move_reason || "life plans changed").replaceAll("_", " ")}
+                        Thinking about moving: {String(selectedResidentProfile.move_reason || "life plans changed").replaceAll("_", " ")}
                       </div>
                     )}
 
@@ -421,7 +431,7 @@ export default function PropertyPhone({
               <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px 14px" }}>
                 {conversations.length === 0 ? (
                   <div style={{ padding: "34px 14px", textAlign: "center", color: "#64748b", fontSize: "11px", lineHeight: 1.5 }}>
-                    No resident messages yet. Rental applications, purchase offers, maintenance requests and lease negotiations will appear here.
+                    No messages yet. Applications, offers, repair updates and lease conversations will appear here when residents contact you.
                   </div>
                 ) : (
                   conversations.map((conversation) => {
@@ -446,21 +456,17 @@ export default function PropertyPhone({
                           color: "#0f172a",
                         }}
                       >
-                        <span
-                          style={{
-                            width: "36px",
-                            height: "36px",
-                            borderRadius: "50%",
-                            display: "grid",
-                            placeItems: "center",
-                            background: "linear-gradient(145deg,#dbeafe,#bfdbfe)",
-                            color: "#1d4ed8",
-                            fontWeight: 950,
-                            fontSize: "13px",
-                          }}
-                        >
-                          {conversation.resident_name.slice(0, 1).toUpperCase()}
-                        </span>
+                        {(() => {
+                          const profile = residentLifeProfiles.find((item) => item.resident_id === conversation.resident_id);
+                          const avatar = getResidentAvatarSrc(profile?.avatar_key);
+                          return avatar ? (
+                            <img src={avatar} alt={conversation.resident_name} style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover" }} />
+                          ) : (
+                            <span style={{ width: "36px", height: "36px", borderRadius: "50%", display: "grid", placeItems: "center", background: "linear-gradient(145deg,#dbeafe,#bfdbfe)", color: "#1d4ed8", fontWeight: 950, fontSize: "13px" }}>
+                              {conversation.resident_name.slice(0, 1).toUpperCase()}
+                            </span>
+                          );
+                        })()}
                         <span style={{ minWidth: 0 }}>
                           <strong style={{ display: "block", fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {conversation.resident_name}

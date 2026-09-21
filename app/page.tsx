@@ -1243,7 +1243,7 @@ export default function Home() {
                   textAlign: "center",
                 }}
               >
-                Built with AI. Verified by qualified teachers.
+                Verified by qualified teachers.
               </h2>
 
               <p
