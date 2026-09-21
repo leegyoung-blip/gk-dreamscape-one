@@ -183,20 +183,26 @@ export type PropertyResidentDashboard = {
 
 export type RecentPropertySale = {
   sale_id: string;
+  unit_id: string | null;
   property_id: string;
+  unit_number: number | null;
   property_name: string;
   district: string;
   property_type: string;
   buyer_name: string;
+  seller_name: string | null;
   quantity: number;
   price_per_unit: number;
   total_price: number;
   sold_at: string;
+  sale_source: "primary" | "player_resale" | string;
 };
 
 export type PropertyResaleListing = {
   listing_id: string;
+  unit_id: string;
   property_id: string;
+  unit_number: number;
   property_name: string;
   district: string;
   property_type: string;
@@ -204,18 +210,31 @@ export type PropertyResaleListing = {
   asking_price: number;
   current_value: number;
   primary_listing_price: number;
+  rental_potential: number;
+  upgrade_spend: number;
+  upgrade_level_total: number;
+  appeal: number;
+  quality: number;
+  efficiency: number;
+  upgrade_levels: Record<string, number>;
+  created_at: string;
   expires_at: string;
 };
 
 export type MyPropertyListing = {
   listing_id: string;
+  unit_id: string;
   property_id: string;
+  unit_number: number;
   property_name: string;
   district: string;
   property_type: string;
   asking_price: number;
   current_value: number;
   primary_listing_price: number;
+  rental_potential: number;
+  upgrade_spend: number;
+  upgrade_level_total: number;
   status: "active" | "sold" | "cancelled" | "expired" | string;
   created_at: string;
   expires_at: string;

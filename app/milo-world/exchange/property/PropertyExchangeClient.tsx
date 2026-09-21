@@ -446,6 +446,7 @@ export default function PropertyExchangeClient() {
       propertiesResult,
       holdingsResult,
       salesResult,
+      unitResaleSalesResult,
       resaleResult,
       myListingsResult,
       catalogResult,
@@ -462,8 +463,9 @@ export default function PropertyExchangeClient() {
         .eq("user_id", id)
         .order("created_at", { ascending: false }),
       supabase.rpc("get_milo_exchange_recent_property_sales", { p_limit: 20 }),
-      supabase.rpc("get_milo_exchange_property_resale_listings", { p_limit: 20 }),
-      supabase.rpc("get_my_milo_exchange_property_listings", { p_limit: 30 }),
+      supabase.rpc("get_milo_exchange_recent_unit_resale_sales", { p_limit: 20 }),
+      supabase.rpc("get_milo_exchange_unit_resale_listings", { p_limit: 30 }),
+      supabase.rpc("get_my_milo_exchange_unit_resale_listings", { p_limit: 50 }),
       supabase
         .from("milo_exchange_property_upgrade_catalog")
         .select("category,level,display_name,description,upgrade_cost,value_bonus_bps,rent_bonus_bps,appeal_bonus,quality_bonus,efficiency_bonus,display_order")
@@ -517,31 +519,67 @@ export default function PropertyExchangeClient() {
       })) as PropertyUpgradeCatalogRow[]);
     }
 
+    const primarySales = salesResult.error
+      ? []
+      : (salesResult.data || []).map((row: Record<string, unknown>) => ({
+          sale_id: String(row.sale_id || ""),
+          unit_id: null,
+          property_id: String(row.property_id || ""),
+          unit_number: null,
+          property_name: String(row.property_name || "Property Unit"),
+          district: String(row.district || ""),
+          property_type: String(row.property_type || ""),
+          buyer_name: String(row.buyer_name || "Dreamscape User"),
+          seller_name: null,
+          quantity: Number(row.quantity || 0),
+          price_per_unit: Number(row.price_per_unit || 0),
+          total_price: Number(row.total_price || 0),
+          sold_at: String(row.sold_at || ""),
+          sale_source: "primary" as const,
+        }));
+
     if (salesResult.error) {
-      console.warn("Could not load recent property sales:", salesResult.error.message);
-      setRecentSales([]);
-    } else {
-      setRecentSales((salesResult.data || []).map((row: Record<string, unknown>) => ({
-        sale_id: String(row.sale_id || ""),
-        property_id: String(row.property_id || ""),
-        property_name: String(row.property_name || "Property Unit"),
-        district: String(row.district || ""),
-        property_type: String(row.property_type || ""),
-        buyer_name: String(row.buyer_name || "Dreamscape User"),
-        quantity: Number(row.quantity || 0),
-        price_per_unit: Number(row.price_per_unit || 0),
-        total_price: Number(row.total_price || 0),
-        sold_at: String(row.sold_at || ""),
-      })));
+      console.warn("Could not load recent primary property sales:", salesResult.error.message);
     }
 
+    const exactResaleSales = unitResaleSalesResult.error
+      ? []
+      : (unitResaleSalesResult.data || []).map((row: Record<string, unknown>) => ({
+          sale_id: String(row.sale_id || ""),
+          unit_id: row.unit_id ? String(row.unit_id) : null,
+          property_id: String(row.property_id || ""),
+          unit_number: Number(row.unit_number || 0) || null,
+          property_name: String(row.property_name || "Property Unit"),
+          district: String(row.district || ""),
+          property_type: String(row.property_type || ""),
+          buyer_name: String(row.buyer_name || "Dreamscape User"),
+          seller_name: row.seller_name ? String(row.seller_name) : null,
+          quantity: 1,
+          price_per_unit: Number(row.total_price || 0),
+          total_price: Number(row.total_price || 0),
+          sold_at: String(row.sold_at || ""),
+          sale_source: "player_resale" as const,
+        }));
+
+    if (unitResaleSalesResult.error) {
+      console.warn("Could not load exact-unit resale sales:", unitResaleSalesResult.error.message);
+    }
+
+    setRecentSales(
+      [...primarySales, ...exactResaleSales]
+        .sort((a, b) => new Date(b.sold_at).getTime() - new Date(a.sold_at).getTime())
+        .slice(0, 30)
+    );
+
     if (resaleResult.error) {
-      console.warn("Could not load property resale listings:", resaleResult.error.message);
+      console.warn("Could not load exact-unit resale listings:", resaleResult.error.message);
       setResaleListings([]);
     } else {
       setResaleListings((resaleResult.data || []).map((row: Record<string, unknown>) => ({
         listing_id: String(row.listing_id || ""),
+        unit_id: String(row.unit_id || ""),
         property_id: String(row.property_id || ""),
+        unit_number: Number(row.unit_number || 0),
         property_name: String(row.property_name || "Property Unit"),
         district: String(row.district || ""),
         property_type: String(row.property_type || ""),
@@ -549,29 +587,42 @@ export default function PropertyExchangeClient() {
         asking_price: Number(row.asking_price || 0),
         current_value: Number(row.current_value || 0),
         primary_listing_price: Number(row.primary_listing_price || 0),
+        rental_potential: Number(row.rental_potential || 0),
+        upgrade_spend: Number(row.upgrade_spend || 0),
+        upgrade_level_total: Number(row.upgrade_level_total || 0),
+        appeal: Number(row.appeal || 0),
+        quality: Number(row.quality || 0),
+        efficiency: Number(row.efficiency || 0),
+        upgrade_levels: (row.upgrade_levels || {}) as Record<string, number>,
+        created_at: String(row.created_at || ""),
         expires_at: String(row.expires_at || ""),
-      })));
+      })) as PropertyResaleListing[]);
     }
 
     if (myListingsResult.error) {
-      console.warn("Could not load your property resale listings:", myListingsResult.error.message);
+      console.warn("Could not load your exact-unit resale listings:", myListingsResult.error.message);
       setMyListings([]);
     } else {
       setMyListings((myListingsResult.data || []).map((row: Record<string, unknown>) => ({
         listing_id: String(row.listing_id || ""),
+        unit_id: String(row.unit_id || ""),
         property_id: String(row.property_id || ""),
+        unit_number: Number(row.unit_number || 0),
         property_name: String(row.property_name || "Property Unit"),
         district: String(row.district || ""),
         property_type: String(row.property_type || ""),
         asking_price: Number(row.asking_price || 0),
         current_value: Number(row.current_value || 0),
         primary_listing_price: Number(row.primary_listing_price || 0),
+        rental_potential: Number(row.rental_potential || 0),
+        upgrade_spend: Number(row.upgrade_spend || 0),
+        upgrade_level_total: Number(row.upgrade_level_total || 0),
         status: String(row.status || ""),
         created_at: String(row.created_at || ""),
         expires_at: String(row.expires_at || ""),
         sold_at: row.sold_at ? String(row.sold_at) : null,
         buyer_name: row.buyer_name ? String(row.buyer_name) : null,
-      })));
+      })) as MyPropertyListing[]);
     }
 
     const syncResult = await supabase.rpc("sync_my_milo_exchange_property_units");
@@ -674,29 +725,35 @@ export default function PropertyExchangeClient() {
 
     setActionLoading(true);
     setTradeMessage("");
-    const { data, error } = await supabase.rpc("buy_milo_exchange_property_listing", {
+    const { data, error } = await supabase.rpc("buy_milo_exchange_property_unit_listing", {
       p_listing_id: listing.listing_id,
     });
 
     if (error) {
-      console.warn("Resale property purchase failed:", error.message);
+      console.warn("Exact-unit resale purchase failed:", error.message);
       setTradeMessage(`Purchase failed: ${error.message}`);
       setActionLoading(false);
       return;
     }
 
     const result = (data || {}) as Record<string, unknown>;
-    if (result.ok === false || result.success === false) {
-      const reason = String(result.reason || "This resale listing is no longer available.");
+    if (result.ok === false) {
+      const reason = String(result.reason || "listing_not_active");
       setTradeMessage(
         reason === "listing_not_active"
-          ? "This property has already been purchased."
+          ? "This unit is no longer available."
           : reason === "listing_expired"
           ? "This resale listing has expired."
           : reason === "buyer_is_seller"
           ? "You cannot purchase your own listing."
-          : reason === "seller_no_longer_owns_property"
-          ? "This property is no longer available from the seller."
+          : reason === "seller_no_longer_owns_unit"
+          ? "The seller no longer owns this exact unit."
+          : reason === "insufficient_tokens"
+          ? "You do not have enough Dream Tokens for this purchase."
+          : reason === "tenant_active"
+          ? "This unit now has an active tenant and cannot be sold."
+          : reason === "rental_listing_active"
+          ? "This unit is currently listed for rent and cannot be sold."
           : reason
       );
       setActionLoading(false);
@@ -704,37 +761,60 @@ export default function PropertyExchangeClient() {
       return;
     }
 
-    setTradeMessage(`Purchased ${listing.property_name} for ${formatNumber(listing.asking_price)} DT from ${listing.seller_name}.`);
+    setTradeMessage(
+      `Purchased ${listing.property_name} Unit ${listing.unit_number} for ${formatNumber(
+        listing.asking_price
+      )} DT from ${listing.seller_name}. Its upgrades transferred with the unit.`
+    );
     window.dispatchEvent(new Event("dream-tokens-updated"));
     await refreshMarket();
     setActionLoading(false);
   }
 
-  async function createResaleListing(propertyId: string, askingPrice: number) {
+  async function createResaleListing(unitId: string, askingPrice: number) {
     if (!userId || actionLoading) return;
     setActionLoading(true);
     setTradeMessage("");
 
-    const { data, error } = await supabase.rpc("create_milo_exchange_property_listing", {
-      p_property_id: propertyId,
+    const { data, error } = await supabase.rpc("create_milo_exchange_property_unit_listing", {
+      p_unit_id: unitId,
       p_asking_price: Math.round(askingPrice),
     });
 
     if (error) {
-      console.warn("Could not create property resale listing:", error.message);
+      console.warn("Could not create exact-unit resale listing:", error.message);
       setTradeMessage(`Listing failed: ${error.message}`);
       setActionLoading(false);
       return;
     }
 
     const result = (data || {}) as Record<string, unknown>;
-    const property = properties.find((item) => item.id === propertyId);
-    setTradeMessage(
-      result.already_listed
-        ? `${property?.name || "This property"} is already listed for resale.`
-        : `${property?.name || "Property"} is now listed for ${formatNumber(askingPrice)} DT.`
-    );
+    if (result.ok === false) {
+      const reason = String(result.reason || "listing_failed");
+      setTradeMessage(
+        reason === "unit_not_owned"
+          ? "You no longer own this property unit."
+          : reason === "tenant_active"
+          ? "A unit with an active tenant cannot be listed for sale."
+          : reason === "rental_listing_active"
+          ? "Cancel the rental listing before listing this unit for sale."
+          : reason === "already_listed"
+          ? "This exact unit is already listed for resale."
+          : reason === "price_out_of_range"
+          ? `The asking price must stay between ${formatNumber(Number(result.minimum || 0))} and ${formatNumber(Number(result.maximum || 0))} DT.`
+          : reason
+      );
+      setActionLoading(false);
+      await refreshMarket();
+      return;
+    }
 
+    const unit = propertyUnits.find((item) => item.unit_id === unitId);
+    setTradeMessage(
+      `${unit?.property_name || "Property"} Unit ${unit?.unit_number || ""} is now listed for ${formatNumber(
+        askingPrice
+      )} DT.`
+    );
     await refreshMarket();
     setActionLoading(false);
   }
@@ -744,18 +824,19 @@ export default function PropertyExchangeClient() {
     setActionLoading(true);
     setTradeMessage("");
 
-    const { error } = await supabase.rpc("cancel_milo_exchange_property_listing", {
+    const { data, error } = await supabase.rpc("cancel_milo_exchange_property_unit_listing", {
       p_listing_id: listingId,
     });
 
     if (error) {
-      console.warn("Could not cancel resale listing:", error.message);
+      console.warn("Could not cancel exact-unit resale listing:", error.message);
       setTradeMessage(`Cancellation failed: ${error.message}`);
       setActionLoading(false);
       return;
     }
 
-    setTradeMessage("Resale listing cancelled.");
+    const result = (data || {}) as Record<string, unknown>;
+    setTradeMessage(result.ok === false ? "That resale listing is no longer active." : "Resale listing cancelled.");
     await refreshMarket();
     setActionLoading(false);
   }
@@ -1119,7 +1200,6 @@ export default function PropertyExchangeClient() {
               {...tabStyles}
               dreamTokens={dreamTokens}
               properties={properties}
-              holdings={holdings}
               myListings={myListings}
               propertyPortfolioValue={propertyPortfolioValue}
               units={propertyUnits}

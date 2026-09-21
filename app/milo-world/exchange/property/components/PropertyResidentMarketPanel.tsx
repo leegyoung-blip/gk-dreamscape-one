@@ -21,6 +21,7 @@ type Props = PropertyTabStyles & {
   lease: PropertyLease | null;
   purchaseOffers: PropertyPurchaseOffer[];
   marketSetting: PropertyUnitMarketSetting | null;
+  isPlayerResaleActive: boolean;
   actionLoading: boolean;
   isMobile: boolean;
   onCreateRentalListing: (
@@ -54,6 +55,7 @@ export default function PropertyResidentMarketPanel({
   lease,
   purchaseOffers,
   marketSetting,
+  isPlayerResaleActive,
   actionLoading,
   isMobile,
   glassPanel,
@@ -80,6 +82,29 @@ export default function PropertyResidentMarketPanel({
     () => purchaseOffers.filter((item) => item.status === "active"),
     [purchaseOffers]
   );
+
+  if (isPlayerResaleActive) {
+    return (
+      <div
+        data-milo-guide="property-resident-market"
+        style={{
+          padding: isMobile ? "22px" : "28px",
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+          background: "linear-gradient(180deg, rgba(255,209,138,0.04), rgba(5,13,28,0.12))",
+        }}
+      >
+        <p style={{ margin: 0, color: "#ffd18a", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>
+          Player Resale Active
+        </p>
+        <h3 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "30px" : "38px", fontWeight: 500 }}>
+          This unit is currently for sale
+        </h3>
+        <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.56)", fontSize: "13px", lineHeight: 1.6, maxWidth: "760px" }}>
+          Rental listings and Dreamscape resident purchase offers are paused while an exact-unit player resale is active. Cancel the resale listing from My Properties if you want to return this unit to the resident market.
+        </p>
+      </div>
+    );
+  }
 
   const suggestedLow = Math.max(1, Math.round(unit.rental_potential * 0.9));
   const suggestedHigh = Math.max(suggestedLow, Math.round(unit.rental_potential * 1.1));

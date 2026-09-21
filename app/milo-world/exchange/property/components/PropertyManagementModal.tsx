@@ -29,6 +29,7 @@ type Props = PropertyTabStyles & {
   lease: PropertyLease | null;
   purchaseOffers: PropertyPurchaseOffer[];
   marketSetting: PropertyUnitMarketSetting | null;
+  isPlayerResaleActive: boolean;
   onClose: () => void;
   onUpgrade: (unitId: string, category: string) => Promise<void>;
   onCreateRentalListing: (unitId: string, askingWeeklyRent: number, openToPurchaseOffers: boolean) => Promise<void>;
@@ -90,6 +91,7 @@ export default function PropertyManagementModal({
   lease,
   purchaseOffers,
   marketSetting,
+  isPlayerResaleActive,
   onClose,
   onUpgrade,
   onCreateRentalListing,
@@ -270,6 +272,7 @@ export default function PropertyManagementModal({
           lease={lease}
           purchaseOffers={purchaseOffers}
           marketSetting={marketSetting}
+          isPlayerResaleActive={isPlayerResaleActive}
           actionLoading={actionLoading}
           isMobile={isMobile}
           glassPanel={glassPanel}

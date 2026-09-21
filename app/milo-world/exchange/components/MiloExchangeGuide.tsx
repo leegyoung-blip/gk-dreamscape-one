@@ -24,7 +24,7 @@ type Props = {
 const GUIDE_VERSIONS: Record<MiloExchangeGuidePage, string> = {
   home: "v1",
   stocks: "v1",
-  property: "v4",
+  property: "v5",
 };
 
 const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
@@ -183,7 +183,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       title: "View & Manage is now your landlord workspace",
       description:
         "Open a unit to see its upgrades and resident market. Vacant units can be listed for rent, active listings can receive applications, and occupied units show the tenant, lease length and rent collected.",
-      target: "property-unit-management",
+      target: "property-managed-units",
       propertyTab: "properties",
     },
     {
@@ -199,7 +199,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       eyebrow: "Step 7 · Selling",
       title: "You now have two different sale channels",
       description:
-        "Player resale remains available here. Separately, a vacant exact unit can be opened to Dreamscape resident purchase offers from inside View & Manage.",
+        "Player resale is now exact-unit too. Choose the specific vacant unit you want to sell; its upgrades, value and rent potential travel with it. Resident purchase offers remain a separate sale channel inside View & Manage.",
       target: "property-my-listings",
       propertyTab: "properties",
     },
@@ -207,7 +207,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       eyebrow: "Step 8 · Resale Market",
       title: "Trade existing properties with other players",
       description:
-        "The Resale Market remains the player-to-player secondary market. Buying here transfers an existing property instead of reducing primary inventory.",
+        "The Resale Market now shows the exact unit number, managed value, rent potential and upgrade level. Buying a listing transfers that specific upgraded unit instead of a generic copy.",
       target: "property-resale-market",
       propertyTab: "resale",
     },
@@ -215,7 +215,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       eyebrow: "Step 9 · Completed Sales",
       title: "Use transactions as market context",
       description:
-        "Recent Property Sales shows completed player-market transactions. Resident purchase offers are a separate source of demand tied to the simulated Dreamscape population.",
+        "Recent Property Sales now combines primary purchases with completed exact-unit player resales. This gives you real transaction context while resident purchase offers remain a separate source of simulated demand.",
       target: "property-recent-sales",
       propertyTab: "resale",
     },
