@@ -291,7 +291,10 @@ export default function PropertyExchangeClient() {
     owned_commercial_units: [],
     market_listings: [],
     applications: [],
+    npc_applications: [],
     occupancies: [],
+    npc_occupancies: [],
+    npc_businesses: [],
     stats: {
       running_businesses: 0,
       businesses_with_space: 0,
@@ -948,8 +951,8 @@ export default function PropertyExchangeClient() {
     if (error) {
       console.warn("Could not load Business Space dashboard:", error.message);
       setBusinessSpaceDashboard({
-        businesses: [], owned_commercial_units: [], market_listings: [], applications: [], occupancies: [],
-        stats: { running_businesses: 0, businesses_with_space: 0, commercial_units_owned: 0, spaces_listed: 0, incoming_applications: 0 },
+        businesses: [], owned_commercial_units: [], market_listings: [], applications: [], npc_applications: [], occupancies: [], npc_occupancies: [], npc_businesses: [],
+        stats: { running_businesses: 0, businesses_with_space: 0, commercial_units_owned: 0, spaces_listed: 0, incoming_applications: 0, dreamscape_business_applications: 0 },
       });
       return;
     }
@@ -982,8 +985,17 @@ export default function PropertyExchangeClient() {
       applications: (dashboard.applications || []).map((item) => ({
         ...item, business_slot_id: Number(item.business_slot_id || 0), proposed_weekly_rent: Number(item.proposed_weekly_rent || 0), lease_weeks: Number(item.lease_weeks || 0), fit_score: Number(item.fit_score || 0), area_sqm: Number(item.area_sqm || 0), asking_weekly_rent: Number(item.asking_weekly_rent || 0),
       })),
+      npc_applications: (dashboard.npc_applications || []).map((item) => ({
+        ...item, proposed_weekly_rent: Number(item.proposed_weekly_rent || 0), lease_weeks: Number(item.lease_weeks || 0), fit_score: Number(item.fit_score || 0), area_sqm: Number(item.area_sqm || 0), asking_weekly_rent: Number(item.asking_weekly_rent || 0), health_score: item.health_score == null ? null : Number(item.health_score || 0),
+      })),
       occupancies: (dashboard.occupancies || []).map((item) => ({
         ...item, business_slot_id: Number(item.business_slot_id || 0), weekly_space_cost: Number(item.weekly_space_cost || 0), lease_weeks: Number(item.lease_weeks || 0), paid_weeks: Number(item.paid_weeks || 0), fit_score: Number(item.fit_score || 0), capacity_staff: Number(item.capacity_staff || 0), arrears_count: Number(item.arrears_count || 0), area_sqm: Number(item.area_sqm || 0),
+      })),
+      npc_occupancies: (dashboard.npc_occupancies || []).map((item) => ({
+        ...item, weekly_space_cost: Number(item.weekly_space_cost || 0), lease_weeks: Number(item.lease_weeks || 0), paid_weeks: Number(item.paid_weeks || 0), fit_score: Number(item.fit_score || 0), capacity_staff: Number(item.capacity_staff || 0), arrears_count: Number(item.arrears_count || 0), area_sqm: Number(item.area_sqm || 0), health_score: item.health_score == null ? null : Number(item.health_score || 0),
+      })),
+      npc_businesses: (dashboard.npc_businesses || []).map((item) => ({
+        ...item, health_score: Number(item.health_score || 0), staff_count: Number(item.staff_count || 0), named_staff_count: Number(item.named_staff_count || 0), has_space: Boolean(item.has_space), space_pressure: Boolean(item.space_pressure),
       })),
       stats: {
         running_businesses: Number(dashboard.stats?.running_businesses || 0),
@@ -991,6 +1003,7 @@ export default function PropertyExchangeClient() {
         commercial_units_owned: Number(dashboard.stats?.commercial_units_owned || 0),
         spaces_listed: Number(dashboard.stats?.spaces_listed || 0),
         incoming_applications: Number(dashboard.stats?.incoming_applications || 0),
+        dreamscape_business_applications: Number(dashboard.stats?.dreamscape_business_applications || 0),
       },
     });
   }
@@ -1389,6 +1402,17 @@ export default function PropertyExchangeClient() {
     const result = (data || {}) as Record<string, unknown>;
     setTradeMessage(action === "accept" ? `Business tenancy accepted · Fit ${Number(result.fit_score || 0)}/100.` : "Business application declined.");
     await loadBusinessSpaceDashboard();
+  }
+
+  async function respondNpcBusinessSpaceApplication(applicationId: string, action: "accept" | "reject") {
+    if (actionLoading) return;
+    setActionLoading(true); setTradeMessage("");
+    const { data, error } = await supabase.rpc("respond_to_milo_npc_business_space_application", { p_application_id: applicationId, p_action: action });
+    setActionLoading(false);
+    if (error) { setTradeMessage(`Could not respond to the Dreamscape business: ${error.message}`); return; }
+    const result = (data || {}) as Record<string, unknown>;
+    setTradeMessage(action === "accept" ? `Dreamscape business tenancy accepted · Fit ${Number(result.fit_score || 0)}/100.` : "Dreamscape business application declined.");
+    await Promise.all([loadBusinessSpaceDashboard(), loadDreamTokens()]);
   }
 
   function openPreview(property: PropertyOffering) {
@@ -2236,6 +2260,7 @@ export default function PropertyExchangeClient() {
               onCancelBusinessSpaceListing={cancelBusinessSpaceListing}
               onApplyForBusinessSpace={applyForBusinessSpace}
               onRespondBusinessSpaceApplication={respondBusinessSpaceApplication}
+              onRespondNpcBusinessSpaceApplication={respondNpcBusinessSpaceApplication}
               onRespondMaintenanceIssue={respondMaintenanceIssue}
               onPreventiveService={preventiveService}
               onOpenMessages={() => setPhoneOpenRequest((value) => value + 1)}

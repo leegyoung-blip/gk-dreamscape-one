@@ -993,65 +993,103 @@ export default function NovaWorldPage() {
 
 
       {!walkthroughOpen && (
-      <div
-        style={{
-          position: "fixed",
-          right: isMobile ? "8px" : "14px",
-          bottom: isMobile ? "8px" : "12px",
-          zIndex: 70,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          gap: 0,
-          pointerEvents: "none",
-        }}
-      >
-        <img
-          src="/nova/nova-character.png"
-          alt="Nova"
-          style={{
-            height: isDesktop ? "150px" : isMobile ? "82px" : "115px",
-            width: "auto",
-            marginBottom: "-9px",
-            opacity: 0.94,
-            transform: isMobile ? "translateX(8px)" : "translateX(2px)",
-            pointerEvents: "none",
-            filter: "drop-shadow(0 16px 24px rgba(0,0,0,0.42))",
-          }}
-        />
+        <>
+          <div
+            style={{
+              position: "fixed",
+              left: isMobile ? "10px" : "18px",
+              bottom: isMobile ? "10px" : "16px",
+              zIndex: 70,
+              display: "flex",
+              flexDirection: isMobile ? "column" : "row",
+              alignItems: "flex-end",
+              gap: isMobile ? "6px" : "10px",
+              pointerEvents: "none",
+            }}
+          >
+            <img
+              src="/nova/nova-character.png"
+              alt="Nova"
+              style={{
+                height: isDesktop ? "126px" : isMobile ? "72px" : "92px",
+                width: "auto",
+                display: "block",
+                opacity: 0.96,
+                pointerEvents: "none",
+                filter: "drop-shadow(0 14px 22px rgba(0,0,0,0.42))",
+              }}
+            />
 
-        <button
-          type="button"
-          onClick={startWalkthrough}
-          style={{
-            minHeight: isMobile ? "34px" : "38px",
-            padding: isMobile ? "0 11px" : "0 14px",
-            borderRadius: "999px",
-            border: "1px solid rgba(83,215,255,0.36)",
-            background: "rgba(2,18,36,0.72)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            color: "white",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "6px",
-            fontSize: isMobile ? "9px" : "11px",
-            fontWeight: 800,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            boxShadow:
-              "0 10px 24px rgba(0,0,0,0.26), 0 0 14px rgba(83,215,255,0.12)",
-            whiteSpace: "nowrap",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            pointerEvents: "auto",
-          }}
-        >
-          <span aria-hidden="true">✦</span>
-          {isMobile ? "Guide" : "Nova Guide"}
-        </button>
-      </div>
+            <button
+              type="button"
+              onClick={startWalkthrough}
+              style={{
+                minHeight: isMobile ? "34px" : "38px",
+                marginBottom: isMobile ? 0 : "4px",
+                padding: isMobile ? "0 11px" : "0 14px",
+                borderRadius: "999px",
+                border: "1px solid rgba(83,215,255,0.36)",
+                background: "rgba(2,18,36,0.78)",
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+                color: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                fontSize: isMobile ? "9px" : "11px",
+                fontWeight: 800,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                boxShadow:
+                  "0 10px 24px rgba(0,0,0,0.26), 0 0 14px rgba(83,215,255,0.12)",
+                whiteSpace: "nowrap",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                pointerEvents: "auto",
+              }}
+            >
+              <span aria-hidden="true">✦</span>
+              {isMobile ? "Guide" : "Nova Guide"}
+            </button>
+          </div>
+
+          <Link
+            href="/milo-world"
+            style={{
+              position: "fixed",
+              right: isMobile ? "10px" : "18px",
+              bottom: isMobile ? "10px" : "16px",
+              zIndex: 70,
+              minHeight: isMobile ? "36px" : "42px",
+              padding: isMobile ? "0 13px" : "0 17px",
+              borderRadius: "999px",
+              border: "1px solid rgba(213,181,255,0.46)",
+              background:
+                "linear-gradient(135deg, rgba(71,36,112,0.82), rgba(18,12,48,0.82))",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              color: "white",
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              fontSize: isMobile ? "9px" : "11px",
+              fontWeight: 850,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              boxShadow:
+                "0 12px 28px rgba(0,0,0,0.3), 0 0 18px rgba(197,140,255,0.16)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span>To Milo’s World</span>
+            <span aria-hidden="true" style={{ color: "#d5b5ff" }}>
+              →
+            </span>
+          </Link>
+        </>
       )}
 
       <GuidedWalkthrough
@@ -1340,7 +1378,7 @@ function FloatingControls({
         style={{
           position: isDesktop ? "fixed" : "static",
           top: "18px",
-          right: isDesktop ? "124px" : "18px",
+          right: isDesktop ? "138px" : "18px",
           zIndex: 70,
           display: isDesktop ? "flex" : "contents",
           alignItems: "center",
@@ -3432,8 +3470,7 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
             textAlign: "center",
           }}
         >
-          View the pricing page for all monthly and annual options. Existing
-          Guru Kids Pro students may have separate eligible access arrangements.
+          View the pricing page for all current monthly and annual options.
         </p>
       </div>
     </div>

@@ -38,6 +38,8 @@ function statusAccent(value: string) {
 function employerKindLabel(value: string | null) {
   if (value === "listed_company") return "Listed company";
   if (value === "private_business") return "Private employer";
+  if (value === "player_business") return "Milo business";
+  if (value === "npc_business") return "Dreamscape business";
   if (value === "community") return "Community role";
   if (value === "self_employed") return "Self-employed";
   if (value === "study") return "Studying";
@@ -112,8 +114,7 @@ export default function EmploymentEconomyPanel({
               maxWidth: "860px",
             }}
           >
-            Some residents work for Stock Exchange companies. Others work for private businesses,
-            community organisations, themselves, or are still studying.
+            Residents can now work for Stock Exchange companies, player-run Milo businesses, local Dreamscape businesses, community organisations, or themselves. Work and business growth can change what they can afford.
           </p>
         </div>
         <button
@@ -127,7 +128,7 @@ export default function EmploymentEconomyPanel({
             opacity: actionLoading ? 0.55 : 1,
           }}
         >
-          {actionLoading ? "Checking..." : "↻ Update Jobs"}
+          {actionLoading ? "Checking..." : "↻ Refresh Jobs"}
         </button>
       </div>
 

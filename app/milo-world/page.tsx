@@ -666,6 +666,8 @@ function MiloZoneHoverPopup({
   const marker = DESKTOP_ZONE_MARKERS[zone.number];
   const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
   const shouldOpenBelow = zone.number === "1" || zone.number === "4";
+  const isLeftSideZone = zone.number === "1" || zone.number === "2";
+  const horizontalPopupTransform = isLeftSideZone ? "-12%" : "-50%";
 
   return (
     <div
@@ -674,12 +676,13 @@ function MiloZoneHoverPopup({
         zIndex: isSelected ? 70 : 60,
         left: marker.left,
         top: marker.top,
-        width: "330px",
+        width: "min(330px, calc(100vw - 24px))",
+        maxWidth: "calc(100vw - 24px)",
         transform: shouldOpenBelow
-          ? `translate(-50%, 46px)${
+          ? `translate(${horizontalPopupTransform}, 46px)${
               isHighlighted || isSelected ? " scale(1.025)" : ""
             }`
-          : `translate(-50%, calc(-100% - 46px))${
+          : `translate(${horizontalPopupTransform}, calc(-100% - 46px))${
               isHighlighted || isSelected ? " scale(1.025)" : ""
             }`,
         borderRadius: "20px",
@@ -3289,66 +3292,104 @@ export default function MiloWorldPage() {
       )}
 
       {!walkthroughOpen && (
-        <div
-          style={{
-            position: "fixed",
-            right: isMobile ? "8px" : isDesktop ? "14px" : "12px",
-            bottom: isMobile ? "8px" : "12px",
-            zIndex: 70,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-end",
-            gap: 0,
-            pointerEvents: "none",
-          }}
-        >
-          <img
-            src="/milo-world/milo-character.png"
-            alt="Milo"
+        <>
+          <Link
+            href="/inventor"
             style={{
-              height: isDesktop ? "150px" : isMobile ? "82px" : "115px",
-              width: "auto",
-              objectFit: "contain",
-              marginBottom: "-9px",
-              opacity: 0.94,
-              transform: isMobile ? "translateX(8px)" : "translateX(2px)",
-              filter: "drop-shadow(0 16px 24px rgba(0,0,0,0.42))",
-              pointerEvents: "none",
-            }}
-          />
-
-          <button
-            type="button"
-            onClick={startWalkthrough}
-            style={{
-              minHeight: isMobile ? "34px" : "38px",
-              padding: isMobile ? "0 11px" : "0 14px",
+              position: "fixed",
+              left: isMobile ? "10px" : "18px",
+              bottom: isMobile ? "10px" : "16px",
+              zIndex: 70,
+              minHeight: isMobile ? "36px" : "42px",
+              padding: isMobile ? "0 13px" : "0 17px",
               borderRadius: "999px",
-              border: "1px solid rgba(83,215,255,0.36)",
-              background: "rgba(2,18,36,0.72)",
+              border: "1px solid rgba(126,232,255,0.42)",
+              background:
+                "linear-gradient(135deg, rgba(10,57,88,0.82), rgba(4,21,47,0.84))",
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               color: "white",
-              display: "flex",
+              textDecoration: "none",
+              display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "6px",
+              gap: "8px",
               fontSize: isMobile ? "9px" : "11px",
-              fontWeight: 800,
+              fontWeight: 850,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
               boxShadow:
-                "0 10px 24px rgba(0,0,0,0.26), 0 0 14px rgba(83,215,255,0.12)",
+                "0 12px 28px rgba(0,0,0,0.3), 0 0 18px rgba(83,215,255,0.14)",
               whiteSpace: "nowrap",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              pointerEvents: "auto",
             }}
           >
-            <span aria-hidden="true">✦</span>
-            {isMobile ? "Guide" : "Milo Guide"}
-          </button>
-        </div>
+            <span aria-hidden="true" style={{ color: "#8ee8ff" }}>
+              ←
+            </span>
+            <span>To Nova’s World</span>
+          </Link>
+
+          <div
+            style={{
+              position: "fixed",
+              right: isMobile ? "8px" : isDesktop ? "14px" : "12px",
+              bottom: isMobile ? "8px" : "12px",
+              zIndex: 70,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: 0,
+              pointerEvents: "none",
+            }}
+          >
+            <img
+              src="/milo-world/milo-character.png"
+              alt="Milo"
+              style={{
+                height: isDesktop ? "150px" : isMobile ? "82px" : "115px",
+                width: "auto",
+                objectFit: "contain",
+                marginBottom: "-9px",
+                opacity: 0.94,
+                transform: isMobile ? "translateX(8px)" : "translateX(2px)",
+                filter: "drop-shadow(0 16px 24px rgba(0,0,0,0.42))",
+                pointerEvents: "none",
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={startWalkthrough}
+              style={{
+                minHeight: isMobile ? "34px" : "38px",
+                padding: isMobile ? "0 11px" : "0 14px",
+                borderRadius: "999px",
+                border: "1px solid rgba(83,215,255,0.36)",
+                background: "rgba(2,18,36,0.72)",
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+                color: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                fontSize: isMobile ? "9px" : "11px",
+                fontWeight: 800,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                boxShadow:
+                  "0 10px 24px rgba(0,0,0,0.26), 0 0 14px rgba(83,215,255,0.12)",
+                whiteSpace: "nowrap",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                pointerEvents: "auto",
+              }}
+            >
+              <span aria-hidden="true">✦</span>
+              {isMobile ? "Guide" : "Milo Guide"}
+            </button>
+          </div>
+        </>
       )}
 
       <GuidedWalkthrough

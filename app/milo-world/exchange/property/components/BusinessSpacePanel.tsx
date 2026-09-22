@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   formatNumber,
+  getResidentAvatarSrc,
   type PropertyBusinessSpaceApplication,
+  type PropertyNpcBusinessSpaceApplication,
   type PropertyBusinessSpaceBusiness,
   type PropertyBusinessSpaceDashboard,
   type PropertyBusinessSpaceListing,
@@ -25,6 +27,7 @@ type Props = PropertyTabStyles & {
   onCancelListing: (listingId: string) => Promise<void>;
   onApplyForSpace: (listingId: string, slotId: number, weeklyRent: number, leaseWeeks: number) => Promise<void>;
   onRespondApplication: (applicationId: string, action: "accept" | "reject") => Promise<void>;
+  onRespondNpcApplication: (applicationId: string, action: "accept" | "reject") => Promise<void>;
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -73,17 +76,21 @@ export default function BusinessSpacePanel({
   onCancelListing,
   onApplyForSpace,
   onRespondApplication,
+  onRespondNpcApplication,
 }: Props) {
   const businesses = dashboard.businesses || [];
   const ownedUnits = dashboard.owned_commercial_units || [];
   const marketListings = dashboard.market_listings || [];
   const applications = dashboard.applications || [];
+  const npcApplications = dashboard.npc_applications || [];
+  const npcBusinesses = dashboard.npc_businesses || [];
   const stats = dashboard.stats || {
     running_businesses: 0,
     businesses_with_space: 0,
     commercial_units_owned: 0,
     spaces_listed: 0,
     incoming_applications: 0,
+    dreamscape_business_applications: 0,
   };
 
   const [selectedSlot, setSelectedSlot] = useState<number | null>(businesses[0]?.slot_id || null);
@@ -99,6 +106,7 @@ export default function BusinessSpacePanel({
   const myActiveListings = marketListings.filter((listing) => listing.owner_user_id === currentUserId);
   const publicListings = marketListings.filter((listing) => listing.owner_user_id !== currentUserId);
   const incomingApplications = applications.filter((app) => app.landlord_user_id === currentUserId && app.status === "pending");
+  const incomingNpcApplications = npcApplications.filter((app) => app.landlord_user_id === currentUserId && app.status === "pending");
   const myApplications = applications.filter((app) => app.business_user_id === currentUserId && app.status === "pending");
 
   const compatibleOwnedUnits = useMemo(() => {
@@ -132,9 +140,9 @@ export default function BusinessSpacePanel({
       <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", gap: "14px", alignItems: isMobile ? "stretch" : "flex-end" }}>
         <div>
           <p style={{ margin: 0, color: "#ffd18a", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Business Spaces</p>
-          <h2 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "31px" : "39px", fontWeight: 500 }}>Put commercial property to work</h2>
+          <h2 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "31px" : "39px", fontWeight: 500 }}>Run businesses in a living commercial market</h2>
           <p style={{ margin: "9px 0 0", maxWidth: "920px", color: "rgba(255,255,255,0.52)", fontSize: "13px", lineHeight: 1.6 }}>
-            Offices and retail units can now become real premises for Business Builder businesses. Better-fitting spaces can improve how a business performs, while rent becomes a real operating cost.
+            Your businesses can use real offices and shops, while Dreamscape businesses search the same market in the background. A strong fit supports growth; cramped or expensive premises can hold a business back.
           </p>
         </div>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -175,6 +183,7 @@ export default function BusinessSpacePanel({
                   <strong style={{ display: "block" }}>{business.business_name}</strong>
                   <small style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,0.45)" }}>{business.business_title || business.business_type_id} · {business.staff_count} staff</small>
                   <span style={{ display: "block", marginTop: "7px", color: business.occupancy_id ? "#79f2ce" : "#ffd18a", fontSize: "10px", fontWeight: 900 }}>{business.occupancy_id ? `${business.property_name} · Unit ${business.unit_number}` : "Needs premises"}</span>
+                  {business.economy_health != null && <small style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,0.42)" }}>Business health {business.economy_health}/100 · {business.growth_state === "expanding" ? "Growing" : business.growth_state === "strained" ? "Under pressure" : "Steady"}{business.hiring_status === "hiring" ? " · Hiring" : ""}</small>}
                 </button>
               );
             })}
@@ -248,6 +257,24 @@ export default function BusinessSpacePanel({
         </div>
       )}
 
+      {npcBusinesses.length > 0 && (
+        <div style={{ marginTop: "20px" }}>
+          <p style={{ margin: 0, color: "#8ee8ff", fontSize: "10px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>Dreamscape Business Activity</p>
+          <h3 style={{ margin: "6px 0 0", fontSize: "18px" }}>Local businesses are growing, hiring and looking for space</h3>
+          <div style={{ marginTop: "10px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fit,minmax(170px,1fr))", gap: "8px" }}>
+            {npcBusinesses.map((business) => {
+              const avatar = getResidentAvatarSrc(business.avatar_key);
+              return (
+                <article key={business.resident_id} style={{ borderRadius: "14px", padding: "10px", background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)", display: "grid", gridTemplateColumns: "38px minmax(0,1fr)", gap: "9px", alignItems: "center" }}>
+                  <div style={{ width: "38px", height: "38px", borderRadius: "50%", overflow: "hidden", background: "rgba(142,232,255,0.08)" }}>{avatar && <img src={avatar} alt={business.business_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}</div>
+                  <span style={{ minWidth: 0 }}><strong style={{ display: "block", fontSize: "11px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{business.business_name}</strong><small style={{ display: "block", marginTop: "2px", color: "rgba(255,255,255,0.42)", fontSize: "9px" }}>{business.staff_count} staff · Health {business.health_score}/100</small><small style={{ display: "block", marginTop: "2px", color: business.growth_state === "expanding" ? "#79f2ce" : business.growth_state === "strained" ? "#ffd18a" : "#8ee8ff", fontSize: "9px", fontWeight: 800 }}>{business.growth_state === "expanding" ? "Growing" : business.growth_state === "strained" ? "Under pressure" : "Steady"}{business.hiring_status === "hiring" ? " · Hiring" : ""}{!business.has_space ? " · Seeking space" : business.space_pressure ? " · Needs more room" : ""}</small></span>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {listingUnitId && (() => {
         const unit = ownedUnits.find((x) => x.unit_id === listingUnitId);
         if (!unit) return null;
@@ -299,6 +326,29 @@ export default function BusinessSpacePanel({
           </div>
         );
       })()}
+
+      {incomingNpcApplications.length > 0 && (
+        <div style={{ marginTop: "20px" }}>
+          <p style={{ margin: 0, color: "#8ee8ff", fontSize: "10px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>Dreamscape Business Applications</p>
+          <h3 style={{ margin: "6px 0 0", fontSize: "18px" }}>Local businesses want to rent your space</h3>
+          <div style={{ marginTop: "10px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))", gap: "9px" }}>
+            {incomingNpcApplications.map((app: PropertyNpcBusinessSpaceApplication) => {
+              const avatar = getResidentAvatarSrc(app.avatar_key);
+              return (
+                <article key={app.id} style={{ borderRadius: "15px", border: "1px solid rgba(142,232,255,0.14)", background: "rgba(142,232,255,0.045)", padding: "13px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "46px minmax(0,1fr) auto", gap: "10px", alignItems: "center" }}>
+                    <div style={{ width: "46px", height: "46px", borderRadius: "50%", overflow: "hidden", background: "rgba(142,232,255,0.08)" }}>{avatar && <img src={avatar} alt={app.business_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}</div>
+                    <span style={{ minWidth: 0 }}><strong style={{ display: "block" }}>{app.business_name}</strong><small style={{ display: "block", marginTop: "3px", color: "rgba(255,255,255,0.44)" }}>{app.property_name} · {app.lease_weeks} weeks</small><small style={{ display: "block", marginTop: "3px", color: "rgba(255,255,255,0.38)" }}>Health {app.health_score ?? 0}/100 · {app.growth_state === "expanding" ? "Growing" : app.growth_state === "strained" ? "Under pressure" : "Steady"}</small></span>
+                    <span style={{ color: fitColor(app.fit_score), fontSize: "10px", fontWeight: 900 }}>Fit {app.fit_score}</span>
+                  </div>
+                  <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.58)", fontSize: "12px" }}>Offers <strong style={{ color: "#8ee8ff" }}>{formatNumber(app.proposed_weekly_rent)} DT/week</strong> · Your asking rent {formatNumber(app.asking_weekly_rent)} DT/week</p>
+                  <div style={{ marginTop: "10px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}><button type="button" onClick={() => void onRespondNpcApplication(app.id, "accept")} disabled={actionLoading} style={{ ...primaryButton, minHeight: "36px" }}>Accept</button><button type="button" onClick={() => void onRespondNpcApplication(app.id, "reject")} disabled={actionLoading} style={{ ...secondaryButton, minHeight: "36px" }}>Decline</button></div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {incomingApplications.length > 0 && (
         <div style={{ marginTop: "20px" }}>

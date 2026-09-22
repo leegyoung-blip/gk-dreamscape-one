@@ -24,7 +24,7 @@ type Props = {
 const GUIDE_VERSIONS: Record<MiloExchangeGuidePage, string> = {
   home: "v2",
   stocks: "v2",
-  property: "v12",
+  property: "v13",
 };
 
 const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
@@ -242,12 +242,12 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
     },
     {
       eyebrow: "Step 11 · Business Spaces",
-      title: "Commercial property can power a real business",
+      title: "Businesses now compete for real space",
       description:
-        "Office and retail units can now become premises for Business Builder businesses. A good fit can help the business perform, while rent becomes a real operating cost.",
+        "Your Business Builder businesses and Dreamscape businesses use the same office and retail market. Growing teams may hire residents, outgrow a space or apply to rent one of your commercial units.",
       target: "property-business-spaces",
       propertyTab: "properties",
-      tip: "Own the space yourself or rent it to another Dreamscape business.",
+      tip: "Business growth creates jobs and demand for commercial property — but rent and cramped premises can also hold a business back.",
     },
     {
       eyebrow: "Step 12 · Lease Renewal",

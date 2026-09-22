@@ -85,6 +85,7 @@ type Props = PropertyTabStyles & {
   onCancelBusinessSpaceListing: (listingId: string) => Promise<void>;
   onApplyForBusinessSpace: (listingId: string, slotId: number, weeklyRent: number, leaseWeeks: number) => Promise<void>;
   onRespondBusinessSpaceApplication: (applicationId: string, action: "accept" | "reject") => Promise<void>;
+  onRespondNpcBusinessSpaceApplication: (applicationId: string, action: "accept" | "reject") => Promise<void>;
   onRespondMaintenanceIssue: (issueId: string, action: "full_repair" | "quick_fix" | "ignore") => Promise<void>;
   onPreventiveService: (unitId: string) => Promise<void>;
   onOpenMessages: () => void;
@@ -144,6 +145,7 @@ export default function MyPropertiesTab({
   onCancelBusinessSpaceListing,
   onApplyForBusinessSpace,
   onRespondBusinessSpaceApplication,
+  onRespondNpcBusinessSpaceApplication,
   onRespondMaintenanceIssue,
   onPreventiveService,
   onOpenMessages,
@@ -575,6 +577,7 @@ export default function MyPropertiesTab({
           onCancelListing={onCancelBusinessSpaceListing}
           onApplyForSpace={onApplyForBusinessSpace}
           onRespondApplication={onRespondBusinessSpaceApplication}
+          onRespondNpcApplication={onRespondNpcBusinessSpaceApplication}
         />
 
         <section data-milo-guide="property-maintenance-overview" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px", border: "1px solid rgba(121,242,206,0.15)", background: "linear-gradient(145deg, rgba(121,242,206,0.05), rgba(5,13,28,0.74))" }}>
