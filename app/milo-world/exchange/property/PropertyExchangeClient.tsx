@@ -9,6 +9,9 @@ import MyPropertiesTab from "./components/MyPropertiesTab";
 import PropertyMapTab from "./components/PropertyMapTab";
 import PropertyResaleTab from "./components/PropertyResaleTab";
 import PropertyPhone from "./components/PropertyPhone";
+import DistrictEconomyDrivers, {
+  type MiloCityDistrictEconomyDashboard,
+} from "./components/DistrictEconomyDrivers";
 import {
   PROPERTY_TYPE_LABELS,
   formatNumber,
@@ -286,6 +289,12 @@ export default function PropertyExchangeClient() {
   const [districtMarkets, setDistrictMarkets] = useState<PropertyDistrictMarket[]>([]);
   const [marketSegments, setMarketSegments] = useState<PropertyMarketSegment[]>([]);
   const [marketHistory, setMarketHistory] = useState<PropertyMarketHistoryPoint[]>([]);
+  const [districtEconomyDashboard, setDistrictEconomyDashboard] = useState<MiloCityDistrictEconomyDashboard>({
+    segments: [],
+    active_events: [],
+    recent_events: [],
+    last_updated: null,
+  });
   const [businessSpaceDashboard, setBusinessSpaceDashboard] = useState<PropertyBusinessSpaceDashboard>({
     businesses: [],
     owned_commercial_units: [],
@@ -497,6 +506,7 @@ export default function PropertyExchangeClient() {
       loadPropertyCommunications(),
       loadResidentLifeDashboard(),
       loadDistrictMarketDashboard(),
+      loadDistrictEconomyDashboard(),
       loadBusinessSpaceDashboard(),
       loadEmploymentDashboard(),
       loadFinanceDashboard(),
@@ -870,7 +880,7 @@ export default function PropertyExchangeClient() {
   async function refreshDistrictMarket(showMessage = false) {
     // Phase 10A: district calculations run once during the scheduled settlement.
     // Refreshing the page no longer triggers a full market recomputation.
-    await loadDistrictMarketDashboard();
+    await Promise.all([loadDistrictMarketDashboard(), loadDistrictEconomyDashboard()]);
     if (showMessage) {
       setTradeMessage("Market pulse refreshed.");
     }
@@ -944,6 +954,47 @@ export default function PropertyExchangeClient() {
       value_index_bps: Number(item.value_index_bps || 10000),
       rent_index_bps: Number(item.rent_index_bps || 10000),
     })) as PropertyMarketHistoryPoint[]);
+  }
+
+  async function loadDistrictEconomyDashboard() {
+    const { data, error } = await supabase.rpc(
+      "get_milo_city_district_economy_dashboard"
+    );
+
+    if (error) {
+      console.warn("Could not load Living City district drivers:", error.message);
+      setDistrictEconomyDashboard({
+        segments: [],
+        active_events: [],
+        recent_events: [],
+        last_updated: null,
+      });
+      return;
+    }
+
+    const dashboard = (data || {}) as Partial<MiloCityDistrictEconomyDashboard>;
+    setDistrictEconomyDashboard({
+      phase: dashboard.phase,
+      last_updated: dashboard.last_updated || null,
+      segments: (dashboard.segments || []).map((item) => ({
+        ...item,
+        market_demand_score: Number(item.market_demand_score || 0),
+        final_demand_score: Number(item.final_demand_score || 0),
+        occupancy_score: Number(item.occupancy_score || 0),
+        employment_score: Number(item.employment_score || 0),
+        resident_pressure_score: Number(item.resident_pressure_score || 0),
+        business_pressure_score: Number(item.business_pressure_score || 0),
+        supply_pressure_score: Number(item.supply_pressure_score || 0),
+        event_score: Number(item.event_score || 0),
+        composite_score: Number(item.composite_score || 0),
+        city_pressure_bps: Number(item.city_pressure_bps || 0),
+        value_effect_bps: Number(item.value_effect_bps || 0),
+        rent_effect_bps: Number(item.rent_effect_bps || 0),
+        drivers: item.drivers || {},
+      })),
+      active_events: dashboard.active_events || [],
+      recent_events: dashboard.recent_events || [],
+    });
   }
 
   async function loadBusinessSpaceDashboard() {
@@ -1333,6 +1384,7 @@ export default function PropertyExchangeClient() {
       loadPropertyCommunications(),
       loadResidentLifeDashboard(),
       loadDistrictMarketDashboard(),
+      loadDistrictEconomyDashboard(),
       loadBusinessSpaceDashboard(),
       loadEmploymentDashboard(),
       loadFinanceDashboard(),
@@ -2175,19 +2227,26 @@ export default function PropertyExchangeClient() {
 
         <div style={{ marginTop: "18px" }}>
           {activeTab === "map" && (
-            <PropertyMapTab
-              {...tabStyles}
-              properties={properties}
-              holdings={holdings}
-              marketLoading={marketLoading}
-              isMobile={isMobile}
-              isCompact={isCompact}
-              isDesktop={isDesktop}
-              onOpenProperty={openPreview}
-              districtMarkets={districtMarkets}
-              marketSegments={marketSegments}
-              marketHistory={marketHistory}
-            />
+            <div style={{ display: "grid", gap: "18px" }}>
+              <DistrictEconomyDrivers
+                dashboard={districtEconomyDashboard}
+                isMobile={isMobile}
+                panelStyle={glassPanel}
+              />
+              <PropertyMapTab
+                {...tabStyles}
+                properties={properties}
+                holdings={holdings}
+                marketLoading={marketLoading}
+                isMobile={isMobile}
+                isCompact={isCompact}
+                isDesktop={isDesktop}
+                onOpenProperty={openPreview}
+                districtMarkets={districtMarkets}
+                marketSegments={marketSegments}
+                marketHistory={marketHistory}
+              />
+            </div>
           )}
 
           {activeTab === "properties" && (

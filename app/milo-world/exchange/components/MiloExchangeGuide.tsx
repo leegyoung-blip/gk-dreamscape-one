@@ -24,7 +24,7 @@ type Props = {
 const GUIDE_VERSIONS: Record<MiloExchangeGuidePage, string> = {
   home: "v2",
   stocks: "v3",
-  property: "v13",
+  property: "v14",
 };
 
 const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
@@ -163,7 +163,16 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "Owning a property does not automatically create income. You need a tenant and an agreement.",
     },
     {
-      eyebrow: "Step 1 · Market Pulse",
+      eyebrow: "Step 1 · City Drivers",
+      title: "See why a district is changing",
+      description:
+        "Jobs, residents looking for homes, business growth, available supply and occasional city developments now feed into each district before prices and rent potential move.",
+      target: "property-city-drivers",
+      propertyTab: "map",
+      tip: "The Living City adds only small daily pressure. A single job, tenant or business cannot suddenly swing the whole district.",
+    },
+    {
+      eyebrow: "Step 2 · Market Pulse",
       title: "Watch the districts change",
       description:
         "Demand, available supply, occupancy and recent deals now shape each district. Stronger demand can gradually lift property values and rent potential.",
@@ -172,7 +181,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "The market moves slowly. One busy day should not suddenly double a property price.",
     },
     {
-      eyebrow: "Step 2 · Property Map",
+      eyebrow: "Step 3 · Property Map",
       title: "Choose your first property",
       description:
         "Explore Residential Hub or Commercial Hub, compare the Dreamscape sale price with the live market value and rent potential, then choose a property to buy.",
@@ -180,7 +189,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "map",
     },
     {
-      eyebrow: "Step 3 · Your Property",
+      eyebrow: "Step 4 · Your Property",
       title: "Every property becomes unique",
       description:
         "Your upgrades, condition, tenants and maintenance choices stay with that property over time.",
@@ -189,7 +198,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "Rent potential is an estimate, not automatic income.",
     },
     {
-      eyebrow: "Step 4 · Portfolio",
+      eyebrow: "Step 5 · Portfolio",
       title: "See how your portfolio is doing",
       description:
         "My Properties shows what your portfolio is worth, how much rent is coming in, which homes are occupied and which residents need your attention.",
@@ -197,7 +206,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 5 · Property Finance",
+      eyebrow: "Step 6 · Property Finance",
       title: "Debt can help you grow — but it must be repaid",
       description:
         "Property Finance lets you use a deposit and repay the rest over time. Watch your debt, equity, weekly repayments and Finance Health before taking on another plan.",
@@ -206,7 +215,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "A smaller deposit creates more leverage, but also more debt and interest.",
     },
     {
-      eyebrow: "Step 6 · Finding Tenants",
+      eyebrow: "Step 7 · Finding Tenants",
       title: "Set the rent and see who applies",
       description:
         "Choose a weekly rent and list a vacant property. Dreamscape residents decide whether it suits their budget, lifestyle and needs.",
@@ -215,7 +224,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "Higher rent may earn more if accepted, but it narrows the applicant pool.",
     },
     {
-      eyebrow: "Step 7 · Property Messages",
+      eyebrow: "Step 8 · Property Messages",
       title: "Negotiations happen like real conversations",
       description:
         "Applications, purchase offers, lease agreements, renewal negotiations, move-out notices and maintenance messages arrive on your Property Phone. Open it from the bottom-right corner.",
@@ -224,7 +233,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "Accept, decline or counter renewal terms directly inside the conversation.",
     },
     {
-      eyebrow: "Step 8 · Reputation",
+      eyebrow: "Step 9 · Reputation",
       title: "Build a reputation residents trust",
       description:
         "Fair rent, good maintenance and happy tenants build your reputation. Poor treatment makes future relationships harder.",
@@ -232,7 +241,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 9 · Resident Stories",
+      eyebrow: "Step 10 · Resident Stories",
       title: "Residents have lives of their own",
       description:
         "Careers, families, savings and businesses can change over time. Those changes may affect what a resident can afford or whether they need a different property.",
@@ -241,7 +250,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "The same resident can return later with a different income, budget and housing need.",
     },
     {
-      eyebrow: "Step 10 · Jobs & Income",
+      eyebrow: "Step 11 · Jobs & Income",
       title: "A resident's job can change their housing choices",
       description:
         "Some residents work for Stock Exchange companies while others have private, community or self-employed careers. Raises, promotions and job losses can change what they can afford.",
@@ -250,7 +259,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "A company doing well does not guarantee every employee will be promoted, and a weak period does not mean everyone loses a job.",
     },
     {
-      eyebrow: "Step 11 · Business Spaces",
+      eyebrow: "Step 12 · Business Spaces",
       title: "Businesses now compete for real space",
       description:
         "Your Business Builder businesses and Dreamscape businesses use the same office and retail market. Growing teams may hire residents, outgrow a space or apply to rent one of your commercial units.",
@@ -259,7 +268,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "Business growth creates jobs and demand for commercial property — but rent and cramped premises can also hold a business back.",
     },
     {
-      eyebrow: "Step 12 · Lease Renewal",
+      eyebrow: "Step 13 · Lease Renewal",
       title: "Talk things through before a lease ends",
       description:
         "Before a lease ends, your tenant may message you about staying. You can accept, decline or suggest different rent and lease terms.",
@@ -268,7 +277,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "If no renewal is agreed, the tenant moves out and the property becomes vacant again.",
     },
     {
-      eyebrow: "Step 13 · Property Care",
+      eyebrow: "Step 14 · Property Care",
       title: "Take care of your property",
       description:
         "Wear and repair problems can lower value and upset tenants. Regular servicing helps keep the property in good shape.",
@@ -276,7 +285,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 14 · Upgrades",
+      eyebrow: "Step 15 · Upgrades",
       title: "Improve it, then look after it",
       description:
         "Upgrades can make a property more attractive and valuable. Maintenance protects what you have already built.",
@@ -285,7 +294,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "A premium property can still lose tenants if it is poorly managed.",
     },
     {
-      eyebrow: "Step 15 · Selling",
+      eyebrow: "Step 16 · Selling",
       title: "Sell when the time feels right",
       description:
         "When you sell, the property keeps its upgrades and condition. Choose an asking price and list it for other players.",
@@ -293,7 +302,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 16 · Resale Market",
+      eyebrow: "Step 17 · Resale Market",
       title: "Compare real player-owned properties",
       description:
         "Every resale listing reflects how that owner developed and cared for the property, so two homes of the same type can be very different.",
@@ -301,7 +310,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "resale",
     },
     {
-      eyebrow: "Step 17 · The Full Loop",
+      eyebrow: "Step 18 · The Full Loop",
       title: "Build your own property story",
       description:
         "Your choices matter, but so does the wider city. Resident demand, available supply, rent agreements and completed sales now help shape each district over time.",

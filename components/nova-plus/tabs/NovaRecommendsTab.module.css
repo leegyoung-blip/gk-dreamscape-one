@@ -321,6 +321,116 @@
   line-height: 1.5;
 }
 
+/* Phase 6B — Teaching Engine evidence shown as supporting recommendation context. */
+.teachingInsight {
+  position: relative;
+  z-index: 1;
+  margin-top: 10px;
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(142, 232, 255, 0.11);
+  border-radius: 12px;
+  background: rgba(83, 215, 255, 0.025);
+}
+
+.teachingInsightMark {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(124, 58, 237, 0.1);
+  color: #ddd6fe;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.teachingInsightCopy {
+  min-width: 0;
+}
+
+.teachingInsightCopy > span,
+.teachingInsightCopy > strong,
+.teachingInsightCopy > p,
+.teachingInsightCopy > small {
+  display: block;
+}
+
+.teachingInsightCopy > span {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.teachingInsightCopy > strong {
+  margin-top: 3px;
+  color: white;
+  font-size: 12px;
+}
+
+.teachingInsightCopy > p {
+  margin: 4px 0 0;
+  color: rgba(235, 247, 255, 0.56);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.teachingInsightCopy > small {
+  margin-top: 4px;
+  color: rgba(235, 247, 255, 0.38);
+  font-size: 9px;
+}
+
+.teachingObserved {
+  --teaching-accent: #8dfcff;
+  --teaching-soft: rgba(83, 215, 255, 0.045);
+  --teaching-border: rgba(83, 215, 255, 0.15);
+}
+
+.teachingEmerging,
+.teachingMixed {
+  --teaching-accent: #ffae57;
+  --teaching-soft: rgba(255, 174, 87, 0.045);
+  --teaching-border: rgba(255, 174, 87, 0.16);
+}
+
+.teachingRepeated,
+.teachingNeedsPractice {
+  --teaching-accent: #ff7f86;
+  --teaching-soft: rgba(255, 108, 114, 0.045);
+  --teaching-border: rgba(255, 108, 114, 0.17);
+}
+
+.teachingRecovering {
+  --teaching-accent: #79f0bd;
+  --teaching-soft: rgba(77, 226, 161, 0.045);
+  --teaching-border: rgba(77, 226, 161, 0.17);
+}
+
+.teachingInsight.teachingObserved,
+.teachingInsight.teachingEmerging,
+.teachingInsight.teachingMixed,
+.teachingInsight.teachingRepeated,
+.teachingInsight.teachingNeedsPractice,
+.teachingInsight.teachingRecovering {
+  border-color: var(--teaching-border);
+  background:
+    linear-gradient(120deg, var(--teaching-soft), rgba(2, 9, 21, 0.22));
+}
+
+.teachingInsight.teachingObserved .teachingInsightCopy > span,
+.teachingInsight.teachingEmerging .teachingInsightCopy > span,
+.teachingInsight.teachingMixed .teachingInsightCopy > span,
+.teachingInsight.teachingRepeated .teachingInsightCopy > span,
+.teachingInsight.teachingNeedsPractice .teachingInsightCopy > span,
+.teachingInsight.teachingRecovering .teachingInsightCopy > span {
+  color: var(--teaching-accent);
+}
+
 .recommendedMission {
   position: relative;
   z-index: 1;
@@ -495,6 +605,141 @@
   color: rgba(255, 211, 160, 0.72);
   font-size: 10px;
   line-height: 1.45;
+}
+
+.teachingEvidencePanel {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(196, 181, 253, 0.12);
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, rgba(124, 58, 237, 0.04), rgba(83, 215, 255, 0.018)),
+    rgba(1, 7, 18, 0.26);
+}
+
+.teachingEvidenceHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.teachingEvidenceHeading span,
+.teachingEvidenceHeading strong {
+  display: block;
+}
+
+.teachingEvidenceHeading span {
+  color: #c4b5fd;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.teachingEvidenceHeading strong {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11px;
+}
+
+.teachingEvidenceHeading > small {
+  color: rgba(235, 247, 255, 0.32);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.teachingEvidenceList {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.teachingEvidenceItem {
+  padding: 10px;
+  border: 1px solid var(--teaching-border);
+  border-radius: 10px;
+  background: var(--teaching-soft);
+}
+
+.teachingEvidenceItemTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.teachingEvidenceItemTop strong {
+  color: var(--teaching-accent);
+  font-size: 10px;
+}
+
+.teachingEvidenceItemTop span {
+  color: rgba(235, 247, 255, 0.35);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.teachingEvidenceItem > p {
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.teachingEvidenceItem > small {
+  display: block;
+  margin-top: 5px;
+  color: rgba(235, 247, 255, 0.46);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.teachingEvidenceMetrics {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.teachingEvidenceMetrics span {
+  padding: 7px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(235, 247, 255, 0.36);
+  font-size: 8px;
+  line-height: 1.35;
+}
+
+.teachingEvidenceMetrics b {
+  display: block;
+  margin-bottom: 2px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 11px;
+}
+
+.teachingMoreNote,
+.teachingRankingNote {
+  display: block;
+  margin-top: 8px;
+  color: rgba(235, 247, 255, 0.33);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.teachingRankingNote {
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.teachingWarning {
+  padding: 11px 13px;
+  border: 1px solid rgba(196, 181, 253, 0.14);
+  border-radius: 12px;
+  background: rgba(124, 58, 237, 0.045);
+  color: rgba(221, 214, 254, 0.72);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .alternatives {
@@ -932,6 +1177,10 @@
   .evidenceGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .teachingEvidenceMetrics {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 680px) {
@@ -956,6 +1205,12 @@
   }
 
   .cycleTop {
+    flex-direction: column;
+  }
+
+  .teachingEvidenceHeading,
+  .teachingEvidenceItemTop {
+    align-items: flex-start;
     flex-direction: column;
   }
 

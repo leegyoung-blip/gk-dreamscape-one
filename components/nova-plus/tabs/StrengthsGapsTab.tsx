@@ -13,6 +13,17 @@ import {
 } from "@/lib/nova-plus/helpers";
 import { useNovaSchoolworkEvidence } from "@/hooks/useNovaSchoolworkEvidence";
 import type { NovaSchoolworkSkillEvidence } from "@/hooks/useNovaSchoolworkEvidence";
+import { useNovaTeachingEvidence } from "@/hooks/useNovaTeachingEvidence";
+import {
+  humaniseMisconceptionCode,
+  sortTeachingSignals,
+  teachingConceptMapKey,
+  teachingEvidenceExplanation,
+  teachingEvidenceHeadline,
+  teachingRecoveryExplanation,
+  teachingSignalsForSkill,
+  type NovaTeachingSignal,
+} from "@/lib/nova-plus/teaching-evidence";
 import styles from "./StrengthsGapsTab.module.css";
 
 type Props = {
@@ -170,16 +181,108 @@ function knowledgeRows(profile: NovaPlusProfilePayload) {
   return [...bySkill.values()];
 }
 
+
+function signalDisplayName(signal: NovaTeachingSignal) {
+  return (
+    signal.skill ||
+    signal.topic_title ||
+    humaniseMisconceptionCode(signal.misconception_code)
+  );
+}
+
+function teachingTone(signal: NovaTeachingSignal) {
+  if (signal.recovery_state === "recovery_signal") return "recovered";
+  if (signal.recovery_state === "needs_reinforcement") return "reinforce";
+  if (signal.recovery_state === "mixed_transfer") return "mixed";
+  if (signal.evidence_level === "likely_gap") return "gap";
+  if (signal.evidence_level === "emerging_pattern") return "emerging";
+  return "observation";
+}
+
+function TeachingEvidenceDetails({
+  signals,
+}: {
+  signals: NovaTeachingSignal[];
+}) {
+  const visible = sortTeachingSignals(signals).slice(0, 3);
+
+  return (
+    <div className={styles.teachingEvidence}>
+      <div className={styles.teachingEvidenceHeading}>
+        <div>
+          <span>TEACHING EVIDENCE</span>
+          <strong>How the learner responded to support</strong>
+        </div>
+        <b>{signals.length}</b>
+      </div>
+
+      <div className={styles.teachingEvidenceList}>
+        {visible.map((signal) => (
+          <div
+            key={`${signal.evidence_group_key}:${signal.misconception_code}`}
+            className={styles.teachingEvidenceItem}
+            data-tone={teachingTone(signal)}
+          >
+            <div className={styles.teachingEvidenceTop}>
+              <span>{teachingEvidenceHeadline(signal)}</span>
+              <small>
+                {signal.distinct_questions} question
+                {signal.distinct_questions === 1 ? "" : "s"}
+              </small>
+            </div>
+
+            <strong>{humaniseMisconceptionCode(signal.misconception_code)}</strong>
+            <p>{teachingEvidenceExplanation(signal)}</p>
+
+            <div className={styles.teachingEvidenceMetrics}>
+              <span>
+                <b>{signal.hint_used_occurrences}</b>
+                hints
+              </span>
+              <span>
+                <b>{signal.teaching_opened_occurrences}</b>
+                teaching opens
+              </span>
+              <span>
+                <b>
+                  {signal.quick_check_attempts > 0
+                    ? `${signal.quick_check_correct_count}/${signal.quick_check_attempts}`
+                    : "—"}
+                </b>
+                Quick Checks
+              </span>
+            </div>
+
+            <small className={styles.teachingRecoveryCopy}>
+              {teachingRecoveryExplanation(signal)}
+            </small>
+          </div>
+        ))}
+      </div>
+
+      {signals.length > visible.length && (
+        <small className={styles.teachingMoreNote}>
+          {signals.length - visible.length} more teaching pattern
+          {signals.length - visible.length === 1 ? "" : "s"} recorded for this concept.
+        </small>
+      )}
+    </div>
+  );
+}
+
 function ConceptCard({
   skill,
   state,
   schoolwork,
+  teachingSignals = [],
 }: {
   skill: ProfileSkill;
   state: ConceptState;
   schoolwork?: NovaSchoolworkSkillEvidence;
+  teachingSignals?: NovaTeachingSignal[];
 }) {
   const meta = STATE_META[state];
+  const primaryTeachingSignal = sortTeachingSignals(teachingSignals)[0] ?? null;
   const recentAccuracy =
     skill.recent_accuracy === null || skill.recent_accuracy === undefined
       ? null
@@ -213,6 +316,21 @@ function ConceptCard({
       <span className={styles.stateLabel} style={{ color: meta.colour }}>
         {meta.label}
       </span>
+
+      {primaryTeachingSignal && (
+        <div
+          className={styles.teachingSignalSummary}
+          data-tone={teachingTone(primaryTeachingSignal)}
+        >
+          <span>TEACHING INSIGHT</span>
+          <strong>{teachingEvidenceHeadline(primaryTeachingSignal)}</strong>
+          <small>
+            {humaniseMisconceptionCode(primaryTeachingSignal.misconception_code)} ·{" "}
+            {primaryTeachingSignal.distinct_questions} different question
+            {primaryTeachingSignal.distinct_questions === 1 ? "" : "s"}
+          </small>
+        </div>
+      )}
 
       <details className={styles.why}>
         <summary>Why?</summary>
@@ -270,6 +388,10 @@ function ConceptCard({
             </div>
           )}
 
+          {teachingSignals.length > 0 && (
+            <TeachingEvidenceDetails signals={teachingSignals} />
+          )}
+
           {state === "attention" && (
             <small>
               Nova marks a gap only after repeated evidence, not from one weak
@@ -286,10 +408,12 @@ function StateColumn({
   state,
   skills,
   schoolworkBySkillId,
+  teachingByConceptKey,
 }: {
   state: ConceptState;
   skills: ProfileSkill[];
   schoolworkBySkillId: Map<string, NovaSchoolworkSkillEvidence>;
+  teachingByConceptKey: Map<string, NovaTeachingSignal[]>;
 }) {
   const meta = STATE_META[state];
   const visible = sortConcepts(state, skills).slice(0, 8);
@@ -322,6 +446,7 @@ function StateColumn({
               skill={skill}
               state={state}
               schoolwork={schoolworkBySkillId.get(String(skill.skill_id))}
+              teachingSignals={teachingSignalsForSkill(skill, teachingByConceptKey)}
             />
           ))
         ) : (
@@ -340,14 +465,82 @@ function StateColumn({
   );
 }
 
+
+function OtherLearningObservations({
+  signals,
+}: {
+  signals: NovaTeachingSignal[];
+}) {
+  const visible = sortTeachingSignals(signals).slice(0, 6);
+
+  if (visible.length === 0) return null;
+
+  return (
+    <section className={styles.observationsPanel}>
+      <div className={styles.observationsHeader}>
+        <div>
+          <span className={styles.eyebrow}>OTHER LEARNING OBSERVATIONS</span>
+          <h3>Useful signals kept separate from mastery concepts</h3>
+          <p>
+            These Teaching Engine signals are not attached to a visible concept
+            card yet. The concept may still be building enough mastery evidence,
+            or the event may not carry an exact matching curriculum code. Nova
+            keeps them separate rather than guessing where they belong.
+          </p>
+        </div>
+        <b>{signals.length}</b>
+      </div>
+
+      <div className={styles.observationsGrid}>
+        {visible.map((signal) => (
+          <article
+            key={`${signal.subject}:${signal.evidence_group_key}:${signal.misconception_code}`}
+            className={styles.observationCard}
+            data-tone={teachingTone(signal)}
+          >
+            <div className={styles.observationTop}>
+              <span>{subjectLabel(signal.subject)}</span>
+              {signal.primary_level ? <b>P{signal.primary_level}</b> : null}
+            </div>
+            <strong>{signalDisplayName(signal)}</strong>
+            <small>{humaniseMisconceptionCode(signal.misconception_code)}</small>
+            <div className={styles.observationStatus}>
+              {teachingEvidenceHeadline(signal)}
+            </div>
+            <p>{teachingEvidenceExplanation(signal)}</p>
+          </article>
+        ))}
+      </div>
+
+      {signals.length > visible.length && (
+        <small className={styles.observationMore}>
+          Showing {visible.length} of {signals.length} unmatched observations.
+        </small>
+      )}
+    </section>
+  );
+}
+
 export default function StrengthsGapsTab({
   learnerId,
   profile,
   onOpenRecommendations,
 }: Props) {
   const schoolworkEvidence = useNovaSchoolworkEvidence(learnerId);
+  const teachingEvidence = useNovaTeachingEvidence(learnerId);
   const academicSkills = academicConceptRows(profile);
   const knowledgeSkills = knowledgeRows(profile);
+
+  const knownConceptKeys = new Set(
+    academicSkills
+      .map((skill) => teachingConceptMapKey(skill.subject, skill.skill_code))
+      .filter(Boolean),
+  );
+
+  const unmatchedTeachingSignals = teachingEvidence.signals.filter((signal) => {
+    const signalKey = teachingConceptMapKey(signal.subject, signal.concept_key);
+    return !signalKey || !knownConceptKeys.has(signalKey);
+  });
 
   const strong = academicSkills.filter((skill) => conceptState(skill) === "strong");
   const developing = academicSkills.filter((skill) => conceptState(skill) === "developing");
@@ -389,23 +582,37 @@ export default function StrengthsGapsTab({
         </div>
       </section>
 
+      {teachingEvidence.error && (
+        <div className={styles.teachingLoadNotice}>
+          Teaching evidence could not be loaded. The mastery-based Strengths &amp;
+          Gaps view is still available.
+        </div>
+      )}
+
       <section className={styles.columns}>
         <StateColumn
           state="strong"
           skills={strong}
           schoolworkBySkillId={schoolworkEvidence.bySkillId}
+          teachingByConceptKey={teachingEvidence.byConceptKey}
         />
         <StateColumn
           state="developing"
           skills={developing}
           schoolworkBySkillId={schoolworkEvidence.bySkillId}
+          teachingByConceptKey={teachingEvidence.byConceptKey}
         />
         <StateColumn
           state="attention"
           skills={attention}
           schoolworkBySkillId={schoolworkEvidence.bySkillId}
+          teachingByConceptKey={teachingEvidence.byConceptKey}
         />
       </section>
+
+      {!teachingEvidence.loading && (
+        <OtherLearningObservations signals={unmatchedTeachingSignals} />
+      )}
 
       <section className={styles.lowerGrid}>
         <article className={styles.improvedPanel}>

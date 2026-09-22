@@ -8,6 +8,7 @@ import {
 } from "react";
 import { supabase } from "@/lib/supabase";
 import { useNovaSchoolworkEvidence } from "@/hooks/useNovaSchoolworkEvidence";
+import { useNovaTeachingEvidence } from "@/hooks/useNovaTeachingEvidence";
 import type {
   NovaRecommendation,
   NovaRecommendationLane,
@@ -17,6 +18,14 @@ import type {
   NovaLearningCycle,
   NovaLearningCyclesPayload,
 } from "@/lib/nova-plus/phase6-types";
+import {
+  humaniseMisconceptionCode,
+  teachingConceptMapKey,
+  teachingEvidenceExplanation,
+  teachingEvidenceHeadline,
+  teachingRecoveryExplanation,
+  type NovaTeachingSignal,
+} from "@/lib/nova-plus/teaching-evidence";
 import styles from "./NovaRecommendsTab.module.css";
 
 type NovaRecommendsTabProps = {
@@ -170,12 +179,71 @@ function laneClass(
   }
 }
 
+function teachingToneClass(
+  signal: NovaTeachingSignal,
+) {
+  if (
+    signal.recovery_state ===
+    "needs_reinforcement"
+  ) {
+    return styles.teachingNeedsPractice;
+  }
+
+  if (
+    signal.recovery_state ===
+    "recovery_signal"
+  ) {
+    return styles.teachingRecovering;
+  }
+
+  if (
+    signal.recovery_state ===
+    "mixed_transfer"
+  ) {
+    return styles.teachingMixed;
+  }
+
+  if (
+    signal.evidence_level ===
+    "likely_gap"
+  ) {
+    return styles.teachingRepeated;
+  }
+
+  if (
+    signal.evidence_level ===
+    "emerging_pattern"
+  ) {
+    return styles.teachingEmerging;
+  }
+
+  return styles.teachingObserved;
+}
+
+function teachingSignalsForRecommendation(
+  item: NovaRecommendation,
+  byConceptKey: Map<
+    string,
+    NovaTeachingSignal[]
+  >,
+) {
+  const key = teachingConceptMapKey(
+    item.subject,
+    item.skill_code,
+  );
+
+  return key
+    ? byConceptKey.get(key) ?? []
+    : [];
+}
+
 function RecommendationCard({
   item,
   canLaunchPractice,
   isAdminPreview,
   featured = false,
   schoolworkCount = 0,
+  teachingSignals = [],
   starting = false,
   onStartLearningCycle,
 }: {
@@ -184,6 +252,7 @@ function RecommendationCard({
   isAdminPreview: boolean;
   featured?: boolean;
   schoolworkCount?: number;
+  teachingSignals?: NovaTeachingSignal[];
   starting?: boolean;
   onStartLearningCycle?: (
     item: NovaRecommendation,
@@ -202,6 +271,9 @@ function RecommendationCard({
     item.lane === "focus_now" &&
     canLaunchPractice &&
     Boolean(onStartLearningCycle);
+
+  const primaryTeachingSignal =
+    teachingSignals[0] ?? null;
 
   return (
     <article
@@ -271,6 +343,70 @@ function RecommendationCard({
 
         <p>{item.reason}</p>
       </div>
+
+      {primaryTeachingSignal && (
+        <div
+          className={`${styles.teachingInsight} ${teachingToneClass(
+            primaryTeachingSignal,
+          )}`}
+        >
+          <div
+            className={
+              styles.teachingInsightMark
+            }
+          >
+            ✦
+          </div>
+
+          <div
+            className={
+              styles.teachingInsightCopy
+            }
+          >
+            <span>
+              TEACHING RESPONSE
+            </span>
+
+            <strong>
+              {teachingEvidenceHeadline(
+                primaryTeachingSignal,
+              )}
+            </strong>
+
+            <p>
+              {humaniseMisconceptionCode(
+                primaryTeachingSignal
+                  .misconception_code,
+              )}
+              {" · "}
+              {primaryTeachingSignal
+                .distinct_questions}{" "}
+              different question
+              {primaryTeachingSignal
+                .distinct_questions === 1
+                ? ""
+                : "s"}
+            </p>
+
+            {primaryTeachingSignal
+              .quick_check_attempts > 0 && (
+              <small>
+                Transfer check:{" "}
+                {
+                  primaryTeachingSignal
+                    .quick_check_correct_count
+                }
+                /
+                {
+                  primaryTeachingSignal
+                    .quick_check_attempts
+                }{" "}
+                correct
+              </small>
+            )}
+          </div>
+        </div>
+      )}
 
       <div
         className={
@@ -453,6 +589,156 @@ function RecommendationCard({
             </strong>
           </div>
         </div>
+
+        {teachingSignals.length > 0 && (
+          <section
+            className={
+              styles.teachingEvidencePanel
+            }
+          >
+            <div
+              className={
+                styles.teachingEvidenceHeading
+              }
+            >
+              <div>
+                <span>
+                  TEACHING EVIDENCE
+                </span>
+                <strong>
+                  How the learner responded
+                  to support
+                </strong>
+              </div>
+
+              <small>
+                Supporting context
+              </small>
+            </div>
+
+            <div
+              className={
+                styles.teachingEvidenceList
+              }
+            >
+              {teachingSignals
+                .slice(0, 2)
+                .map((signal) => (
+                  <div
+                    key={
+                      signal.evidence_group_key
+                    }
+                    className={`${styles.teachingEvidenceItem} ${teachingToneClass(
+                      signal,
+                    )}`}
+                  >
+                    <div
+                      className={
+                        styles.teachingEvidenceItemTop
+                      }
+                    >
+                      <strong>
+                        {teachingEvidenceHeadline(
+                          signal,
+                        )}
+                      </strong>
+
+                      <span>
+                        {
+                          signal.distinct_questions
+                        }{" "}
+                        question
+                        {signal
+                          .distinct_questions ===
+                        1
+                          ? ""
+                          : "s"}
+                      </span>
+                    </div>
+
+                    <p>
+                      {humaniseMisconceptionCode(
+                        signal.misconception_code,
+                      )}
+                    </p>
+
+                    <small>
+                      {teachingEvidenceExplanation(
+                        signal,
+                      )}
+                    </small>
+
+                    <small>
+                      {teachingRecoveryExplanation(
+                        signal,
+                      )}
+                    </small>
+
+                    <div
+                      className={
+                        styles.teachingEvidenceMetrics
+                      }
+                    >
+                      <span>
+                        <b>
+                          {
+                            signal.hint_used_occurrences
+                          }
+                        </b>
+                        Hints
+                      </span>
+
+                      <span>
+                        <b>
+                          {
+                            signal.teaching_opened_occurrences
+                          }
+                        </b>
+                        Teaching opens
+                      </span>
+
+                      <span>
+                        <b>
+                          {signal
+                            .quick_check_attempts >
+                          0
+                            ? `${signal.quick_check_correct_count}/${signal.quick_check_attempts}`
+                            : "—"}
+                        </b>
+                        Quick Checks
+                      </span>
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            {teachingSignals.length > 2 && (
+              <small
+                className={
+                  styles.teachingMoreNote
+                }
+              >
+                +{teachingSignals.length - 2}{" "}
+                additional teaching signal
+                {teachingSignals.length - 2 === 1
+                  ? ""
+                  : "s"}{" "}
+                recorded for this concept.
+              </small>
+            )}
+
+            <small
+              className={
+                styles.teachingRankingNote
+              }
+            >
+              Teaching evidence is shown as
+              supporting context in this
+              phase. It does not yet change
+              recommendation ranking or lane.
+            </small>
+          </section>
+        )}
 
         {item.evidence_quality !==
           "ready" && (
@@ -873,6 +1159,9 @@ export default function NovaRecommendsTab({
   const schoolworkEvidence =
     useNovaSchoolworkEvidence(learnerId);
 
+  const teachingEvidence =
+    useNovaTeachingEvidence(learnerId);
+
   const [loading, setLoading] =
     useState(true);
 
@@ -1228,6 +1517,19 @@ export default function NovaRecommendsTab({
             </div>
           )}
 
+          {teachingEvidence.error && (
+            <div
+              className={
+                styles.teachingWarning
+              }
+            >
+              Recommendations are still
+              available, but recent Teaching
+              Engine evidence could not be
+              loaded: {teachingEvidence.error}
+            </div>
+          )}
+
           {openCycles.length > 0 && (
             <section
               className={
@@ -1350,6 +1652,12 @@ export default function NovaRecommendsTab({
                     ),
                   )?.event_count ?? 0
                 }
+                teachingSignals={
+                  teachingSignalsForRecommendation(
+                    focus,
+                    teachingEvidence.byConceptKey,
+                  )
+                }
               />
             </section>
           )}
@@ -1420,6 +1728,12 @@ export default function NovaRecommendsTab({
                       )?.event_count ??
                       0
                     }
+                    teachingSignals={
+                      teachingSignalsForRecommendation(
+                        item,
+                        teachingEvidence.byConceptKey,
+                      )
+                    }
                   />
                 ))}
               </div>
@@ -1484,6 +1798,12 @@ export default function NovaRecommendsTab({
                       finish.skill_id,
                     ),
                   )?.event_count ?? 0
+                }
+                teachingSignals={
+                  teachingSignalsForRecommendation(
+                    finish,
+                    teachingEvidence.byConceptKey,
+                  )
                 }
               />
             </section>
