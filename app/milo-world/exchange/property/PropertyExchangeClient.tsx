@@ -885,7 +885,7 @@ export default function PropertyExchangeClient() {
       setProperties([]);
       setPageMessage("The property market database is not ready. Check the Property Exchange database setup.");
     } else {
-      setProperties((propertiesResult.data || []).map((row) => ({
+      setProperties(((propertiesResult.data || []) as PropertyOffering[]).map((row) => ({
         ...row,
         current_value: Number(row.current_value || 0),
         listing_price: Number(row.listing_price || 0),
@@ -899,18 +899,18 @@ export default function PropertyExchangeClient() {
         area_sqm: Number(row.area_sqm || 0),
         bedrooms: row.bedrooms === null ? null : Number(row.bedrooms),
         display_order: Number(row.display_order || 0),
-      })) as PropertyOffering[]);
+      })));
     }
 
     if (holdingsResult.error) {
       console.warn("Could not load property holdings:", holdingsResult.error.message);
       setHoldings([]);
     } else {
-      setHoldings((holdingsResult.data || []).map((row) => ({
+      setHoldings(((holdingsResult.data || []) as PropertyHolding[]).map((row) => ({
         ...row,
         quantity: Number(row.quantity || 0),
         purchase_price: Number(row.purchase_price || 0),
-      })) as PropertyHolding[]);
+      })));
     }
 
     if (catalogResult.error) {
@@ -918,7 +918,7 @@ export default function PropertyExchangeClient() {
       setUpgradeCatalog([]);
       setPageMessage((current) => current || "Property upgrades are temporarily unavailable. Refresh once after applying the latest Property Exchange update.");
     } else {
-      setUpgradeCatalog((catalogResult.data || []).map((row) => ({
+      setUpgradeCatalog(((catalogResult.data || []) as PropertyUpgradeCatalogRow[]).map((row) => ({
         ...row,
         level: Number(row.level || 0),
         upgrade_cost: Number(row.upgrade_cost || 0),
@@ -928,7 +928,7 @@ export default function PropertyExchangeClient() {
         quality_bonus: Number(row.quality_bonus || 0),
         efficiency_bonus: Number(row.efficiency_bonus || 0),
         display_order: Number(row.display_order || 0),
-      })) as PropertyUpgradeCatalogRow[]);
+      })));
     }
 
     const primarySales = salesResult.error
