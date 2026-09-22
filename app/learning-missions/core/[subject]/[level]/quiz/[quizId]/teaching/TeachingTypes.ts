@@ -48,6 +48,71 @@ export type TeachingMatrix = {
   highlight?: string | { row?: string; column?: string };
 };
 
+/* --------------------------------------------------------------------------
+ * Math Teaching V1 structured content
+ * ----------------------------------------------------------------------- */
+
+export type TeachingVerticalWorking = {
+  operator?: string;
+  operands?: string[];
+  carries?: string[];
+  result?: string;
+  note?: string;
+};
+
+export type TeachingPlaceValueRow = {
+  label?: string;
+  values?: string[];
+  emphasis?: boolean;
+};
+
+export type TeachingPlaceValue = {
+  columns?: string[];
+  rows?: TeachingPlaceValueRow[];
+  highlight_columns?: string[];
+};
+
+export type TeachingFraction = {
+  left?: string;
+  operator?: string;
+  right?: string;
+  common_denominator?: string;
+  equivalent_left?: string;
+  equivalent_right?: string;
+  working?: string;
+  result?: string;
+  simplified?: string;
+  note?: string;
+};
+
+export type TeachingGeometry = {
+  known?: TeachingLessonItem[];
+  rule?: string;
+  formula?: string;
+  substitution?: string;
+  working?: string;
+  answer?: string;
+  unit?: string;
+};
+
+export type TeachingUnitConversion = {
+  from?: string;
+  to?: string;
+  relationship?: string;
+  calculation?: string;
+  result?: string;
+};
+
+export type TeachingWordProblem = {
+  known?: TeachingLessonItem[];
+  find?: string;
+  strategy?: string;
+  working?: TeachingLessonItem[];
+  answer?: string;
+  unit?: string;
+  check?: string;
+};
+
 export type TeachingLessonObject = {
   type?: string;
   title?: string;
@@ -57,8 +122,7 @@ export type TeachingLessonObject = {
   steps?: TeachingLessonItem[];
   examples?: TeachingLessonItem[];
 
-  // English Teaching V1 fields. These are optional so legacy/simple lessons
-  // and future subject renderers remain backwards-compatible.
+  // Shared / English Teaching V1 fields.
   rule?: string;
   conclusion?: string;
   contrast?: string;
@@ -77,6 +141,29 @@ export type TeachingLessonObject = {
   corrected?: string;
   problem?: string;
   correction?: string;
+
+  // Math Teaching V1 fields. The same generic steps/examples fields remain
+  // available, while these fields let the renderer present mathematical
+  // reasoning as a method rather than as one paragraph.
+  method?: string;
+  expression?: string;
+  formula?: string;
+  substitution?: string;
+  calculation?: string;
+  result?: string;
+  answer?: string;
+  unit?: string;
+  check?: string;
+  known?: TeachingLessonItem[];
+  find?: string;
+  strategy?: string;
+  working?: TeachingLessonItem[];
+  vertical_working?: TeachingVerticalWorking;
+  place_value?: TeachingPlaceValue;
+  fraction?: TeachingFraction;
+  geometry?: TeachingGeometry;
+  conversion?: TeachingUnitConversion;
+  word_problem?: TeachingWordProblem;
 };
 
 export type TeachingLesson = string | TeachingLessonObject;

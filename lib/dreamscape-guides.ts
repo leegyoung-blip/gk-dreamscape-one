@@ -25,7 +25,7 @@ export const DREAMSCAPE_GUIDES: DreamscapeGuide[] = [
       "Understand how Nova, Milo, learning, rewards and real-world decision-making fit together in one connected ecosystem.",
     category: "Start Here",
     accent: "#8ee8ff",
-    published: false,
+    published: true,
   },
   {
     slug: "how-it-works",
@@ -48,7 +48,7 @@ export const DREAMSCAPE_GUIDES: DreamscapeGuide[] = [
       "A practical guide to subjects, worlds, rewards, NOVA+, age guidance, memberships and what parents can expect.",
     category: "Start Here",
     accent: "#ffbd73",
-    published: false,
+    published: true,
   },
   {
     slug: "novas-world",
@@ -59,7 +59,7 @@ export const DREAMSCAPE_GUIDES: DreamscapeGuide[] = [
       "Explore Learning Missions, Think Lab, Knowledge Arena, Nova’s Home, Skyforge and how progress connects across them.",
     category: "Explore the Worlds",
     accent: "#8ee8ff",
-    published: false,
+    published: true,
   },
   {
     slug: "milos-world",
@@ -70,7 +70,7 @@ export const DREAMSCAPE_GUIDES: DreamscapeGuide[] = [
       "See how activity, spending, investing, business and decision-making come together in a world designed mainly for ages 12+.",
     category: "Explore the Worlds",
     accent: "#ffae5c",
-    published: false,
+    published: true,
   },
   {
     slug: "learning-missions",
@@ -81,7 +81,7 @@ export const DREAMSCAPE_GUIDES: DreamscapeGuide[] = [
       "Understand the academic engine behind Dreamscape’s English, Mathematics and Science practice.",
     category: "Explore the Worlds",
     accent: "#76e5ff",
-    published: false,
+    published: true,
   },
   {
     slug: "dream-tokens-and-gems",
@@ -92,7 +92,7 @@ export const DREAMSCAPE_GUIDES: DreamscapeGuide[] = [
       "Learn what DT and DG are, how learners earn them, and how the reward economy connects learning to the wider world.",
     category: "Explore the Worlds",
     accent: "#d5b5ff",
-    published: false,
+    published: true,
   },
   {
     slug: "nova-plus",
@@ -103,7 +103,7 @@ export const DREAMSCAPE_GUIDES: DreamscapeGuide[] = [
       "See how NOVA+ turns learning activity into clearer signals about progress, strengths, gaps and mastery.",
     category: "Understand the Approach",
     accent: "#8ee8ff",
-    published: false,
+    published: true,
   },
   {
     slug: "learning-money-and-business",
@@ -114,7 +114,7 @@ export const DREAMSCAPE_GUIDES: DreamscapeGuide[] = [
       "Understand why earning, spending, investing, risk, ownership and business decisions belong in the learning journey.",
     category: "Understand the Approach",
     accent: "#ffbd73",
-    published: false,
+    published: true,
   },
   {
     slug: "from-learning-to-real-world-decisions",
@@ -125,7 +125,7 @@ export const DREAMSCAPE_GUIDES: DreamscapeGuide[] = [
       "Explore Dreamscape’s wider goal: helping children move from knowing information to using it thoughtfully.",
     category: "Understand the Approach",
     accent: "#c58cff",
-    published: false,
+    published: true,
   },
 ];
 

@@ -132,7 +132,8 @@ export default function ExploreFooter() {
           >
             <Link href="/explore" style={linkStyle}>Explore Dreamscape</Link>
             <Link href="/how-it-works" style={linkStyle}>How Dreamscape Works</Link>
-            <Link href="/#for-parents" style={linkStyle}>NOVA+ for Parents</Link>
+            <Link href="/explore/parents-guide" style={linkStyle}>Parent’s Guide</Link>
+            <Link href="/explore/nova-plus" style={linkStyle}>NOVA+ for Parents</Link>
             <Link href="/terms" style={linkStyle}>Terms & Conditions</Link>
           </div>
         </div>

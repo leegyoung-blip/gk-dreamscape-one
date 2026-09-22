@@ -663,3 +663,452 @@
     margin-top: 7px;
   }
 }
+
+/* --------------------------------------------------------------------------
+ * Math Teaching V1
+ * ----------------------------------------------------------------------- */
+
+.mathLesson {
+  border-color: rgba(126, 232, 255, 0.2);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(34, 211, 238, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.mathLesson .panelEyebrow {
+  color: #8ee8ff;
+}
+
+.mathExpressionHero,
+.mathMethodCard,
+.mathFormulaCard,
+.mathCalculationCard,
+.mathAnswerCard,
+.mathCheckCard,
+.fractionStageCard {
+  margin-top: 9px;
+  border-radius: 12px;
+  padding: 9px 11px;
+}
+
+.mathExpressionHero {
+  border: 1px solid rgba(126, 232, 255, 0.17);
+  background: rgba(83, 215, 255, 0.055);
+}
+
+.mathExpressionHero strong,
+.mathFormulaCard strong,
+.mathCalculationCard strong,
+.mathAnswerCard strong,
+.fractionStageCard strong {
+  display: block;
+  margin-top: 4px;
+  color: white;
+  font-size: 17px;
+  line-height: 1.45;
+  font-weight: 950;
+}
+
+.mathMethodCard {
+  border: 1px solid rgba(147, 197, 253, 0.16);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.mathMethodCard p,
+.mathCheckCard p,
+.mathWorkingNote {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mathFormulaCard,
+.mathCalculationCard {
+  border: 1px solid rgba(196, 181, 253, 0.16);
+  background: rgba(139, 92, 246, 0.05);
+}
+
+.mathAnswerCard {
+  border: 1px solid rgba(52, 211, 153, 0.22);
+  background: rgba(52, 211, 153, 0.075);
+}
+
+.mathAnswerCard strong {
+  color: #c8fae8;
+  font-size: 18px;
+}
+
+.mathCheckCard {
+  border: 1px solid rgba(251, 191, 36, 0.17);
+  background: rgba(251, 191, 36, 0.055);
+}
+
+.mathStepList {
+  margin-top: 9px;
+  display: grid;
+  gap: 6px;
+}
+
+.mathStepCard {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.035);
+  padding: 8px 9px;
+}
+
+.mathStepNumber {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(14, 165, 233, 0.11);
+  color: #bae6fd;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.mathStepCard strong {
+  display: block;
+  color: white;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.mathStepCard p {
+  margin: 2px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.verticalWorkingWrap {
+  width: min(360px, 100%);
+  margin: 10px auto 0;
+  border-radius: 14px;
+  border: 1px solid rgba(126, 232, 255, 0.16);
+  background: rgba(0, 0, 0, 0.18);
+  padding: 11px 16px;
+  box-sizing: border-box;
+}
+
+.verticalCarryRow {
+  min-height: 18px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+  padding-right: 3px;
+  color: #fcd34d;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.verticalWorkingRow {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  color: white;
+  font-size: 20px;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.verticalWorkingRow strong {
+  justify-self: end;
+  font-weight: 950;
+}
+
+.verticalOperator {
+  color: #8ee8ff;
+  font-weight: 950;
+  text-align: center;
+}
+
+.verticalWorkingLastOperand {
+  padding-bottom: 5px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.68);
+}
+
+.verticalResultRow {
+  padding-top: 5px;
+  color: #c8fae8;
+}
+
+.mathWorkingNote {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.mathTableScroller {
+  margin-top: 10px;
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 12px;
+}
+
+.placeValueTable {
+  width: 100%;
+  min-width: 390px;
+  border-collapse: separate;
+  border-spacing: 4px;
+  table-layout: fixed;
+}
+
+.placeValueTable th,
+.placeValueTable td {
+  border-radius: 9px;
+  padding: 8px 9px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.placeValueTable thead th {
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.08);
+  font-weight: 900;
+}
+
+.placeValueTable tbody th {
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.025);
+  text-align: left;
+  font-weight: 850;
+}
+
+.placeValueTable td {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+  color: white;
+  font-weight: 900;
+  font-size: 14px;
+}
+
+.mathTableActive {
+  border-color: rgba(52, 211, 153, 0.3) !important;
+  background: rgba(52, 211, 153, 0.11) !important;
+  color: #c8fae8 !important;
+}
+
+.fractionEquation {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 58px;
+  border-radius: 13px;
+  border: 1px solid rgba(126, 232, 255, 0.16);
+  background: rgba(0, 0, 0, 0.15);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 18px;
+}
+
+.fractionEquation strong {
+  color: white;
+  font-size: 21px;
+}
+
+.fractionStageCard {
+  border: 1px solid rgba(96, 165, 250, 0.16);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.fractionEquivalentRow {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.mathKnownGrid {
+  margin-top: 9px;
+  display: grid;
+  gap: 6px;
+}
+
+.mathKnownItem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 7px 9px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mathKnownItem strong {
+  color: #bae6fd;
+  white-space: nowrap;
+}
+
+.mathTeachingMedia {
+  margin-top: 8px;
+}
+
+.mathTeachingMedia > div {
+  margin: 0 !important;
+}
+
+.conversionRoute {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+}
+
+.conversionRoute > div {
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(126, 232, 255, 0.14);
+  background: rgba(83, 215, 255, 0.045);
+  padding: 9px 10px;
+  text-align: center;
+}
+
+.conversionRoute strong {
+  display: block;
+  margin-top: 4px;
+  color: white;
+  font-size: 15px;
+}
+
+.conversionArrow {
+  color: #8ee8ff;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.problemFramework {
+  margin-top: 9px;
+  display: grid;
+  gap: 6px;
+}
+
+.problemFrameCard {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  background: rgba(255, 255, 255, 0.032);
+  padding: 8px 9px;
+}
+
+.problemFrameNumber {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(14, 165, 233, 0.11);
+  color: #bae6fd;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.problemFrameCard strong {
+  color: white;
+  font-size: 11px;
+}
+
+.problemFrameCard p {
+  margin: 3px 0 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  line-height: 1.48;
+}
+
+@media (max-width: 720px) {
+  .mathExpressionHero,
+  .mathMethodCard,
+  .mathFormulaCard,
+  .mathCalculationCard,
+  .mathAnswerCard,
+  .mathCheckCard,
+  .fractionStageCard {
+    margin-top: 7px;
+    padding: 8px 9px;
+  }
+
+  .mathExpressionHero strong,
+  .mathFormulaCard strong,
+  .mathCalculationCard strong,
+  .mathAnswerCard strong,
+  .fractionStageCard strong {
+    font-size: 15px;
+  }
+
+  .verticalWorkingWrap {
+    padding: 9px 13px;
+  }
+
+  .verticalWorkingRow {
+    font-size: 18px;
+  }
+
+  .mathStepCard,
+  .problemFrameCard {
+    gap: 7px;
+    padding: 7px 8px;
+  }
+
+  .conversionRoute {
+    grid-template-columns: 1fr;
+  }
+
+  .conversionArrow {
+    transform: rotate(90deg);
+    justify-self: center;
+  }
+
+  .fractionEquation {
+    min-height: 52px;
+    font-size: 16px;
+  }
+
+  .fractionEquation strong {
+    font-size: 18px;
+  }
+}
+
+@media (max-height: 720px) and (min-width: 721px) {
+  .mathExpressionHero,
+  .mathMethodCard,
+  .mathFormulaCard,
+  .mathCalculationCard,
+  .mathAnswerCard,
+  .mathCheckCard,
+  .fractionStageCard,
+  .mathStepList,
+  .verticalWorkingWrap,
+  .mathTableScroller,
+  .fractionEquation,
+  .problemFramework {
+    margin-top: 7px;
+  }
+
+  .verticalWorkingWrap {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .verticalWorkingRow {
+    font-size: 17px;
+  }
+}

@@ -12,6 +12,7 @@ import CoreTeachingHint from "./CoreTeachingHint";
 import CoreTeachingLesson from "./CoreTeachingLesson";
 import CoreTeachingSummary from "./CoreTeachingSummary";
 import EnglishTeachingRenderer from "./english/EnglishTeachingRenderer";
+import MathTeachingRenderer from "./math/MathTeachingRenderer";
 import {
   normaliseTeachingLesson,
   normaliseTeachingText,
@@ -85,14 +86,14 @@ export default function CoreTeachingEngine({
 
   const correct = feedback.is_correct === true;
 
-  // Phase 2 activates authored answer-specific misconceptions for English.
-  // There is deliberately no inference from an arbitrary wrong answer: a
-  // diagnosis appears only when the chosen option id has an explicit entry in
-  // teaching.misconceptions.
-  const misconception =
-    subject === "english" && !correct
-      ? resolveAuthoredMisconception(question, response, teaching)
-      : null;
+  // Phase 3 activates authored answer-specific misconceptions for both English
+  // and Math choice questions. There is deliberately no inference from an
+  // arbitrary wrong answer: a diagnosis appears only when the chosen option id
+  // has an explicit entry in teaching.misconceptions. Free-text Math responses
+  // do not produce a misconception unless a later deterministic rule is added.
+  const misconception = !correct
+    ? resolveAuthoredMisconception(question, response, teaching)
+    : null;
 
   const authoredSummary = correct
     ? correctSummary
@@ -129,6 +130,16 @@ export default function CoreTeachingEngine({
     if (subject === "english") {
       return (
         <EnglishTeachingRenderer
+          question={question}
+          lesson={lesson}
+          label={label}
+        />
+      );
+    }
+
+    if (subject === "math") {
+      return (
+        <MathTeachingRenderer
           question={question}
           lesson={lesson}
           label={label}
