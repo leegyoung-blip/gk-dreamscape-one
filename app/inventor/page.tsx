@@ -976,7 +976,7 @@ export default function NovaWorldPage() {
           src="/nova/nova-character.png"
           alt="Nova"
           style={{
-            height: isDesktop ? "265px" : isMobile ? "150px" : "215px",
+            height: isDesktop ? "210px" : isMobile ? "120px" : "170px",
             width: "auto",
             transform: isMobile ? "translateX(18px)" : "none",
             pointerEvents: "none",
