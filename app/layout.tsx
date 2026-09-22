@@ -16,8 +16,38 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dreamscape One",
-  description: "A world by GKDL",
+  metadataBase: new URL("https://dreamscape-one.com"),
+
+  title: {
+    default: "Dreamscape One",
+    template: "%s | Dreamscape One",
+  },
+
+  description:
+    "A learning world where children think, learn, earn, build, and grow through curriculum mastery, financial literacy, business, and real-world decision-making.",
+
+  applicationName: "Dreamscape One",
+
+  openGraph: {
+    title: "Dreamscape One",
+    description:
+      "A learning world where children think, learn, earn, build, and grow through curriculum mastery, financial literacy, business, and real-world decision-making.",
+    url: "https://dreamscape-one.com",
+    siteName: "Dreamscape One",
+    type: "website",
+    locale: "en_SG",
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: "Dreamscape One",
+    description:
+      "A learning world where children think, learn, earn, build, and grow through curriculum mastery, financial literacy, business, and real-world decision-making.",
+  },
+
+  alternates: {
+    canonical: "https://dreamscape-one.com",
+  },
 };
 
 export default function RootLayout({

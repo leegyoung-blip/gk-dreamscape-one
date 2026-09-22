@@ -17,6 +17,7 @@ import {
 import CoreMissionFeedback from "./CoreMissionFeedback";
 import { resolvePresentationMode } from "./resolvePresentationMode";
 import LanguageChoiceRenderer from "./renderers/LanguageChoiceRenderer";
+import MathQuestionRenderer from "./renderers/MathQuestionRenderer";
 import QuestionResponseEditor from "./renderers/QuestionResponseEditor";
 
 export default function CoreMissionStage({
@@ -56,6 +57,25 @@ export default function CoreMissionStage({
           feedback={feedback}
           error={error}
           screenMode={screenMode}
+          locked={locked}
+          onChange={onChange}
+        />
+        <CoreMissionFeedback feedback={feedback} enhanced />
+      </>
+    );
+  }
+
+  if (presentationMode === "math_standard") {
+    return (
+      <>
+        <MathQuestionRenderer
+          question={question}
+          topicTitle={topicTitle}
+          response={response}
+          feedback={feedback}
+          error={error}
+          screenMode={screenMode}
+          workspaceOpen={workspaceOpen}
           locked={locked}
           onChange={onChange}
         />

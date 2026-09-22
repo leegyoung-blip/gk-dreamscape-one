@@ -55,8 +55,10 @@ export function resolvePresentationMode(
     case "multiple_select":
     case "true_false":
     case "listening_comprehension": {
-      if (getQuestionVisualMediaCount(question) > 0) return "visual_choice";
+      // Math owns its own visual/data/geometry variants internally. Route all
+      // ordinary Math choice questions through one renderer, even with media.
       if (subject === "math") return "math_standard";
+      if (getQuestionVisualMediaCount(question) > 0) return "visual_choice";
       if (subject === "english") return "language_choice";
       return "standard_choice";
     }

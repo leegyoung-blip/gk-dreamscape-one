@@ -286,12 +286,14 @@ function ZoneCard({
   zone,
   screenMode,
   isAdmin,
+  onClick,
   walkthroughActive,
   walkthroughHighlighted,
 }: {
   zone: Zone;
   screenMode: ScreenMode;
   isAdmin: boolean;
+  onClick?: () => void;
   walkthroughActive: boolean;
   walkthroughHighlighted: boolean;
 }) {
@@ -352,7 +354,7 @@ function ZoneCard({
     transition:
       "transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease, opacity 260ms ease, filter 260ms ease, background 260ms ease",
     zIndex: walkthroughHighlighted ? 4 : hovered ? 3 : 1,
-    cursor: walkthroughActive || isUnavailable ? "default" : "pointer",
+    cursor: walkthroughActive ? "default" : "pointer",
     pointerEvents: walkthroughActive ? "none" : "auto",
     transform:
       isEmphasised && !isUnavailable ? "translateY(-4px) scale(1.012)" : "none",
@@ -489,22 +491,23 @@ function ZoneCard({
     style: cardStyle,
   };
 
-  if (isUnavailable) {
-    return (
-      <div
-        {...commonProps}
-        aria-disabled="true"
-        title="Coming soon. Admin preview only."
-      >
-        {content}
-      </div>
-    );
-  }
-
   return (
-    <Link href={zone.href} {...commonProps}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={
+        isUnavailable
+          ? `View ${zone.title}, coming soon`
+          : `View ${zone.title}`
+      }
+      {...commonProps}
+      style={{
+        ...cardStyle,
+        appearance: "none",
+      }}
+    >
       {content}
-    </Link>
+    </button>
   );
 }
 
@@ -516,6 +519,7 @@ function MiloZoneHotspot({
   isActive,
   onEnter,
   onLeave,
+  onClick,
 }: {
   zone: Zone;
   isAdmin: boolean;
@@ -524,10 +528,10 @@ function MiloZoneHotspot({
   isActive: boolean;
   onEnter: () => void;
   onLeave: () => void;
+  onClick: () => void;
 }) {
   const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
   const position = DESKTOP_ZONE_MARKERS[zone.number];
-  const compactTitle = zone.title.length > 20;
 
   return (
     <button
@@ -538,63 +542,58 @@ function MiloZoneHotspot({
       onFocus={onEnter}
       onBlur={onLeave}
       onClick={() => {
-        if (!isUnavailable && !isWalkthroughActive) {
-          window.location.href = zone.href;
-        }
+        if (!isWalkthroughActive) onClick();
       }}
       aria-label={
         isUnavailable
-          ? `${zone.title}, coming soon`
-          : zone.title
+          ? `View ${zone.title}, coming soon`
+          : `View ${zone.title}`
       }
-      aria-disabled={isUnavailable}
       style={{
         position: "absolute",
         zIndex: isHighlighted ? 92 : isActive ? 35 : 25,
         left: position.left,
         top: position.top,
-        width: "auto",
-        minWidth: compactTitle ? "154px" : "112px",
-        maxWidth: "196px",
-        height: "46px",
-        padding: compactTitle ? "0 13px" : "0 16px",
+        minHeight: "38px",
+        padding: "4px 11px 4px 4px",
         transform: isActive
-          ? "translate(-50%, -50%) scale(1.055)"
+          ? "translate(-50%, -50%) scale(1.08)"
           : "translate(-50%, -50%)",
         borderRadius: "999px",
         border: isActive
-          ? "1px solid rgba(142,232,255,0.92)"
+          ? isUnavailable
+            ? "1px solid rgba(255,209,138,0.92)"
+            : "1px solid rgba(142,232,255,0.92)"
           : isUnavailable
-            ? "1px solid rgba(255,209,138,0.58)"
-            : "1px solid rgba(126,232,255,0.58)",
+            ? "1px solid rgba(255,209,138,0.5)"
+            : "1px solid rgba(126,232,255,0.46)",
         background: isActive
-          ? "linear-gradient(145deg, rgba(72,211,244,0.58), rgba(19,69,120,0.62))"
+          ? "rgba(3,18,40,0.93)"
           : isUnavailable
-            ? "linear-gradient(145deg, rgba(96,60,28,0.46), rgba(37,24,18,0.54))"
-            : "rgba(4,24,53,0.48)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+            ? "rgba(48,31,21,0.72)"
+            : "rgba(3,18,40,0.68)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
         color: isUnavailable ? "#ffd18a" : "white",
-        boxShadow: isActive
-          ? "0 0 0 4px rgba(83,215,255,0.10), 0 0 30px rgba(83,215,255,0.46), 0 14px 34px rgba(0,0,0,0.34)"
-          : isUnavailable
-            ? "0 0 18px rgba(255,209,138,0.14), 0 12px 28px rgba(0,0,0,0.28)"
-            : "0 0 18px rgba(83,215,255,0.18), 0 12px 28px rgba(0,0,0,0.28)",
-        cursor:
-          isWalkthroughActive || isUnavailable ? "default" : "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "8px",
+        whiteSpace: "nowrap",
+        cursor: isWalkthroughActive ? "default" : "pointer",
         outline: "none",
         fontFamily: "inherit",
-        fontSize: compactTitle ? "11px" : "12px",
-        lineHeight: 1.1,
-        letterSpacing: compactTitle ? "0.025em" : "0.045em",
-        fontWeight: 850,
-        whiteSpace: "nowrap",
-        textAlign: "center",
+        boxShadow: isActive
+          ? isUnavailable
+            ? "0 0 0 3px rgba(255,209,138,0.10), 0 0 24px rgba(255,209,138,0.28), 0 12px 28px rgba(0,0,0,0.34)"
+            : "0 0 0 3px rgba(83,215,255,0.12), 0 0 24px rgba(83,215,255,0.42), 0 12px 28px rgba(0,0,0,0.34)"
+          : isUnavailable
+            ? "0 0 15px rgba(255,209,138,0.12), 0 10px 24px rgba(0,0,0,0.24)"
+            : "0 0 15px rgba(83,215,255,0.16), 0 10px 24px rgba(0,0,0,0.24)",
         opacity:
           isWalkthroughActive && !isHighlighted
             ? 0.14
             : isUnavailable
-              ? 0.78
+              ? 0.82
               : 1,
         filter:
           isWalkthroughActive && !isHighlighted
@@ -605,10 +604,46 @@ function MiloZoneHotspot({
         pointerEvents:
           isWalkthroughActive && !isHighlighted ? "none" : "auto",
         transition:
-          "transform 220ms ease, opacity 220ms ease, filter 220ms ease, border-color 220ms ease, background 220ms ease, box-shadow 220ms ease",
+          "transform 200ms ease, opacity 200ms ease, filter 200ms ease, border-color 200ms ease, background 200ms ease, box-shadow 200ms ease",
       }}
     >
-      {zone.title}
+      <span
+        aria-hidden="true"
+        style={{
+          width: "28px",
+          height: "28px",
+          borderRadius: "999px",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          border: isUnavailable
+            ? "1px solid rgba(255,209,138,0.78)"
+            : "1px solid rgba(142,232,255,0.78)",
+          background: isUnavailable
+            ? "rgba(255,209,138,0.08)"
+            : "rgba(83,215,255,0.10)",
+          color: isUnavailable ? "#ffd18a" : "#8ee8ff",
+          fontSize: "11px",
+          fontWeight: 950,
+          boxShadow: isUnavailable
+            ? "0 0 12px rgba(255,209,138,0.16)"
+            : "0 0 12px rgba(83,215,255,0.22)",
+        }}
+      >
+        {zone.number}
+      </span>
+
+      <span
+        style={{
+          fontSize: "11px",
+          lineHeight: 1,
+          letterSpacing: "0.04em",
+          fontWeight: 850,
+        }}
+      >
+        {zone.title}
+      </span>
     </button>
   );
 }
@@ -617,10 +652,16 @@ function MiloZoneHoverPopup({
   zone,
   isAdmin,
   isHighlighted,
+  isSelected = false,
+  onClose,
+  onEnterLocation,
 }: {
   zone: Zone;
   isAdmin: boolean;
   isHighlighted: boolean;
+  isSelected?: boolean;
+  onClose?: () => void;
+  onEnterLocation?: () => void;
 }) {
   const marker = DESKTOP_ZONE_MARKERS[zone.number];
   const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
@@ -630,33 +671,63 @@ function MiloZoneHoverPopup({
     <div
       style={{
         position: "absolute",
-        zIndex: 60,
+        zIndex: isSelected ? 70 : 60,
         left: marker.left,
         top: marker.top,
         width: "330px",
         transform: shouldOpenBelow
-          ? `translate(-50%, 46px)${isHighlighted ? " scale(1.025)" : ""}`
-          : `translate(-50%, calc(-100% - 46px))${isHighlighted ? " scale(1.025)" : ""}`,
+          ? `translate(-50%, 46px)${
+              isHighlighted || isSelected ? " scale(1.025)" : ""
+            }`
+          : `translate(-50%, calc(-100% - 46px))${
+              isHighlighted || isSelected ? " scale(1.025)" : ""
+            }`,
         borderRadius: "20px",
-        border: `${isHighlighted ? 2 : 1}px solid ${
+        border: `${isHighlighted || isSelected ? 2 : 1}px solid ${
           isUnavailable
             ? "rgba(255,209,138,0.86)"
             : "rgba(126,232,255,0.72)"
         }`,
         background:
-          "linear-gradient(145deg, rgba(8,35,70,0.95), rgba(3,13,34,0.97))",
+          "linear-gradient(145deg, rgba(8,35,70,0.97), rgba(3,13,34,0.985))",
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
-        boxShadow: isHighlighted
-          ? "0 0 0 8px rgba(83,215,255,0.12), 0 0 46px rgba(83,215,255,0.38), 0 24px 60px rgba(0,0,0,0.52)"
-          : "0 0 28px rgba(83,215,255,0.18), 0 24px 60px rgba(0,0,0,0.45)",
-        padding: "21px 23px",
-        pointerEvents: "none",
+        boxShadow:
+          isHighlighted || isSelected
+            ? isUnavailable
+              ? "0 0 0 6px rgba(255,209,138,0.08), 0 0 38px rgba(255,209,138,0.22), 0 24px 60px rgba(0,0,0,0.52)"
+              : "0 0 0 6px rgba(83,215,255,0.10), 0 0 40px rgba(83,215,255,0.30), 0 24px 60px rgba(0,0,0,0.52)"
+            : "0 0 24px rgba(83,215,255,0.15), 0 20px 48px rgba(0,0,0,0.42)",
+        padding: isSelected ? "22px 23px 20px" : "20px 22px",
+        pointerEvents: isSelected ? "auto" : "none",
         color: "white",
         transition:
-          "border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease",
+          "border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease",
       }}
     >
+      {isSelected && (
+        <button
+          type="button"
+          aria-label="Close location details"
+          onClick={onClose}
+          style={{
+            position: "absolute",
+            top: "12px",
+            right: "12px",
+            width: "30px",
+            height: "30px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.16)",
+            background: "rgba(255,255,255,0.06)",
+            color: "white",
+            cursor: "pointer",
+            fontSize: "17px",
+          }}
+        >
+          ×
+        </button>
+      )}
+
       <p
         style={{
           margin: 0,
@@ -673,7 +744,7 @@ function MiloZoneHoverPopup({
 
       <h2
         style={{
-          margin: "8px 0 0",
+          margin: "8px 34px 0 0",
           fontFamily: 'Georgia, "Times New Roman", serif',
           fontSize: "25px",
           lineHeight: 1.12,
@@ -694,21 +765,268 @@ function MiloZoneHoverPopup({
         {zone.description}
       </p>
 
-      <div
-        style={{
-          marginTop: "16px",
-          color: isUnavailable ? "#ffd18a" : "#8ee8ff",
-          fontSize: "10px",
-          fontWeight: 900,
-          letterSpacing: "0.10em",
-          textTransform: "uppercase",
-        }}
-      >
-        {isUnavailable ? "Admin Preview Only" : "Click the location to enter →"}
-      </div>
+      {isSelected ? (
+        isUnavailable ? (
+          <div
+            style={{
+              marginTop: "16px",
+              minHeight: "42px",
+              borderRadius: "13px",
+              border: "1px solid rgba(255,209,138,0.28)",
+              background: "rgba(255,209,138,0.07)",
+              color: "#ffd18a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "10px",
+              fontWeight: 900,
+              letterSpacing: "0.09em",
+              textTransform: "uppercase",
+            }}
+          >
+            Coming Soon
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={onEnterLocation}
+            style={{
+              marginTop: "16px",
+              width: "100%",
+              minHeight: "44px",
+              borderRadius: "13px",
+              border: "1px solid rgba(126,232,255,0.55)",
+              background:
+                "linear-gradient(135deg, rgba(83,215,255,0.24), rgba(15,58,100,0.92))",
+              color: "white",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: "11px",
+              fontWeight: 900,
+              letterSpacing: "0.09em",
+              textTransform: "uppercase",
+              boxShadow: "0 10px 24px rgba(83,215,255,0.12)",
+            }}
+          >
+            {zone.adminOnly ? "Enter Admin Preview" : `Enter ${zone.title}`} →
+          </button>
+        )
+      ) : (
+        <div
+          style={{
+            marginTop: "15px",
+            color: isUnavailable ? "#ffd18a" : "#8ee8ff",
+            fontSize: "10px",
+            fontWeight: 850,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+          }}
+        >
+          {isUnavailable
+            ? "Select for details"
+            : "Select this location to continue"}
+        </div>
+      )}
     </div>
   );
 }
+
+function CompactMiloZoneInfoCard({
+  zone,
+  isAdmin,
+  onClose,
+  onEnter,
+}: {
+  zone: Zone;
+  isAdmin: boolean;
+  onClose: () => void;
+  onEnter: () => void;
+}) {
+  const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Close location details"
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 73,
+          border: "none",
+          background: "rgba(0,3,12,0.48)",
+          backdropFilter: "blur(3px)",
+          WebkitBackdropFilter: "blur(3px)",
+          cursor: "default",
+        }}
+      />
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${zone.title} details`}
+        style={{
+          position: "fixed",
+          left: "50%",
+          bottom: "14px",
+          zIndex: 74,
+          width: "min(520px, calc(100% - 24px))",
+          transform: "translateX(-50%)",
+          borderRadius: "22px",
+          border: isUnavailable
+            ? "1px solid rgba(255,209,138,0.58)"
+            : "1px solid rgba(126,232,255,0.62)",
+          background:
+            "linear-gradient(145deg, rgba(7,31,64,0.985), rgba(3,11,29,0.99))",
+          boxShadow: isUnavailable
+            ? "0 0 30px rgba(255,209,138,0.14), 0 28px 72px rgba(0,0,0,0.58)"
+            : "0 0 30px rgba(83,215,255,0.18), 0 28px 72px rgba(0,0,0,0.58)",
+          color: "white",
+          padding: "20px",
+        }}
+      >
+        <button
+          type="button"
+          aria-label="Close location details"
+          onClick={onClose}
+          style={{
+            position: "absolute",
+            top: "12px",
+            right: "12px",
+            width: "32px",
+            height: "32px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.17)",
+            background: "rgba(255,255,255,0.06)",
+            color: "white",
+            fontSize: "18px",
+            cursor: "pointer",
+          }}
+        >
+          ×
+        </button>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            paddingRight: "38px",
+          }}
+        >
+          <span
+            style={{
+              width: "34px",
+              height: "34px",
+              borderRadius: "999px",
+              border: isUnavailable
+                ? "1px solid rgba(255,209,138,0.72)"
+                : "1px solid rgba(142,232,255,0.72)",
+              background: isUnavailable
+                ? "rgba(255,209,138,0.08)"
+                : "rgba(83,215,255,0.10)",
+              color: isUnavailable ? "#ffd18a" : "#8ee8ff",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              fontSize: "12px",
+              fontWeight: 950,
+            }}
+          >
+            {zone.number}
+          </span>
+
+          <div>
+            <p
+              style={{
+                margin: 0,
+                color: isUnavailable ? "#ffd18a" : "#8ee8ff",
+                fontSize: "9px",
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                fontWeight: 850,
+              }}
+            >
+              Milo’s World Location
+              {isUnavailable ? " · Coming Soon" : ""}
+            </p>
+
+            <h2
+              style={{
+                margin: "4px 0 0",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: "24px",
+                lineHeight: 1.08,
+                fontWeight: 500,
+              }}
+            >
+              {zone.title}
+            </h2>
+          </div>
+        </div>
+
+        <p
+          style={{
+            margin: "14px 0 0",
+            color: "rgba(255,255,255,0.76)",
+            fontSize: "13px",
+            lineHeight: 1.55,
+          }}
+        >
+          {zone.description}
+        </p>
+
+        {isUnavailable ? (
+          <div
+            style={{
+              marginTop: "17px",
+              minHeight: "46px",
+              borderRadius: "14px",
+              border: "1px solid rgba(255,209,138,0.28)",
+              background: "rgba(255,209,138,0.07)",
+              color: "#ffd18a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "11px",
+              fontWeight: 900,
+              letterSpacing: "0.09em",
+              textTransform: "uppercase",
+            }}
+          >
+            Coming Soon
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={onEnter}
+            style={{
+              marginTop: "17px",
+              width: "100%",
+              minHeight: "46px",
+              borderRadius: "14px",
+              border: "1px solid rgba(126,232,255,0.58)",
+              background:
+                "linear-gradient(135deg, rgba(83,215,255,0.24), rgba(15,58,100,0.94))",
+              color: "white",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: "11px",
+              fontWeight: 900,
+              letterSpacing: "0.09em",
+              textTransform: "uppercase",
+            }}
+          >
+            {zone.adminOnly ? "Enter Admin Preview" : `Enter ${zone.title}`} →
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
 
 function getMiloGuidePosition(
   zoneNumber: string | undefined,
@@ -1828,6 +2146,7 @@ export default function MiloWorldPage() {
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughStep, setWalkthroughStep] = useState(0);
   const [hoveredDesktopZone, setHoveredDesktopZone] = useState<Zone | null>(null);
+  const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
   const [membershipOpen, setMembershipOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
@@ -2133,6 +2452,7 @@ export default function MiloWorldPage() {
     setMembershipOpen(false);
     setMenuOpen(false);
     setHoveredDesktopZone(null);
+    setSelectedZone(null);
     setWalkthroughStep(0);
     setWalkthroughOpen(true);
   }
@@ -2150,6 +2470,21 @@ export default function MiloWorldPage() {
     setWalkthroughOpen(false);
     setWalkthroughStep(0);
     setHoveredDesktopZone(null);
+    setSelectedZone(null);
+  }
+
+  function selectZone(zone: Zone) {
+    if (walkthroughOpen) return;
+
+    setHoveredDesktopZone(null);
+    setSelectedZone(zone);
+  }
+
+  function enterZone(zone: Zone) {
+    const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
+    if (isUnavailable) return;
+
+    window.location.href = zone.href;
   }
 
   function navigateFromWalkthrough(href: string) {
@@ -2183,7 +2518,7 @@ export default function MiloWorldPage() {
     : null;
 
   const displayedDesktopZone =
-    activeWalkthroughZone ?? hoveredDesktopZone;
+    activeWalkthroughZone ?? selectedZone ?? hoveredDesktopZone;
 
   const profileAssetsTotal =
     profileAssets.cash + profileAssets.property + profileAssets.stocks;
@@ -2327,7 +2662,7 @@ export default function MiloWorldPage() {
         <div
           style={{
             display: "flex",
-            gap: isMobile ? "7px" : "12px",
+            gap: isMobile ? "7px" : "10px",
             alignItems: "center",
             justifyContent: "flex-end",
             minWidth: 0,
@@ -2341,7 +2676,7 @@ export default function MiloWorldPage() {
               aria-haspopup="menu"
               style={{
                 ...navButtonStyle,
-                padding: isMobile ? "0 12px" : "0 18px 0 16px",
+                padding: isMobile ? "0 10px" : "0 14px 0 12px",
                 border: "1px solid rgba(83,215,255,0.34)",
                 boxShadow: profileAssetsOpen
                   ? "0 0 30px rgba(83,215,255,0.24)"
@@ -2367,9 +2702,20 @@ export default function MiloWorldPage() {
                 ◈
               </span>
 
-              {isMobile
-                ? `Assets ${formatDreamTokenAmount(profileAssetsTotal)}`
-                : `Profile Assets ${formatDreamTokenAmount(profileAssetsTotal)}`}
+              <span>DT</span>
+              <strong
+                style={{
+                  color: "#8ee8ff",
+                  fontSize: isMobile ? "11px" : "13px",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                {profileAssetsLoading
+                  ? "..."
+                  : Math.round(Number(profileAssets.cash || 0)).toLocaleString(
+                      "en-SG",
+                    )}
+              </strong>
 
               <span
                 aria-hidden="true"
@@ -2770,11 +3116,11 @@ export default function MiloWorldPage() {
       <section
         style={{
           position: isDesktop ? "absolute" : "relative",
-          top: isDesktop ? "88px" : "auto",
-          left: isDesktop ? "56px" : "auto",
+          top: isDesktop ? "90px" : "auto",
+          left: isDesktop ? "46px" : "auto",
           zIndex: 12,
           width: isDesktop
-            ? "auto"
+            ? "min(520px, 42vw)"
             : isTablet
               ? "min(720px, calc(100% - 36px))"
               : "min(720px, calc(100% - 28px))",
@@ -2790,10 +3136,10 @@ export default function MiloWorldPage() {
             margin: 0,
             fontFamily: 'Georgia, "Times New Roman", serif',
             fontSize: isMobile
-              ? "clamp(44px, 14vw, 62px)"
+              ? "clamp(40px, 12vw, 56px)"
               : isTablet
-                ? "clamp(62px, 9vw, 74px)"
-                : "74px",
+                ? "clamp(52px, 7vw, 64px)"
+                : "64px",
             fontWeight: 400,
             lineHeight: 0.95,
             color: "white",
@@ -2806,8 +3152,8 @@ export default function MiloWorldPage() {
 
         <p
           style={{
-            margin: isMobile ? "16px 0 0" : "22px 0 0",
-            fontSize: isMobile ? "18px" : "25px",
+            margin: isMobile ? "12px 0 0" : "14px 0 0",
+            fontSize: isMobile ? "16px" : "18px",
             fontWeight: 300,
             letterSpacing: "0.02em",
             color: "rgba(255,255,255,0.82)",
@@ -2819,26 +3165,26 @@ export default function MiloWorldPage() {
 
         <div
           style={{
-            marginTop: isMobile ? "24px" : "38px",
+            marginTop: isMobile ? "20px" : "22px",
             display: "inline-flex",
             alignItems: "center",
-            gap: "16px",
+            gap: "12px",
             color: "#8ee8ff",
-            fontSize: isMobile ? "16px" : "18px",
+            fontSize: isMobile ? "14px" : "15px",
             fontWeight: 400,
           }}
         >
           <span
             style={{
-              width: "34px",
-              height: "34px",
+              width: "30px",
+              height: "30px",
               borderRadius: "999px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               border: "1px solid rgba(83,215,255,0.46)",
               background: "rgba(83,215,255,0.12)",
-              fontSize: "22px",
+              fontSize: "19px",
               flexShrink: 0,
             }}
           >
@@ -2886,11 +3232,16 @@ export default function MiloWorldPage() {
                 }
                 isActive={displayedDesktopZone?.number === zone.number}
                 onEnter={() => {
-                  if (!walkthroughOpen) setHoveredDesktopZone(zone);
+                  if (!walkthroughOpen && !selectedZone) {
+                    setHoveredDesktopZone(zone);
+                  }
                 }}
                 onLeave={() => {
-                  if (!walkthroughOpen) setHoveredDesktopZone(null);
+                  if (!walkthroughOpen && !selectedZone) {
+                    setHoveredDesktopZone(null);
+                  }
                 }}
+                onClick={() => selectZone(zone)}
               />
             ))}
 
@@ -2901,6 +3252,12 @@ export default function MiloWorldPage() {
                 isHighlighted={
                   activeWalkthroughZoneNumber === displayedDesktopZone.number
                 }
+                isSelected={
+                  !walkthroughOpen &&
+                  selectedZone?.number === displayedDesktopZone.number
+                }
+                onClose={() => setSelectedZone(null)}
+                onEnterLocation={() => enterZone(displayedDesktopZone)}
               />
             )}
           </>
@@ -2911,6 +3268,7 @@ export default function MiloWorldPage() {
                 zone={zone}
                 screenMode={screenMode}
                 isAdmin={isAdmin}
+                onClick={() => selectZone(zone)}
                 walkthroughActive={walkthroughOpen}
                 walkthroughHighlighted={
                   activeWalkthroughZoneNumber === zone.number
@@ -2921,17 +3279,26 @@ export default function MiloWorldPage() {
         )}
       </section>
 
+      {!isDesktop && selectedZone && !walkthroughOpen && (
+        <CompactMiloZoneInfoCard
+          zone={selectedZone}
+          isAdmin={isAdmin}
+          onClose={() => setSelectedZone(null)}
+          onEnter={() => enterZone(selectedZone)}
+        />
+      )}
+
       {!walkthroughOpen && (
         <div
           style={{
             position: "fixed",
-            right: isMobile ? "8px" : isDesktop ? "34px" : "14px",
-            bottom: isMobile ? "8px" : "16px",
+            right: isMobile ? "8px" : isDesktop ? "14px" : "12px",
+            bottom: isMobile ? "8px" : "12px",
             zIndex: 70,
             display: "flex",
             flexDirection: "column",
-            alignItems: "center",
-            gap: isMobile ? "4px" : "7px",
+            alignItems: "flex-end",
+            gap: 0,
             pointerEvents: "none",
           }}
         >
@@ -2939,10 +3306,13 @@ export default function MiloWorldPage() {
             src="/milo-world/milo-character.png"
             alt="Milo"
             style={{
-              height: isDesktop ? "220px" : isMobile ? "145px" : "195px",
+              height: isDesktop ? "150px" : isMobile ? "82px" : "115px",
               width: "auto",
               objectFit: "contain",
-              filter: "drop-shadow(0 18px 40px rgba(0,0,0,0.58))",
+              marginBottom: "-9px",
+              opacity: 0.94,
+              transform: isMobile ? "translateX(8px)" : "translateX(2px)",
+              filter: "drop-shadow(0 16px 24px rgba(0,0,0,0.42))",
               pointerEvents: "none",
             }}
           />
@@ -2951,24 +3321,24 @@ export default function MiloWorldPage() {
             type="button"
             onClick={startWalkthrough}
             style={{
-              minHeight: isMobile ? "40px" : "46px",
-              padding: isMobile ? "0 14px" : "0 19px",
+              minHeight: isMobile ? "34px" : "38px",
+              padding: isMobile ? "0 11px" : "0 14px",
               borderRadius: "999px",
-              border: "1px solid rgba(83,215,255,0.6)",
-              background: "rgba(22,81,105,0.82)",
+              border: "1px solid rgba(83,215,255,0.36)",
+              background: "rgba(2,18,36,0.72)",
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               color: "white",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "8px",
-              fontSize: isMobile ? "11px" : "13px",
-              fontWeight: 850,
-              letterSpacing: "0.1em",
+              gap: "6px",
+              fontSize: isMobile ? "9px" : "11px",
+              fontWeight: 800,
+              letterSpacing: "0.08em",
               textTransform: "uppercase",
               boxShadow:
-                "0 16px 36px rgba(0,0,0,0.32), 0 0 22px rgba(83,215,255,0.16)",
+                "0 10px 24px rgba(0,0,0,0.26), 0 0 14px rgba(83,215,255,0.12)",
               whiteSpace: "nowrap",
               cursor: "pointer",
               fontFamily: "inherit",

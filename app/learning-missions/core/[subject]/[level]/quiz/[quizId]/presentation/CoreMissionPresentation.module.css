@@ -420,3 +420,674 @@
     font-size: 11px;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Math Presentation Engine — Phase A + B                                     */
+/* -------------------------------------------------------------------------- */
+
+.mathStage {
+  margin-top: 9px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  box-sizing: border-box;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 50% 13%, rgba(88, 200, 255, 0.075), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.038), rgba(255, 255, 255, 0.022));
+  padding: clamp(16px, 2.1vh, 25px) clamp(16px, 2vw, 28px);
+  display: flex;
+  flex-direction: column;
+}
+
+.mathStageWorkspaceOpen {
+  margin-top: 6px;
+  border-radius: 18px;
+  padding: 12px 14px;
+}
+
+.mathHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+}
+
+.mathSkillBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid rgba(147, 197, 253, 0.3);
+  background: rgba(59, 130, 246, 0.09);
+  color: #dbeafe;
+}
+
+.mathStageCue {
+  color: rgba(255, 255, 255, 0.47);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.mathBody {
+  width: min(1120px, 100%);
+  margin: auto;
+  padding: clamp(12px, 2.2vh, 25px) 0 clamp(7px, 1.2vh, 14px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+
+.mathBodyWithMedia {
+  justify-content: flex-start;
+}
+
+.mathPromptWrap {
+  width: min(940px, 100%);
+  margin: 0 auto;
+  border-radius: 20px;
+  border: 1px solid rgba(125, 211, 252, 0.12);
+  background: rgba(2, 10, 25, 0.21);
+  padding: clamp(17px, 2.4vh, 28px) clamp(15px, 2vw, 25px);
+  box-sizing: border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.mathPromptWrapCalculation {
+  width: min(820px, 100%);
+  padding: clamp(24px, 4.2vh, 46px) clamp(16px, 2vw, 28px);
+  border-color: rgba(125, 211, 252, 0.16);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.08), transparent 65%),
+    rgba(2, 10, 25, 0.24);
+}
+
+.mathPromptWrapWordProblem {
+  width: min(970px, 100%);
+  background: rgba(2, 10, 25, 0.16);
+}
+
+.mathPromptWrapVisual {
+  width: min(980px, 100%);
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.mathPromptWrapData {
+  width: 100%;
+  margin: 0;
+  padding: 15px 17px;
+}
+
+.mathInstruction {
+  margin: 0 0 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: clamp(11px, 1vw, 13px);
+  font-weight: 750;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.mathPrompt {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(25px, 2.7vw, 38px);
+  font-weight: 850;
+  line-height: 1.25;
+  letter-spacing: -0.032em;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.mathPromptCalculation {
+  font-size: clamp(36px, 4.3vw, 62px);
+  line-height: 1.2;
+  letter-spacing: -0.038em;
+  white-space: pre-wrap;
+}
+
+.mathPromptWordProblem {
+  max-width: 880px;
+  margin: 0 auto;
+  font-size: clamp(21px, 2.1vw, 31px);
+  line-height: 1.45;
+  text-align: left;
+  text-wrap: pretty;
+}
+
+.mathPromptVisual {
+  font-size: clamp(22px, 2.25vw, 32px);
+}
+
+.mathPromptData {
+  font-size: clamp(20px, 1.85vw, 28px);
+  line-height: 1.36;
+  text-align: left;
+  text-wrap: pretty;
+}
+
+.mathMedia {
+  width: min(980px, 100%);
+  margin: 10px auto 0;
+}
+
+.mathMedia > div {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.mathDataLayout {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  margin-top: 13px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.mathDataVisualColumn,
+.mathDataQuestionColumn {
+  min-width: 0;
+  min-height: 0;
+}
+
+.mathDataVisualColumn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  border: 1px solid rgba(125, 211, 252, 0.11);
+  background: rgba(2, 10, 25, 0.14);
+  padding: 8px;
+  overflow: auto;
+}
+
+.mathDataQuestionColumn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+}
+
+.mathDataMedia {
+  width: 100%;
+  margin: 0;
+}
+
+.mathChoiceGrid {
+  width: min(980px, 100%);
+  margin: clamp(16px, 2.4vh, 25px) auto 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.mathChoiceGridData {
+  width: 100%;
+  margin-top: 0;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.mathChoiceGridImages {
+  align-items: stretch;
+}
+
+.mathChoiceButton {
+  position: relative;
+  width: 100%;
+  min-height: 76px;
+  border-radius: 17px;
+  border: 1px solid rgba(255, 255, 255, 0.105);
+  background: rgba(255, 255, 255, 0.044);
+  color: #ffffff;
+  padding: 10px 14px 10px 11px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease;
+}
+
+.mathChoiceButton:not(:disabled):hover {
+  transform: translateY(-1px);
+  border-color: rgba(125, 211, 252, 0.3);
+  background: rgba(14, 165, 233, 0.07);
+}
+
+.mathChoiceButton:focus-visible {
+  outline: 3px solid rgba(125, 211, 252, 0.28);
+  outline-offset: 2px;
+}
+
+.mathChoiceButtonSelected {
+  border-color: rgba(125, 211, 252, 0.72);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(59, 130, 246, 0.075));
+  box-shadow: 0 10px 28px rgba(14, 165, 233, 0.09);
+}
+
+.mathChoiceButtonCorrect {
+  border-color: rgba(52, 211, 153, 0.68);
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.17), rgba(16, 185, 129, 0.075));
+  box-shadow: 0 9px 28px rgba(16, 185, 129, 0.08);
+}
+
+.mathChoiceButtonWrong {
+  border-color: rgba(248, 113, 113, 0.7);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.16), rgba(127, 29, 29, 0.07));
+  box-shadow: 0 9px 28px rgba(239, 68, 68, 0.075);
+}
+
+.mathChoiceButtonMuted {
+  opacity: 0.56;
+}
+
+.mathChoiceLetter {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid rgba(125, 211, 252, 0.12);
+  background: rgba(125, 211, 252, 0.09);
+  color: #d7f4ff;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.mathChoiceButtonSelected .mathChoiceLetter {
+  border-color: rgba(125, 211, 252, 0.3);
+  background: rgba(125, 211, 252, 0.17);
+}
+
+.mathChoiceButtonCorrect .mathChoiceLetter {
+  border-color: rgba(52, 211, 153, 0.26);
+  background: rgba(52, 211, 153, 0.16);
+  color: #d1fae5;
+}
+
+.mathChoiceButtonWrong .mathChoiceLetter {
+  border-color: rgba(248, 113, 113, 0.26);
+  background: rgba(248, 113, 113, 0.15);
+  color: #fee2e2;
+}
+
+.mathChoiceContent {
+  min-width: 0;
+  display: grid;
+  align-items: center;
+  gap: 7px;
+}
+
+.mathChoiceText {
+  display: block;
+  min-width: 0;
+  font-size: clamp(21px, 2vw, 30px);
+  font-weight: 820;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.mathChoiceImage {
+  display: block;
+  width: 100%;
+  max-height: 155px;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.mathChoiceStatus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  min-height: 30px;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.mathChoiceStatusSelected {
+  color: #d7f4ff;
+  background: rgba(14, 165, 233, 0.1);
+}
+
+.mathChoiceStatusCorrect {
+  color: #d1fae5;
+  background: rgba(52, 211, 153, 0.13);
+}
+
+.mathChoiceStatusWrong {
+  color: #fee2e2;
+  background: rgba(248, 113, 113, 0.13);
+}
+
+.mathErrorBox {
+  width: min(980px, 100%);
+  margin: 10px auto 0;
+  border-radius: 12px;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: rgba(239, 68, 68, 0.1);
+  color: #fecaca;
+  padding: 11px 13px;
+  box-sizing: border-box;
+  font-size: 12px;
+  line-height: 1.5;
+  flex: 0 0 auto;
+}
+
+.mathStageWorkspaceOpen .mathHeader {
+  gap: 7px;
+}
+
+.mathStageWorkspaceOpen .mathStageCue {
+  display: none;
+}
+
+.mathStageWorkspaceOpen .mathBody {
+  width: 100%;
+  margin: 0 auto;
+  padding: 10px 0 4px;
+}
+
+.mathStageWorkspaceOpen .mathPromptWrap,
+.mathStageWorkspaceOpen .mathPromptWrapCalculation,
+.mathStageWorkspaceOpen .mathPromptWrapWordProblem,
+.mathStageWorkspaceOpen .mathPromptWrapVisual {
+  width: 100%;
+  padding: 13px 12px;
+  border-radius: 15px;
+}
+
+.mathStageWorkspaceOpen .mathPrompt {
+  font-size: clamp(18px, 1.8vw, 24px);
+  line-height: 1.25;
+}
+
+.mathStageWorkspaceOpen .mathPromptCalculation {
+  font-size: clamp(26px, 2.6vw, 38px);
+}
+
+.mathStageWorkspaceOpen .mathPromptWordProblem {
+  font-size: clamp(17px, 1.55vw, 21px);
+  line-height: 1.4;
+}
+
+.mathStageWorkspaceOpen .mathInstruction {
+  margin-bottom: 6px;
+  font-size: 10px;
+}
+
+.mathStageWorkspaceOpen .mathMedia {
+  width: 100%;
+  margin-top: 7px;
+}
+
+.mathStageWorkspaceOpen .mathChoiceGrid,
+.mathStageWorkspaceOpen .mathChoiceGridData {
+  width: 100%;
+  margin-top: 9px;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.mathStageWorkspaceOpen .mathChoiceButton {
+  min-height: 52px;
+  border-radius: 13px;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 7px 9px;
+}
+
+.mathStageWorkspaceOpen .mathChoiceLetter {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.mathStageWorkspaceOpen .mathChoiceText {
+  font-size: clamp(16px, 1.45vw, 20px);
+}
+
+.mathStageWorkspaceOpen .mathChoiceStatus {
+  min-width: 25px;
+  min-height: 25px;
+  font-size: 10px;
+  padding: 0 6px;
+}
+
+@media (max-width: 1180px) {
+  .mathStage {
+    padding: 14px 18px;
+  }
+
+  .mathBody {
+    padding-top: 15px;
+  }
+
+  .mathPrompt {
+    font-size: clamp(23px, 3vw, 34px);
+  }
+
+  .mathPromptCalculation {
+    font-size: clamp(33px, 5vw, 52px);
+  }
+
+  .mathPromptWordProblem {
+    font-size: clamp(19px, 2.35vw, 27px);
+  }
+
+  .mathDataLayout {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr);
+    gap: 11px;
+  }
+
+  .mathChoiceButton {
+    min-height: 68px;
+  }
+
+  .mathChoiceText {
+    font-size: clamp(19px, 2.2vw, 26px);
+  }
+}
+
+@media (max-width: 900px) {
+  .mathDataLayout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mathDataVisualColumn {
+    padding: 5px;
+  }
+
+  .mathChoiceGridData {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .mathStage {
+    margin-top: 7px;
+    border-radius: 16px;
+    padding: 10px;
+  }
+
+  .mathHeader {
+    gap: 7px;
+  }
+
+  .mathSkillBadge {
+    min-height: 23px;
+    padding: 0 8px;
+    font-size: 8px;
+  }
+
+  .mathStageCue {
+    display: none;
+  }
+
+  .mathBody {
+    margin: 0 auto;
+    padding: 10px 0 3px;
+  }
+
+  .mathPromptWrap,
+  .mathPromptWrapCalculation,
+  .mathPromptWrapWordProblem,
+  .mathPromptWrapVisual,
+  .mathPromptWrapData {
+    border-radius: 15px;
+    padding: 13px 10px;
+  }
+
+  .mathInstruction {
+    margin-bottom: 7px;
+    font-size: 10px;
+  }
+
+  .mathPrompt {
+    font-size: clamp(20px, 6vw, 28px);
+    line-height: 1.28;
+  }
+
+  .mathPromptCalculation {
+    font-size: clamp(30px, 9vw, 44px);
+  }
+
+  .mathPromptWordProblem,
+  .mathPromptData {
+    font-size: clamp(17px, 4.9vw, 22px);
+    line-height: 1.42;
+  }
+
+  .mathMedia {
+    margin-top: 7px;
+  }
+
+  .mathChoiceGrid,
+  .mathChoiceGridData {
+    margin-top: 10px;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .mathChoiceButton {
+    min-height: 56px;
+    border-radius: 14px;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 7px 9px;
+  }
+
+  .mathChoiceLetter {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+
+  .mathChoiceText {
+    font-size: 18px;
+  }
+
+  .mathChoiceImage {
+    max-height: 120px;
+  }
+
+  .mathChoiceStatus {
+    min-width: 26px;
+    min-height: 26px;
+    padding: 0 6px;
+    font-size: 10px;
+  }
+
+  .mathDataLayout {
+    margin-top: 8px;
+  }
+
+  .mathDataVisualColumn {
+    border-radius: 14px;
+  }
+}
+
+@media (min-width: 721px) and (max-height: 720px) {
+  .mathStage {
+    padding-top: 11px;
+    padding-bottom: 10px;
+  }
+
+  .mathBody {
+    padding-top: 8px;
+  }
+
+  .mathPromptWrap,
+  .mathPromptWrapCalculation,
+  .mathPromptWrapWordProblem,
+  .mathPromptWrapVisual {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .mathPromptCalculation {
+    font-size: clamp(28px, 3.5vw, 42px);
+  }
+
+  .mathChoiceGrid {
+    margin-top: 9px;
+    gap: 6px 8px;
+  }
+
+  .mathChoiceButton {
+    min-height: 52px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+}
+
+/* Variant hooks intentionally kept separate so later teaching/interaction
+   phases can extend them without changing the renderer contract. */
+.mathCalculationStage {
+  --math-stage-accent: rgba(56, 189, 248, 0.16);
+}
+
+.mathWordProblemStage {
+  --math-stage-accent: rgba(129, 140, 248, 0.14);
+}
+
+.mathVisualStage {
+  --math-stage-accent: rgba(45, 212, 191, 0.14);
+}
+
+.mathGeometryStage {
+  --math-stage-accent: rgba(167, 139, 250, 0.14);
+}
+
+.mathDataStage {
+  --math-stage-accent: rgba(96, 165, 250, 0.14);
+}
