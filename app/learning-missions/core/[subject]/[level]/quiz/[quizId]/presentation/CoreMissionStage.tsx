@@ -14,7 +14,7 @@ import {
   formatCoreQuestionType,
   getQuestionVisualMediaCount,
 } from "../CoreQuizUtils";
-import CoreMissionFeedback from "./CoreMissionFeedback";
+import CoreTeachingEngine from "../teaching/CoreTeachingEngine";
 import { resolvePresentationMode } from "./resolvePresentationMode";
 import LanguageChoiceRenderer from "./renderers/LanguageChoiceRenderer";
 import MathQuestionRenderer from "./renderers/MathQuestionRenderer";
@@ -60,7 +60,12 @@ export default function CoreMissionStage({
           locked={locked}
           onChange={onChange}
         />
-        <CoreMissionFeedback feedback={feedback} enhanced />
+        <CoreTeachingEngine
+          subject={subject}
+          question={question}
+          response={response}
+          feedback={feedback}
+        />
       </>
     );
   }
@@ -79,7 +84,12 @@ export default function CoreMissionStage({
           locked={locked}
           onChange={onChange}
         />
-        <CoreMissionFeedback feedback={feedback} enhanced />
+        <CoreTeachingEngine
+          subject={subject}
+          question={question}
+          response={response}
+          feedback={feedback}
+        />
       </>
     );
   }
@@ -134,7 +144,12 @@ export default function CoreMissionStage({
         {error && <div style={errorBox}>{error}</div>}
       </article>
 
-      <CoreMissionFeedback feedback={feedback} />
+      <CoreTeachingEngine
+        subject={subject}
+        question={question}
+        response={response}
+        feedback={feedback}
+      />
     </>
   );
 }

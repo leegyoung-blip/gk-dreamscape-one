@@ -478,11 +478,8 @@ export default function PropertyExchangeClient() {
     await supabase.rpc("process_my_milo_property_finance");
     await refreshMaintenanceSimulation(false);
     await refreshResidentLife(false);
-    await refreshEmploymentEconomy(false);
     await refreshResidentSimulation(false);
     await refreshLeaseLifecycle(false);
-    await refreshDistrictMarket(false);
-    await supabase.rpc("process_milo_business_space_costs", { p_as_of: new Date().toISOString().slice(0, 10) });
     await Promise.all([
       loadDreamTokens(),
       loadPropertyMarket(user.id),
@@ -712,18 +709,11 @@ export default function PropertyExchangeClient() {
   }
 
   async function refreshEmploymentEconomy(showMessage = false) {
-    const { data, error } = await supabase.rpc("refresh_milo_exchange_employment_economy");
-    if (error) {
-      console.warn("Could not refresh jobs and company economy:", error.message);
-      return;
-    }
+    // Phase 10A: global employment simulation is now handled by the scheduled
+    // Living City settlement. A player refresh only reloads the latest snapshot.
+    await loadEmploymentDashboard();
     if (showMessage) {
-      const result = (data || {}) as Record<string, unknown>;
-      const world = (result.world || {}) as Record<string, unknown>;
-      const events = Number(world.employment_events_created || 0);
-      setTradeMessage(events > 0
-        ? `Jobs updated · ${events} employment change${events === 1 ? "" : "s"}.`
-        : "Jobs and company activity are up to date.");
+      setTradeMessage("Jobs and company activity refreshed.");
     }
   }
 
@@ -931,17 +921,11 @@ export default function PropertyExchangeClient() {
   }
 
   async function refreshDistrictMarket(showMessage = false) {
-    const { data, error } = await supabase.rpc("refresh_milo_exchange_property_market");
-    if (error) {
-      console.warn("Could not refresh property district market:", error.message);
-      return;
-    }
-
+    // Phase 10A: district calculations run once during the scheduled settlement.
+    // Refreshing the page no longer triggers a full market recomputation.
+    await loadDistrictMarketDashboard();
     if (showMessage) {
-      const result = (data || {}) as Record<string, unknown>;
-      setTradeMessage(
-        `Market pulse updated · ${Number(result.segments_updated || 0)} district market segment${Number(result.segments_updated || 0) === 1 ? "" : "s"} checked.`
-      );
+      setTradeMessage("Market pulse refreshed.");
     }
   }
 
@@ -1068,12 +1052,11 @@ export default function PropertyExchangeClient() {
   }
 
   async function refreshBusinessSpaces(showMessage = false) {
-    const { data, error } = await supabase.rpc("process_milo_business_space_costs", { p_as_of: new Date().toISOString().slice(0, 10) });
-    if (error) console.warn("Could not process Business Space costs:", error.message);
+    // Phase 10A: commercial rent settlement now runs once in the scheduled
+    // Living City settlement, not every time a player opens/refocuses the page.
     await Promise.all([loadBusinessSpaceDashboard(), loadDreamTokens()]);
-    if (showMessage && !error) {
-      const result = (data || {}) as Record<string, unknown>;
-      setTradeMessage(`Business spaces updated${Number(result.payments_processed || 0) > 0 ? ` · ${Number(result.payments_processed || 0)} rent payment${Number(result.payments_processed || 0) === 1 ? "" : "s"} processed` : ""}.`);
+    if (showMessage) {
+      setTradeMessage("Business spaces refreshed.");
     }
   }
 
@@ -1385,11 +1368,8 @@ export default function PropertyExchangeClient() {
     await supabase.rpc("process_my_milo_property_finance");
     await refreshMaintenanceSimulation(false);
     await refreshResidentLife(false);
-    await refreshEmploymentEconomy(false);
     await refreshResidentSimulation(showResidentMessage);
     await refreshLeaseLifecycle(false);
-    await refreshDistrictMarket(false);
-    await supabase.rpc("process_milo_business_space_costs", { p_as_of: new Date().toISOString().slice(0, 10) });
     await Promise.all([
       loadDreamTokens(),
       loadPropertyMarket(userId),
