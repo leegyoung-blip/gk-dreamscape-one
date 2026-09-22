@@ -163,7 +163,7 @@ function WorldPanel({
             textTransform: "uppercase",
           }}
         >
-          {isNova ? "Ages 6–12 · Nova’s World" : "Ages 13+ · Milo’s World"}
+          {isNova ? "Ages 6–12 · Nova’s World" : "Designed for Ages 12+ · Milo’s World"}
         </p>
 
         <h1
@@ -270,6 +270,19 @@ function WorldPanel({
               }}
             >
               Financial Literacy · Business · Entrepreneurship
+            </p>
+
+            <p
+              style={{
+                margin: "7px 0 0",
+                maxWidth: "440px",
+                color: "rgba(255,255,255,0.55)",
+                fontSize: "12px",
+                lineHeight: 1.5,
+                fontWeight: 400,
+              }}
+            >
+              Designed mainly for ages 12+, while confident younger learners can explore earlier.
             </p>
 
             <Link
@@ -675,6 +688,7 @@ export default function Home() {
               ))}
 
               {[
+                { label: "EXPLORE DREAMSCAPE", href: "/explore" },
                 { label: "FOR TUITION CENTRES", href: "/education-licence" },
                 { label: "PARTNER WITH US", href: "/affiliate" },
                 { label: "PRICING", href: "/pricing" },
@@ -1380,7 +1394,7 @@ export default function Home() {
                   quote:
                     "Good educational content should do more than test whether a child can recall an answer. It should develop understanding, reasoning and the confidence to tackle unfamiliar questions. That is what we aim for in DREAMSCAPE — carefully structured, age-appropriate content that gives children meaningful practice while still challenging them to think.",
                   name: "Katherine Law",
-                  meta: "M.Ed (Gifted Ed), PGDE, B.A. · Chief Curriculum Developer, Guru Kids Pro",
+                  meta: "M.Ed (Gifted Ed), PGDE, B.A. · Curriculum Development, Dreamscape One",
                   accent: "#c58cff",
                 },
                 {
@@ -1859,7 +1873,7 @@ export default function Home() {
                   Dreamscape One
                 </p>
                 <p style={{ margin: "8px 0 0", fontSize: "11px", letterSpacing: "0.22em", textTransform: "uppercase", color: "rgba(255,255,255,0.56)" }}>
-                  Powered by Guru Kids Pro
+                  Learn · Think · Earn · Build
                 </p>
               </div>
             </button>
@@ -1874,18 +1888,20 @@ export default function Home() {
             <div style={{ marginTop: "18px", display: "flex", flexDirection: "column", gap: "13px" }}>
               <button type="button" onClick={() => scrollToSection("home")} style={footerButtonStyle}>Home</button>
               <button type="button" onClick={() => scrollToSection("about")} style={footerButtonStyle}>About</button>
+              <Link href="/explore" style={footerLinkStyle}>Explore Dreamscape</Link>
               <Link href="/inventor" style={footerLinkStyle}>Nova’s World</Link>
               <Link href="/milo-world" style={footerLinkStyle}>Milo’s World</Link>
             </div>
           </div>
 
           <div>
-            <p style={{ margin: 0, color: "#8ee8ff", fontSize: "13px", letterSpacing: "0.22em", textTransform: "uppercase" }}>Connected Sites</p>
+            <p style={{ margin: 0, color: "#c58cff", fontSize: "13px", letterSpacing: "0.22em", textTransform: "uppercase" }}>Dreamscape Guides</p>
             <div style={{ marginTop: "18px", display: "flex", flexDirection: "column", gap: "13px" }}>
-              <a href="https://gurukidspro.com" target="_blank" rel="noopener noreferrer" style={footerLinkStyle}>Guru Kids Pro</a>
-              <Link href="/affiliate" style={footerLinkStyle}>Affiliate Programme</Link>
+              <Link href="/explore" style={footerLinkStyle}>Explore Dreamscape</Link>
+              <Link href="/how-it-works" style={footerLinkStyle}>How Dreamscape Works</Link>
+              <Link href="/#for-parents" style={footerLinkStyle}>NOVA+ for Parents</Link>
+              <Link href="/pricing" style={footerLinkStyle}>Pricing</Link>
               <Link href="/terms" style={footerLinkStyle}>Terms & Conditions</Link>
-              <a href="https://www.instagram.com/gurukidspro/" target="_blank" rel="noopener noreferrer" style={footerLinkStyle}>@gurukidspro</a>
             </div>
           </div>
         </div>
@@ -2283,7 +2299,7 @@ function GrowthJourney({ isMobile }: { isMobile: boolean }) {
       <JourneyWorld
         world="milo"
         imageSrc="/milo-world/milo-character.png"
-        audience="Ages 13+"
+        audience="Designed for ages 12+"
         title="Milo’s World"
         skills={miloSkills}
         summary="Apply what you have learned to money, business, entrepreneurship and real-world choices."

@@ -456,6 +456,108 @@ export type PropertyMarketDashboard = {
   updated_at: string | null;
 };
 
+
+
+export type PropertyFinanceOption = {
+  plan_code: "steady" | "balanced" | "growth" | string;
+  display_name: string;
+  description: string;
+  deposit_amount: number;
+  financed_amount: number;
+  annual_rate_bps: number;
+  term_weeks: number;
+  weekly_payment: number;
+  estimated_total_interest: number;
+  estimated_total_repayment: number;
+};
+
+export type PropertyFinanceLoan = {
+  loan_id: string;
+  unit_id: string;
+  property_id: string;
+  plan_code: string;
+  purchase_price: number;
+  deposit_paid: number;
+  original_principal: number;
+  principal_remaining: number;
+  annual_rate_bps: number;
+  term_weeks: number;
+  scheduled_weekly_payment: number;
+  interest_paid: number;
+  payments_made: number;
+  missed_payments: number;
+  next_payment_due_on: string | null;
+  status: string;
+  created_at: string;
+  paid_off_at: string | null;
+  property_name: string;
+  unit_number: number;
+  current_value: number;
+  rental_potential: number;
+  equity_value: number;
+  ltv_bps: number;
+};
+
+export type PropertyProtectionPolicy = {
+  policy_id: string;
+  unit_id: string;
+  plan_code: string;
+  weekly_premium: number;
+  coverage_bps: number;
+  next_premium_due_on: string | null;
+  status: string;
+  started_at: string;
+  cancelled_at: string | null;
+  property_name: string | null;
+  unit_number: number | null;
+};
+
+export type PropertyFinancePayment = {
+  payment_id: string;
+  loan_id: string;
+  due_on: string | null;
+  amount_due: number;
+  amount_paid: number;
+  principal_component: number;
+  interest_component: number;
+  payment_kind: string;
+  status: string;
+  paid_at: string | null;
+  created_at: string;
+};
+
+export type PropertyProtectionClaim = {
+  claim_id: string;
+  policy_id: string;
+  unit_id: string;
+  maintenance_action_id: string;
+  maintenance_issue_id: string | null;
+  repair_cost: number;
+  reimbursement: number;
+  created_at: string;
+};
+
+export type PropertyFinanceStats = {
+  gross_property_value: number;
+  debt_balance: number;
+  property_equity: number;
+  weekly_debt_payment: number;
+  contracted_weekly_rent: number;
+  active_loans: number;
+  loans_behind: number;
+  protected_units: number;
+  portfolio_ltv_bps: number;
+  finance_health: number;
+};
+
+export type PropertyFinanceDashboard = {
+  loans: PropertyFinanceLoan[];
+  policies: PropertyProtectionPolicy[];
+  payments: PropertyFinancePayment[];
+  claims: PropertyProtectionClaim[];
+  stats: PropertyFinanceStats;
+};
+
 export type RecentPropertySale = {
   sale_id: string;
   unit_id: string | null;

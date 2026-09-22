@@ -5,6 +5,7 @@ import PropertyManagementModal from "./PropertyManagementModal";
 import ResidentLifePanel from "./ResidentLifePanel";
 import BusinessSpacePanel from "./BusinessSpacePanel";
 import EmploymentEconomyPanel from "./EmploymentEconomyPanel";
+import PropertyFinancePanel from "./PropertyFinancePanel";
 import {
   formatDateTime,
   formatNumber,
@@ -28,6 +29,7 @@ import {
   type PropertyResidentLifeStats,
   type PropertyBusinessSpaceDashboard,
   type MiloEmploymentDashboard,
+  type PropertyFinanceDashboard,
 } from "./propertyExchangeShared";
 
 type Props = PropertyTabStyles & {
@@ -52,6 +54,7 @@ type Props = PropertyTabStyles & {
   residentLifeStats: PropertyResidentLifeStats;
   businessSpaceDashboard: PropertyBusinessSpaceDashboard;
   employmentDashboard: MiloEmploymentDashboard;
+  financeDashboard: PropertyFinanceDashboard;
   currentUserId: string | null;
   unreadMessages: number;
   actionLoading: boolean;
@@ -70,6 +73,12 @@ type Props = PropertyTabStyles & {
   onRefreshResidentLife: () => Promise<void>;
   onRefreshBusinessSpaces: () => Promise<void>;
   onRefreshEmployment: () => Promise<void>;
+  onRefreshFinance: () => Promise<void>;
+  onCatchUpFinance: (loanId: string) => Promise<void>;
+  onPayExtraFinance: (loanId: string, amount: number) => Promise<void>;
+  onPayOffFinance: (loanId: string) => Promise<void>;
+  onStartProtection: (unitId: string, planCode: "basic" | "plus" | "premium") => Promise<void>;
+  onCancelProtection: (policyId: string) => Promise<void>;
   onUseOwnedBusinessSpace: (slotId: number, unitId: string) => Promise<void>;
   onLeaveBusinessSpace: (slotId: number) => Promise<void>;
   onCreateBusinessSpaceListing: (unitId: string, weeklyRent: number, minWeeks: number, maxWeeks: number) => Promise<void>;
@@ -105,6 +114,7 @@ export default function MyPropertiesTab({
   residentLifeStats,
   businessSpaceDashboard,
   employmentDashboard,
+  financeDashboard,
   currentUserId,
   unreadMessages,
   actionLoading,
@@ -122,6 +132,12 @@ export default function MyPropertiesTab({
   onRefreshResidentLife,
   onRefreshBusinessSpaces,
   onRefreshEmployment,
+  onRefreshFinance,
+  onCatchUpFinance,
+  onPayExtraFinance,
+  onPayOffFinance,
+  onStartProtection,
+  onCancelProtection,
   onUseOwnedBusinessSpace,
   onLeaveBusinessSpace,
   onCreateBusinessSpaceListing,
@@ -163,6 +179,7 @@ export default function MyPropertiesTab({
   const rentalListedUnitIds = new Set(activeRentalListings.map((listing) => listing.unit_id));
   const businessOccupiedUnitIds = new Set((businessSpaceDashboard.occupancies || []).filter((item) => ["active", "arrears"].includes(item.status)).map((item) => item.unit_id));
   const businessListedUnitIds = new Set((businessSpaceDashboard.market_listings || []).filter((item) => item.owner_user_id === currentUserId).map((item) => item.unit_id));
+  const financedUnitIds = new Set((financeDashboard.loans || []).filter((loan) => ["active", "behind"].includes(loan.status) && Number(loan.principal_remaining || 0) > 0).map((loan) => loan.unit_id));
   const contractedWeeklyRent = activeLeases.reduce(
     (sum, lease) => sum + Number(lease.weekly_rent || 0),
     0
@@ -183,6 +200,10 @@ export default function MyPropertiesTab({
     }
     if (businessListedUnitIds.has(unit.unit_id)) {
       setLocalMessage("Cancel the Business Space listing before putting this property up for sale.");
+      return;
+    }
+    if (financedUnitIds.has(unit.unit_id)) {
+      setLocalMessage("Pay off this property's finance plan before listing it for sale.");
       return;
     }
     setListingUnitId(unit.unit_id);
@@ -391,7 +412,7 @@ export default function MyPropertiesTab({
         >
           {[
             ["Cash", `${formatNumber(dreamTokens)} DT`, "Available DT"],
-            ["Property Value", `${formatNumber(propertyPortfolioValue)} DT`, "Current portfolio value"],
+            ["Property Equity", `${formatNumber(financeDashboard.stats.property_equity || propertyPortfolioValue)} DT`, financeDashboard.stats.debt_balance > 0 ? `${formatNumber(financeDashboard.stats.gross_property_value)} DT gross · ${formatNumber(financeDashboard.stats.debt_balance)} DT debt` : "Current property value"],
             ["Weekly Rent", `${formatNumber(contractedWeeklyRent)} DT/wk`, `${activeLeases.length} active tenant${activeLeases.length === 1 ? "" : "s"}`],
             ["Occupancy", `${activeLeases.length} / ${totalOwnedUnits}`, `${activeRentalListings.length} listed for rent`],
           ].map(([label, value, detail]) => (
@@ -402,6 +423,24 @@ export default function MyPropertiesTab({
             </article>
           ))}
         </section>
+
+        <PropertyFinancePanel
+          dashboard={financeDashboard}
+          units={units}
+          dreamTokens={dreamTokens}
+          actionLoading={actionLoading}
+          isMobile={isMobile}
+          isCompact={isCompact}
+          glassPanel={glassPanel}
+          primaryButton={primaryButton}
+          secondaryButton={secondaryButton}
+          onRefresh={onRefreshFinance}
+          onCatchUp={onCatchUpFinance}
+          onPayExtra={onPayExtraFinance}
+          onPayOff={onPayOffFinance}
+          onStartProtection={onStartProtection}
+          onCancelProtection={onCancelProtection}
+        />
 
         <section data-milo-guide="property-resident-overview" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
           <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", gap: "14px", alignItems: isMobile ? "stretch" : "flex-end" }}>
@@ -588,7 +627,8 @@ export default function MyPropertiesTab({
                 const listedForRent = rentalListedUnitIds.has(unit.unit_id);
                 const businessOccupied = businessOccupiedUnitIds.has(unit.unit_id);
                 const businessListed = businessListedUnitIds.has(unit.unit_id);
-                const status = activeResale ? "Listed for Sale" : businessOccupied ? "Business Active" : occupied ? "Tenant Active" : businessListed ? "Business Space Listed" : listedForRent ? "Listed for Rent" : "Vacant";
+                const financeLoan = (financeDashboard.loans || []).find((loan) => loan.unit_id === unit.unit_id && ["active", "behind"].includes(loan.status) && Number(loan.principal_remaining || 0) > 0);
+                const status = activeResale ? "Listed for Sale" : businessOccupied ? "Business Active" : occupied ? "Tenant Active" : businessListed ? "Business Space Listed" : listedForRent ? "Listed for Rent" : financeLoan ? "Financed" : "Vacant";
                 const statusColor = activeResale ? "#ffd18a" : businessOccupied ? "#c6b8ff" : occupied ? "#79f2ce" : businessListed ? "#ffd18a" : listedForRent ? "#8ee8ff" : "rgba(255,255,255,0.62)";
 
                 return (
@@ -608,10 +648,11 @@ export default function MyPropertiesTab({
                         <div style={{ borderRadius: "13px", padding: "10px", background: "rgba(255,255,255,0.04)" }}><small style={{ color: "rgba(255,255,255,0.42)" }}>Rent Potential</small><strong style={{ display: "block", marginTop: "4px", color: "#8ee8ff" }}>{formatNumber(unit.rental_potential)} DT/wk</strong></div>
                       </div>
 
-                      <div style={{ marginTop: "11px", display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: "7px", color: "rgba(255,255,255,0.45)", fontSize: "10px" }}>
+                      <div style={{ marginTop: "11px", display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: "7px", color: "rgba(255,255,255,0.45)", fontSize: "10px" }}>
                         <span>Upgrades <strong style={{ color: "rgba(255,255,255,0.78)" }}>{unit.upgrade_level_total}/30</strong></span>
                         <span>Condition <strong style={{ color: unit.condition >= 75 ? "#79f2ce" : unit.condition >= 50 ? "#ffd18a" : "#ff9292" }}>{unit.condition}</strong></span>
                         <span>Issues <strong style={{ color: maintenanceIssues.some((item) => item.unit_id === unit.unit_id && ["open","ignored","temporary"].includes(item.status)) ? "#ffb0b0" : "#79f2ce" }}>{maintenanceIssues.filter((item) => item.unit_id === unit.unit_id && ["open","ignored","temporary"].includes(item.status)).length}</strong></span>
+                        <span>Debt <strong style={{ color: financeLoan ? "#c6b8ff" : "rgba(255,255,255,0.78)" }}>{financeLoan ? formatNumber(financeLoan.principal_remaining) : "0"}</strong></span>
                       </div>
 
                       <div style={{ marginTop: "13px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
@@ -639,10 +680,10 @@ export default function MyPropertiesTab({
                         <button
                           type="button"
                           onClick={() => openResaleListing(unit)}
-                          disabled={actionLoading || occupied || listedForRent || businessOccupied || businessListed}
-                          style={{ ...secondaryButton, width: "100%", minHeight: "38px", marginTop: "8px", opacity: actionLoading || occupied || listedForRent || businessOccupied || businessListed ? 0.45 : 1 }}
+                          disabled={actionLoading || occupied || listedForRent || businessOccupied || businessListed || Boolean(financeLoan)}
+                          style={{ ...secondaryButton, width: "100%", minHeight: "38px", marginTop: "8px", opacity: actionLoading || occupied || listedForRent || businessOccupied || businessListed || financeLoan ? 0.45 : 1 }}
                         >
-                          {businessOccupied ? "Business Active" : businessListed ? "Cancel Business Listing First" : occupied ? "Tenant Active" : listedForRent ? "Cancel Rental Listing First" : "List for Sale"}
+                          {financeLoan ? "Pay Off Finance Before Sale" : businessOccupied ? "Business Active" : businessListed ? "Cancel Business Listing First" : occupied ? "Tenant Active" : listedForRent ? "Cancel Rental Listing First" : "List for Sale"}
                         </button>
                       )}
                     </div>

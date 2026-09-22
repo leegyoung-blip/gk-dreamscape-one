@@ -49,6 +49,12 @@ import {
   type MiloEmploymentResident,
   type MiloEmploymentEvent,
   type MiloEmploymentStats,
+  type PropertyFinanceOption,
+  type PropertyFinanceDashboard,
+  type PropertyFinanceLoan,
+  type PropertyProtectionPolicy,
+  type PropertyFinancePayment,
+  type PropertyProtectionClaim,
 } from "./components/propertyExchangeShared";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -306,10 +312,31 @@ export default function PropertyExchangeClient() {
       between_jobs: 0,
     },
   });
+  const [financeDashboard, setFinanceDashboard] = useState<PropertyFinanceDashboard>({
+    loans: [],
+    policies: [],
+    payments: [],
+    claims: [],
+    stats: {
+      gross_property_value: 0,
+      debt_balance: 0,
+      property_equity: 0,
+      weekly_debt_payment: 0,
+      contracted_weekly_rent: 0,
+      active_loans: 0,
+      loans_behind: 0,
+      protected_units: 0,
+      portfolio_ltv_bps: 0,
+      finance_health: 100,
+    },
+  });
   const [phoneOpenRequest, setPhoneOpenRequest] = useState(0);
 
   const [previewProperty, setPreviewProperty] = useState<PropertyOffering | null>(null);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
+  const [purchaseMode, setPurchaseMode] = useState<"cash" | "finance">("cash");
+  const [financeOptions, setFinanceOptions] = useState<PropertyFinanceOption[]>([]);
+  const [selectedFinancePlan, setSelectedFinancePlan] = useState("balanced");
   const [pageMessage, setPageMessage] = useState("");
   const [tradeMessage, setTradeMessage] = useState("");
 
@@ -448,6 +475,7 @@ export default function PropertyExchangeClient() {
 
     setUserId(user.id);
     await Promise.all([loadDreamTokens(), loadPropertyMarket(user.id)]);
+    await supabase.rpc("process_my_milo_property_finance");
     await refreshMaintenanceSimulation(false);
     await refreshResidentLife(false);
     await refreshEmploymentEconomy(false);
@@ -465,6 +493,7 @@ export default function PropertyExchangeClient() {
       loadDistrictMarketDashboard(),
       loadBusinessSpaceDashboard(),
       loadEmploymentDashboard(),
+      loadFinanceDashboard(),
     ]);
     setLoading(false);
   }
@@ -1048,6 +1077,85 @@ export default function PropertyExchangeClient() {
     }
   }
 
+  async function loadFinanceDashboard() {
+    const { data, error } = await supabase.rpc("get_my_milo_property_finance_dashboard");
+    if (error) {
+      console.warn("Could not load property finance dashboard:", error.message);
+      return;
+    }
+    const dashboard = (data || {}) as Partial<PropertyFinanceDashboard>;
+    const stats = dashboard.stats || financeDashboard.stats;
+    setFinanceDashboard({
+      loans: ((dashboard.loans || []) as PropertyFinanceLoan[]).map((item) => ({
+        ...item,
+        purchase_price: Number(item.purchase_price || 0),
+        deposit_paid: Number(item.deposit_paid || 0),
+        original_principal: Number(item.original_principal || 0),
+        principal_remaining: Number(item.principal_remaining || 0),
+        annual_rate_bps: Number(item.annual_rate_bps || 0),
+        term_weeks: Number(item.term_weeks || 0),
+        scheduled_weekly_payment: Number(item.scheduled_weekly_payment || 0),
+        interest_paid: Number(item.interest_paid || 0),
+        payments_made: Number(item.payments_made || 0),
+        missed_payments: Number(item.missed_payments || 0),
+        unit_number: Number(item.unit_number || 0),
+        current_value: Number(item.current_value || 0),
+        rental_potential: Number(item.rental_potential || 0),
+        equity_value: Number(item.equity_value || 0),
+        ltv_bps: Number(item.ltv_bps || 0),
+      })),
+      policies: ((dashboard.policies || []) as PropertyProtectionPolicy[]).map((item) => ({
+        ...item,
+        weekly_premium: Number(item.weekly_premium || 0),
+        coverage_bps: Number(item.coverage_bps || 0),
+        unit_number: item.unit_number == null ? null : Number(item.unit_number),
+      })),
+      payments: ((dashboard.payments || []) as PropertyFinancePayment[]).map((item) => ({
+        ...item,
+        amount_due: Number(item.amount_due || 0),
+        amount_paid: Number(item.amount_paid || 0),
+        principal_component: Number(item.principal_component || 0),
+        interest_component: Number(item.interest_component || 0),
+      })),
+      claims: ((dashboard.claims || []) as PropertyProtectionClaim[]).map((item) => ({
+        ...item,
+        repair_cost: Number(item.repair_cost || 0),
+        reimbursement: Number(item.reimbursement || 0),
+      })),
+      stats: {
+        gross_property_value: Number(stats.gross_property_value || 0),
+        debt_balance: Number(stats.debt_balance || 0),
+        property_equity: Number(stats.property_equity || 0),
+        weekly_debt_payment: Number(stats.weekly_debt_payment || 0),
+        contracted_weekly_rent: Number(stats.contracted_weekly_rent || 0),
+        active_loans: Number(stats.active_loans || 0),
+        loans_behind: Number(stats.loans_behind || 0),
+        protected_units: Number(stats.protected_units || 0),
+        portfolio_ltv_bps: Number(stats.portfolio_ltv_bps || 0),
+        finance_health: Number(stats.finance_health ?? 100),
+      },
+    });
+  }
+
+  async function loadFinanceOptions(propertyId: string) {
+    const { data, error } = await supabase.rpc("get_milo_property_finance_options", { p_property_id: propertyId });
+    if (error) {
+      console.warn("Could not load property finance options:", error.message);
+      setFinanceOptions([]);
+      return;
+    }
+    setFinanceOptions(((data || []) as PropertyFinanceOption[]).map((item) => ({
+      ...item,
+      deposit_amount: Number(item.deposit_amount || 0),
+      financed_amount: Number(item.financed_amount || 0),
+      annual_rate_bps: Number(item.annual_rate_bps || 0),
+      term_weeks: Number(item.term_weeks || 0),
+      weekly_payment: Number(item.weekly_payment || 0),
+      estimated_total_interest: Number(item.estimated_total_interest || 0),
+      estimated_total_repayment: Number(item.estimated_total_repayment || 0),
+    })));
+  }
+
   async function loadPropertyMarket(id: string) {
     setMarketLoading(true);
 
@@ -1274,6 +1382,7 @@ export default function PropertyExchangeClient() {
 
   async function refreshMarket(showResidentMessage = false) {
     if (!userId) return;
+    await supabase.rpc("process_my_milo_property_finance");
     await refreshMaintenanceSimulation(false);
     await refreshResidentLife(false);
     await refreshEmploymentEconomy(false);
@@ -1291,6 +1400,7 @@ export default function PropertyExchangeClient() {
       loadDistrictMarketDashboard(),
       loadBusinessSpaceDashboard(),
       loadEmploymentDashboard(),
+      loadFinanceDashboard(),
     ]);
   }
 
@@ -1360,6 +1470,10 @@ export default function PropertyExchangeClient() {
   function openPreview(property: PropertyOffering) {
     setPreviewProperty(property);
     setPurchaseQuantity(1);
+    setPurchaseMode("cash");
+    setSelectedFinancePlan("balanced");
+    setFinanceOptions([]);
+    void loadFinanceOptions(property.id);
     setTradeMessage("");
   }
 
@@ -1398,6 +1512,109 @@ export default function PropertyExchangeClient() {
     await refreshMarket();
     setPreviewProperty(null);
     setActionLoading(false);
+  }
+
+  async function buyPropertyWithFinance(property: PropertyOffering) {
+    if (!userId || actionLoading) return;
+    const option = financeOptions.find((item) => item.plan_code === selectedFinancePlan);
+    if (!option) { setTradeMessage("Choose a finance plan first."); return; }
+    if (dreamTokens < option.deposit_amount) {
+      setTradeMessage(`You need ${formatNumber(option.deposit_amount)} DT for this deposit.`);
+      return;
+    }
+    setActionLoading(true); setTradeMessage("");
+    const { data, error } = await supabase.rpc("finance_milo_exchange_property_purchase", {
+      p_property_id: property.id,
+      p_plan_code: selectedFinancePlan,
+    });
+    if (error) {
+      setTradeMessage(`Finance purchase failed: ${error.message}`);
+      setActionLoading(false);
+      return;
+    }
+    const result = (data || {}) as Record<string, unknown>;
+    if (result.ok === false) {
+      const reason = String(result.reason || "purchase_failed");
+      setTradeMessage(
+        reason === "insufficient_deposit" ? `You need ${formatNumber(Number(result.required || option.deposit_amount))} DT for the deposit.` :
+        reason === "finance_limit" ? "You can have up to 3 active property finance plans at a time." :
+        reason === "finance_behind" ? "Catch up on overdue finance payments before starting another plan." :
+        reason === "sold_out" ? "This property has sold out." :
+        String(result.message || "The financed purchase could not be completed.")
+      );
+      setActionLoading(false);
+      return;
+    }
+    setTradeMessage(String(result.message || `Purchased ${property.name} with property finance.`));
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+    await refreshMarket();
+    setPreviewProperty(null);
+    setActionLoading(false);
+  }
+
+  async function catchUpFinance(loanId: string) {
+    if (actionLoading) return;
+    setActionLoading(true); setTradeMessage("");
+    const { data, error } = await supabase.rpc("catch_up_milo_property_finance", { p_loan_id: loanId });
+    setActionLoading(false);
+    if (error) { setTradeMessage(`Payment failed: ${error.message}`); return; }
+    const result = (data || {}) as Record<string, unknown>;
+    if (result.ok === false) {
+      setTradeMessage(String(result.reason === "insufficient_tokens" ? `You need ${formatNumber(Number(result.required || 0))} DT to catch up.` : result.reason || "Payment failed."));
+      return;
+    }
+    setTradeMessage(`Catch-up payment of ${formatNumber(Number(result.amount_paid || 0))} DT completed.`);
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+    await Promise.all([loadFinanceDashboard(), loadDreamTokens()]);
+  }
+
+  async function payExtraFinance(loanId: string, amount: number) {
+    if (actionLoading) return;
+    setActionLoading(true); setTradeMessage("");
+    const { data, error } = await supabase.rpc("pay_extra_milo_property_finance", { p_loan_id: loanId, p_amount: Math.max(1, Math.round(amount)) });
+    setActionLoading(false);
+    if (error) { setTradeMessage(`Extra payment failed: ${error.message}`); return; }
+    const result = (data || {}) as Record<string, unknown>;
+    if (result.ok === false) { setTradeMessage(String(result.reason === "insufficient_tokens" ? `You need ${formatNumber(Number(result.required || 0))} DT for that payment.` : result.reason || "Payment failed.")); return; }
+    setTradeMessage(`Extra repayment of ${formatNumber(Number(result.amount_paid || 0))} DT completed.`);
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+    await Promise.all([loadFinanceDashboard(), loadDreamTokens()]);
+  }
+
+  async function payOffFinance(loanId: string) {
+    if (actionLoading) return;
+    setActionLoading(true); setTradeMessage("");
+    const { data, error } = await supabase.rpc("pay_off_milo_property_finance", { p_loan_id: loanId });
+    setActionLoading(false);
+    if (error) { setTradeMessage(`Payoff failed: ${error.message}`); return; }
+    const result = (data || {}) as Record<string, unknown>;
+    if (result.ok === false) { setTradeMessage(String(result.reason === "insufficient_tokens" ? `You need ${formatNumber(Number(result.required || 0))} DT to pay this off.` : result.reason || "Payoff failed.")); return; }
+    setTradeMessage(`Finance plan paid off · ${formatNumber(Number(result.amount_paid || 0))} DT.`);
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+    await refreshMarket();
+  }
+
+  async function startProtection(unitId: string, planCode: "basic" | "plus" | "premium") {
+    if (actionLoading) return;
+    setActionLoading(true); setTradeMessage("");
+    const { data, error } = await supabase.rpc("start_milo_property_protection", { p_unit_id: unitId, p_plan_code: planCode });
+    setActionLoading(false);
+    if (error) { setTradeMessage(`Could not start protection: ${error.message}`); return; }
+    const result = (data || {}) as Record<string, unknown>;
+    if (result.ok === false) { setTradeMessage(String(result.reason === "insufficient_tokens" ? `You need ${formatNumber(Number(result.required || 0))} DT for the first premium.` : result.reason || "Protection could not be started.")); return; }
+    setTradeMessage(`Property Protection started · ${formatNumber(Number(result.weekly_premium || 0))} DT/week.`);
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+    await Promise.all([loadFinanceDashboard(), loadDreamTokens()]);
+  }
+
+  async function cancelProtection(policyId: string) {
+    if (actionLoading) return;
+    setActionLoading(true); setTradeMessage("");
+    const { error } = await supabase.rpc("cancel_milo_property_protection", { p_policy_id: policyId });
+    setActionLoading(false);
+    if (error) { setTradeMessage(`Could not cancel protection: ${error.message}`); return; }
+    setTradeMessage("Property Protection cancelled.");
+    await loadFinanceDashboard();
   }
 
   async function buyResaleProperty(listing: PropertyResaleListing) {
@@ -1624,6 +1841,10 @@ export default function PropertyExchangeClient() {
 
   async function togglePurchaseOffers(unitId: string, enabled: boolean) {
     if (!userId || actionLoading) return;
+    if (enabled && financeDashboard.loans.some((loan) => loan.unit_id === unitId && ["active", "behind"].includes(loan.status) && Number(loan.principal_remaining || 0) > 0)) {
+      setTradeMessage("Pay off this property's finance plan before inviting purchase offers.");
+      return;
+    }
     setActionLoading(true);
     const { data, error } = await supabase.rpc("set_my_milo_property_purchase_offers", {
       p_unit_id: unitId,
@@ -1765,6 +1986,7 @@ export default function PropertyExchangeClient() {
 
   const tabStyles = { glassPanel, primaryButton, secondaryButton };
   const previewImage = getPropertyPreviewImage(previewProperty || undefined);
+  const selectedFinanceOption = financeOptions.find((item) => item.plan_code === selectedFinancePlan) || financeOptions[0] || null;
 
   return (
     <main className="milo-scrollbar" style={pageShell}>
@@ -1835,33 +2057,92 @@ export default function PropertyExchangeClient() {
                 ))}
               </div>
 
-              <label style={{ marginTop: "22px", display: "grid", gap: "8px" }}>
-                <span style={{ color: "rgba(255,255,255,0.64)", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 900 }}>Purchase quantity</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={Math.max(1, previewProperty.available_quantity)}
-                  value={purchaseQuantity}
-                  onChange={(event) => {
-                    const next = Math.max(1, Math.floor(Number(event.target.value) || 1));
-                    setPurchaseQuantity(Math.min(next, Math.max(1, previewProperty.available_quantity)));
-                  }}
-                  style={inputStyle}
-                />
-              </label>
-
-              <div style={{ marginTop: "14px", display: "flex", justifyContent: "space-between", gap: "12px", borderRadius: "16px", background: "rgba(255,209,138,0.09)", border: "1px solid rgba(255,209,138,0.18)", padding: "15px" }}>
-                <span style={{ color: "rgba(255,255,255,0.58)" }}>Purchase total</span>
-                <strong style={{ color: "#ffd18a" }}>{formatNumber(purchaseQuantity * previewProperty.listing_price)} DT</strong>
+              <div style={{ marginTop: "22px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px" }}>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseMode("cash")}
+                  style={{ ...secondaryButton, minHeight: "44px", background: purchaseMode === "cash" ? "rgba(83,215,255,0.15)" : "rgba(255,255,255,0.06)", borderColor: purchaseMode === "cash" ? "rgba(132,218,255,0.35)" : "rgba(255,255,255,0.12)" }}
+                >
+                  Pay in Full
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setPurchaseMode("finance"); setPurchaseQuantity(1); }}
+                  style={{ ...secondaryButton, minHeight: "44px", background: purchaseMode === "finance" ? "rgba(198,184,255,0.14)" : "rgba(255,255,255,0.06)", borderColor: purchaseMode === "finance" ? "rgba(198,184,255,0.32)" : "rgba(255,255,255,0.12)" }}
+                >
+                  Use Property Finance
+                </button>
               </div>
+
+              {purchaseMode === "cash" ? (
+                <>
+                  <label style={{ marginTop: "16px", display: "grid", gap: "8px" }}>
+                    <span style={{ color: "rgba(255,255,255,0.64)", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 900 }}>Purchase quantity</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={Math.max(1, previewProperty.available_quantity)}
+                      value={purchaseQuantity}
+                      onChange={(event) => {
+                        const next = Math.max(1, Math.floor(Number(event.target.value) || 1));
+                        setPurchaseQuantity(Math.min(next, Math.max(1, previewProperty.available_quantity)));
+                      }}
+                      style={inputStyle}
+                    />
+                  </label>
+                  <div style={{ marginTop: "14px", display: "flex", justifyContent: "space-between", gap: "12px", borderRadius: "16px", background: "rgba(255,209,138,0.09)", border: "1px solid rgba(255,209,138,0.18)", padding: "15px" }}>
+                    <span style={{ color: "rgba(255,255,255,0.58)" }}>Purchase total</span>
+                    <strong style={{ color: "#ffd18a" }}>{formatNumber(purchaseQuantity * previewProperty.listing_price)} DT</strong>
+                  </div>
+                </>
+              ) : (
+                <div style={{ marginTop: "16px" }}>
+                  <p style={{ margin: 0, color: "rgba(255,255,255,0.56)", fontSize: "12px", lineHeight: 1.5 }}>
+                    Finance is available for one new property at a time. A smaller deposit means more debt, more interest and a higher weekly repayment.
+                  </p>
+                  <div style={{ marginTop: "11px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,minmax(0,1fr))", gap: "9px" }}>
+                    {financeOptions.map((option) => {
+                      const active = selectedFinancePlan === option.plan_code;
+                      return (
+                        <button
+                          key={option.plan_code}
+                          type="button"
+                          onClick={() => setSelectedFinancePlan(option.plan_code)}
+                          style={{ borderRadius: "15px", border: active ? "1px solid rgba(198,184,255,0.45)" : "1px solid rgba(255,255,255,0.09)", background: active ? "rgba(198,184,255,0.12)" : "rgba(255,255,255,0.04)", color: "white", padding: "13px", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}
+                        >
+                          <strong style={{ display: "block", color: active ? "#c6b8ff" : "white" }}>{option.display_name}</strong>
+                          <small style={{ display: "block", marginTop: "5px", color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>{option.description}</small>
+                          <span style={{ display: "block", marginTop: "9px", color: "#ffd18a", fontWeight: 850 }}>{formatNumber(option.deposit_amount)} DT deposit</span>
+                          <small style={{ display: "block", marginTop: "3px", color: "rgba(255,255,255,0.55)" }}>{formatNumber(option.weekly_payment)} DT/week · {option.term_weeks} weeks</small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedFinanceOption && (
+                    <div style={{ marginTop: "11px", display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px" }}>
+                      {[
+                        ["Deposit Today", `${formatNumber(selectedFinanceOption.deposit_amount)} DT`],
+                        ["Amount Financed", `${formatNumber(selectedFinanceOption.financed_amount)} DT`],
+                        ["Finance Rate", `${(selectedFinanceOption.annual_rate_bps / 100).toFixed(1)}%`],
+                        ["Est. Interest", `${formatNumber(selectedFinanceOption.estimated_total_interest)} DT`],
+                      ].map(([label, value]) => (
+                        <div key={label} style={{ borderRadius: "13px", padding: "11px", background: "rgba(255,255,255,0.04)" }}>
+                          <small style={{ color: "rgba(255,255,255,0.42)" }}>{label}</small>
+                          <strong style={{ display: "block", marginTop: "4px" }}>{value}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <button
                 type="button"
-                onClick={() => void buyProperty(previewProperty)}
-                disabled={actionLoading || previewProperty.available_quantity <= 0}
-                style={{ ...primaryButton, width: "100%", marginTop: "16px", background: previewProperty.available_quantity <= 0 ? "rgba(255,255,255,0.08)" : "rgba(83,215,255,0.18)", opacity: actionLoading ? 0.6 : 1, cursor: actionLoading || previewProperty.available_quantity <= 0 ? "not-allowed" : "pointer" }}
+                onClick={() => void (purchaseMode === "finance" ? buyPropertyWithFinance(previewProperty) : buyProperty(previewProperty))}
+                disabled={actionLoading || previewProperty.available_quantity <= 0 || (purchaseMode === "finance" && !selectedFinanceOption)}
+                style={{ ...primaryButton, width: "100%", marginTop: "16px", background: previewProperty.available_quantity <= 0 ? "rgba(255,255,255,0.08)" : purchaseMode === "finance" ? "rgba(198,184,255,0.16)" : "rgba(83,215,255,0.18)", opacity: actionLoading ? 0.6 : 1, cursor: actionLoading || previewProperty.available_quantity <= 0 ? "not-allowed" : "pointer" }}
               >
-                {previewProperty.available_quantity <= 0 ? "Sold Out" : actionLoading ? "Processing Purchase..." : "Purchase Unit"}
+                {previewProperty.available_quantity <= 0 ? "Sold Out" : actionLoading ? "Processing Purchase..." : purchaseMode === "finance" ? `Buy with ${selectedFinanceOption?.display_name || "Finance"}` : "Purchase Unit"}
               </button>
 
               {tradeMessage && <p style={{ margin: "14px 0 0", color: "#ffd18a", fontWeight: 800, lineHeight: 1.5 }}>{tradeMessage}</p>}
@@ -1985,6 +2266,7 @@ export default function PropertyExchangeClient() {
               residentLifeStats={residentLifeStats}
               businessSpaceDashboard={businessSpaceDashboard}
               employmentDashboard={employmentDashboard}
+              financeDashboard={financeDashboard}
               currentUserId={userId}
               unreadMessages={propertyUnreadCount}
               actionLoading={actionLoading}
@@ -2007,6 +2289,15 @@ export default function PropertyExchangeClient() {
                 ]);
               }}
               onRefreshBusinessSpaces={() => refreshBusinessSpaces(true)}
+              onRefreshFinance={async () => {
+                await supabase.rpc("process_my_milo_property_finance");
+                await Promise.all([loadFinanceDashboard(), loadDreamTokens()]);
+              }}
+              onCatchUpFinance={catchUpFinance}
+              onPayExtraFinance={payExtraFinance}
+              onPayOffFinance={payOffFinance}
+              onStartProtection={startProtection}
+              onCancelProtection={cancelProtection}
               onRefreshEmployment={async () => {
                 await refreshEmploymentEconomy(true);
                 await Promise.all([

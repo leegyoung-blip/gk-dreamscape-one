@@ -171,6 +171,8 @@ export default function MiloExchangeMainPage() {
   const [propertyHoldings, setPropertyHoldings] = useState<PropertyHolding[]>([]);
   const [propertyMarketReady, setPropertyMarketReady] = useState(false);
   const [managedPropertyValue, setManagedPropertyValue] = useState<number | null>(null);
+  const [managedPropertyEquity, setManagedPropertyEquity] = useState<number | null>(null);
+  const [propertyDebt, setPropertyDebt] = useState(0);
   const [transactions, setTransactions] = useState<TokenTransaction[]>([]);
 
   const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>([]);
@@ -194,6 +196,7 @@ export default function MiloExchangeMainPage() {
   }, [stockHoldings, stocks]);
 
   const propertyPortfolioValue = useMemo(() => {
+    if (managedPropertyEquity !== null) return managedPropertyEquity;
     if (managedPropertyValue !== null) return managedPropertyValue;
 
     return propertyHoldings.reduce((total, holding) => {
@@ -207,7 +210,7 @@ export default function MiloExchangeMainPage() {
 
       return total + Number(holding.quantity || 0) * unitValue;
     }, 0);
-  }, [managedPropertyValue, propertyHoldings, properties]);
+  }, [managedPropertyEquity, managedPropertyValue, propertyHoldings, properties]);
 
   const propertyUnitCount = useMemo(() => {
     return propertyHoldings.reduce(
@@ -326,6 +329,8 @@ export default function MiloExchangeMainPage() {
       setProperties([]);
       setPropertyHoldings([]);
       setManagedPropertyValue(null);
+      setManagedPropertyEquity(null);
+      setPropertyDebt(0);
       setPropertyMarketReady(false);
       return;
     }
@@ -345,15 +350,31 @@ export default function MiloExchangeMainPage() {
     setProperties((propertiesResult.data || []) as ExchangeProperty[]);
     setPropertyHoldings((holdingsResult.data || []) as PropertyHolding[]);
 
-    const managedValueResult = await supabase.rpc(
-      "get_my_milo_exchange_property_portfolio_value"
-    );
+    const [managedValueResult, managedEquityResult, financeResult] = await Promise.all([
+      supabase.rpc("get_my_milo_exchange_property_portfolio_value"),
+      supabase.rpc("get_my_milo_exchange_property_equity_value"),
+      supabase.rpc("get_my_milo_property_finance_dashboard"),
+    ]);
 
     if (managedValueResult.error) {
       console.warn("Could not load managed property value:", managedValueResult.error.message);
       setManagedPropertyValue(null);
     } else {
       setManagedPropertyValue(Number(managedValueResult.data || 0));
+    }
+
+    if (managedEquityResult.error) {
+      console.warn("Could not load property equity:", managedEquityResult.error.message);
+      setManagedPropertyEquity(null);
+    } else {
+      setManagedPropertyEquity(Number(managedEquityResult.data || 0));
+    }
+
+    if (financeResult.error) {
+      setPropertyDebt(0);
+    } else {
+      const dashboard = (financeResult.data || {}) as { stats?: { debt_balance?: number } };
+      setPropertyDebt(Number(dashboard.stats?.debt_balance || 0));
     }
 
     setPropertyMarketReady(true);
@@ -365,7 +386,7 @@ export default function MiloExchangeMainPage() {
       .select("id,amount,type,title,created_at")
       .eq("user_id", id)
       .eq("token_kind", "virtual")
-      .or("title.ilike.%stock exchange%,title.ilike.%property exchange%")
+      .or("title.ilike.%stock exchange%,title.ilike.%property exchange%,title.ilike.%milo property%")
       .order("created_at", { ascending: false })
       .limit(40);
 
@@ -927,8 +948,8 @@ export default function MiloExchangeMainPage() {
           {[
             ["Cash Holdings", `${formatNumber(dreamTokens)} DT`, "Available Dreamscape Tokens"],
             ["Stock Portfolio", `${formatNumber(stockPortfolioValue)} DT`, `${stockHoldings.length} stock holding${stockHoldings.length === 1 ? "" : "s"}`],
-            ["Property Portfolio", `${formatNumber(propertyPortfolioValue)} DT`, propertyMarketReady ? `${propertyUnitCount} unit${propertyUnitCount === 1 ? "" : "s"} owned` : "Property market preparing"],
-            ["Total Net Worth", `${formatNumber(totalNetWorth)} DT`, "Cash + stocks + property"],
+            ["Property Equity", `${formatNumber(propertyPortfolioValue)} DT`, propertyMarketReady ? `${propertyUnitCount} unit${propertyUnitCount === 1 ? "" : "s"} owned${propertyDebt > 0 ? ` · ${formatNumber(propertyDebt)} DT debt` : ""}` : "Property market preparing"],
+            ["Total Net Worth", `${formatNumber(totalNetWorth)} DT`, "Cash + stocks + property equity"],
           ].map(([label, value, detail]) => (
             <article key={label} style={{ ...glassPanel, borderRadius: "21px", padding: isMobile ? "16px" : "20px" }}>
               <span style={{ display: "block", color: "rgba(255,255,255,0.48)", fontSize: isMobile ? "10px" : "12px", fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase" }}>
