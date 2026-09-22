@@ -172,6 +172,50 @@ export type TeachingMisconception = TeachingTextObject & {
   lesson?: TeachingLesson;
 };
 
+
+export type TeachingQuickCheckType =
+  | "multiple_choice"
+  | "short_text"
+  | "numeric"
+  | "fraction";
+
+export type TeachingQuickCheckOption = {
+  id: string;
+  text: string;
+};
+
+export type TeachingQuickCheck = {
+  title?: string;
+  instruction?: string;
+  prompt?: string;
+  type?: TeachingQuickCheckType;
+  options?: TeachingQuickCheckOption[];
+  correct_option_id?: string;
+  accepted_answers?: string[];
+  value?: number;
+  tolerance?: number;
+  numerator?: number;
+  denominator?: number;
+  allow_equivalent?: boolean;
+  explanation?: string;
+};
+
+export type NormalisedTeachingQuickCheck = {
+  title: string | null;
+  instruction: string | null;
+  prompt: string;
+  type: TeachingQuickCheckType;
+  options: TeachingQuickCheckOption[];
+  correctOptionId: string | null;
+  acceptedAnswers: string[];
+  value: number | null;
+  tolerance: number;
+  numerator: number | null;
+  denominator: number | null;
+  allowEquivalent: boolean;
+  explanation: string | null;
+};
+
 export type TeachingConfig = {
   version?: number;
   hint?: TeachingTextBlock;
@@ -180,6 +224,7 @@ export type TeachingConfig = {
   lesson?: TeachingLesson;
   teach_me?: TeachingLesson;
   misconceptions?: Record<string, TeachingTextBlock | TeachingMisconception>;
+  quick_check?: TeachingQuickCheck;
 };
 
 export type NormalisedTeachingEvidence = {

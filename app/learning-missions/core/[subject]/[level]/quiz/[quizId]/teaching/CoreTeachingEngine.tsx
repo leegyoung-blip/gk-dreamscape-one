@@ -10,11 +10,14 @@ import type {
 import { friendlyCorrectResponse } from "../CoreQuizUtils";
 import CoreTeachingHint from "./CoreTeachingHint";
 import CoreTeachingLesson from "./CoreTeachingLesson";
+import CoreTeachingQuickCheck from "./CoreTeachingQuickCheck";
 import CoreTeachingSummary from "./CoreTeachingSummary";
 import EnglishTeachingRenderer from "./english/EnglishTeachingRenderer";
 import MathTeachingRenderer from "./math/MathTeachingRenderer";
+import { recordTeachingEvent } from "./TeachingEvents";
 import {
   normaliseTeachingLesson,
+  normaliseTeachingQuickCheck,
   normaliseTeachingText,
   readTeachingConfig,
   resolveAuthoredMisconception,
@@ -25,11 +28,15 @@ import styles from "./CoreTeachingEngine.module.css";
 
 export default function CoreTeachingEngine({
   subject,
+  quizId,
+  attemptId,
   question,
   response,
   feedback,
 }: {
   subject: CoreSubject;
+  quizId?: string;
+  attemptId?: string;
   question: QuizQuestion;
   response?: JsonObject;
   feedback?: ImmediateFeedback;
@@ -37,11 +44,13 @@ export default function CoreTeachingEngine({
   const [hintOpen, setHintOpen] = useState(false);
   const [lessonOpen, setLessonOpen] = useState(false);
   const [teachMeOpen, setTeachMeOpen] = useState(false);
+  const [teachingViewed, setTeachingViewed] = useState(false);
 
   useEffect(() => {
     setHintOpen(false);
     setLessonOpen(false);
     setTeachMeOpen(false);
+    setTeachingViewed(false);
   }, [question.id]);
 
   const teaching = useMemo(
@@ -54,10 +63,68 @@ export default function CoreTeachingEngine({
   const incorrectSummary = normaliseTeachingText(teaching?.incorrect);
   const authoredLesson = normaliseTeachingLesson(teaching?.lesson);
   const teachMeLesson = normaliseTeachingLesson(teaching?.teach_me);
+  const quickCheck = normaliseTeachingQuickCheck(teaching?.quick_check);
 
-  // Before the learner checks an answer, expose only authored hints. Phase 2
-  // can additionally highlight explicitly authored English clue words, but it
-  // still never derives a hint from the answer/explanation.
+  const feedbackCorrect = feedback?.is_correct === true;
+  const misconception =
+    feedback && !feedback.pending_manual_review && !feedbackCorrect
+      ? resolveAuthoredMisconception(question, response, teaching)
+      : null;
+
+  useEffect(() => {
+    if (!misconception || !feedback || !quizId || !attemptId) return;
+
+    recordTeachingEvent({
+      subject,
+      quizId,
+      attemptId,
+      questionId: question.id,
+      eventType: "misconception_shown",
+      eventKey: misconception.code || "authored",
+      misconceptionCode: misconception.code,
+      metadata: { teaching_version: Number(teaching?.version || 1) },
+    });
+  }, [attemptId, feedback, misconception, question.id, quizId, subject, teaching?.version]);
+
+  function record(
+    eventType:
+      | "hint_opened"
+      | "lesson_opened"
+      | "teach_me_opened"
+      | "quick_check_answered",
+    extra: {
+      eventKey?: string | null;
+      lessonType?: string | null;
+      quickCheckCorrect?: boolean | null;
+      metadata?: Record<string, unknown>;
+    } = {},
+  ) {
+    if (!quizId || !attemptId) return;
+    recordTeachingEvent({
+      subject,
+      quizId,
+      attemptId,
+      questionId: question.id,
+      eventType,
+      eventKey: extra.eventKey,
+      lessonType: extra.lessonType,
+      quickCheckCorrect: extra.quickCheckCorrect,
+      metadata: {
+        teaching_version: Number(teaching?.version || 1),
+        ...(extra.metadata || {}),
+      },
+    });
+  }
+
+  function toggleHint() {
+    const next = !hintOpen;
+    setHintOpen(next);
+    if (next) record("hint_opened");
+  }
+
+  // Before the learner checks an answer, expose only authored hints. Hints are
+  // intentionally authored rather than generated from explanations so they do
+  // not accidentally reveal the answer.
   if (!feedback) {
     if (!hint) return null;
 
@@ -67,7 +134,7 @@ export default function CoreTeachingEngine({
         questionText={question.prompt}
         hint={hint}
         open={hintOpen}
-        onToggle={() => setHintOpen((current) => !current)}
+        onToggle={toggleHint}
       />
     );
   }
@@ -84,17 +151,7 @@ export default function CoreTeachingEngine({
     );
   }
 
-  const correct = feedback.is_correct === true;
-
-  // Phase 3 activates authored answer-specific misconceptions for both English
-  // and Math choice questions. There is deliberately no inference from an
-  // arbitrary wrong answer: a diagnosis appears only when the chosen option id
-  // has an explicit entry in teaching.misconceptions. Free-text Math responses
-  // do not produce a misconception unless a later deterministic rule is added.
-  const misconception = !correct
-    ? resolveAuthoredMisconception(question, response, teaching)
-    : null;
-
+  const correct = feedbackCorrect;
   const authoredSummary = correct
     ? correctSummary
     : misconception || incorrectSummary;
@@ -117,13 +174,29 @@ export default function CoreTeachingEngine({
   const detailLabel = subject === "math" ? "Show Working" : "Why?";
 
   function openDetail() {
-    setLessonOpen((current) => !current);
+    const next = !lessonOpen;
+    setLessonOpen(next);
     setTeachMeOpen(false);
+    if (next && detailLesson) {
+      setTeachingViewed(true);
+      record("lesson_opened", {
+        lessonType: detailLesson.type,
+        eventKey: detailLesson.type,
+      });
+    }
   }
 
   function openTeachMe() {
-    setTeachMeOpen((current) => !current);
+    const next = !teachMeOpen;
+    setTeachMeOpen(next);
     setLessonOpen(false);
+    if (next && teachMeLesson) {
+      setTeachingViewed(true);
+      record("teach_me_opened", {
+        lessonType: teachMeLesson.type,
+        eventKey: teachMeLesson.type,
+      });
+    }
   }
 
   function renderLesson(lesson: NormalisedTeachingLesson, label: string) {
@@ -149,6 +222,10 @@ export default function CoreTeachingEngine({
 
     return <CoreTeachingLesson lesson={lesson} label={label} />;
   }
+
+  const quickCheckReady =
+    Boolean(quickCheck) &&
+    (teachingViewed || (!detailLesson && !teachMeLesson));
 
   return (
     <section
@@ -200,6 +277,21 @@ export default function CoreTeachingEngine({
 
       {teachMeOpen && teachMeLesson &&
         renderLesson(teachMeLesson, "Teach Me")}
+
+      {quickCheckReady && quickCheck && (
+        <CoreTeachingQuickCheck
+          subject={subject}
+          quickCheck={quickCheck}
+          questionId={question.id}
+          onAnswered={({ correct: quickCheckCorrect }) =>
+            record("quick_check_answered", {
+              eventKey: quickCheck.type,
+              quickCheckCorrect,
+              metadata: { quick_check_type: quickCheck.type },
+            })
+          }
+        />
+      )}
     </section>
   );
 }

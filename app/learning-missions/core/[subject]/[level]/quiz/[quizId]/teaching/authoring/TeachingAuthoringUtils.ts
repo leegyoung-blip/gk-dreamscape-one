@@ -78,7 +78,8 @@ export function teachingStatus(
 ): TeachingStatus {
   const hasLesson = hasMeaningfulValue(teaching.lesson) || hasMeaningfulValue(teaching.teach_me);
   const hasMisconception = hasMeaningfulValue(teaching.misconceptions);
-  if (hasLesson || hasMisconception) return "full";
+  const hasQuickCheck = hasMeaningfulValue(teaching.quick_check);
+  if (hasLesson || hasMisconception || hasQuickCheck) return "full";
 
   if (
     hasMeaningfulValue(teaching.hint) ||
@@ -234,6 +235,74 @@ function lessonErrors(
   return errors;
 }
 
+
+
+function quickCheckErrors(
+  subject: TeachingAuthoringSubject,
+  raw: unknown,
+) {
+  if (!isRecord(raw) || !hasMeaningfulValue(raw)) return [] as string[];
+
+  const errors: string[] = [];
+  const prompt = textValue(raw.prompt).trim();
+  const type = textValue(raw.type).trim();
+  const allowed = subject === "math"
+    ? new Set(["multiple_choice", "short_text", "numeric", "fraction"])
+    : new Set(["multiple_choice", "short_text"]);
+
+  if (!prompt) errors.push("Quick Check needs a question prompt.");
+  if (!allowed.has(type)) {
+    errors.push(`Quick Check answer type “${type || "unknown"}” is not supported for ${subject === "math" ? "Mathematics" : "English"}.`);
+    return errors;
+  }
+
+  if (type === "multiple_choice") {
+    const options = Array.isArray(raw.options)
+      ? raw.options.filter((item: any) => isRecord(item) && textValue(item.text).trim())
+      : [];
+    const ids = new Set(options.map((item: any) => textValue(item.id).trim()));
+    const correctId = textValue(raw.correct_option_id).trim();
+    if (options.length < 2) errors.push("Quick Check Multiple Choice needs at least two answer options.");
+    if (!correctId || !ids.has(correctId)) errors.push("Quick Check needs a valid correct answer option.");
+  }
+
+  if (type === "short_text") {
+    const accepted = Array.isArray(raw.accepted_answers)
+      ? raw.accepted_answers.map((item: any) => String(item).trim()).filter(Boolean)
+      : [];
+    if (accepted.length === 0) errors.push("Quick Check Short Answer needs at least one accepted answer.");
+  }
+
+  if (type === "numeric") {
+    const value = Number(raw.value);
+    const tolerance = Number(raw.tolerance ?? 0);
+    if (raw.value === "" || raw.value == null || !Number.isFinite(value)) {
+      errors.push("Quick Check Numeric Answer needs a valid correct value.");
+    }
+    if (!Number.isFinite(tolerance) || tolerance < 0) {
+      errors.push("Quick Check numeric tolerance must be zero or greater.");
+    }
+  }
+
+  if (type === "fraction") {
+    const numerator = Number(raw.numerator);
+    const denominator = Number(raw.denominator);
+    if (
+      raw.numerator === "" ||
+      raw.denominator === "" ||
+      raw.numerator == null ||
+      raw.denominator == null ||
+      !Number.isInteger(numerator) ||
+      !Number.isInteger(denominator) ||
+      denominator === 0
+    ) {
+      errors.push("Quick Check Fraction Answer needs a valid numerator and non-zero denominator.");
+    }
+  }
+
+  return errors;
+}
+
 export function validateTeachingDraft(context: TeachingValidationContext) {
   const { subject, prompt, options, correctOptionIds, allowMisconceptions, teaching } = context;
   if (!hasTeachingContent(teaching)) return [] as string[];
@@ -259,6 +328,7 @@ export function validateTeachingDraft(context: TeachingValidationContext) {
 
   errors.push(...lessonErrors(subject, teaching.lesson, "Main teaching explanation", prompt));
   errors.push(...lessonErrors(subject, teaching.teach_me, "Teach Me", prompt));
+  errors.push(...quickCheckErrors(subject, teaching.quick_check));
   return errors;
 }
 

@@ -2,8 +2,9 @@
 
 import type { QuizQuestion } from "../../CoreQuizTypes";
 import EnglishTeachingRenderer from "../english/EnglishTeachingRenderer";
+import CoreTeachingQuickCheck from "../CoreTeachingQuickCheck";
 import MathTeachingRenderer from "../math/MathTeachingRenderer";
-import { normaliseTeachingLesson, normaliseTeachingText } from "../TeachingUtils";
+import { normaliseTeachingLesson, normaliseTeachingQuickCheck, normaliseTeachingText } from "../TeachingUtils";
 import styles from "./TeachingAuthoring.module.css";
 import type { TeachingAuthoringSubject, TeachingDraft } from "./TeachingAuthoringTypes";
 import { isRecord } from "./TeachingAuthoringUtils";
@@ -37,6 +38,7 @@ export default function TeachingPreview({
   const incorrect = normaliseTeachingText(teaching.incorrect);
   const lesson = normaliseTeachingLesson(teaching.lesson);
   const teachMe = normaliseTeachingLesson(teaching.teach_me);
+  const quickCheck = normaliseTeachingQuickCheck(teaching.quick_check as any);
   const misconceptions = isRecord(teaching.misconceptions) ? teaching.misconceptions : {};
 
   function renderLesson(raw: ReturnType<typeof normaliseTeachingLesson>, label: string) {
@@ -74,6 +76,15 @@ export default function TeachingPreview({
 
       {lesson && <div className={styles.previewLesson}>{renderLesson(lesson, subject === "math" ? "Show Working" : "Why this works")}</div>}
       {teachMe && <div className={styles.previewLesson}>{renderLesson(teachMe, "Teach Me")}</div>}
+      {quickCheck && (
+        <div className={styles.previewLesson}>
+          <CoreTeachingQuickCheck
+            subject={subject}
+            quickCheck={quickCheck}
+            questionId="teaching-preview"
+          />
+        </div>
+      )}
     </div>
   );
 }

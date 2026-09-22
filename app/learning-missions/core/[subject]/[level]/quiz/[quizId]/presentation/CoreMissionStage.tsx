@@ -22,6 +22,8 @@ import QuestionResponseEditor from "./renderers/QuestionResponseEditor";
 
 export default function CoreMissionStage({
   subject,
+  quizId,
+  attemptId,
   question,
   topicTitle,
   response,
@@ -33,6 +35,8 @@ export default function CoreMissionStage({
   onChange,
 }: {
   subject: CoreSubject;
+  quizId: string;
+  attemptId: string;
   question: QuizQuestion;
   topicTitle: string;
   response?: JsonObject;
@@ -62,6 +66,8 @@ export default function CoreMissionStage({
         />
         <CoreTeachingEngine
           subject={subject}
+          quizId={quizId}
+          attemptId={attemptId}
           question={question}
           response={response}
           feedback={feedback}
@@ -86,6 +92,8 @@ export default function CoreMissionStage({
         />
         <CoreTeachingEngine
           subject={subject}
+          quizId={quizId}
+          attemptId={attemptId}
           question={question}
           response={response}
           feedback={feedback}
@@ -146,6 +154,8 @@ export default function CoreMissionStage({
 
       <CoreTeachingEngine
         subject={subject}
+        quizId={quizId}
+        attemptId={attemptId}
         question={question}
         response={response}
         feedback={feedback}

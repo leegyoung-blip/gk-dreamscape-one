@@ -5,6 +5,7 @@ import TeachingCommonFields from "./TeachingCommonFields";
 import MisconceptionEditor from "./MisconceptionEditor";
 import TeachingLessonEditor from "./TeachingLessonEditor";
 import TeachingPreview from "./TeachingPreview";
+import QuickCheckEditor from "./QuickCheckEditor";
 import styles from "./TeachingAuthoring.module.css";
 import type {
   TeachingAuthoringOption,
@@ -64,7 +65,7 @@ export default function TeachingAuthoringPanel({
         <div>
           <span className={styles.eyebrow}>TEACHING & EXPLANATION</span>
           <strong>Teaching authoring</strong>
-          <small>Hints, answer-specific feedback, structured lessons and Teach Me.</small>
+          <small>Hints, answer-specific feedback, structured lessons, Teach Me and Quick Check.</small>
         </div>
         <div className={styles.panelToggleRight}>
           <span className={`${styles.statusPill} ${styles[`status_${status}`]}`}>{STATUS_LABELS[status]}</span>
@@ -135,6 +136,19 @@ export default function TeachingAuthoringPanel({
                 allowRemove
               />
             )}
+          </div>
+
+          <div className={styles.majorSection}>
+            <div className={styles.majorHeading}>
+              <span>5</span>
+              <div><strong>Quick Check</strong><p>Optional unscored transfer question shown after the learner opens teaching.</p></div>
+            </div>
+            <QuickCheckEditor
+              subject={subject}
+              value={value}
+              disabled={disabled}
+              onChange={onChange}
+            />
           </div>
 
           <div className={styles.panelFooter}>

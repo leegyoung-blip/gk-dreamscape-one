@@ -1607,6 +1607,8 @@ export default function CoreQuizPlayer({
 
           <CoreMissionStage
             subject={subject}
+            quizId={quizId}
+            attemptId={payload.attempt_id}
             question={currentQuestion}
             topicTitle={payload.quiz.topic_title}
             response={currentResponse}
