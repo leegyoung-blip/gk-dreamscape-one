@@ -1,29 +1,20 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { buildGuideMetadata } from "@/lib/seo";
 import GuideLayout from "@/components/explore/GuideLayout";
 import GuideCTA from "@/components/explore/GuideCTA";
 import GuideMedia from "@/components/explore/GuideMedia";
 
-export const metadata: Metadata = {
+export const metadata = buildGuideMetadata({
   title: "A Guide to Milo’s World",
-  description:
-    "A parent-first guide to Milo’s World: Activity Lab, Milo’s Exchange, Dream Shop, Quiz Hall, Business Builder and financial literacy for learners ready for more complex decisions.",
-  alternates: {
-    canonical: "https://dreamscape-one.com/explore/milos-world",
-  },
-  openGraph: {
-    title: "A Guide to Milo’s World",
-    description:
-      "See how Dreamscape introduces money, value, risk, spending, investing and business decisions in a fictional virtual economy.",
-    url: "https://dreamscape-one.com/explore/milos-world",
-    siteName: "Dreamscape One",
-    type: "article",
-  },
-};
+  description: "A parent guide to Milo’s World: financial literacy, Activity Lab, Milo’s Exchange, Dream Shop, Quiz Hall, Business Builder and age guidance.",
+  path: "/explore/milos-world",
+  accent: "#ffae5c",
+});
 
 export default function MilosWorldGuidePage() {
   return (
     <GuideLayout
+      canonicalPath="/explore/milos-world"
       title="A Guide to Milo’s World"
       description="Milo’s World is where Dreamscape moves from earning rewards to deciding what to do with them — introducing money, value, risk, ownership, business and trade-offs through a fictional Dream Token economy."
       accent="#ffae5c"

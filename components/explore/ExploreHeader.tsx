@@ -76,6 +76,7 @@ export default function ExploreHeader() {
             {[
               ["Explore", "/explore"],
               ["How It Works", "/how-it-works"],
+              ["Parent’s Guide", "/explore/parents-guide"],
               ["Pricing", "/pricing"],
             ].map(([label, href]) => (
               <Link
@@ -145,6 +146,8 @@ export default function ExploreHeader() {
           {[
             ["Explore Dreamscape", "/explore"],
             ["How It Works", "/how-it-works"],
+            ["Parent’s Guide", "/explore/parents-guide"],
+            ["NOVA+ for Parents", "/explore/nova-plus"],
             ["Pricing", "/pricing"],
             ["Dreamscape Home", "/"],
           ].map(([label, href]) => (

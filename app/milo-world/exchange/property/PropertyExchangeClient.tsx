@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import MiloExchangeGuide from "../components/MiloExchangeGuide";
@@ -233,6 +233,7 @@ export default function PropertyExchangeClient() {
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const lastPassiveRefreshAt = useRef(0);
   const [marketLoading, setMarketLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<PropertyTab>("map");
 
@@ -452,7 +453,13 @@ export default function PropertyExchangeClient() {
   useEffect(() => {
     if (!userId) return;
     function handleFocus() {
-      void refreshMarket();
+      // Phase 10B: the Living City now advances in the background. A focus
+      // event only reloads stored results, and is throttled to avoid repeated
+      // Supabase reads while users switch between tabs/windows.
+      const now = Date.now();
+      if (now - lastPassiveRefreshAt.current < 60_000) return;
+      lastPassiveRefreshAt.current = now;
+      void refreshMarket(false, false);
     }
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
@@ -475,11 +482,10 @@ export default function PropertyExchangeClient() {
 
     setUserId(user.id);
     await Promise.all([loadDreamTokens(), loadPropertyMarket(user.id)]);
+    // Finance remains user-scoped until its later Living City migration.
+    // Resident life, rental search, maintenance and lease lifecycle are now
+    // handled by Phase 10B background city ticks and are NOT advanced here.
     await supabase.rpc("process_my_milo_property_finance");
-    await refreshMaintenanceSimulation(false);
-    await refreshResidentLife(false);
-    await refreshResidentSimulation(false);
-    await refreshLeaseLifecycle(false);
     await Promise.all([
       loadDreamTokens(),
       loadPropertyMarket(user.id),
@@ -618,25 +624,9 @@ export default function PropertyExchangeClient() {
   }
 
   async function refreshResidentLife(showMessage = false) {
-    const { data, error } = await supabase.rpc("refresh_my_milo_property_resident_life");
-
-    if (error) {
-      console.warn("Could not refresh resident life:", error.message);
-      return;
-    }
-
-    if (showMessage) {
-      const result = (data || {}) as Record<string, unknown>;
-      const world = (result.world || {}) as Record<string, unknown>;
-      const events = Number(world.life_events_created || 0);
-      const messages = Number(result.messages_created || 0);
-      const moves = Number(world.move_intent_changes || 0);
-      if (events || messages || moves) {
-        setTradeMessage(`Resident life updated · ${events} life event${events === 1 ? "" : "s"} · ${messages} new message${messages === 1 ? "" : "s"} · ${moves} moving-plan change${moves === 1 ? "" : "s"}.`);
-      } else {
-        setTradeMessage("Resident life is up to date.");
-      }
-    }
+    // Phase 10B: resident lives advance on the Living City clock.
+    await loadResidentLifeDashboard();
+    if (showMessage) setTradeMessage("Resident activity refreshed.");
   }
 
   async function loadEmploymentDashboard() {
@@ -767,24 +757,9 @@ export default function PropertyExchangeClient() {
   }
 
   async function refreshLeaseLifecycle(showMessage = false) {
-    const { data, error } = await supabase.rpc("refresh_my_milo_property_lease_lifecycle");
-
-    if (error) {
-      console.warn("Could not refresh property lease lifecycle:", error.message);
-      return;
-    }
-
-    if (showMessage) {
-      const result = (data || {}) as Record<string, unknown>;
-      const renewalMessages = Number(result.renewal_messages_created || 0);
-      const activated = Number(result.renewals_activated || 0);
-      const completed = Number(result.leases_completed || 0);
-      if (renewalMessages || activated || completed) {
-        setTradeMessage(
-          `Lease lifecycle refreshed · ${renewalMessages} new renewal message${renewalMessages === 1 ? "" : "s"} · ${activated} renewal${activated === 1 ? "" : "s"} activated · ${completed} lease${completed === 1 ? "" : "s"} completed.`
-        );
-      }
-    }
+    // Phase 10B: rent, renewals and move-outs run in background city ticks.
+    await Promise.all([loadResidentDashboard(), loadPropertyCommunications()]);
+    if (showMessage) setTradeMessage("Lease activity refreshed.");
   }
 
   async function markConversationRead(conversationId: string) {
@@ -876,48 +851,17 @@ export default function PropertyExchangeClient() {
   }
 
   async function refreshMaintenanceSimulation(showMessage = false) {
-    const { data, error } = await supabase.rpc(
-      "refresh_my_milo_property_maintenance"
-    );
-
-    if (error) {
-      console.warn("Could not refresh property maintenance:", error.message);
-      return;
-    }
-
-    if (showMessage) {
-      const result = (data || {}) as Record<string, unknown>;
-      const issuesCreated = Number(result.issues_created || 0);
-      const departures = Number(result.tenant_departures || 0);
-      if (issuesCreated > 0 || departures > 0) {
-        setTradeMessage(
-          `Property care refreshed · ${issuesCreated} new maintenance issue${
-            issuesCreated === 1 ? "" : "s"
-          } · ${departures} tenant departure${departures === 1 ? "" : "s"}.`
-        );
-      } else {
-        setTradeMessage("Property care is up to date.");
-      }
-    }
+    // Phase 10B: condition, maintenance risk and tenant satisfaction are
+    // processed by the background Property & Tenancies city module.
+    await loadMaintenanceDashboard();
+    if (showMessage) setTradeMessage("Property care refreshed.");
   }
 
   async function refreshResidentSimulation(showMessage = false) {
-    const { data, error } = await supabase.rpc("refresh_my_milo_property_resident_market");
-    if (error) {
-      console.warn("Could not refresh Dreamscape resident market:", error.message);
-      return;
-    }
-
-    if (showMessage) {
-      const result = (data || {}) as Record<string, unknown>;
-      const applicationsCreated = Number(result.applications_created || 0);
-      const offersCreated = Number(result.purchase_offers_created || 0);
-      if (applicationsCreated > 0 || offersCreated > 0) {
-        setTradeMessage(`Resident market refreshed · ${applicationsCreated} new application${applicationsCreated === 1 ? "" : "s"} · ${offersCreated} new purchase offer${offersCreated === 1 ? "" : "s"}.`);
-      } else {
-        setTradeMessage("Resident market is up to date.");
-      }
-    }
+    // Phase 10B: residents search, apply and make purchase decisions while
+    // players are offline. This button now reloads the latest city results only.
+    await Promise.all([loadResidentDashboard(), loadPropertyCommunications()]);
+    if (showMessage) setTradeMessage("Tenant and buyer activity refreshed.");
   }
 
   async function refreshDistrictMarket(showMessage = false) {
@@ -1363,13 +1307,11 @@ export default function PropertyExchangeClient() {
     setMarketLoading(false);
   }
 
-  async function refreshMarket(showResidentMessage = false) {
+  async function refreshMarket(showResidentMessage = false, processFinance = true) {
     if (!userId) return;
-    await supabase.rpc("process_my_milo_property_finance");
-    await refreshMaintenanceSimulation(false);
-    await refreshResidentLife(false);
-    await refreshResidentSimulation(showResidentMessage);
-    await refreshLeaseLifecycle(false);
+    // Phase 10B is read-only from the player's refresh/focus path. The only
+    // remaining user-scoped processor is Property Finance from Phase 9.
+    if (processFinance) await supabase.rpc("process_my_milo_property_finance");
     await Promise.all([
       loadDreamTokens(),
       loadPropertyMarket(userId),
@@ -1382,6 +1324,8 @@ export default function PropertyExchangeClient() {
       loadEmploymentDashboard(),
       loadFinanceDashboard(),
     ]);
+    if (showResidentMessage) setTradeMessage("Latest Living City activity loaded.");
+    lastPassiveRefreshAt.current = Date.now();
   }
 
   async function useOwnedBusinessSpace(slotId: number, unitId: string) {
@@ -2257,7 +2201,7 @@ export default function PropertyExchangeClient() {
               onCreateRentalListing={createRentalListing}
               onCancelRentalListing={cancelRentalListing}
               onTogglePurchaseOffers={togglePurchaseOffers}
-              onRefreshResidentMarket={() => refreshMarket(true)}
+              onRefreshResidentMarket={() => refreshMarket(true, false)}
               onRefreshResidentLife={async () => {
                 await refreshResidentLife(true);
                 await refreshResidentSimulation(false);

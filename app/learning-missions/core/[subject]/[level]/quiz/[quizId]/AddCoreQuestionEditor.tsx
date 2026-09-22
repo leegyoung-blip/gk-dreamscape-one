@@ -13,6 +13,12 @@ import type { SupportedQuestionType } from "@/app/curriculum-developer/types";
 import FractionText, {
   hasRenderableFraction,
 } from "@/components/core-missions/FractionText";
+import TeachingAuthoringPanel from "./teaching/authoring/TeachingAuthoringPanel";
+import {
+  mergeTeachingIntoContent,
+  validateTeachingDraft,
+} from "./teaching/authoring/TeachingAuthoringUtils";
+import type { TeachingDraft } from "./teaching/authoring/TeachingAuthoringTypes";
 
 type CoreSubject = "english" | "math";
 type JsonObject = Record<string, any>;
@@ -180,6 +186,7 @@ function StandardAddForm({
   const [mediaDraft, setMediaDraft] = useState<QuestionMediaDraft>(() =>
     emptyQuestionMediaDraft(),
   );
+  const [teachingDraft, setTeachingDraft] = useState<TeachingDraft>({});
 
   const effectiveType: StandardQuestionType =
     mode === "split_comprehension" ? "multiple_choice" : questionType;
@@ -188,6 +195,26 @@ function StandardAddForm({
     if (effectiveType === "true_false") return ["True", "False"];
     return options;
   }, [effectiveType, options]);
+
+  const teachingOptions = useMemo(
+    () =>
+      effectiveType === "multiple_choice" ||
+      effectiveType === "multiple_select" ||
+      effectiveType === "true_false"
+        ? effectiveOptions.map((text, index) => ({
+            id: String.fromCharCode(97 + index),
+            text,
+          }))
+        : [],
+    [effectiveOptions, effectiveType],
+  );
+
+  const teachingCorrectOptionIds =
+    effectiveType === "multiple_select"
+      ? correctOptionIds
+      : teachingOptions.length > 0
+        ? [correctOptionId]
+        : [];
 
   async function save() {
     setError(null);
@@ -365,6 +392,34 @@ function StandardAddForm({
           content[key] = value;
         }
       }
+    }
+
+    if (mode === "standard") {
+      const teachingRows = Array.isArray(content.options)
+        ? content.options.map((option: any, index: number) => ({
+            id: String(option?.id ?? String.fromCharCode(97 + index)),
+            text: String(option?.text ?? ""),
+          }))
+        : [];
+      const teachingCorrectIds = Array.isArray(answerData.correct_option_ids)
+        ? answerData.correct_option_ids.map(String)
+        : [];
+      const teachingErrors = validateTeachingDraft({
+        subject,
+        prompt: prompt.trim(),
+        options: teachingRows,
+        correctOptionIds: teachingCorrectIds,
+        allowMisconceptions:
+          effectiveType === "multiple_choice" || effectiveType === "true_false",
+        teaching: teachingDraft,
+      });
+
+      if (teachingErrors.length > 0) {
+        setError(teachingErrors[0]);
+        return;
+      }
+
+      content = mergeTeachingIntoContent(content, teachingDraft);
     }
 
     setSaving(true);
@@ -714,6 +769,23 @@ function StandardAddForm({
           />
           <FractionPreview text={explanation} />
         </label>
+
+        {mode === "standard" && (
+          <TeachingAuthoringPanel
+            subject={subject}
+            prompt={prompt}
+            options={teachingOptions}
+            correctOptionIds={teachingCorrectOptionIds}
+            legacyExplanation={explanation}
+            value={teachingDraft}
+            disabled={saving}
+            defaultOpen={false}
+            allowMisconceptions={
+              effectiveType === "multiple_choice" || effectiveType === "true_false"
+            }
+            onChange={setTeachingDraft}
+          />
+        )}
       </section>
 
       <div style={actionRow}>

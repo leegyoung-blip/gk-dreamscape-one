@@ -18,26 +18,30 @@ export function sourceText(
   return teachingString(source?.[key]);
 }
 
-export function normaliseLessonItems(value: unknown) {
+export function normaliseLessonItems(
+  value: unknown,
+): TeachingLessonItem[] {
   if (!Array.isArray(value)) return [];
 
   return value
-    .map((item) => {
+    .map((item): TeachingLessonItem | null => {
       if (typeof item === "string") {
         const text = item.trim();
-        return text ? { title: null, text } : null;
+        return text ? { text } : null;
       }
 
       if (!isTeachingRecord(item)) return null;
       const text = teachingString(item.text) || teachingString(item.body);
       if (!text) return null;
 
+      const title = teachingString(item.title);
+
       return {
-        title: teachingString(item.title),
+        ...(title ? { title } : {}),
         text,
       };
     })
-    .filter(Boolean) as Array<{ title: string | null; text: string }>;
+    .filter((item): item is TeachingLessonItem => item !== null);
 }
 
 export function sourceItems(

@@ -1,29 +1,20 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { buildGuideMetadata } from "@/lib/seo";
 import GuideLayout from "@/components/explore/GuideLayout";
 import GuideCTA from "@/components/explore/GuideCTA";
 import GuideMedia from "@/components/explore/GuideMedia";
 
-export const metadata: Metadata = {
+export const metadata = buildGuideMetadata({
   title: "A Parent’s Guide to Dreamscape One",
-  description:
-    "A practical parent guide to Dreamscape One: age guidance, Nova, Milo, Learning Missions, NOVA+, rewards, memberships and how families can use the platform.",
-  alternates: {
-    canonical: "https://dreamscape-one.com/explore/parents-guide",
-  },
-  openGraph: {
-    title: "A Parent’s Guide to Dreamscape One",
-    description:
-      "What parents need to know about Dreamscape One, from curriculum learning and rewards to NOVA+, Milo’s World and age guidance.",
-    url: "https://dreamscape-one.com/explore/parents-guide",
-    siteName: "Dreamscape One",
-    type: "article",
-  },
-};
+  description: "A practical parent guide to Dreamscape One: age guidance, Nova, Milo, Learning Missions, NOVA+, rewards, memberships and how families can use the platform.",
+  path: "/explore/parents-guide",
+  accent: "#ffbd73",
+});
 
 export default function ParentsGuidePage() {
   return (
     <GuideLayout
+      canonicalPath="/explore/parents-guide"
       title="A Parent’s Guide to Dreamscape One"
       description="Dreamscape One combines structured learning, game worlds, rewards, parent insights and later-stage financial and business experiences. This guide explains what each part is for and how families can approach it."
       accent="#ffbd73"

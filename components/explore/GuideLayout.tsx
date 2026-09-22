@@ -2,12 +2,14 @@ import type { ReactNode } from "react";
 import ExploreHeader from "@/components/explore/ExploreHeader";
 import ExploreFooter from "@/components/explore/ExploreFooter";
 import RelatedGuides from "@/components/explore/RelatedGuides";
+import GuideStructuredData from "@/components/seo/GuideStructuredData";
 
 export default function GuideLayout({
   eyebrow = "Dreamscape Guide",
   title,
   description,
   accent = "#8ee8ff",
+  canonicalPath,
   children,
   relatedSlugs = [],
 }: {
@@ -15,6 +17,7 @@ export default function GuideLayout({
   title: string;
   description: string;
   accent?: string;
+  canonicalPath: string;
   children: ReactNode;
   relatedSlugs?: string[];
 }) {
@@ -28,6 +31,12 @@ export default function GuideLayout({
         fontFamily: "Arial, Helvetica, sans-serif",
       }}
     >
+      <GuideStructuredData
+        title={title}
+        description={description}
+        path={canonicalPath}
+        accent={accent}
+      />
       <ExploreHeader />
 
       <article

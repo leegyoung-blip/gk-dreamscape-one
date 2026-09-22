@@ -16,6 +16,13 @@ import {
 } from "@/app/curriculum-developer/media";
 import type { SupportedQuestionType } from "@/app/curriculum-developer/types";
 import FractionText, { hasRenderableFraction } from "@/components/core-missions/FractionText";
+import TeachingAuthoringPanel from "./teaching/authoring/TeachingAuthoringPanel";
+import {
+  cloneTeaching,
+  mergeTeachingIntoContent,
+  validateTeachingDraft,
+} from "./teaching/authoring/TeachingAuthoringUtils";
+import type { TeachingDraft } from "./teaching/authoring/TeachingAuthoringTypes";
 
 type CoreSubject = "english" | "math";
 type JsonObject = Record<string, any>;
@@ -483,6 +490,9 @@ function SingleQuestionEditor({
   const [mediaDraft, setMediaDraft] = useState<QuestionMediaDraft>(() =>
     questionMediaDraftFromQuestion(question as any),
   );
+  const [teachingDraft, setTeachingDraft] = useState<TeachingDraft>(() =>
+    cloneTeaching(question.content?.teaching),
+  );
 
   const originalOptions = Array.isArray(question.content?.options)
     ? question.content.options
@@ -590,6 +600,19 @@ function SingleQuestionEditor({
     "fraction",
     "money",
   ].includes(answerKind);
+
+  const supportsTeachingAuthoring = !isSplitComprehension;
+  const teachingCorrectOptionIds = hasOptions
+    ? allowsMultipleCorrect
+      ? correctOptionIds
+      : correctOptionId
+        ? [correctOptionId]
+        : []
+    : [];
+  const teachingOptions = originalOptions.map((option: any, index: number) => ({
+    id: String(option?.id ?? String.fromCharCode(97 + index)),
+    text: optionTexts[index] ?? String(option?.text ?? ""),
+  }));
 
   async function handleDeleteQuestion() {
     if (saving) return;
@@ -853,6 +876,36 @@ function SingleQuestionEditor({
         comprehension_passage: passage,
         passage_title: passageTitle,
       };
+    }
+
+    if (supportsTeachingAuthoring) {
+      const nextTeachingOptions = Array.isArray(nextContent.options)
+        ? nextContent.options.map((option: any, index: number) => ({
+            id: String(option?.id ?? String.fromCharCode(97 + index)),
+            text: String(option?.text ?? ""),
+          }))
+        : [];
+      const nextCorrectIds = Array.isArray(nextAnswerData.correct_option_ids)
+        ? nextAnswerData.correct_option_ids.map(String)
+        : [];
+      const teachingErrors = validateTeachingDraft({
+        subject,
+        prompt: prompt.trim(),
+        options: nextTeachingOptions,
+        correctOptionIds: nextCorrectIds,
+        allowMisconceptions:
+          question.question_type === "multiple_choice" ||
+          question.question_type === "true_false" ||
+          question.question_type === "listening_comprehension",
+        teaching: teachingDraft,
+      });
+
+      if (teachingErrors.length > 0) {
+        setError(teachingErrors[0]);
+        return;
+      }
+
+      nextContent = mergeTeachingIntoContent(nextContent, teachingDraft);
     }
 
     setSaving(true);
@@ -1286,6 +1339,25 @@ function SingleQuestionEditor({
           />
           <FractionFieldPreview text={explanation} />
         </label>
+
+        {supportsTeachingAuthoring && (
+          <TeachingAuthoringPanel
+            subject={subject}
+            prompt={prompt}
+            options={teachingOptions}
+            correctOptionIds={teachingCorrectOptionIds}
+            legacyExplanation={explanation}
+            value={teachingDraft}
+            disabled={saving}
+            defaultOpen={Boolean(question.content?.teaching)}
+            allowMisconceptions={
+              question.question_type === "multiple_choice" ||
+              question.question_type === "true_false" ||
+              question.question_type === "listening_comprehension"
+            }
+            onChange={setTeachingDraft}
+          />
+        )}
 
         <div style={dangerPanel}>
           <div style={{ minWidth: 0 }}>

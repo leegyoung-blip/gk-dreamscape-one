@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+import { buildPageMetadata } from "@/lib/seo";
+import ExploreStructuredData from "@/components/seo/ExploreStructuredData";
 import GuideCard from "@/components/explore/GuideCard";
 import ExploreHeader from "@/components/explore/ExploreHeader";
 import ExploreFooter from "@/components/explore/ExploreFooter";
@@ -7,22 +8,15 @@ import {
   GUIDE_CATEGORIES,
 } from "@/lib/dreamscape-guides";
 
-export const metadata: Metadata = {
+export const metadata = buildPageMetadata({
   title: "Explore Dreamscape One",
   description:
-    "Understand how Dreamscape One, Nova, Milo, NOVA+, Learning Missions and the reward economy fit together.",
-  alternates: {
-    canonical: "https://dreamscape-one.com/explore",
-  },
-  openGraph: {
-    title: "Explore Dreamscape One",
-    description:
-      "Understand the worlds, learning system, rewards and parent intelligence behind Dreamscape One.",
-    url: "https://dreamscape-one.com/explore",
-    siteName: "Dreamscape One",
-    type: "website",
-  },
-};
+    "Parent-first guides explaining Dreamscape One, Nova, Milo, NOVA+, Learning Missions, rewards, financial literacy and real-world decision-making.",
+  path: "/explore",
+  accent: "#8ee8ff",
+  eyebrow: "Explore Dreamscape One",
+  type: "website",
+});
 
 export default function ExploreDreamscapePage() {
   const featured =
@@ -30,7 +24,9 @@ export default function ExploreDreamscapePage() {
     DREAMSCAPE_GUIDES[0];
 
   return (
-    <main
+    <>
+      <ExploreStructuredData />
+      <main
       style={{
         minHeight: "100vh",
         background:
@@ -169,5 +165,6 @@ export default function ExploreDreamscapePage() {
 
       <ExploreFooter />
     </main>
+    </>
   );
 }

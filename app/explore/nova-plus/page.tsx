@@ -1,29 +1,20 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { buildGuideMetadata } from "@/lib/seo";
 import GuideLayout from "@/components/explore/GuideLayout";
 import GuideCTA from "@/components/explore/GuideCTA";
 import GuideMedia from "@/components/explore/GuideMedia";
 
-export const metadata: Metadata = {
+export const metadata = buildGuideMetadata({
   title: "What Is NOVA+? A Parent’s Guide",
-  description:
-    "Understand how NOVA+ helps parents see progress, strengths, gaps, mastery and recommended next steps across Dreamscape learning.",
-  alternates: {
-    canonical: "https://dreamscape-one.com/explore/nova-plus",
-  },
-  openGraph: {
-    title: "What Is NOVA+? A Parent’s Guide",
-    description:
-      "See how Dreamscape turns learning activity into clearer parent-facing insights about progress, strengths, gaps and mastery.",
-    url: "https://dreamscape-one.com/explore/nova-plus",
-    siteName: "Dreamscape One",
-    type: "article",
-  },
-};
+  description: "Understand NOVA+ learning intelligence: My Learning, Strengths & Gaps, Mastery Map, recommendations and parent learning reports.",
+  path: "/explore/nova-plus",
+  accent: "#8ee8ff",
+});
 
 export default function NovaPlusGuidePage() {
   return (
     <GuideLayout
+      canonicalPath="/explore/nova-plus"
       title="What Is NOVA+? A Parent’s Guide"
       description="NOVA+ is Dreamscape One’s parent-facing learning intelligence layer. It organises evidence from a learner’s work into clearer views of progress, strengths, gaps, mastery and what may be useful to focus on next."
       accent="#8ee8ff"

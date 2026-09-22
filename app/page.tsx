@@ -35,20 +35,26 @@ const productPreviews = [
   {
     eyebrow: "Curriculum Missions",
     title: "Master the School Curriculum",
-    text: "Build English, Mathematics and Science skills through progressive missions, topic challenges and meaningful practice designed to feel like part of the adventure.",
+    text: "Build curriculum skills through progressive missions, topic challenges and meaningful practice designed to feel like part of the adventure.",
     imageSrc: "/home/preview-learning-missions.png",
+    guideHref: "/explore/learning-missions",
+    guideLabel: "How Learning Missions Work",
   },
   {
     eyebrow: "Explore & Upgrade",
     title: "Power Nova’s Rover",
     text: "Learning earns Dream Tokens and eligible Dream Gems that can unlock upgrades, strengthen Nova’s rover and open new experiences across Skyforge.",
     imageSrc: "/home/preview-rover.png",
+    guideHref: "/explore/dream-tokens-and-gems",
+    guideLabel: "How DT & DG Work",
   },
   {
     eyebrow: "Build Your World",
     title: "Make Nova’s World Your Own",
     text: "Use what you earn beyond the quiz screen. Furnish Nova’s home, unlock zones, collect items and return to a world that keeps growing with your progress.",
     imageSrc: "/home/preview-nova-home.png",
+    guideHref: "/explore/novas-world",
+    guideLabel: "Explore Nova’s World",
   },
 ];
 
@@ -200,7 +206,7 @@ function WorldPanel({
           }}
         >
           {isNova
-            ? "Master English, Math, Science and Thinking Skills through missions, games and rewards in a world built for curious minds."
+            ? "Build strong school foundations and thinking skills through missions, games and rewards in a world built for curious minds."
             : "Continue into financial literacy, business, entrepreneurship and real-world decision-making."}
         </p>
 
@@ -285,29 +291,51 @@ function WorldPanel({
               Designed mainly for ages 12+, while confident younger learners can explore earlier.
             </p>
 
-            <Link
-              href={world.href}
+            <div
               style={{
                 marginTop: "23px",
-                minHeight: "46px",
-                padding: "11px 18px",
-                display: "inline-flex",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "10px",
                 alignItems: "center",
-                justifyContent: "center",
-                borderRadius: "999px",
-                border: "1px solid rgba(213,181,255,0.42)",
-                background: "rgba(7,7,18,0.42)",
-                color: "white",
-                textDecoration: "none",
-                fontSize: "10px",
-                fontWeight: 900,
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                backdropFilter: "blur(10px)",
               }}
             >
-              Explore Milo →
-            </Link>
+              <Link
+                href={world.href}
+                style={{
+                  minHeight: "46px",
+                  padding: "11px 18px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(213,181,255,0.42)",
+                  background: "rgba(7,7,18,0.42)",
+                  color: "white",
+                  textDecoration: "none",
+                  fontSize: "10px",
+                  fontWeight: 900,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  backdropFilter: "blur(10px)",
+                }}
+              >
+                Explore Milo →
+              </Link>
+
+              <Link
+                href="/explore/learning-money-and-business"
+                style={{
+                  color: "rgba(255,255,255,0.78)",
+                  textDecoration: "none",
+                  fontSize: "11px",
+                  fontWeight: 800,
+                  lineHeight: 1.4,
+                }}
+              >
+                Why money & business? →
+              </Link>
+            </div>
           </>
         )}
       </div>
@@ -400,15 +428,6 @@ export default function Home() {
     transition: "color 220ms ease",
   };
 
-  const footerButtonStyle: CSSProperties = {
-    ...footerLinkStyle,
-    padding: 0,
-    border: "none",
-    background: "transparent",
-    textAlign: "left",
-    cursor: "pointer",
-    fontFamily: "Arial, Helvetica, sans-serif",
-  };
 
   return (
     <main
@@ -655,43 +674,38 @@ export default function Home() {
             </div>
 
             <nav style={{ marginTop: isMobile ? "40px" : "56px", display: "flex", flexDirection: "column" }}>
-              {[
-                { label: "HOME", target: "home" },
-                { label: "HOW IT WORKS", target: "how-it-works" },
-                { label: "NOVA+ FOR PARENTS", target: "for-parents" },
-              ].map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => scrollToId(item.target)}
-                  style={{
-                    minHeight: "66px",
-                    padding: "0 4px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "18px",
-                    border: "none",
-                    borderBottom: "1px solid rgba(255,255,255,0.1)",
-                    background: "transparent",
-                    color: "white",
-                    textAlign: "left",
-                    fontSize: isMobile ? "17px" : "19px",
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
-                    cursor: "pointer",
-                  }}
-                >
-                  {item.label}
-                  <span aria-hidden="true" style={{ color: "#8ee8ff" }}>→</span>
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => scrollToId("home")}
+                style={{
+                  minHeight: "66px",
+                  padding: "0 4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "18px",
+                  border: "none",
+                  borderBottom: "1px solid rgba(255,255,255,0.1)",
+                  background: "transparent",
+                  color: "white",
+                  textAlign: "left",
+                  fontSize: isMobile ? "17px" : "19px",
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  cursor: "pointer",
+                }}
+              >
+                HOME
+                <span aria-hidden="true" style={{ color: "#8ee8ff" }}>→</span>
+              </button>
 
               {[
+                { label: "HOW IT WORKS", href: "/how-it-works" },
+                { label: "NOVA+ FOR PARENTS", href: "/explore/nova-plus" },
                 { label: "EXPLORE DREAMSCAPE", href: "/explore" },
+                { label: "PRICING", href: "/pricing" },
                 { label: "FOR TUITION CENTRES", href: "/education-licence" },
                 { label: "PARTNER WITH US", href: "/affiliate" },
-                { label: "PRICING", href: "/pricing" },
               ].map((item) => (
                 <Link
                   key={item.label}
@@ -748,8 +762,8 @@ export default function Home() {
         }}
       >
         <PublicPreviewBanner />
-        <WorldPanel world={worlds[0]} isMobile={isMobile} onHowItWorks={() => scrollToId("how-it-works")} />
-        <WorldPanel world={worlds[1]} isMobile={isMobile} onHowItWorks={() => scrollToId("how-it-works")} />
+        <WorldPanel world={worlds[0]} isMobile={isMobile} onHowItWorks={() => router.push("/how-it-works")} />
+        <WorldPanel world={worlds[1]} isMobile={isMobile} onHowItWorks={() => router.push("/how-it-works")} />
       </section>
 
       <section
@@ -842,6 +856,20 @@ export default function Home() {
                 <ProductPreviewCard key={preview.title} {...preview} />
               ))}
             </div>
+
+            <Link
+              href="/explore/novas-world"
+              style={{
+                marginTop: "28px",
+                color: "#8ee8ff",
+                textDecoration: "none",
+                fontSize: "13px",
+                fontWeight: 900,
+                letterSpacing: "0.04em",
+              }}
+            >
+              See how learning connects across Nova’s World →
+            </Link>
           </section>
 
           <section
@@ -930,6 +958,21 @@ export default function Home() {
               </p>
 
               <GrowthJourney isMobile={isMobile} />
+
+              <Link
+                href="/explore/from-learning-to-real-world-decisions"
+                style={{
+                  marginTop: "34px",
+                  color: "white",
+                  textDecoration: "none",
+                  fontSize: "13px",
+                  fontWeight: 900,
+                  letterSpacing: "0.04em",
+                  textShadow: "0 8px 24px rgba(39,9,46,0.3)",
+                }}
+              >
+                Why Dreamscape connects curriculum to real-world decisions →
+              </Link>
             </div>
           </section>
 
@@ -1008,6 +1051,20 @@ export default function Home() {
               <span aria-hidden="true" style={{ color: "#8ee8ff" }}>✦</span>
               NOVA+ Learning Intelligence
             </div>
+
+            <Link
+              href="/explore/nova-plus"
+              style={{
+                marginTop: "20px",
+                color: "#8ee8ff",
+                textDecoration: "none",
+                fontSize: "13px",
+                fontWeight: 900,
+                letterSpacing: "0.04em",
+              }}
+            >
+              Read the parent’s guide to NOVA+ →
+            </Link>
 
             <div
               style={{
@@ -1528,7 +1585,7 @@ export default function Home() {
                 textTransform: "uppercase",
               }}
             >
-              Student Access
+              Dreamscape Memberships
             </p>
 
             <h2
@@ -1543,20 +1600,20 @@ export default function Home() {
                 color: "white",
               }}
             >
-              Start with 7 days free.
+              Choose the right starting point.
             </h2>
 
             <p
               style={{
                 margin: "22px 0 0",
-                maxWidth: "820px",
+                maxWidth: "860px",
                 color: "rgba(255,255,255,0.7)",
                 fontSize: isMobile ? "16px" : "19px",
                 fontWeight: 300,
                 lineHeight: 1.7,
               }}
             >
-              Every first-time DREAMSCAPE user can try Student Access free for 7 days. Choose the plan that fits your learner, explore the full experience, and continue only if it works for your family.
+              Eligible first-time Dreamscape learners can begin with one 7-day introductory trial. Core focuses on English and Mathematics. NOVA+ adds the parent learning-intelligence layer. Full Access, including Science and NOVA+, is coming soon.
             </p>
 
             <div
@@ -1564,7 +1621,7 @@ export default function Home() {
                 marginTop: isMobile ? "30px" : "36px",
                 width: "100%",
                 maxWidth: "980px",
-                padding: isMobile ? "18px 18px" : "20px 26px",
+                padding: isMobile ? "18px" : "20px 26px",
                 display: "flex",
                 flexDirection: isMobile ? "column" : "row",
                 alignItems: "center",
@@ -1580,13 +1637,13 @@ export default function Home() {
               <span
                 style={{
                   color: "#8ee8ff",
-                  fontSize: isMobile ? "28px" : "32px",
+                  fontSize: isMobile ? "25px" : "30px",
                   fontWeight: 900,
                   lineHeight: 1,
                   whiteSpace: "nowrap",
                 }}
               >
-                7 DAYS FREE
+                7-DAY INTRODUCTORY TRIAL
               </span>
               <span
                 aria-hidden="true"
@@ -1605,7 +1662,7 @@ export default function Home() {
                   lineHeight: 1.5,
                 }}
               >
-                For all first-time users · One introductory trial per user
+                Once for an eligible first-time Dreamscape learner
               </span>
             </div>
 
@@ -1622,7 +1679,7 @@ export default function Home() {
             >
               <article
                 style={{
-                  minHeight: isMobile ? "auto" : "420px",
+                  minHeight: isMobile ? "auto" : "430px",
                   padding: isMobile ? "29px 24px" : "36px 34px",
                   display: "flex",
                   flexDirection: "column",
@@ -1655,8 +1712,11 @@ export default function Home() {
                   <span style={{ color: "white", fontSize: isMobile ? "43px" : "49px", fontWeight: 900, lineHeight: 1 }}>19.90</span>
                   <span style={{ color: "rgba(255,255,255,0.52)", fontSize: "14px", paddingBottom: "6px" }}>/month</span>
                 </div>
-                <p style={{ margin: "8px 0 0", color: "#8ee8ff", fontSize: "13px", fontWeight: 800 }}>
-                  First 7 days free for new users
+                <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,0.42)", fontSize: "12px", lineHeight: 1.5 }}>
+                  Launch price · Regular SGD 24.90/month
+                </p>
+                <p style={{ margin: "9px 0 0", color: "#8ee8ff", fontSize: "13px", fontWeight: 800 }}>
+                  Eligible first-time learners can start with the 7-day trial
                 </p>
 
                 <div
@@ -1671,7 +1731,7 @@ export default function Home() {
                     flex: 1,
                   }}
                 >
-                  {["Primary 1–6 English", "Primary 1–6 Mathematics", "Think Missions & Knowledge Arena", "Progress insights, DT & DG rewards"].map((feature) => (
+                  {["Primary 1–6 English", "Primary 1–6 Mathematics", "Think Lab & Knowledge Arena", "Progress, DT & DG rewards"].map((feature) => (
                     <div key={feature} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
                       <span aria-hidden="true" style={{ color: "#c58cff", fontWeight: 900 }}>✓</span>
                       <span style={{ color: "rgba(255,255,255,0.75)", fontSize: "15px", lineHeight: 1.5 }}>{feature}</span>
@@ -1683,17 +1743,17 @@ export default function Home() {
               <article
                 style={{
                   position: "relative",
-                  minHeight: isMobile ? "auto" : "420px",
+                  minHeight: isMobile ? "auto" : "430px",
                   padding: isMobile ? "29px 24px" : "36px 34px",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "flex-start",
                   textAlign: "left",
                   borderRadius: "28px",
-                  border: "1px solid rgba(255,174,92,0.72)",
+                  border: "1px solid rgba(142,232,255,0.52)",
                   background:
-                    "radial-gradient(circle at 88% 0%, rgba(255,174,92,0.16), transparent 34%), linear-gradient(145deg, rgba(255,255,255,0.085), rgba(255,255,255,0.022))",
-                  boxShadow: "0 28px 78px rgba(0,0,0,0.32), 0 0 32px rgba(255,174,92,0.08)",
+                    "radial-gradient(circle at 88% 0%, rgba(83,215,255,0.13), transparent 34%), linear-gradient(145deg, rgba(255,255,255,0.078), rgba(255,255,255,0.02))",
+                  boxShadow: "0 28px 78px rgba(0,0,0,0.31), 0 0 30px rgba(83,215,255,0.06)",
                 }}
               >
                 <span
@@ -1703,39 +1763,43 @@ export default function Home() {
                     right: "18px",
                     padding: "7px 11px",
                     borderRadius: "999px",
-                    background: "#ffae5c",
-                    color: "#1b0c26",
+                    border: "1px solid rgba(142,232,255,0.28)",
+                    background: "rgba(83,215,255,0.11)",
+                    color: "#8ee8ff",
                     fontSize: "9px",
                     fontWeight: 900,
                     letterSpacing: "0.1em",
                     textTransform: "uppercase",
                   }}
                 >
-                  Best Value
+                  Parent Intelligence
                 </span>
                 <p
                   style={{
                     margin: 0,
-                    paddingRight: "96px",
-                    color: "#ffbd73",
+                    paddingRight: "124px",
+                    color: "#8ee8ff",
                     fontSize: "11px",
                     fontWeight: 900,
                     letterSpacing: "0.18em",
                     textTransform: "uppercase",
                   }}
                 >
-                  English + Mathematics + Science
+                  English + Mathematics + NOVA+
                 </p>
                 <h3 style={{ margin: "14px 0 0", color: "white", fontSize: isMobile ? "30px" : "34px", fontWeight: 800 }}>
-                  Full Access
+                  NOVA+
                 </h3>
                 <div style={{ marginTop: "21px", display: "flex", alignItems: "flex-end", gap: "8px" }}>
                   <span style={{ color: "rgba(255,255,255,0.54)", fontSize: "15px", paddingBottom: "6px" }}>SGD</span>
                   <span style={{ color: "white", fontSize: isMobile ? "43px" : "49px", fontWeight: 900, lineHeight: 1 }}>24.90</span>
                   <span style={{ color: "rgba(255,255,255,0.52)", fontSize: "14px", paddingBottom: "6px" }}>/month</span>
                 </div>
-                <p style={{ margin: "8px 0 0", color: "#8ee8ff", fontSize: "13px", fontWeight: 800 }}>
-                  First 7 days free for new users
+                <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,0.42)", fontSize: "12px", lineHeight: 1.5 }}>
+                  Launch price · Regular SGD 29.90/month
+                </p>
+                <p style={{ margin: "9px 0 0", color: "#8ee8ff", fontSize: "13px", fontWeight: 800 }}>
+                  Eligible first-time learners can start with the 7-day trial
                 </p>
 
                 <div
@@ -1750,14 +1814,44 @@ export default function Home() {
                     flex: 1,
                   }}
                 >
-                  {["Everything in Core Missions", "Primary 1–6 Science", "Complete three-subject Learning Missions", "Science progress & mastery tracking"].map((feature) => (
+                  {["Everything in Core Missions", "My Learning + Strengths & Gaps", "Mastery Map + Nova Recommends", "Downloadable learning reports"].map((feature) => (
                     <div key={feature} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
-                      <span aria-hidden="true" style={{ color: "#ffbd73", fontWeight: 900 }}>✓</span>
+                      <span aria-hidden="true" style={{ color: "#8ee8ff", fontWeight: 900 }}>✓</span>
                       <span style={{ color: "rgba(255,255,255,0.78)", fontSize: "15px", lineHeight: 1.5 }}>{feature}</span>
                     </div>
                   ))}
                 </div>
               </article>
+            </div>
+
+            <div
+              style={{
+                marginTop: "22px",
+                width: "100%",
+                maxWidth: "1120px",
+                padding: isMobile ? "20px" : "20px 26px",
+                borderRadius: "22px",
+                border: "1px solid rgba(255,174,92,0.2)",
+                background: "rgba(255,174,92,0.055)",
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                alignItems: isMobile ? "flex-start" : "center",
+                justifyContent: "space-between",
+                gap: "12px",
+                textAlign: "left",
+              }}
+            >
+              <div>
+                <p style={{ margin: 0, color: "#ffbd73", fontSize: "10px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>
+                  Coming Soon
+                </p>
+                <p style={{ margin: "6px 0 0", color: "white", fontSize: "17px", fontWeight: 800 }}>
+                  Full Access · English + Mathematics + Science + NOVA+
+                </p>
+              </div>
+              <span style={{ color: "rgba(255,255,255,0.52)", fontSize: "13px", lineHeight: 1.5 }}>
+                No public price shown until launch.
+              </span>
             </div>
 
             <p
@@ -1769,7 +1863,7 @@ export default function Home() {
                 lineHeight: 1.6,
               }}
             >
-              Monthly prices shown. Annual plans and additional plan details are available on the pricing page.
+              Monthly launch prices shown. Annual plans and complete current details are available on the pricing page.
             </p>
 
             <Link
@@ -1792,7 +1886,7 @@ export default function Home() {
                 boxShadow: "0 18px 44px rgba(83,215,255,0.12)",
               }}
             >
-              Start Your 7-Day Free Trial →
+              View Plans & Start Trial →
             </Link>
 
             <p
@@ -1804,7 +1898,7 @@ export default function Home() {
                 lineHeight: 1.6,
               }}
             >
-              Introductory trial is available once per first-time user. Subscription terms and billing details are shown before checkout.
+              Trial eligibility is checked before checkout. Subscription terms and billing details are shown before payment.
             </p>
           </section>
 
@@ -1845,16 +1939,15 @@ export default function Home() {
             maxWidth: "1540px",
             margin: "0 auto",
             display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1fr 1fr",
-            gap: isMobile ? "34px" : "42px",
+            gridTemplateColumns: isMobile ? "1fr" : "1.35fr 0.72fr 1fr 0.82fr",
+            gap: isMobile ? "34px" : "36px",
             alignItems: "start",
           }}
         >
           <div>
-            <button
-              type="button"
-              onClick={() => scrollToSection("home")}
-              style={{ display: "flex", alignItems: "center", gap: "16px", padding: 0, border: "none", background: "transparent", color: "white", cursor: "pointer" }}
+            <Link
+              href="/"
+              style={{ display: "flex", alignItems: "center", gap: "16px", color: "white", textDecoration: "none" }}
             >
               <img
                 src="/home/dreamscape-logo.png"
@@ -1876,21 +1969,20 @@ export default function Home() {
                   Learn · Think · Earn · Build
                 </p>
               </div>
-            </button>
+            </Link>
 
             <p style={{ margin: "24px 0 0", maxWidth: "440px", fontSize: "15px", lineHeight: 1.7, color: "rgba(255,255,255,0.62)", fontWeight: 300 }}>
-              A gamified learning ecosystem that supports children from primary-school curriculum mastery to financial literacy, entrepreneurship and real-world life skills.
+              A connected learning ecosystem that grows from curriculum mastery and thinking skills into financial literacy, entrepreneurship and real-world decision-making.
             </p>
           </div>
 
           <div>
             <p style={{ margin: 0, color: "#8ee8ff", fontSize: "13px", letterSpacing: "0.22em", textTransform: "uppercase" }}>Explore</p>
             <div style={{ marginTop: "18px", display: "flex", flexDirection: "column", gap: "13px" }}>
-              <button type="button" onClick={() => scrollToSection("home")} style={footerButtonStyle}>Home</button>
-              <button type="button" onClick={() => scrollToSection("about")} style={footerButtonStyle}>About</button>
-              <Link href="/explore" style={footerLinkStyle}>Explore Dreamscape</Link>
+              <Link href="/" style={footerLinkStyle}>Dreamscape Home</Link>
               <Link href="/inventor" style={footerLinkStyle}>Nova’s World</Link>
               <Link href="/milo-world" style={footerLinkStyle}>Milo’s World</Link>
+              <Link href="/pricing" style={footerLinkStyle}>Pricing</Link>
             </div>
           </div>
 
@@ -1899,8 +1991,18 @@ export default function Home() {
             <div style={{ marginTop: "18px", display: "flex", flexDirection: "column", gap: "13px" }}>
               <Link href="/explore" style={footerLinkStyle}>Explore Dreamscape</Link>
               <Link href="/how-it-works" style={footerLinkStyle}>How Dreamscape Works</Link>
-              <Link href="/#for-parents" style={footerLinkStyle}>NOVA+ for Parents</Link>
-              <Link href="/pricing" style={footerLinkStyle}>Pricing</Link>
+              <Link href="/explore/parents-guide" style={footerLinkStyle}>Parent’s Guide</Link>
+              <Link href="/explore/nova-plus" style={footerLinkStyle}>NOVA+ for Parents</Link>
+              <Link href="/explore/learning-missions" style={footerLinkStyle}>Learning Missions</Link>
+            </div>
+          </div>
+
+          <div>
+            <p style={{ margin: 0, color: "#ffbd73", fontSize: "13px", letterSpacing: "0.22em", textTransform: "uppercase" }}>Company & Legal</p>
+            <div style={{ marginTop: "18px", display: "flex", flexDirection: "column", gap: "13px" }}>
+              <Link href="/education-licence" style={footerLinkStyle}>For Tuition Centres</Link>
+              <Link href="/affiliate" style={footerLinkStyle}>Partner With Us</Link>
+              <Link href="/affiliate" style={footerLinkStyle}>Affiliate Programme</Link>
               <Link href="/terms" style={footerLinkStyle}>Terms & Conditions</Link>
             </div>
           </div>
@@ -1935,11 +2037,15 @@ function ProductPreviewCard({
   title,
   text,
   imageSrc,
+  guideHref,
+  guideLabel,
 }: {
   eyebrow: string;
   title: string;
   text: string;
   imageSrc: string;
+  guideHref: string;
+  guideLabel: string;
 }) {
   return (
     <article
@@ -1972,6 +2078,21 @@ function ProductPreviewCard({
         <p style={{ margin: "18px 0 0", color: "rgba(255,255,255,0.68)", fontSize: "16px", fontWeight: 300, lineHeight: 1.68 }}>
           {text}
         </p>
+
+        <Link
+          href={guideHref}
+          style={{
+            marginTop: "auto",
+            paddingTop: "24px",
+            color: "#8ee8ff",
+            textDecoration: "none",
+            fontSize: "12px",
+            fontWeight: 900,
+            lineHeight: 1.4,
+          }}
+        >
+          {guideLabel} →
+        </Link>
       </div>
     </article>
   );
@@ -2150,7 +2271,7 @@ function NovaPlusFeatureCard({
 }
 
 function GrowthJourney({ isMobile }: { isMobile: boolean }) {
-  const novaSkills = ["English", "Mathematics", "Science", "Thinking Skills"];
+  const novaSkills = ["English", "Mathematics", "Science · Coming Soon", "Thinking Skills"];
   const miloSkills = ["Financial Literacy", "Business", "Entrepreneurship", "Decision Making"];
 
   return (

@@ -1,28 +1,19 @@
-import type { Metadata } from "next";
+import { buildGuideMetadata } from "@/lib/seo";
 import GuideLayout from "@/components/explore/GuideLayout";
 import GuideCTA from "@/components/explore/GuideCTA";
 import GuideMedia from "@/components/explore/GuideMedia";
 
-export const metadata: Metadata = {
+export const metadata = buildGuideMetadata({
   title: "Why Dreamscape Teaches Money and Business",
-  description:
-    "Why financial literacy, spending, investing, ownership, risk and business decisions are part of Dreamscape One and Milo’s World.",
-  alternates: {
-    canonical: "https://dreamscape-one.com/explore/learning-money-and-business",
-  },
-  openGraph: {
-    title: "Why Dreamscape Teaches Money and Business",
-    description:
-      "Dreamscape uses a fictional virtual economy to help learners experience trade-offs, value, risk, ownership and business decisions before real money is at stake.",
-    url: "https://dreamscape-one.com/explore/learning-money-and-business",
-    siteName: "Dreamscape One",
-    type: "article",
-  },
-};
+  description: "Why financial literacy, spending, investing, ownership, risk and business decisions are part of Dreamscape One and Milo’s World.",
+  path: "/explore/learning-money-and-business",
+  accent: "#ffbd73",
+});
 
 export default function LearningMoneyAndBusinessGuidePage() {
   return (
     <GuideLayout
+      canonicalPath="/explore/learning-money-and-business"
       title="Why Dreamscape Teaches Money and Business"
       description="Children encounter prices, subscriptions, advertising, saving, risk and business long before adulthood. Dreamscape gives those ideas a safe place to become practical rather than purely theoretical."
       accent="#ffbd73"

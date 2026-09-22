@@ -1,29 +1,20 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { buildGuideMetadata } from "@/lib/seo";
 import GuideLayout from "@/components/explore/GuideLayout";
 import GuideCTA from "@/components/explore/GuideCTA";
 import GuideMedia from "@/components/explore/GuideMedia";
 
-export const metadata: Metadata = {
+export const metadata = buildGuideMetadata({
   title: "How Learning Missions Work",
-  description:
-    "Understand Dreamscape One Learning Missions: curriculum practice, topics, assessments, rewards, progress evidence and how academic work connects to Nova’s World.",
-  alternates: {
-    canonical: "https://dreamscape-one.com/explore/learning-missions",
-  },
-  openGraph: {
-    title: "How Learning Missions Work",
-    description:
-      "A parent-first explanation of the academic engine behind Dreamscape One.",
-    url: "https://dreamscape-one.com/explore/learning-missions",
-    siteName: "Dreamscape One",
-    type: "article",
-  },
-};
+  description: "Understand Dreamscape One Learning Missions: curriculum practice, topics, assessments, rewards, progress evidence and how academic work connects to Nova’s World.",
+  path: "/explore/learning-missions",
+  accent: "#76e5ff",
+});
 
 export default function LearningMissionsGuidePage() {
   return (
     <GuideLayout
+      canonicalPath="/explore/learning-missions"
       title="How Learning Missions Work"
       description="Learning Missions are the academic foundation of Dreamscape One. They give learners structured curriculum practice while feeding progress, rewards and evidence into the wider Nova experience."
       accent="#76e5ff"

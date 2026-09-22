@@ -1,29 +1,20 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { buildGuideMetadata } from "@/lib/seo";
 import GuideLayout from "@/components/explore/GuideLayout";
 import GuideCTA from "@/components/explore/GuideCTA";
 import GuideMedia from "@/components/explore/GuideMedia";
 
-export const metadata: Metadata = {
+export const metadata = buildGuideMetadata({
   title: "What Is Dreamscape One?",
-  description:
-    "A parent-first introduction to Dreamscape One: Nova, Milo, Learning Missions, rewards, NOVA+ and the journey from school mastery to real-world decisions.",
-  alternates: {
-    canonical: "https://dreamscape-one.com/explore/what-is-dreamscape-one",
-  },
-  openGraph: {
-    title: "What Is Dreamscape One?",
-    description:
-      "Understand how learning, thinking, rewards and real-world decision-making connect across Dreamscape One.",
-    url: "https://dreamscape-one.com/explore/what-is-dreamscape-one",
-    siteName: "Dreamscape One",
-    type: "article",
-  },
-};
+  description: "A parent-first introduction to Dreamscape One: Nova, Milo, Learning Missions, rewards, NOVA+ and the journey from school mastery to real-world decisions.",
+  path: "/explore/what-is-dreamscape-one",
+  accent: "#8ee8ff",
+});
 
 export default function WhatIsDreamscapeOnePage() {
   return (
     <GuideLayout
+      canonicalPath="/explore/what-is-dreamscape-one"
       title="What Is Dreamscape One?"
       description="Dreamscape One is a connected learning ecosystem designed to help children build strong academic foundations, think more independently, and gradually apply what they learn to choices about value, money, business and the real world."
       accent="#8ee8ff"

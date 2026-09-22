@@ -1,29 +1,20 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { buildGuideMetadata } from "@/lib/seo";
 import GuideLayout from "@/components/explore/GuideLayout";
 import GuideCTA from "@/components/explore/GuideCTA";
 import GuideMedia from "@/components/explore/GuideMedia";
 
-export const metadata: Metadata = {
+export const metadata = buildGuideMetadata({
   title: "A Guide to Nova’s World",
-  description:
-    "A parent-first guide to Nova’s World: Learning Missions, Think Lab, Knowledge Arena, Nova’s Home, Skyforge, rewards and NOVA+.",
-  alternates: {
-    canonical: "https://dreamscape-one.com/explore/novas-world",
-  },
-  openGraph: {
-    title: "A Guide to Nova’s World",
-    description:
-      "See how academic practice, thinking challenges, rewards and world-building connect in Nova’s World.",
-    url: "https://dreamscape-one.com/explore/novas-world",
-    siteName: "Dreamscape One",
-    type: "article",
-  },
-};
+  description: "A parent guide to Nova’s World: Learning Missions, Think Lab, Knowledge Arena, Nova’s Home, Skyforge, rewards and how learning connects across the world.",
+  path: "/explore/novas-world",
+  accent: "#8ee8ff",
+});
 
 export default function NovasWorldGuidePage() {
   return (
     <GuideLayout
+      canonicalPath="/explore/novas-world"
       title="A Guide to Nova’s World"
       description="Nova’s World is the academic and thinking side of Dreamscape One: a place where curriculum practice, reasoning challenges, rewards, customisation and longer-term progression are designed to reinforce one another."
       accent="#8ee8ff"

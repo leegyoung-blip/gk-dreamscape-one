@@ -1,25 +1,14 @@
-import type { Metadata } from "next";
+import { buildGuideMetadata } from "@/lib/seo";
 import GuideLayout from "@/components/explore/GuideLayout";
 import GuideCTA from "@/components/explore/GuideCTA";
 import GuideMedia from "@/components/explore/GuideMedia";
 
-export const metadata: Metadata = {
+export const metadata = buildGuideMetadata({
   title: "From Curriculum Mastery to Real-World Decision-Making",
-  description:
-    "Dreamscape One’s wider learning philosophy: build strong academic foundations, then create opportunities to think, choose, manage resources and apply judgement.",
-  alternates: {
-    canonical:
-      "https://dreamscape-one.com/explore/from-learning-to-real-world-decisions",
-  },
-  openGraph: {
-    title: "From Curriculum Mastery to Real-World Decision-Making",
-    description:
-      "Why Dreamscape connects academic learning to thinking, rewards, financial literacy, business and decision-making.",
-    url: "https://dreamscape-one.com/explore/from-learning-to-real-world-decisions",
-    siteName: "Dreamscape One",
-    type: "article",
-  },
-};
+  description: "Dreamscape One’s wider learning philosophy: build strong academic foundations, then create opportunities to think, choose, manage resources and apply judgement.",
+  path: "/explore/from-learning-to-real-world-decisions",
+  accent: "#c58cff",
+});
 
 const stages = [
   ["Learn", "Build knowledge and fluency.", "#8ee8ff"],
@@ -32,6 +21,7 @@ const stages = [
 export default function RealWorldDecisionsGuidePage() {
   return (
     <GuideLayout
+      canonicalPath="/explore/from-learning-to-real-world-decisions"
       title="From Curriculum Mastery to Real-World Decision-Making"
       description="Dreamscape One begins with a child learning the fundamentals, but its wider goal is to create more opportunities to use knowledge, exercise judgement and become increasingly independent."
       accent="#c58cff"

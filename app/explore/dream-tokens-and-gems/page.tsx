@@ -1,24 +1,14 @@
-import type { Metadata } from "next";
+import { buildGuideMetadata } from "@/lib/seo";
 import GuideLayout from "@/components/explore/GuideLayout";
 import GuideCTA from "@/components/explore/GuideCTA";
 import GuideMedia from "@/components/explore/GuideMedia";
 
-export const metadata: Metadata = {
+export const metadata = buildGuideMetadata({
   title: "Dream Tokens and Dream Gems Explained",
-  description:
-    "A parent guide to Dream Tokens and Dream Gems: how Dreamscape rewards work, how they are earned and why virtual rewards connect learning to decisions across Nova and Milo.",
-  alternates: {
-    canonical: "https://dreamscape-one.com/explore/dream-tokens-and-gems",
-  },
-  openGraph: {
-    title: "Dream Tokens and Dream Gems Explained",
-    description:
-      "Understand the virtual reward economy that connects learning, upgrades, spending and decision-making across Dreamscape One.",
-    url: "https://dreamscape-one.com/explore/dream-tokens-and-gems",
-    siteName: "Dreamscape One",
-    type: "article",
-  },
-};
+  description: "A parent guide to Dream Tokens and Dream Gems: how Dreamscape rewards work, how they are earned and why virtual rewards connect learning to decisions across Nova and Milo.",
+  path: "/explore/dream-tokens-and-gems",
+  accent: "#d5b5ff",
+});
 
 const rewardRows = [
   ["100%", "5 DT"],
@@ -31,6 +21,7 @@ const rewardRows = [
 export default function DreamTokensAndGemsGuidePage() {
   return (
     <GuideLayout
+      canonicalPath="/explore/dream-tokens-and-gems"
       title="Dream Tokens and Dream Gems Explained"
       description="Dream Tokens and Dream Gems make selected progress visible across Dreamscape. They are virtual in-platform rewards that connect learning to upgrades, choices and the wider economy."
       accent="#d5b5ff"

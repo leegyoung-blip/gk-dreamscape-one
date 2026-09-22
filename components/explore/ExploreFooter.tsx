@@ -8,6 +8,14 @@ export default function ExploreFooter() {
     lineHeight: 1.5,
   } as const;
 
+  const headingStyle = {
+    margin: 0,
+    fontSize: "11px",
+    fontWeight: 900,
+    letterSpacing: "0.16em",
+    textTransform: "uppercase" as const,
+  };
+
   return (
     <footer
       style={{
@@ -24,12 +32,21 @@ export default function ExploreFooter() {
           maxWidth: "1380px",
           margin: "0 auto",
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(205px, 1fr))",
           gap: "34px",
         }}
       >
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <Link
+            href="/"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              color: "white",
+              textDecoration: "none",
+            }}
+          >
             <img
               src="/home/dreamscape-logo.png"
               alt="Dreamscape One"
@@ -66,7 +83,7 @@ export default function ExploreFooter() {
                 Learn · Think · Earn · Build
               </p>
             </div>
-          </div>
+          </Link>
           <p
             style={{
               margin: "18px 0 0",
@@ -82,26 +99,8 @@ export default function ExploreFooter() {
         </div>
 
         <div>
-          <p
-            style={{
-              margin: 0,
-              color: "#8ee8ff",
-              fontSize: "11px",
-              fontWeight: 900,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-            }}
-          >
-            Explore
-          </p>
-          <div
-            style={{
-              marginTop: "16px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "11px",
-            }}
-          >
+          <p style={{ ...headingStyle, color: "#8ee8ff" }}>Explore</p>
+          <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "11px" }}>
             <Link href="/" style={linkStyle}>Dreamscape Home</Link>
             <Link href="/inventor" style={linkStyle}>Nova’s World</Link>
             <Link href="/milo-world" style={linkStyle}>Milo’s World</Link>
@@ -110,30 +109,22 @@ export default function ExploreFooter() {
         </div>
 
         <div>
-          <p
-            style={{
-              margin: 0,
-              color: "#c58cff",
-              fontSize: "11px",
-              fontWeight: 900,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-            }}
-          >
-            Dreamscape Guides
-          </p>
-          <div
-            style={{
-              marginTop: "16px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "11px",
-            }}
-          >
+          <p style={{ ...headingStyle, color: "#c58cff" }}>Dreamscape Guides</p>
+          <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "11px" }}>
             <Link href="/explore" style={linkStyle}>Explore Dreamscape</Link>
             <Link href="/how-it-works" style={linkStyle}>How Dreamscape Works</Link>
             <Link href="/explore/parents-guide" style={linkStyle}>Parent’s Guide</Link>
             <Link href="/explore/nova-plus" style={linkStyle}>NOVA+ for Parents</Link>
+            <Link href="/explore/learning-missions" style={linkStyle}>Learning Missions</Link>
+          </div>
+        </div>
+
+        <div>
+          <p style={{ ...headingStyle, color: "#ffbd73" }}>Company & Legal</p>
+          <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "11px" }}>
+            <Link href="/education-licence" style={linkStyle}>For Tuition Centres</Link>
+            <Link href="/affiliate" style={linkStyle}>Partner With Us</Link>
+            <Link href="/affiliate" style={linkStyle}>Affiliate Programme</Link>
             <Link href="/terms" style={linkStyle}>Terms & Conditions</Link>
           </div>
         </div>

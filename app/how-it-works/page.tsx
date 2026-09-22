@@ -1,25 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { buildGuideMetadata } from "@/lib/seo";
 import GuideLayout from "@/components/explore/GuideLayout";
 import GuideCTA from "@/components/explore/GuideCTA";
 import GuideMedia from "@/components/explore/GuideMedia";
 
-export const metadata: Metadata = {
+export const metadata = buildGuideMetadata({
   title: "How Dreamscape One Works",
-  description:
-    "See how Dreamscape One connects curriculum mastery, thinking, rewards, decision-making and real-world skills.",
-  alternates: {
-    canonical: "https://dreamscape-one.com/how-it-works",
-  },
-  openGraph: {
-    title: "How Dreamscape One Works",
-    description:
-      "From curriculum mastery to thinking, rewards, independence and real-world decision-making.",
-    url: "https://dreamscape-one.com/how-it-works",
-    siteName: "Dreamscape One",
-    type: "article",
-  },
-};
+  description: "See how Dreamscape One connects curriculum mastery, thinking, rewards, decision-making and real-world skills.",
+  path: "/how-it-works",
+  accent: "#8ee8ff",
+});
 
 const journeyStages = [
   {
@@ -52,6 +42,7 @@ const journeyStages = [
 export default function HowDreamscapeWorksPage() {
   return (
     <GuideLayout
+      canonicalPath="/how-it-works"
       title="How Dreamscape One Works"
       description="Dreamscape One is designed around a simple idea: learning should build knowledge first, then give children meaningful places to think, make choices and use what they know."
       accent="#8ee8ff"
