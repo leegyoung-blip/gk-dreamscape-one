@@ -64,6 +64,59 @@ type NewsEvent = {
 };
 
 
+type EmploymentCompany = {
+  symbol: string;
+  company_name: string;
+  sector: string;
+  health_score: number;
+  hiring_index: number;
+  workforce_sentiment: number;
+  hiring_status: string;
+  salary_index_bps: number;
+  base_headcount: number;
+  named_employee_count: number;
+  avg_named_employee_income: number;
+  recent_promotions: number;
+  recent_hires: number;
+  recent_layoffs: number;
+  latest_published_headline: string | null;
+  latest_published_impact: string | null;
+  current_price: number;
+  previous_price: number;
+  description: string;
+  updated_at: string | null;
+};
+
+type EmploymentResident = {
+  resident_id: string;
+  display_name: string;
+  avatar_key: string | null;
+  occupation: string;
+  employment_status: string | null;
+  employer_name: string | null;
+  employer_kind: string | null;
+  employer_stock_symbol: string | null;
+  employment_stability: number;
+  career_level: number;
+  monthly_income: number;
+  financial_pressure: number;
+};
+
+type EmploymentStats = {
+  listed_companies: number;
+  listed_company_workers: number;
+  private_or_community_workers: number;
+  self_employed: number;
+  studying: number;
+  between_jobs: number;
+};
+
+type EmploymentDashboard = {
+  companies: EmploymentCompany[];
+  residents: EmploymentResident[];
+  stats: EmploymentStats;
+};
+
 
 function useResponsiveMode() {
   const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
@@ -633,6 +686,16 @@ export default function MiloStockExchangePage() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
   const [newsEvents, setNewsEvents] = useState<NewsEvent[]>([]);
+  const [employmentCompanies, setEmploymentCompanies] = useState<EmploymentCompany[]>([]);
+  const [employmentResidents, setEmploymentResidents] = useState<EmploymentResident[]>([]);
+  const [employmentStats, setEmploymentStats] = useState<EmploymentStats>({
+    listed_companies: 0,
+    listed_company_workers: 0,
+    private_or_community_workers: 0,
+    self_employed: 0,
+    studying: 0,
+    between_jobs: 0,
+  });
 
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -689,6 +752,20 @@ export default function MiloStockExchangePage() {
     return selectedNewsEvents.filter((event) => event.status === "teaser");
   }, [selectedNewsEvents]);
 
+  const selectedCompanyEconomy = useMemo(() => {
+    if (!selectedStock) return undefined;
+    return employmentCompanies.find((company) => company.symbol === selectedStock.symbol);
+  }, [employmentCompanies, selectedStock]);
+
+  const selectedCompanyEmployees = useMemo(() => {
+    if (!selectedStock) return [];
+    return employmentResidents.filter(
+      (resident) =>
+        resident.employer_stock_symbol === selectedStock.symbol &&
+        resident.employment_status === "employed"
+    );
+  }, [employmentResidents, selectedStock]);
+
   useEffect(() => {
     loadPage();
   }, []);
@@ -718,6 +795,9 @@ export default function MiloStockExchangePage() {
       loadPriceHistory(),
       loadNewsEvents(),
     ]);
+
+    await refreshEmploymentEconomy();
+    await loadEmploymentDashboard();
 
     setLoading(false);
   }
@@ -817,6 +897,77 @@ export default function MiloStockExchangePage() {
     setNewsEvents((data || []) as NewsEvent[]);
   }
 
+  async function refreshEmploymentEconomy() {
+    const { error } = await supabase.rpc("refresh_milo_exchange_employment_economy");
+    if (error) {
+      console.warn("Could not refresh company employment economy:", error.message);
+    }
+  }
+
+  async function loadEmploymentDashboard() {
+    const { data, error } = await supabase.rpc("get_milo_exchange_employment_dashboard");
+
+    if (error) {
+      console.warn("Could not load company employment dashboard:", error.message);
+      setEmploymentCompanies([]);
+      setEmploymentResidents([]);
+      return;
+    }
+
+    const dashboard = (data || {}) as Partial<EmploymentDashboard>;
+    setEmploymentCompanies(
+      (dashboard.companies || []).map((item) => ({
+        ...item,
+        health_score: Number(item.health_score || 0),
+        hiring_index: Number(item.hiring_index || 0),
+        workforce_sentiment: Number(item.workforce_sentiment || 0),
+        salary_index_bps: Number(item.salary_index_bps || 10000),
+        base_headcount: Number(item.base_headcount || 0),
+        named_employee_count: Number(item.named_employee_count || 0),
+        avg_named_employee_income: Number(item.avg_named_employee_income || 0),
+        recent_promotions: Number(item.recent_promotions || 0),
+        recent_hires: Number(item.recent_hires || 0),
+        recent_layoffs: Number(item.recent_layoffs || 0),
+        current_price: Number(item.current_price || 0),
+        previous_price: Number(item.previous_price || 0),
+      }))
+    );
+    setEmploymentResidents(
+      (dashboard.residents || []).map((item) => ({
+        ...item,
+        employment_stability: Number(item.employment_stability || 0),
+        career_level: Number(item.career_level || 1),
+        monthly_income: Number(item.monthly_income || 0),
+        financial_pressure: Number(item.financial_pressure || 0),
+      }))
+    );
+    const stats = dashboard.stats || ({} as EmploymentStats);
+    setEmploymentStats({
+      listed_companies: Number(stats.listed_companies || 0),
+      listed_company_workers: Number(stats.listed_company_workers || 0),
+      private_or_community_workers: Number(stats.private_or_community_workers || 0),
+      self_employed: Number(stats.self_employed || 0),
+      studying: Number(stats.studying || 0),
+      between_jobs: Number(stats.between_jobs || 0),
+    });
+  }
+
+  function companyStatusLabel(value: string) {
+    if (value === "expanding") return "Expanding";
+    if (value === "hiring") return "Hiring";
+    if (value === "cautious") return "Cautious";
+    if (value === "contracting") return "Contracting";
+    return "Steady";
+  }
+
+  function companyStatusColor(value: string) {
+    if (value === "expanding") return "#79f2ce";
+    if (value === "hiring") return "#8ee8ff";
+    if (value === "cautious") return "#ffd18a";
+    if (value === "contracting") return "#ff9292";
+    return "rgba(255,255,255,0.72)";
+  }
+
   function getHolding(symbol: string) {
     return holdings.find((holding) => holding.symbol === symbol);
   }
@@ -839,6 +990,7 @@ export default function MiloStockExchangePage() {
       loadStocks(),
       loadPriceHistory(),
       loadNewsEvents(),
+      loadEmploymentDashboard(),
     ]);
   }
 
@@ -1921,6 +2073,190 @@ export default function MiloStockExchangePage() {
                         points={selectedPriceHistory}
                         isMobile={isMobile}
                       />
+                    </section>
+
+                    <section
+                      data-milo-guide="stock-company-economy"
+                      style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: isMobile ? "column" : "row",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          alignItems: isMobile ? "stretch" : "flex-end",
+                        }}
+                      >
+                        <div>
+                          <p
+                            style={{
+                              margin: 0,
+                              color: "#79f2ce",
+                              fontSize: "11px",
+                              letterSpacing: "0.18em",
+                              textTransform: "uppercase",
+                              fontWeight: 900,
+                            }}
+                          >
+                            Company & Jobs
+                          </p>
+                          <h2
+                            style={{
+                              margin: "8px 0 0",
+                              fontFamily: 'Georgia, "Times New Roman", serif',
+                              fontSize: isMobile ? "30px" : "36px",
+                              fontWeight: 500,
+                            }}
+                          >
+                            {selectedStock.name} in the Dreamscape economy
+                          </h2>
+                          <p
+                            style={{
+                              margin: "8px 0 0",
+                              maxWidth: "820px",
+                              color: "rgba(255,255,255,0.5)",
+                              fontSize: "12px",
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            Company conditions can affect pay, promotions and job security for residents who work here.
+                            {employmentStats.listed_company_workers} named resident{employmentStats.listed_company_workers === 1 ? "" : "s"} currently work across listed companies; many others work elsewhere.
+                          </p>
+                        </div>
+                        <div
+                          style={{
+                            borderRadius: "999px",
+                            padding: "7px 12px",
+                            background: "rgba(255,255,255,0.05)",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            color: companyStatusColor(selectedCompanyEconomy?.hiring_status || "steady"),
+                            fontSize: "11px",
+                            fontWeight: 900,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {companyStatusLabel(selectedCompanyEconomy?.hiring_status || "steady")}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "15px",
+                          display: "grid",
+                          gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,minmax(0,1fr))",
+                          gap: "9px",
+                        }}
+                      >
+                        {[
+                          ["Company Health", `${selectedCompanyEconomy?.health_score || 0}/100`],
+                          ["Hiring Climate", `${selectedCompanyEconomy?.hiring_index || 0}/100`],
+                          ["Workforce Mood", `${selectedCompanyEconomy?.workforce_sentiment || 0}/100`],
+                          ["Named Residents", selectedCompanyEmployees.length],
+                        ].map(([label, value]) => (
+                          <div
+                            key={String(label)}
+                            style={{
+                              borderRadius: "14px",
+                              padding: "11px 12px",
+                              background: "rgba(255,255,255,0.04)",
+                              border: "1px solid rgba(255,255,255,0.07)",
+                            }}
+                          >
+                            <small style={{ color: "rgba(255,255,255,0.4)", fontSize: "9px" }}>{label}</small>
+                            <strong style={{ display: "block", marginTop: "4px", fontSize: "17px" }}>{value}</strong>
+                          </div>
+                        ))}
+                      </div>
+
+                      {selectedCompanyEconomy?.latest_published_headline && (
+                        <div
+                          style={{
+                            marginTop: "12px",
+                            padding: "10px 12px",
+                            borderRadius: "13px",
+                            background: "rgba(142,232,255,0.045)",
+                            color: "rgba(255,255,255,0.56)",
+                            fontSize: "11px",
+                            lineHeight: 1.45,
+                          }}
+                        >
+                          Latest published company signal: <strong style={{ color: "white" }}>{selectedCompanyEconomy.latest_published_headline}</strong>
+                        </div>
+                      )}
+
+                      <div
+                        style={{
+                          marginTop: "13px",
+                          display: "grid",
+                          gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit,minmax(220px,1fr))",
+                          gap: "8px",
+                        }}
+                      >
+                        {selectedCompanyEmployees.length === 0 ? (
+                          <div
+                            style={{
+                              borderRadius: "14px",
+                              border: "1px dashed rgba(255,255,255,0.12)",
+                              padding: "14px",
+                              color: "rgba(255,255,255,0.45)",
+                              fontSize: "11px",
+                            }}
+                          >
+                            No named resident currently works here. The company still has a larger simulated workforce.
+                          </div>
+                        ) : (
+                          selectedCompanyEmployees.map((resident) => {
+                            const avatar = resident.avatar_key
+                              ? `/milo-world/property-exchange/residents/${resident.avatar_key}.jpg`
+                              : null;
+                            return (
+                              <article
+                                key={resident.resident_id}
+                                style={{
+                                  display: "grid",
+                                  gridTemplateColumns: "46px minmax(0,1fr) auto",
+                                  gap: "9px",
+                                  alignItems: "center",
+                                  borderRadius: "14px",
+                                  padding: "9px 10px",
+                                  background: "rgba(255,255,255,0.035)",
+                                  border: "1px solid rgba(255,255,255,0.07)",
+                                  minWidth: 0,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: "46px",
+                                    height: "46px",
+                                    borderRadius: "50%",
+                                    overflow: "hidden",
+                                    background: "rgba(142,232,255,0.08)",
+                                  }}
+                                >
+                                  {avatar && (
+                                    <img
+                                      src={avatar}
+                                      alt={resident.display_name}
+                                      style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 28%" }}
+                                    />
+                                  )}
+                                </div>
+                                <span style={{ minWidth: 0 }}>
+                                  <strong style={{ display: "block", fontSize: "11px" }}>{resident.display_name}</strong>
+                                  <small style={{ display: "block", marginTop: "3px", color: "rgba(255,255,255,0.42)", fontSize: "9px" }}>
+                                    {resident.occupation}
+                                  </small>
+                                </span>
+                                <span style={{ textAlign: "right" }}>
+                                  <small style={{ display: "block", color: "rgba(255,255,255,0.35)", fontSize: "8px" }}>Income</small>
+                                  <strong style={{ fontSize: "10px", whiteSpace: "nowrap" }}>{formatNumber(resident.monthly_income)} DT</strong>
+                                </span>
+                              </article>
+                            );
+                          })
+                        )}
+                      </div>
                     </section>
 
                     <section

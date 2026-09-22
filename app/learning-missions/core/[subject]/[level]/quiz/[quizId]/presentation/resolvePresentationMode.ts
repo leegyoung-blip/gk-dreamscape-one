@@ -45,8 +45,12 @@ export function resolvePresentationMode(
     case "dropdown_cloze":
       return "blank";
     case "short_text":
-    case "long_text":
     case "open_cloze":
+      // Math short/numeric answers use the dedicated Math response surface.
+      // English and any future non-Math subjects keep the generic text editor.
+      if (subject === "math") return "math_standard";
+      return "text_response";
+    case "long_text":
     case "editing":
     case "picture_description":
     case "oral_recording":

@@ -400,6 +400,16 @@ export default function PropertyPhone({
 
                 {showResidentProfile && (
                   <div style={{ padding: "0 12px 10px" }}>
+                    {selectedResidentProfile.employer_name && (
+                      <div style={{ marginBottom: "6px", borderRadius: "9px", background: "rgba(14,165,233,0.07)", padding: "6px 7px" }}>
+                        <small style={{ display: "block", color: "#64748b", fontSize: "7px" }}>Work</small>
+                        <strong style={{ display: "block", marginTop: "2px", color: "#334155", fontSize: "8px" }}>
+                          {selectedResidentProfile.employer_name}
+                          {selectedResidentProfile.employer_stock_symbol ? ` · ${selectedResidentProfile.employer_stock_symbol}` : ""}
+                        </strong>
+                      </div>
+                    )}
+
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
                       {[
                         ["Income", `${formatNumber(selectedResidentProfile.monthly_income)} DT/mo`],

@@ -5,6 +5,8 @@ import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 
 export type CoreMediaType = "image" | "svg" | "audio" | "video";
+export type CoreMediaVariant = "default" | "core_mission" | "math";
+export type CoreMediaSize = "compact" | "standard" | "large";
 
 export type CoreQuestionAsset = {
   id: string;
@@ -42,6 +44,25 @@ type ImagePreview = {
   caption: string | null;
 };
 
+type MediaMetrics = {
+  stackGap: number;
+  stackMargin: string;
+  cardPadding: number;
+  cardRadius: number;
+  figurePadding: number;
+  figureRadius: number;
+  gridGap: number;
+  gridMinWidth: number;
+  imageHeight: string | null;
+  imageMinHeight: string | number;
+  imageMaxHeight: string;
+  videoMaxHeight: string;
+  titleSize: string;
+  bodySize: string;
+  captionSize: string;
+  tableCellPadding: number;
+};
+
 function getPublicUrl(bucket?: string | null, path?: string | null) {
   if (!bucket || !path) return null;
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
@@ -71,10 +92,141 @@ function getPosterUrl(asset: CoreQuestionAsset) {
   return getPublicUrl(posterBucket, posterPath);
 }
 
+function getMediaMetrics(
+  variant: CoreMediaVariant,
+  size: CoreMediaSize,
+  multipleVisuals: boolean,
+): MediaMetrics {
+  if (variant === "default") {
+    return {
+      stackGap: 14,
+      stackMargin: "12px 0 18px",
+      cardPadding: 16,
+      cardRadius: 18,
+      figurePadding: 12,
+      figureRadius: 18,
+      gridGap: 14,
+      gridMinWidth: 260,
+      imageHeight: null,
+      imageMinHeight: 120,
+      imageMaxHeight: "min(48dvh, 520px)",
+      videoMaxHeight: "min(52dvh, 560px)",
+      titleSize: "18px",
+      bodySize: "clamp(15px, 1.8vw, 18px)",
+      captionSize: "13px",
+      tableCellPadding: 10,
+    };
+  }
+
+  if (variant === "math") {
+    if (size === "compact") {
+      return {
+        stackGap: 6,
+        stackMargin: "0",
+        cardPadding: 6,
+        cardRadius: 13,
+        figurePadding: 5,
+        figureRadius: 12,
+        gridGap: 6,
+        gridMinWidth: 170,
+        imageHeight: multipleVisuals
+          ? "clamp(105px, 17dvh, 145px)"
+          : "clamp(140px, 23dvh, 205px)",
+        imageMinHeight: 0,
+        imageMaxHeight: "none",
+        videoMaxHeight: "min(25dvh, 220px)",
+        titleSize: "13px",
+        bodySize: "13px",
+        captionSize: "10px",
+        tableCellPadding: 6,
+      };
+    }
+
+    if (size === "large") {
+      return {
+        stackGap: 9,
+        stackMargin: "0",
+        cardPadding: 8,
+        cardRadius: 15,
+        figurePadding: 7,
+        figureRadius: 14,
+        gridGap: 8,
+        gridMinWidth: 220,
+        imageHeight: multipleVisuals
+          ? "clamp(150px, 24dvh, 225px)"
+          : "clamp(220px, 37dvh, 390px)",
+        imageMinHeight: 0,
+        imageMaxHeight: "none",
+        videoMaxHeight: "min(42dvh, 430px)",
+        titleSize: "15px",
+        bodySize: "clamp(14px, 1.35vw, 17px)",
+        captionSize: "11px",
+        tableCellPadding: 8,
+      };
+    }
+
+    return {
+      stackGap: 8,
+      stackMargin: "0",
+      cardPadding: 7,
+      cardRadius: 14,
+      figurePadding: 6,
+      figureRadius: 13,
+      gridGap: 7,
+      gridMinWidth: 200,
+      imageHeight: multipleVisuals
+        ? "clamp(130px, 20dvh, 185px)"
+        : "clamp(180px, 30dvh, 300px)",
+      imageMinHeight: 0,
+      imageMaxHeight: "none",
+      videoMaxHeight: "min(34dvh, 340px)",
+      titleSize: "14px",
+      bodySize: "clamp(13px, 1.25vw, 16px)",
+      captionSize: "11px",
+      tableCellPadding: 7,
+    };
+  }
+
+  // Generic Core Mission media. This is intentionally conservative for now;
+  // Math is the first presentation mode to use the semantic sizing API.
+  return {
+    stackGap: size === "compact" ? 7 : 10,
+    stackMargin: "0",
+    cardPadding: size === "compact" ? 7 : 10,
+    cardRadius: 15,
+    figurePadding: size === "compact" ? 6 : 8,
+    figureRadius: 14,
+    gridGap: size === "compact" ? 7 : 9,
+    gridMinWidth: size === "compact" ? 180 : 220,
+    imageHeight:
+      size === "compact"
+        ? multipleVisuals
+          ? "clamp(110px, 18dvh, 150px)"
+          : "clamp(150px, 24dvh, 215px)"
+        : size === "large"
+          ? multipleVisuals
+            ? "clamp(155px, 24dvh, 225px)"
+            : "clamp(220px, 36dvh, 380px)"
+          : multipleVisuals
+            ? "clamp(135px, 21dvh, 190px)"
+            : "clamp(185px, 30dvh, 300px)",
+    imageMinHeight: 0,
+    imageMaxHeight: "none",
+    videoMaxHeight:
+      size === "compact" ? "min(26dvh, 230px)" : "min(40dvh, 420px)",
+    titleSize: size === "compact" ? "13px" : "15px",
+    bodySize: size === "compact" ? "13px" : "clamp(14px, 1.4vw, 17px)",
+    captionSize: size === "compact" ? "10px" : "11px",
+    tableCellPadding: size === "compact" ? 6 : 8,
+  };
+}
+
 function StimulusText({
   stimulus,
+  metrics,
 }: {
   stimulus: CoreQuizStimulus;
+  metrics: MediaMetrics;
 }) {
   const body = stimulus.body ?? {};
   const bodyText =
@@ -87,7 +239,9 @@ function StimulusText({
     : [];
 
   const rows = Array.isArray(body.rows)
-    ? body.rows.filter(Array.isArray).map((row) => row.map((item) => String(item)))
+    ? body.rows
+        .filter(Array.isArray)
+        .map((row) => row.map((item) => String(item)))
     : [];
 
   if (stimulus.stimulus_type === "table" && headers.length > 0) {
@@ -97,7 +251,10 @@ function StimulusText({
           <thead>
             <tr>
               {headers.map((header, index) => (
-                <th key={`${header}-${index}`} style={tableHeaderCell}>
+                <th
+                  key={`${header}-${index}`}
+                  style={tableHeaderCell(metrics)}
+                >
                   {header}
                 </th>
               ))}
@@ -107,7 +264,10 @@ function StimulusText({
             {rows.map((row, rowIndex) => (
               <tr key={rowIndex}>
                 {row.map((cell, cellIndex) => (
-                  <td key={`${rowIndex}-${cellIndex}`} style={tableCell}>
+                  <td
+                    key={`${rowIndex}-${cellIndex}`}
+                    style={tableCell(metrics)}
+                  >
                     {cell}
                   </td>
                 ))}
@@ -121,15 +281,19 @@ function StimulusText({
 
   if (!bodyText) return null;
 
-  return <p style={stimulusText}>{bodyText}</p>;
+  return <p style={stimulusText(metrics)}>{bodyText}</p>;
 }
 
 export default function QuestionMediaRenderer({
   stimulus,
   assets,
+  variant = "default",
+  size = "standard",
 }: {
   stimulus?: CoreQuizStimulus | null;
   assets?: CoreQuestionAsset[] | null;
+  variant?: CoreMediaVariant;
+  size?: CoreMediaSize;
 }) {
   const [preview, setPreview] = useState<ImagePreview | null>(null);
 
@@ -147,23 +311,46 @@ export default function QuestionMediaRenderer({
     stimulus &&
     ["passage", "visual_text", "table"].includes(stimulus.stimulus_type);
 
+  const stimulusIsVisual = Boolean(
+    stimulus &&
+      ["image", "diagram", "graph"].includes(stimulus.stimulus_type),
+  );
+  const visualAssetCount = orderedAssets.filter(
+    (asset) => asset.asset_type === "image" || asset.asset_type === "svg",
+  ).length;
+  const visualItemCount = (stimulusIsVisual ? 1 : 0) + visualAssetCount;
+  const multipleVisuals = visualItemCount > 1;
+  const metrics = getMediaMetrics(variant, size, multipleVisuals);
+
   if (!stimulus && orderedAssets.length === 0) return null;
 
   return (
     <>
-      <div style={mediaStack}>
+      <div
+        data-core-media-variant={variant}
+        data-core-media-size={size}
+        data-core-media-multiple={multipleVisuals ? "true" : "false"}
+        style={mediaStack(metrics)}
+      >
         {stimulus && (
-          <section style={mediaCard}>
-            {stimulus.title && <h2 style={mediaTitle}>{stimulus.title}</h2>}
+          <section style={mediaCard(metrics, variant)}>
+            {stimulus.title && (
+              <h2 style={mediaTitle(metrics)}>{stimulus.title}</h2>
+            )}
 
-            {hasStimulusText && <StimulusText stimulus={stimulus} />}
+            {hasStimulusText && (
+              <StimulusText stimulus={stimulus} metrics={metrics} />
+            )}
 
             {stimulusUrl &&
-              ["image", "diagram", "graph"].includes(stimulus.stimulus_type) && (
+              ["image", "diagram", "graph"].includes(
+                stimulus.stimulus_type,
+              ) && (
                 <ImageFrame
                   src={stimulusUrl}
                   alt={stimulus.alt_text || "Question stimulus"}
                   caption={stimulus.title}
+                  metrics={metrics}
                   onOpen={() =>
                     setPreview({
                       src: stimulusUrl,
@@ -191,7 +378,7 @@ export default function QuestionMediaRenderer({
                 playsInline
                 preload="metadata"
                 src={stimulusUrl}
-                style={videoStyle}
+                style={videoStyle(metrics)}
               >
                 Your browser does not support video playback.
               </video>
@@ -200,7 +387,7 @@ export default function QuestionMediaRenderer({
         )}
 
         {orderedAssets.length > 0 && (
-          <div style={assetGrid}>
+          <div style={assetGrid(metrics)}>
             {orderedAssets.map((asset) => {
               const url = getPublicUrl(
                 asset.storage_bucket,
@@ -219,6 +406,7 @@ export default function QuestionMediaRenderer({
                     src={url}
                     alt={asset.alt_text || "Question image"}
                     caption={asset.caption}
+                    metrics={metrics}
                     objectFit={
                       metadataValue(asset.metadata, "object_fit") === "cover"
                         ? "cover"
@@ -237,7 +425,7 @@ export default function QuestionMediaRenderer({
 
               if (asset.asset_type === "audio") {
                 return (
-                  <figure key={asset.id} style={assetFigure}>
+                  <figure key={asset.id} style={assetFigure(metrics)}>
                     <audio
                       controls
                       preload="metadata"
@@ -247,7 +435,7 @@ export default function QuestionMediaRenderer({
                       Your browser does not support audio playback.
                     </audio>
                     {asset.caption && (
-                      <figcaption style={captionStyle}>
+                      <figcaption style={captionStyle(metrics)}>
                         {asset.caption}
                       </figcaption>
                     )}
@@ -256,19 +444,19 @@ export default function QuestionMediaRenderer({
               }
 
               return (
-                <figure key={asset.id} style={assetFigure}>
+                <figure key={asset.id} style={assetFigure(metrics)}>
                   <video
                     controls
                     playsInline
                     preload="metadata"
                     poster={getPosterUrl(asset) || undefined}
                     src={url}
-                    style={videoStyle}
+                    style={videoStyle(metrics)}
                   >
                     Your browser does not support video playback.
                   </video>
                   {asset.caption && (
-                    <figcaption style={captionStyle}>
+                    <figcaption style={captionStyle(metrics)}>
                       {asset.caption}
                     </figcaption>
                   )}
@@ -321,136 +509,172 @@ function ImageFrame({
   src,
   alt,
   caption,
+  metrics,
   objectFit = "contain",
   onOpen,
 }: {
   src: string;
   alt: string;
   caption: string | null;
+  metrics: MediaMetrics;
   objectFit?: "contain" | "cover";
   onOpen: () => void;
 }) {
   return (
-    <figure style={assetFigure}>
+    <figure style={assetFigure(metrics)}>
       <button
         type="button"
         onClick={onOpen}
         aria-label={`Expand image: ${alt}`}
-        style={imageButton}
+        style={imageButton(metrics)}
       >
         <img
           src={src}
           alt={alt}
           loading="eager"
           style={{
-            ...imageStyle,
+            ...imageStyle(metrics),
             objectFit,
           }}
         />
         <span style={expandBadge}>Expand</span>
       </button>
-      {caption && <figcaption style={captionStyle}>{caption}</figcaption>}
+      {caption && (
+        <figcaption style={captionStyle(metrics)}>{caption}</figcaption>
+      )}
     </figure>
   );
 }
 
-const mediaStack: CSSProperties = {
-  display: "grid",
-  gap: "14px",
-  margin: "12px 0 18px",
-};
+function mediaStack(metrics: MediaMetrics): CSSProperties {
+  return {
+    display: "grid",
+    gap: metrics.stackGap,
+    margin: metrics.stackMargin,
+  };
+}
 
-const mediaCard: CSSProperties = {
-  padding: "16px",
-  borderRadius: "18px",
-  border: "1px solid rgba(126,232,255,0.24)",
-  background: "rgba(7,22,39,0.72)",
-  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
-};
+function mediaCard(
+  metrics: MediaMetrics,
+  variant: CoreMediaVariant,
+): CSSProperties {
+  return {
+    padding: metrics.cardPadding,
+    borderRadius: metrics.cardRadius,
+    border:
+      variant === "math"
+        ? "1px solid rgba(125,211,252,0.14)"
+        : "1px solid rgba(126,232,255,0.24)",
+    background:
+      variant === "math"
+        ? "rgba(2,10,25,0.18)"
+        : "rgba(7,22,39,0.72)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+    boxSizing: "border-box",
+  };
+}
 
-const mediaTitle: CSSProperties = {
-  margin: "0 0 10px",
-  fontSize: "18px",
-  lineHeight: 1.25,
-  color: "#ffffff",
-};
+function mediaTitle(metrics: MediaMetrics): CSSProperties {
+  return {
+    margin: "0 0 7px",
+    fontSize: metrics.titleSize,
+    lineHeight: 1.25,
+    color: "#ffffff",
+  };
+}
 
-const stimulusText: CSSProperties = {
-  margin: 0,
-  whiteSpace: "pre-wrap",
-  fontSize: "clamp(15px, 1.8vw, 18px)",
-  lineHeight: 1.7,
-  color: "rgba(255,255,255,0.9)",
-};
+function stimulusText(metrics: MediaMetrics): CSSProperties {
+  return {
+    margin: 0,
+    whiteSpace: "pre-wrap",
+    fontSize: metrics.bodySize,
+    lineHeight: 1.65,
+    color: "rgba(255,255,255,0.9)",
+  };
+}
 
-const assetGrid: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
-  gap: "14px",
-};
+function assetGrid(metrics: MediaMetrics): CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${metrics.gridMinWidth}px), 1fr))`,
+    gap: metrics.gridGap,
+  };
+}
 
-const assetFigure: CSSProperties = {
-  width: "100%",
-  margin: 0,
-  padding: "12px",
-  borderRadius: "18px",
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.055)",
-};
+function assetFigure(metrics: MediaMetrics): CSSProperties {
+  return {
+    width: "100%",
+    margin: 0,
+    padding: metrics.figurePadding,
+    borderRadius: metrics.figureRadius,
+    border: "1px solid rgba(255,255,255,0.11)",
+    background: "rgba(255,255,255,0.045)",
+    boxSizing: "border-box",
+    minWidth: 0,
+  };
+}
 
-const imageButton: CSSProperties = {
-  position: "relative",
-  display: "block",
-  width: "100%",
-  padding: 0,
-  overflow: "hidden",
-  border: "none",
-  borderRadius: "13px",
-  background: "rgba(255,255,255,0.96)",
-  cursor: "zoom-in",
-};
+function imageButton(metrics: MediaMetrics): CSSProperties {
+  return {
+    position: "relative",
+    display: "block",
+    width: "100%",
+    padding: 0,
+    overflow: "hidden",
+    border: "none",
+    borderRadius: Math.max(9, metrics.figureRadius - 5),
+    background: "rgba(255,255,255,0.96)",
+    cursor: "zoom-in",
+  };
+}
 
-const imageStyle: CSSProperties = {
-  display: "block",
-  width: "100%",
-  height: "auto",
-  maxHeight: "min(48dvh, 520px)",
-  minHeight: "120px",
-  objectPosition: "center",
-};
+function imageStyle(metrics: MediaMetrics): CSSProperties {
+  return {
+    display: "block",
+    width: "100%",
+    height: metrics.imageHeight ?? "auto",
+    maxHeight: metrics.imageMaxHeight,
+    minHeight: metrics.imageMinHeight,
+    objectPosition: "center",
+  };
+}
 
 const expandBadge: CSSProperties = {
   position: "absolute",
-  right: "10px",
-  bottom: "10px",
-  padding: "6px 9px",
+  right: "9px",
+  bottom: "9px",
+  padding: "5px 8px",
   borderRadius: "999px",
   background: "rgba(2,8,19,0.78)",
   color: "white",
-  fontSize: "11px",
+  fontSize: "10px",
   fontWeight: 800,
   letterSpacing: "0.04em",
 };
 
-const captionStyle: CSSProperties = {
-  marginTop: "9px",
-  color: "rgba(255,255,255,0.72)",
-  fontSize: "13px",
-  lineHeight: 1.45,
-};
+function captionStyle(metrics: MediaMetrics): CSSProperties {
+  return {
+    marginTop: "7px",
+    color: "rgba(255,255,255,0.72)",
+    fontSize: metrics.captionSize,
+    lineHeight: 1.4,
+  };
+}
 
 const audioStyle: CSSProperties = {
   display: "block",
   width: "100%",
 };
 
-const videoStyle: CSSProperties = {
-  display: "block",
-  width: "100%",
-  maxHeight: "min(52dvh, 560px)",
-  borderRadius: "13px",
-  background: "#000",
-};
+function videoStyle(metrics: MediaMetrics): CSSProperties {
+  return {
+    display: "block",
+    width: "100%",
+    maxHeight: metrics.videoMaxHeight,
+    borderRadius: Math.max(9, metrics.figureRadius - 5),
+    background: "#000",
+  };
+}
 
 const tableScroller: CSSProperties = {
   width: "100%",
@@ -464,18 +688,22 @@ const tableStyle: CSSProperties = {
   color: "white",
 };
 
-const tableHeaderCell: CSSProperties = {
-  padding: "10px",
-  border: "1px solid rgba(255,255,255,0.18)",
-  background: "rgba(126,232,255,0.14)",
-  textAlign: "left",
-};
+function tableHeaderCell(metrics: MediaMetrics): CSSProperties {
+  return {
+    padding: metrics.tableCellPadding,
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(126,232,255,0.14)",
+    textAlign: "left",
+  };
+}
 
-const tableCell: CSSProperties = {
-  padding: "10px",
-  border: "1px solid rgba(255,255,255,0.14)",
-  verticalAlign: "top",
-};
+function tableCell(metrics: MediaMetrics): CSSProperties {
+  return {
+    padding: metrics.tableCellPadding,
+    border: "1px solid rgba(255,255,255,0.14)",
+    verticalAlign: "top",
+  };
+}
 
 const lightboxBackdrop: CSSProperties = {
   position: "fixed",

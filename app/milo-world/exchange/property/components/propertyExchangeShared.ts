@@ -323,6 +323,9 @@ export type PropertyResidentLifeProfile = {
   avatar_key: string | null;
   employment_status: string | null;
   employer_name: string | null;
+  employer_kind: string | null;
+  employer_stock_symbol: string | null;
+  employment_stability: number;
   career_level: number;
   life_stage: string | null;
   savings: number;
@@ -781,6 +784,82 @@ export type PropertyBusinessSpaceDashboard = {
   applications: PropertyBusinessSpaceApplication[];
   occupancies: PropertyBusinessSpaceOccupancy[];
   stats: PropertyBusinessSpaceStats;
+};
+
+
+export type MiloEmploymentCompany = {
+  symbol: string;
+  company_name: string;
+  sector: string;
+  health_score: number;
+  hiring_index: number;
+  workforce_sentiment: number;
+  hiring_status: string;
+  salary_index_bps: number;
+  base_headcount: number;
+  named_employee_count: number;
+  avg_named_employee_income: number;
+  recent_promotions: number;
+  recent_hires: number;
+  recent_layoffs: number;
+  latest_published_headline: string | null;
+  latest_published_impact: string | null;
+  current_price: number;
+  previous_price: number;
+  description: string;
+  updated_at: string | null;
+};
+
+export type MiloEmploymentResident = {
+  resident_id: string;
+  slug: string;
+  display_name: string;
+  avatar_key: string | null;
+  resident_kind: string;
+  occupation: string;
+  employment_status: string | null;
+  employer_name: string | null;
+  employer_kind: string | null;
+  employer_stock_symbol: string | null;
+  employment_stability: number;
+  career_level: number;
+  monthly_income: number;
+  max_weekly_rent: number;
+  purchase_budget: number;
+  financial_pressure: number;
+  move_intent: boolean;
+  last_life_event_type: string | null;
+  last_life_event_at: string | null;
+};
+
+export type MiloEmploymentEvent = {
+  event_id: string;
+  resident_id: string;
+  display_name: string;
+  avatar_key: string | null;
+  event_type: string;
+  title: string;
+  description: string;
+  income_before: number;
+  income_after: number;
+  metadata: Record<string, unknown>;
+  occurred_at: string;
+};
+
+export type MiloEmploymentStats = {
+  listed_companies: number;
+  listed_company_workers: number;
+  private_or_community_workers: number;
+  self_employed: number;
+  studying: number;
+  between_jobs: number;
+};
+
+export type MiloEmploymentDashboard = {
+  companies: MiloEmploymentCompany[];
+  residents: MiloEmploymentResident[];
+  events: MiloEmploymentEvent[];
+  stats: MiloEmploymentStats;
 };
 
 export type PropertyTabStyles = {

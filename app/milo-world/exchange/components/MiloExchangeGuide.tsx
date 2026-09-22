@@ -23,8 +23,8 @@ type Props = {
 
 const GUIDE_VERSIONS: Record<MiloExchangeGuidePage, string> = {
   home: "v1",
-  stocks: "v1",
-  property: "v10",
+  stocks: "v2",
+  property: "v11",
 };
 
 const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
@@ -125,7 +125,16 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "A price move by itself does not explain why it happened—read the event information too.",
     },
     {
-      eyebrow: "Step 6 · Trade",
+      eyebrow: "Step 6 · Jobs & Company Health",
+      title: "Companies affect the people who work there",
+      description:
+        "Company health and hiring conditions can affect promotions, pay and job security for Dreamscape residents. Those income changes can then affect housing decisions.",
+      target: "stock-company-economy",
+      section: "market",
+      tip: "Only some residents work for listed companies. Dreamscape also has private, community and self-employed work.",
+    },
+    {
+      eyebrow: "Step 7 · Trade",
       title: "Review the order before buying or selling",
       description:
         "Select a stock, enter a quantity, check the order total and your current holding, then choose Buy or Sell.",
@@ -214,7 +223,16 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "The same resident can return later with a different income, budget and housing need.",
     },
     {
-      eyebrow: "Step 9 · Business Spaces",
+      eyebrow: "Step 9 · Jobs & Income",
+      title: "A resident's job can change their housing choices",
+      description:
+        "Some residents work for Stock Exchange companies while others have private, community or self-employed careers. Raises, promotions and job losses can change what they can afford.",
+      target: "property-employment-economy",
+      propertyTab: "properties",
+      tip: "A company doing well does not guarantee every employee will be promoted, and a weak period does not mean everyone loses a job.",
+    },
+    {
+      eyebrow: "Step 10 · Business Spaces",
       title: "Commercial property can power a real business",
       description:
         "Office and retail units can now become premises for Business Builder businesses. A good fit can help the business perform, while rent becomes a real operating cost.",
@@ -223,7 +241,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "Own the space yourself or rent it to another Dreamscape business.",
     },
     {
-      eyebrow: "Step 10 · Lease Renewal",
+      eyebrow: "Step 11 · Lease Renewal",
       title: "Talk things through before a lease ends",
       description:
         "Before a lease ends, your tenant may message you about staying. You can accept, decline or suggest different rent and lease terms.",
@@ -232,7 +250,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "If no renewal is agreed, the tenant moves out and the property becomes vacant again.",
     },
     {
-      eyebrow: "Step 11 · Property Care",
+      eyebrow: "Step 12 · Property Care",
       title: "Take care of your property",
       description:
         "Wear and repair problems can lower value and upset tenants. Regular servicing helps keep the property in good shape.",
@@ -240,7 +258,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 12 · Upgrades",
+      eyebrow: "Step 13 · Upgrades",
       title: "Improve it, then look after it",
       description:
         "Upgrades can make a property more attractive and valuable. Maintenance protects what you have already built.",
@@ -249,7 +267,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "A premium property can still lose tenants if it is poorly managed.",
     },
     {
-      eyebrow: "Step 13 · Selling",
+      eyebrow: "Step 14 · Selling",
       title: "Sell when the time feels right",
       description:
         "When you sell, the property keeps its upgrades and condition. Choose an asking price and list it for other players.",
@@ -257,7 +275,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 14 · Resale Market",
+      eyebrow: "Step 15 · Resale Market",
       title: "Compare real player-owned properties",
       description:
         "Every resale listing reflects how that owner developed and cared for the property, so two homes of the same type can be very different.",

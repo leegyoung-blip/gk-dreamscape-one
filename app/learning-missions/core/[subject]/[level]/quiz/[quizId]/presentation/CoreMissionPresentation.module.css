@@ -580,12 +580,8 @@
 
 .mathMedia {
   width: min(980px, 100%);
+  min-width: 0;
   margin: 10px auto 0;
-}
-
-.mathMedia > div {
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
 }
 
 .mathDataLayout {
@@ -1090,4 +1086,422 @@
 
 .mathDataStage {
   --math-stage-accent: rgba(96, 165, 250, 0.14);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Math Presentation Engine — Phase D + E                                     */
+/* Workspace focus + dedicated short/numeric answer surface                   */
+/* -------------------------------------------------------------------------- */
+
+.mathWorkspaceGuide {
+  width: min(100%, 760px);
+  margin: 8px auto 0;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.13);
+  background: rgba(14, 165, 233, 0.055);
+  color: rgba(224, 242, 254, 0.68);
+  padding: 5px 11px;
+  box-sizing: border-box;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.mathWorkspaceGuideDot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #7dd3fc;
+  box-shadow: 0 0 0 4px rgba(125, 211, 252, 0.08);
+}
+
+.mathBodyTextResponse {
+  width: min(1080px, 100%);
+}
+
+.mathTextResponseStage .mathPromptWrapCalculation {
+  width: min(760px, 100%);
+}
+
+.mathAnswerShell {
+  width: min(760px, 100%);
+  margin: clamp(16px, 2.5vh, 26px) auto 0;
+  border-radius: 20px;
+  border: 1px solid rgba(125, 211, 252, 0.17);
+  background:
+    linear-gradient(180deg, rgba(14, 165, 233, 0.075), rgba(2, 10, 25, 0.18)),
+    rgba(255, 255, 255, 0.025);
+  padding: 16px 18px 15px;
+  box-sizing: border-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 12px 34px rgba(0, 0, 0, 0.08);
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.mathAnswerShellCorrect {
+  border-color: rgba(52, 211, 153, 0.48);
+  background:
+    linear-gradient(180deg, rgba(52, 211, 153, 0.11), rgba(2, 10, 25, 0.17)),
+    rgba(255, 255, 255, 0.025);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 12px 34px rgba(16, 185, 129, 0.07);
+}
+
+.mathAnswerShellWrong {
+  border-color: rgba(248, 113, 113, 0.5);
+  background:
+    linear-gradient(180deg, rgba(239, 68, 68, 0.105), rgba(2, 10, 25, 0.17)),
+    rgba(255, 255, 255, 0.025);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 12px 34px rgba(239, 68, 68, 0.065);
+}
+
+.mathAnswerHeadingRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mathAnswerEyebrow {
+  margin: 0;
+  color: #8ee8ff;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.mathAnswerLabel {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.mathAnswerVerdictCorrect,
+.mathAnswerVerdictWrong {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.mathAnswerVerdictCorrect {
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  background: rgba(52, 211, 153, 0.1);
+  color: #d1fae5;
+}
+
+.mathAnswerVerdictWrong {
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  background: rgba(248, 113, 113, 0.1);
+  color: #fee2e2;
+}
+
+.mathAnswerEntryRow {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.mathAnswerInput {
+  width: 100%;
+  min-width: 0;
+  min-height: 66px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  background: rgba(1, 8, 20, 0.52);
+  color: #ffffff;
+  padding: 0 18px;
+  outline: none;
+  font-family: inherit;
+  font-size: clamp(25px, 2.7vw, 38px);
+  font-weight: 850;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  text-align: center;
+  caret-color: #7dd3fc;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+.mathAnswerInput::placeholder {
+  color: rgba(255, 255, 255, 0.23);
+  font-size: 0.62em;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.mathAnswerInput:focus {
+  border-color: rgba(125, 211, 252, 0.72);
+  background: rgba(1, 8, 20, 0.68);
+  box-shadow: 0 0 0 4px rgba(125, 211, 252, 0.09);
+}
+
+.mathAnswerInput:disabled {
+  opacity: 0.92;
+  cursor: default;
+}
+
+.mathAnswerShellCorrect .mathAnswerInput {
+  border-color: rgba(52, 211, 153, 0.5);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.055);
+}
+
+.mathAnswerShellWrong .mathAnswerInput {
+  border-color: rgba(248, 113, 113, 0.5);
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.05);
+}
+
+.mathAnswerAffix {
+  min-width: max-content;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: clamp(19px, 1.8vw, 27px);
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.mathAnswerPreview {
+  margin-top: 10px;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-radius: 13px;
+  border: 1px dashed rgba(125, 211, 252, 0.18);
+  background: rgba(2, 10, 25, 0.18);
+  padding: 7px 11px;
+  box-sizing: border-box;
+}
+
+.mathAnswerPreviewLabel {
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.mathAnswerPreviewValue {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.mathAnswerHint {
+  margin: 9px 0 0;
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+/* Phase D: the question side becomes a compact reference panel while the
+   learner works on the persistent paper beside it. The toolbar/player outside
+   this component is untouched. */
+.mathStageWorkspaceOpen {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.mathStageWorkspaceOpen .mathHeader {
+  position: sticky;
+  top: -12px;
+  z-index: 6;
+  margin: -12px -14px 0;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  background: linear-gradient(180deg, rgba(6, 19, 38, 0.99), rgba(6, 19, 38, 0.92));
+  backdrop-filter: blur(10px);
+}
+
+.mathStageWorkspaceOpen .mathWorkspaceGuide {
+  width: 100%;
+  margin-top: 7px;
+}
+
+.mathStageWorkspaceOpen .mathBody,
+.mathStageWorkspaceOpen .mathBodyTextResponse {
+  justify-content: flex-start;
+}
+
+.mathStageWorkspaceOpen .mathMedia {
+  max-height: min(33dvh, 280px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: 12px;
+}
+
+.mathAnswerShellWorkspace {
+  width: 100%;
+  margin-top: 10px;
+  padding: 11px 12px;
+  border-radius: 15px;
+}
+
+.mathStageWorkspaceOpen .mathAnswerShellWorkspace {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background:
+    linear-gradient(180deg, rgba(9, 30, 53, 0.97), rgba(5, 18, 42, 0.99));
+  box-shadow:
+    0 -12px 28px rgba(6, 19, 38, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(12px);
+}
+
+.mathAnswerShellWorkspace .mathAnswerHeadingRow {
+  align-items: center;
+}
+
+.mathAnswerShellWorkspace .mathAnswerLabel,
+.mathAnswerShellWorkspace .mathAnswerHint {
+  display: none;
+}
+
+.mathAnswerShellWorkspace .mathAnswerEntryRow {
+  margin-top: 8px;
+  gap: 7px;
+}
+
+.mathAnswerShellWorkspace .mathAnswerInput {
+  min-height: 48px;
+  border-radius: 12px;
+  padding: 0 12px;
+  font-size: clamp(19px, 1.75vw, 27px);
+}
+
+.mathAnswerShellWorkspace .mathAnswerAffix {
+  font-size: clamp(16px, 1.4vw, 21px);
+}
+
+.mathAnswerShellWorkspace .mathAnswerPreview {
+  min-height: 34px;
+  margin-top: 7px;
+  padding: 5px 8px;
+}
+
+.mathAnswerShellWorkspace .mathAnswerPreviewValue {
+  font-size: 19px;
+}
+
+@media (max-width: 1180px) {
+  .mathAnswerShell {
+    width: min(700px, 100%);
+  }
+
+  .mathAnswerInput {
+    min-height: 60px;
+    font-size: clamp(23px, 3vw, 34px);
+  }
+}
+
+@media (max-width: 720px) {
+  .mathWorkspaceGuide {
+    display: none;
+  }
+
+  .mathAnswerShell {
+    margin-top: 10px;
+    border-radius: 15px;
+    padding: 11px;
+  }
+
+  .mathAnswerHeadingRow {
+    align-items: center;
+  }
+
+  .mathAnswerLabel {
+    font-size: 11px;
+  }
+
+  .mathAnswerVerdictCorrect,
+  .mathAnswerVerdictWrong {
+    min-height: 25px;
+    padding: 0 8px;
+    font-size: 9px;
+  }
+
+  .mathAnswerEntryRow {
+    margin-top: 8px;
+    gap: 7px;
+  }
+
+  .mathAnswerInput {
+    min-height: 53px;
+    border-radius: 13px;
+    padding: 0 10px;
+    font-size: clamp(22px, 7vw, 31px);
+  }
+
+  .mathAnswerAffix {
+    font-size: clamp(17px, 5vw, 22px);
+  }
+
+  .mathAnswerPreview {
+    min-height: 35px;
+    margin-top: 7px;
+  }
+
+  .mathAnswerPreviewValue {
+    font-size: 20px;
+  }
+
+  .mathAnswerHint {
+    margin-top: 7px;
+    font-size: 9px;
+  }
+}
+
+@media (min-width: 721px) and (max-height: 720px) {
+  .mathWorkspaceGuide {
+    margin-top: 5px;
+    min-height: 26px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+
+  .mathAnswerShell {
+    margin-top: 9px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .mathAnswerInput {
+    min-height: 50px;
+    font-size: clamp(21px, 2.25vw, 30px);
+  }
+
+  .mathAnswerHint {
+    display: none;
+  }
 }

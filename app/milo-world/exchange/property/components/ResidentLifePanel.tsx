@@ -326,6 +326,20 @@ export default function ResidentLifePanel({
                     >
                       {resident.occupation} · {titleCase(resident.life_stage) || "Resident"}
                     </small>
+                    {resident.employer_name && (
+                      <small
+                        style={{
+                          display: "block",
+                          marginTop: "3px",
+                          color: resident.employer_stock_symbol ? "#8ee8ff" : "rgba(255,255,255,0.38)",
+                          fontSize: "9px",
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        {resident.employer_name}
+                        {resident.employer_stock_symbol ? ` · ${resident.employer_stock_symbol}` : ""}
+                      </small>
+                    )}
                     <span
                       style={{
                         display: "inline-flex",

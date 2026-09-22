@@ -44,6 +44,11 @@ import {
   type PropertyMarketHistoryPoint,
   type PropertyMarketDashboard,
   type PropertyBusinessSpaceDashboard,
+  type MiloEmploymentDashboard,
+  type MiloEmploymentCompany,
+  type MiloEmploymentResident,
+  type MiloEmploymentEvent,
+  type MiloEmploymentStats,
 } from "./components/propertyExchangeShared";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -288,6 +293,19 @@ export default function PropertyExchangeClient() {
       incoming_applications: 0,
     },
   });
+  const [employmentDashboard, setEmploymentDashboard] = useState<MiloEmploymentDashboard>({
+    companies: [],
+    residents: [],
+    events: [],
+    stats: {
+      listed_companies: 0,
+      listed_company_workers: 0,
+      private_or_community_workers: 0,
+      self_employed: 0,
+      studying: 0,
+      between_jobs: 0,
+    },
+  });
   const [phoneOpenRequest, setPhoneOpenRequest] = useState(0);
 
   const [previewProperty, setPreviewProperty] = useState<PropertyOffering | null>(null);
@@ -432,6 +450,7 @@ export default function PropertyExchangeClient() {
     await Promise.all([loadDreamTokens(), loadPropertyMarket(user.id)]);
     await refreshMaintenanceSimulation(false);
     await refreshResidentLife(false);
+    await refreshEmploymentEconomy(false);
     await refreshResidentSimulation(false);
     await refreshLeaseLifecycle(false);
     await refreshDistrictMarket(false);
@@ -445,6 +464,7 @@ export default function PropertyExchangeClient() {
       loadResidentLifeDashboard(),
       loadDistrictMarketDashboard(),
       loadBusinessSpaceDashboard(),
+      loadEmploymentDashboard(),
     ]);
     setLoading(false);
   }
@@ -544,6 +564,9 @@ export default function PropertyExchangeClient() {
       current_weekly_rent: item.current_weekly_rent == null ? null : Number(item.current_weekly_rent),
       satisfaction: item.satisfaction == null ? null : Number(item.satisfaction),
       move_intent: Boolean(item.move_intent),
+      employer_kind: item.employer_kind || null,
+      employer_stock_symbol: item.employer_stock_symbol || null,
+      employment_stability: Number(item.employment_stability || 0),
     })));
     setResidentLifeEvents((dashboard.events || []).map((item) => ({
       ...item,
@@ -587,6 +610,91 @@ export default function PropertyExchangeClient() {
       } else {
         setTradeMessage("Resident life is up to date.");
       }
+    }
+  }
+
+  async function loadEmploymentDashboard() {
+    const { data, error } = await supabase.rpc("get_milo_exchange_employment_dashboard");
+
+    if (error) {
+      console.warn("Could not load jobs and company economy:", error.message);
+      setEmploymentDashboard({
+        companies: [],
+        residents: [],
+        events: [],
+        stats: {
+          listed_companies: 0,
+          listed_company_workers: 0,
+          private_or_community_workers: 0,
+          self_employed: 0,
+          studying: 0,
+          between_jobs: 0,
+        },
+      });
+      return;
+    }
+
+    const dashboard = (data || {}) as Partial<MiloEmploymentDashboard>;
+    const companies = (dashboard.companies || []).map((item) => ({
+      ...item,
+      health_score: Number(item.health_score || 0),
+      hiring_index: Number(item.hiring_index || 0),
+      workforce_sentiment: Number(item.workforce_sentiment || 0),
+      salary_index_bps: Number(item.salary_index_bps || 10000),
+      base_headcount: Number(item.base_headcount || 0),
+      named_employee_count: Number(item.named_employee_count || 0),
+      avg_named_employee_income: Number(item.avg_named_employee_income || 0),
+      recent_promotions: Number(item.recent_promotions || 0),
+      recent_hires: Number(item.recent_hires || 0),
+      recent_layoffs: Number(item.recent_layoffs || 0),
+      current_price: Number(item.current_price || 0),
+      previous_price: Number(item.previous_price || 0),
+    })) as MiloEmploymentCompany[];
+    const residents = (dashboard.residents || []).map((item) => ({
+      ...item,
+      employment_stability: Number(item.employment_stability || 0),
+      career_level: Number(item.career_level || 1),
+      monthly_income: Number(item.monthly_income || 0),
+      max_weekly_rent: Number(item.max_weekly_rent || 0),
+      purchase_budget: Number(item.purchase_budget || 0),
+      financial_pressure: Number(item.financial_pressure || 0),
+      move_intent: Boolean(item.move_intent),
+    })) as MiloEmploymentResident[];
+    const events = (dashboard.events || []).map((item) => ({
+      ...item,
+      income_before: Number(item.income_before || 0),
+      income_after: Number(item.income_after || 0),
+      metadata: (item.metadata || {}) as Record<string, unknown>,
+    })) as MiloEmploymentEvent[];
+    const stats = dashboard.stats || ({} as MiloEmploymentStats);
+    setEmploymentDashboard({
+      companies,
+      residents,
+      events,
+      stats: {
+        listed_companies: Number(stats.listed_companies || 0),
+        listed_company_workers: Number(stats.listed_company_workers || 0),
+        private_or_community_workers: Number(stats.private_or_community_workers || 0),
+        self_employed: Number(stats.self_employed || 0),
+        studying: Number(stats.studying || 0),
+        between_jobs: Number(stats.between_jobs || 0),
+      },
+    });
+  }
+
+  async function refreshEmploymentEconomy(showMessage = false) {
+    const { data, error } = await supabase.rpc("refresh_milo_exchange_employment_economy");
+    if (error) {
+      console.warn("Could not refresh jobs and company economy:", error.message);
+      return;
+    }
+    if (showMessage) {
+      const result = (data || {}) as Record<string, unknown>;
+      const world = (result.world || {}) as Record<string, unknown>;
+      const events = Number(world.employment_events_created || 0);
+      setTradeMessage(events > 0
+        ? `Jobs updated · ${events} employment change${events === 1 ? "" : "s"}.`
+        : "Jobs and company activity are up to date.");
     }
   }
 
@@ -1168,6 +1276,7 @@ export default function PropertyExchangeClient() {
     if (!userId) return;
     await refreshMaintenanceSimulation(false);
     await refreshResidentLife(false);
+    await refreshEmploymentEconomy(false);
     await refreshResidentSimulation(showResidentMessage);
     await refreshLeaseLifecycle(false);
     await refreshDistrictMarket(false);
@@ -1181,6 +1290,7 @@ export default function PropertyExchangeClient() {
       loadResidentLifeDashboard(),
       loadDistrictMarketDashboard(),
       loadBusinessSpaceDashboard(),
+      loadEmploymentDashboard(),
     ]);
   }
 
@@ -1874,6 +1984,7 @@ export default function PropertyExchangeClient() {
               residentLifeEvents={residentLifeEvents}
               residentLifeStats={residentLifeStats}
               businessSpaceDashboard={businessSpaceDashboard}
+              employmentDashboard={employmentDashboard}
               currentUserId={userId}
               unreadMessages={propertyUnreadCount}
               actionLoading={actionLoading}
@@ -1896,6 +2007,14 @@ export default function PropertyExchangeClient() {
                 ]);
               }}
               onRefreshBusinessSpaces={() => refreshBusinessSpaces(true)}
+              onRefreshEmployment={async () => {
+                await refreshEmploymentEconomy(true);
+                await Promise.all([
+                  loadEmploymentDashboard(),
+                  loadResidentLifeDashboard(),
+                  loadPropertyCommunications(),
+                ]);
+              }}
               onUseOwnedBusinessSpace={useOwnedBusinessSpace}
               onLeaveBusinessSpace={leaveBusinessSpace}
               onCreateBusinessSpaceListing={createBusinessSpaceListing}

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import PropertyManagementModal from "./PropertyManagementModal";
 import ResidentLifePanel from "./ResidentLifePanel";
 import BusinessSpacePanel from "./BusinessSpacePanel";
+import EmploymentEconomyPanel from "./EmploymentEconomyPanel";
 import {
   formatDateTime,
   formatNumber,
@@ -26,6 +27,7 @@ import {
   type PropertyResidentLifeEvent,
   type PropertyResidentLifeStats,
   type PropertyBusinessSpaceDashboard,
+  type MiloEmploymentDashboard,
 } from "./propertyExchangeShared";
 
 type Props = PropertyTabStyles & {
@@ -49,6 +51,7 @@ type Props = PropertyTabStyles & {
   residentLifeEvents: PropertyResidentLifeEvent[];
   residentLifeStats: PropertyResidentLifeStats;
   businessSpaceDashboard: PropertyBusinessSpaceDashboard;
+  employmentDashboard: MiloEmploymentDashboard;
   currentUserId: string | null;
   unreadMessages: number;
   actionLoading: boolean;
@@ -66,6 +69,7 @@ type Props = PropertyTabStyles & {
   onRefreshResidentMarket: () => Promise<void>;
   onRefreshResidentLife: () => Promise<void>;
   onRefreshBusinessSpaces: () => Promise<void>;
+  onRefreshEmployment: () => Promise<void>;
   onUseOwnedBusinessSpace: (slotId: number, unitId: string) => Promise<void>;
   onLeaveBusinessSpace: (slotId: number) => Promise<void>;
   onCreateBusinessSpaceListing: (unitId: string, weeklyRent: number, minWeeks: number, maxWeeks: number) => Promise<void>;
@@ -100,6 +104,7 @@ export default function MyPropertiesTab({
   residentLifeEvents,
   residentLifeStats,
   businessSpaceDashboard,
+  employmentDashboard,
   currentUserId,
   unreadMessages,
   actionLoading,
@@ -116,6 +121,7 @@ export default function MyPropertiesTab({
   onRefreshResidentMarket,
   onRefreshResidentLife,
   onRefreshBusinessSpaces,
+  onRefreshEmployment,
   onUseOwnedBusinessSpace,
   onLeaveBusinessSpace,
   onCreateBusinessSpaceListing,
@@ -501,6 +507,17 @@ export default function MyPropertiesTab({
           secondaryButton={secondaryButton}
           onRefresh={() => void onRefreshResidentLife()}
           onOpenMessages={onOpenMessages}
+        />
+
+        <EmploymentEconomyPanel
+          dashboard={employmentDashboard}
+          connectedResidentIds={residentLifeProfiles.map((resident) => resident.resident_id)}
+          isMobile={isMobile}
+          isCompact={isCompact}
+          actionLoading={actionLoading}
+          glassPanel={glassPanel}
+          secondaryButton={secondaryButton}
+          onRefresh={() => void onRefreshEmployment()}
         />
 
         <BusinessSpacePanel
