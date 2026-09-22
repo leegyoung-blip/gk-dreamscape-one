@@ -15,6 +15,7 @@ import CoreTeachingSummary from "./CoreTeachingSummary";
 import EnglishTeachingRenderer from "./english/EnglishTeachingRenderer";
 import MathTeachingRenderer from "./math/MathTeachingRenderer";
 import { recordTeachingEvent } from "./TeachingEvents";
+import { buildTeachingEvidenceMetadata } from "./TeachingEvidenceMetadata";
 import {
   normaliseTeachingLesson,
   normaliseTeachingQuickCheck,
@@ -30,6 +31,9 @@ export default function CoreTeachingEngine({
   subject,
   quizId,
   attemptId,
+  primaryLevel,
+  topicId,
+  topicTitle,
   question,
   response,
   feedback,
@@ -37,6 +41,9 @@ export default function CoreTeachingEngine({
   subject: CoreSubject;
   quizId?: string;
   attemptId?: string;
+  primaryLevel?: number;
+  topicId?: string;
+  topicTitle?: string;
   question: QuizQuestion;
   response?: JsonObject;
   feedback?: ImmediateFeedback;
@@ -56,6 +63,18 @@ export default function CoreTeachingEngine({
   const teaching = useMemo(
     () => readTeachingConfig(question.content),
     [question.content],
+  );
+
+  const evidenceMetadata = useMemo(
+    () =>
+      buildTeachingEvidenceMetadata({
+        question,
+        primaryLevel,
+        topicId,
+        topicTitle,
+        teachingVersion: Number(teaching?.version || 1),
+      }),
+    [primaryLevel, question, teaching?.version, topicId, topicTitle],
   );
 
   const hint = normaliseTeachingText(teaching?.hint);
@@ -82,9 +101,9 @@ export default function CoreTeachingEngine({
       eventType: "misconception_shown",
       eventKey: misconception.code || "authored",
       misconceptionCode: misconception.code,
-      metadata: { teaching_version: Number(teaching?.version || 1) },
+      metadata: evidenceMetadata,
     });
-  }, [attemptId, feedback, misconception, question.id, quizId, subject, teaching?.version]);
+  }, [attemptId, evidenceMetadata, feedback, misconception, question.id, quizId, subject]);
 
   function record(
     eventType:
@@ -110,7 +129,7 @@ export default function CoreTeachingEngine({
       lessonType: extra.lessonType,
       quickCheckCorrect: extra.quickCheckCorrect,
       metadata: {
-        teaching_version: Number(teaching?.version || 1),
+        ...evidenceMetadata,
         ...(extra.metadata || {}),
       },
     });

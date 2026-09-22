@@ -1609,6 +1609,8 @@ export default function CoreQuizPlayer({
             subject={subject}
             quizId={quizId}
             attemptId={payload.attempt_id}
+            primaryLevel={payload.quiz.primary_level}
+            topicId={payload.quiz.topic_id}
             question={currentQuestion}
             topicTitle={payload.quiz.topic_title}
             response={currentResponse}

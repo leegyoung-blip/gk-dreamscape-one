@@ -117,6 +117,49 @@ type EmploymentDashboard = {
   stats: EmploymentStats;
 };
 
+type StockMarketState = {
+  symbol: string;
+  name: string;
+  sector: string;
+  current_price: number;
+  previous_price: number;
+  fundamental_score: number;
+  fair_value_price: number;
+  company_health: number;
+  hiring_index: number;
+  workforce_sentiment: number;
+  player_buy_qty: number;
+  player_sell_qty: number;
+  agent_buy_qty: number;
+  agent_sell_qty: number;
+  fundamental_component_bps: number;
+  player_flow_component_bps: number;
+  agent_flow_component_bps: number;
+  momentum_component_bps: number;
+  noise_component_bps: number;
+  daily_change_bps: number;
+  market_mood: string;
+  market_reason: string | null;
+  last_settlement_date: string | null;
+  last_settled_at: string | null;
+};
+
+type StockMarketOverall = {
+  advancing: number;
+  declining: number;
+  unchanged: number;
+  average_change_bps: number;
+  market_mood: string;
+  last_settled_at: string | null;
+  active_synthetic_agents: number;
+  price_movement_enabled: boolean;
+};
+
+type StockMarketDashboard = {
+  market: StockMarketState[];
+  overall: StockMarketOverall;
+};
+
 
 function useResponsiveMode() {
   const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
@@ -697,6 +740,18 @@ export default function MiloStockExchangePage() {
     between_jobs: 0,
   });
 
+  const [stockMarketStates, setStockMarketStates] = useState<StockMarketState[]>([]);
+  const [stockMarketOverall, setStockMarketOverall] = useState<StockMarketOverall>({
+    advancing: 0,
+    declining: 0,
+    unchanged: 0,
+    average_change_bps: 0,
+    market_mood: "steady",
+    last_settled_at: null,
+    active_synthetic_agents: 0,
+    price_movement_enabled: false,
+  });
+
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [activeSection, setActiveSection] = useState<ExchangeSection>("portfolio");
@@ -766,9 +821,19 @@ export default function MiloStockExchangePage() {
     );
   }, [employmentResidents, selectedStock]);
 
+  const selectedMarketState = useMemo(() => {
+    if (!selectedStock) return undefined;
+    return stockMarketStates.find((item) => item.symbol === selectedStock.symbol);
+  }, [selectedStock, stockMarketStates]);
+
   useEffect(() => {
     loadPage();
   }, []);
+
+  useEffect(() => {
+    if (!userId || !selectedSymbol) return;
+    loadPriceHistory(selectedSymbol);
+  }, [userId, selectedSymbol]);
 
   async function loadPage() {
     setLoading(true);
@@ -792,11 +857,10 @@ export default function MiloStockExchangePage() {
       loadStocks(),
       loadHoldings(user.id),
       loadTrades(user.id),
-      loadPriceHistory(),
       loadNewsEvents(),
+      loadStockMarketDashboard(),
     ]);
 
-    await refreshEmploymentEconomy();
     await loadEmploymentDashboard();
 
     setLoading(false);
@@ -868,18 +932,74 @@ export default function MiloStockExchangePage() {
     setTrades((data || []) as Trade[]);
   }
 
-  async function loadPriceHistory() {
-    const { data, error } = await supabase
-      .from("milo_exchange_price_history")
-      .select("*")
-      .order("price_date", { ascending: true });
+  async function loadPriceHistory(symbol: string) {
+    if (!symbol) return;
+
+    const { data, error } = await supabase.rpc(
+      "get_milo_exchange_stock_price_history",
+      { p_symbol: symbol, p_limit: 800 }
+    );
 
     if (error) {
       console.warn("Could not load price history:", error.message);
+      setPriceHistory([]);
       return;
     }
 
-    setPriceHistory((data || []) as PricePoint[]);
+    const rows = (Array.isArray(data) ? data : []) as PricePoint[];
+    setPriceHistory(
+      rows.map((row) => ({
+        ...row,
+        price: Number(row.price || 0),
+      }))
+    );
+  }
+
+  async function loadStockMarketDashboard() {
+    const { data, error } = await supabase.rpc(
+      "get_milo_exchange_stock_market_dashboard"
+    );
+
+    if (error) {
+      console.warn("Could not load Living City stock market:", error.message);
+      setStockMarketStates([]);
+      return;
+    }
+
+    const dashboard = (data || {}) as Partial<StockMarketDashboard>;
+    const market = ((dashboard.market || []) as StockMarketState[]).map((row) => ({
+      ...row,
+      current_price: Number(row.current_price || 0),
+      previous_price: Number(row.previous_price || 0),
+      fundamental_score: Number(row.fundamental_score || 0),
+      fair_value_price: Number(row.fair_value_price || 0),
+      company_health: Number(row.company_health || 0),
+      hiring_index: Number(row.hiring_index || 0),
+      workforce_sentiment: Number(row.workforce_sentiment || 0),
+      player_buy_qty: Number(row.player_buy_qty || 0),
+      player_sell_qty: Number(row.player_sell_qty || 0),
+      agent_buy_qty: Number(row.agent_buy_qty || 0),
+      agent_sell_qty: Number(row.agent_sell_qty || 0),
+      fundamental_component_bps: Number(row.fundamental_component_bps || 0),
+      player_flow_component_bps: Number(row.player_flow_component_bps || 0),
+      agent_flow_component_bps: Number(row.agent_flow_component_bps || 0),
+      momentum_component_bps: Number(row.momentum_component_bps || 0),
+      noise_component_bps: Number(row.noise_component_bps || 0),
+      daily_change_bps: Number(row.daily_change_bps || 0),
+    }));
+    setStockMarketStates(market);
+
+    const overall = (dashboard.overall || {}) as Partial<StockMarketOverall>;
+    setStockMarketOverall({
+      advancing: Number(overall.advancing || 0),
+      declining: Number(overall.declining || 0),
+      unchanged: Number(overall.unchanged || 0),
+      average_change_bps: Number(overall.average_change_bps || 0),
+      market_mood: String(overall.market_mood || "steady"),
+      last_settled_at: overall.last_settled_at ? String(overall.last_settled_at) : null,
+      active_synthetic_agents: Number(overall.active_synthetic_agents || 0),
+      price_movement_enabled: Boolean(overall.price_movement_enabled),
+    });
   }
 
   async function loadNewsEvents() {
@@ -895,13 +1015,6 @@ export default function MiloStockExchangePage() {
     }
 
     setNewsEvents((data || []) as NewsEvent[]);
-  }
-
-  async function refreshEmploymentEconomy() {
-    const { error } = await supabase.rpc("refresh_milo_exchange_employment_economy");
-    if (error) {
-      console.warn("Could not refresh company employment economy:", error.message);
-    }
   }
 
   async function loadEmploymentDashboard() {
@@ -968,6 +1081,31 @@ export default function MiloStockExchangePage() {
     return "rgba(255,255,255,0.72)";
   }
 
+  function marketMoodLabel(value: string) {
+    if (value === "strong_rise") return "Strong Rise";
+    if (value === "rising") return "Rising";
+    if (value === "strong_fall") return "Strong Fall";
+    if (value === "falling") return "Falling";
+    return "Steady";
+  }
+
+  function marketMoodColor(value: string) {
+    if (value === "strong_rise" || value === "rising") return "#79f2ce";
+    if (value === "strong_fall" || value === "falling") return "#ff9292";
+    return "#ffd18a";
+  }
+
+  function formatBpsAsPercent(value: number) {
+    const pct = Number(value || 0) / 100;
+    return `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`;
+  }
+
+  function formatNetShares(buys: number, sells: number) {
+    const net = Number(buys || 0) - Number(sells || 0);
+    if (net === 0) return "Balanced";
+    return `${net > 0 ? "+" : ""}${net} shares`;
+  }
+
   function getHolding(symbol: string) {
     return holdings.find((holding) => holding.symbol === symbol);
   }
@@ -988,9 +1126,10 @@ export default function MiloStockExchangePage() {
       loadHoldings(userId),
       loadTrades(userId),
       loadStocks(),
-      loadPriceHistory(),
       loadNewsEvents(),
       loadEmploymentDashboard(),
+      loadStockMarketDashboard(),
+      selectedSymbol ? loadPriceHistory(selectedSymbol) : Promise.resolve(),
     ]);
   }
 
@@ -2256,6 +2395,142 @@ export default function MiloStockExchangePage() {
                             );
                           })
                         )}
+                      </div>
+                    </section>
+
+                    <section
+                      data-milo-guide="stock-market-forces"
+                      style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: isMobile ? "column" : "row",
+                          justifyContent: "space-between",
+                          alignItems: isMobile ? "stretch" : "flex-end",
+                          gap: "12px",
+                        }}
+                      >
+                        <div>
+                          <p
+                            style={{
+                              margin: 0,
+                              color: "#ffd18a",
+                              fontSize: "11px",
+                              letterSpacing: "0.18em",
+                              textTransform: "uppercase",
+                              fontWeight: 900,
+                            }}
+                          >
+                            Living Market
+                          </p>
+                          <h2
+                            style={{
+                              margin: "8px 0 0",
+                              fontFamily: 'Georgia, "Times New Roman", serif',
+                              fontSize: isMobile ? "30px" : "36px",
+                              fontWeight: 500,
+                            }}
+                          >
+                            What moved {selectedStock.symbol}?
+                          </h2>
+                          <p
+                            style={{
+                              margin: "8px 0 0",
+                              maxWidth: "840px",
+                              color: "rgba(255,255,255,0.5)",
+                              fontSize: "12px",
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            Prices settle once each day. Company fundamentals set a fair-value anchor, while real player trades and Dreamscape’s synthetic investors add modest supply-and-demand pressure. Daily movement is capped to keep the fictional market stable.
+                          </p>
+                        </div>
+                        <div
+                          style={{
+                            borderRadius: "999px",
+                            padding: "7px 12px",
+                            background: "rgba(255,255,255,0.05)",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            color: marketMoodColor(selectedMarketState?.market_mood || "steady"),
+                            fontSize: "11px",
+                            fontWeight: 900,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {marketMoodLabel(selectedMarketState?.market_mood || "steady")}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "15px",
+                          display: "grid",
+                          gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(5,minmax(0,1fr))",
+                          gap: "9px",
+                        }}
+                      >
+                        {[
+                          ["Fundamentals", `${selectedMarketState?.fundamental_score || 0}/100`],
+                          ["Fair Value", `${formatNumber(selectedMarketState?.fair_value_price || selectedStock.current_price)} DT`],
+                          ["Player Flow", formatNetShares(selectedMarketState?.player_buy_qty || 0, selectedMarketState?.player_sell_qty || 0)],
+                          ["Agent Flow", formatNetShares(selectedMarketState?.agent_buy_qty || 0, selectedMarketState?.agent_sell_qty || 0)],
+                          ["Last Move", formatBpsAsPercent(selectedMarketState?.daily_change_bps || 0)],
+                        ].map(([label, value]) => (
+                          <div
+                            key={String(label)}
+                            style={{
+                              borderRadius: "14px",
+                              padding: "11px 12px",
+                              background: "rgba(255,255,255,0.04)",
+                              border: "1px solid rgba(255,255,255,0.07)",
+                              minWidth: 0,
+                            }}
+                          >
+                            <small style={{ color: "rgba(255,255,255,0.4)", fontSize: "9px" }}>{label}</small>
+                            <strong style={{ display: "block", marginTop: "4px", fontSize: "15px", overflowWrap: "anywhere" }}>{value}</strong>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          display: "grid",
+                          gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1.5fr) minmax(240px,.5fr)",
+                          gap: "10px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            borderRadius: "14px",
+                            padding: "11px 12px",
+                            background: "rgba(255,209,138,0.045)",
+                            border: "1px solid rgba(255,209,138,0.1)",
+                            color: "rgba(255,255,255,0.58)",
+                            fontSize: "11px",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          <strong style={{ color: "white" }}>Market explanation:</strong>{" "}
+                          {selectedMarketState?.market_reason || "The Living City market is waiting for its first daily settlement."}
+                        </div>
+                        <div
+                          style={{
+                            borderRadius: "14px",
+                            padding: "11px 12px",
+                            background: "rgba(142,232,255,0.04)",
+                            border: "1px solid rgba(142,232,255,0.09)",
+                            color: "rgba(255,255,255,0.5)",
+                            fontSize: "10px",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          <strong style={{ color: "#8ee8ff" }}>{stockMarketOverall.active_synthetic_agents}</strong> synthetic investors are connected to the market.
+                          {stockMarketOverall.last_settled_at && (
+                            <> Last settlement: {formatDateTime(stockMarketOverall.last_settled_at)}.</>
+                          )}
+                        </div>
                       </div>
                     </section>
 

@@ -23,7 +23,7 @@ type Props = {
 
 const GUIDE_VERSIONS: Record<MiloExchangeGuidePage, string> = {
   home: "v2",
-  stocks: "v2",
+  stocks: "v3",
   property: "v13",
 };
 
@@ -100,7 +100,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       section: "portfolio",
     },
     {
-      eyebrow: "Step 3 · Allocation",
+      eyebrow: "Step 2 · Allocation",
       title: "Check concentration",
       description:
         "The allocation view shows how much of your Exchange value is held as cash versus each stock. It helps you see when one holding dominates your portfolio.",
@@ -108,7 +108,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       section: "portfolio",
     },
     {
-      eyebrow: "Step 4 · Market",
+      eyebrow: "Step 3 · Market",
       title: "Compare the available stocks",
       description:
         "Choose a stock here to compare its current price, daily move and how many shares you already own.",
@@ -116,7 +116,7 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       section: "market",
     },
     {
-      eyebrow: "Step 5 · Research",
+      eyebrow: "Step 4 · Research",
       title: "Use the graph and news together",
       description:
         "The price timeline gives historical context while published news explains events that may matter. Upcoming teasers deliberately keep future price effects hidden until release.",
@@ -125,13 +125,22 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
       tip: "A price move by itself does not explain why it happened—read the event information too.",
     },
     {
-      eyebrow: "Step 6 · Jobs & Company Health",
+      eyebrow: "Step 5 · Jobs & Company Health",
       title: "Companies affect the people who work there",
       description:
         "Company health and hiring conditions can affect promotions, pay and job security for Dreamscape residents. Those income changes can then affect housing decisions.",
       target: "stock-company-economy",
       section: "market",
       tip: "Only some residents work for listed companies. Dreamscape also has private, community and self-employed work.",
+    },
+    {
+      eyebrow: "Step 6 · Market Forces",
+      title: "See why the price moved",
+      description:
+        "The Living City now settles stock prices once per day. Company fundamentals provide the anchor, while player trades and the synthetic investor population create modest supply-and-demand pressure.",
+      target: "stock-market-forces",
+      section: "market",
+      tip: "One trade cannot swing the market. Daily movement is capped, and synthetic agents use their real Dream Token wallets and holdings.",
     },
     {
       eyebrow: "Step 7 · Trade",

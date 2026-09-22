@@ -1,0 +1,594 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import { supabase } from "@/lib/supabase";
+import DailyActivityReferralPrompt, {
+  canOfferDailyReferralPrompt,
+} from "@/components/DailyActivityReferralPrompt";
+import MasteryCodeKeyboard from "./MasteryCodeKeyboard";
+import MasteryCodeGrid from "./MasteryCodeGrid";
+import {
+  buildPuzzleFeedback,
+  getSingaporeDateString,
+  getSingaporeDayUtcBounds,
+  getSurvivalMaxAttempts,
+  getSurvivalRewardTarget,
+  getSurvivalWordLength,
+  type MasteryAttempt,
+} from "./mastery-code-shared";
+
+type SurvivalWordPool = {
+  wordLength: number;
+  answers: {
+    easy: string[];
+    medium: string[];
+    hard: string[];
+  };
+  valid: string[];
+};
+
+type RunEndState = {
+  failedLevel: number;
+  wordsCleared: number;
+  answer: string;
+  rewardTarget: number;
+  rewardDelta: number;
+  newBest: boolean;
+};
+
+const SURVIVAL_WORD_URLS: Record<number, string> = {
+  5: "/milo-world/activities/survival/5-letter.json",
+  6: "/milo-world/activities/survival/6-letter.json",
+  7: "/milo-world/activities/survival/7-letter.json",
+};
+
+function personalBestKey(userId: string) {
+  return `milo-mastery-survival-best-${userId || "guest"}`;
+}
+
+function dailyBestKey(userId: string) {
+  return `milo-mastery-survival-daily-${getSingaporeDateString()}-${userId || "guest"}`;
+}
+
+function pickTier(level: number, wordLength: number): "easy" | "medium" | "hard" {
+  if (wordLength === 5) return level <= 2 ? "easy" : "medium";
+  if (wordLength === 6) return level <= 5 ? "easy" : "medium";
+  if (level <= 10) return "easy";
+  if (level <= 15) return "medium";
+  return "hard";
+}
+
+export default function MasteryCodeSurvival({
+  userId,
+  mobile,
+  wide,
+  dense,
+  width,
+  onTokenTransaction,
+}: {
+  userId: string;
+  mobile: boolean;
+  wide: boolean;
+  dense: boolean;
+  width: number;
+  onTokenTransaction: (amount: number, description: string) => Promise<boolean>;
+}) {
+  const [pools, setPools] = useState<Record<number, SurvivalWordPool | null>>({
+    5: null,
+    6: null,
+    7: null,
+  });
+  const [loadingWords, setLoadingWords] = useState(true);
+  const [runActive, setRunActive] = useState(false);
+  const [level, setLevel] = useState(1);
+  const [answer, setAnswer] = useState("");
+  const [attempts, setAttempts] = useState<MasteryAttempt[]>([]);
+  const [currentLetters, setCurrentLetters] = useState<string[]>([]);
+  const [revealedPositions, setRevealedPositions] = useState<number[]>([]);
+  const [hintsRemaining, setHintsRemaining] = useState(3);
+  const [wordsCleared, setWordsCleared] = useState(0);
+  const [message, setMessage] = useState(
+    "Start a run. One failed word ends it. Your three hints must last for the entire run.",
+  );
+  const [transitionText, setTransitionText] = useState("");
+  const [runEnd, setRunEnd] = useState<RunEndState | null>(null);
+  const [personalBest, setPersonalBest] = useState(0);
+  const [dailyBest, setDailyBest] = useState(0);
+  const [rewarding, setRewarding] = useState(false);
+  const [showDailyReferralPrompt, setShowDailyReferralPrompt] = useState(false);
+  const usedAnswersRef = useRef<Set<string>>(new Set());
+
+  const wordLength = getSurvivalWordLength(level);
+  const maxAttempts = getSurvivalMaxAttempts(wordLength);
+  const currentPool = pools[wordLength];
+  const validWords = useMemo(
+    () => new Set((currentPool?.valid || []).map((word) => word.toLowerCase())),
+    [currentPool],
+  );
+
+  const mobileTarget = dense ? 57 : 72;
+  const mobileGap = 4;
+  const mobileAllowance = 44;
+  const mobileCap = Math.floor(
+    (Math.max(width, 320) - mobileAllowance - mobileGap * (wordLength - 1)) /
+      wordLength,
+  );
+  const cellSize = mobile
+    ? Math.max(36, Math.min(mobileTarget, mobileCap))
+    : dense
+      ? wordLength === 7
+        ? 43
+        : 48
+      : wide
+        ? wordLength === 7
+          ? 58
+          : 66
+        : wordLength === 7
+          ? 50
+          : 56;
+
+  useEffect(() => {
+    try {
+      setPersonalBest(Number(window.localStorage.getItem(personalBestKey(userId))) || 0);
+      setDailyBest(Number(window.localStorage.getItem(dailyBestKey(userId))) || 0);
+    } catch {
+      setPersonalBest(0);
+      setDailyBest(0);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPools() {
+      setLoadingWords(true);
+      try {
+        const entries = await Promise.all(
+          [5, 6, 7].map(async (length) => {
+            const response = await fetch(SURVIVAL_WORD_URLS[length], {
+              cache: "force-cache",
+            });
+            if (!response.ok) {
+              throw new Error(`Could not load ${length}-letter Survival words.`);
+            }
+            return [length, (await response.json()) as SurvivalWordPool] as const;
+          }),
+        );
+
+        if (!cancelled) {
+          setPools(Object.fromEntries(entries));
+        }
+      } catch (error) {
+        console.warn("Could not load Mastery Code Survival word pools:", error);
+        if (!cancelled) {
+          setMessage("Survival Mode word pools could not be loaded.");
+        }
+      } finally {
+        if (!cancelled) setLoadingWords(false);
+      }
+    }
+
+    loadPools();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function chooseAnswer(nextLevel: number) {
+    const length = getSurvivalWordLength(nextLevel);
+    const pool = pools[length];
+    if (!pool) return "";
+
+    const tier = pickTier(nextLevel, length);
+    const preferred = pool.answers[tier] || [];
+    const allAnswers = [
+      ...pool.answers.easy,
+      ...pool.answers.medium,
+      ...pool.answers.hard,
+    ];
+
+    let available = preferred.filter(
+      (word) => !usedAnswersRef.current.has(word.toLowerCase()),
+    );
+    if (!available.length) {
+      available = allAnswers.filter(
+        (word) => !usedAnswersRef.current.has(word.toLowerCase()),
+      );
+    }
+    if (!available.length) available = allAnswers;
+    if (!available.length) return "";
+
+    const selected = available[Math.floor(Math.random() * available.length)].toUpperCase();
+    usedAnswersRef.current.add(selected.toLowerCase());
+    return selected;
+  }
+
+  function resetInputForAnswer(nextAnswer: string, hints: number[] = []) {
+    setCurrentLetters(
+      Array.from({ length: nextAnswer.length }, (_, index) =>
+        hints.includes(index) ? nextAnswer[index] : "",
+      ),
+    );
+  }
+
+  function openLevel(nextLevel: number, existingHints: number[] = []) {
+    const nextAnswer = chooseAnswer(nextLevel);
+    if (!nextAnswer) {
+      setMessage("No Survival word is available for this level.");
+      setRunActive(false);
+      return;
+    }
+
+    setLevel(nextLevel);
+    setAnswer(nextAnswer);
+    setAttempts([]);
+    setRevealedPositions(existingHints);
+    resetInputForAnswer(nextAnswer, existingHints);
+  }
+
+  function startRun() {
+    if (loadingWords || !pools[5] || !pools[6] || !pools[7]) return;
+
+    usedAnswersRef.current = new Set();
+    setRunEnd(null);
+    setWordsCleared(0);
+    setHintsRemaining(3);
+    setTransitionText("");
+    setMessage("Survive as long as you can. One failed word ends the run.");
+    setRunActive(true);
+    openLevel(1, []);
+  }
+
+  function addLetter(letter: string) {
+    if (!runActive || transitionText || runEnd) return;
+
+    setCurrentLetters((current) => {
+      const next = [...current];
+      const index = next.findIndex(
+        (value, position) => !value && !revealedPositions.includes(position),
+      );
+      if (index >= 0) next[index] = letter.toUpperCase();
+      return next;
+    });
+  }
+
+  function deleteLetter() {
+    if (!runActive || transitionText || runEnd) return;
+
+    setCurrentLetters((current) => {
+      const next = [...current];
+      for (let index = next.length - 1; index >= 0; index -= 1) {
+        if (next[index] && !revealedPositions.includes(index)) {
+          next[index] = "";
+          break;
+        }
+      }
+      return next;
+    });
+  }
+
+  function useHint() {
+    if (!runActive || hintsRemaining <= 0 || transitionText || runEnd) return;
+
+    const available = Array.from({ length: wordLength }, (_, index) => index).filter(
+      (index) => !revealedPositions.includes(index),
+    );
+    if (!available.length) {
+      setMessage("Every position in this word has already been revealed.");
+      return;
+    }
+
+    const position = available[Math.floor(Math.random() * available.length)];
+    const nextRevealed = [...revealedPositions, position].sort((a, b) => a - b);
+    setRevealedPositions(nextRevealed);
+    setHintsRemaining((current) => Math.max(0, current - 1));
+    setCurrentLetters((current) => {
+      const next = [...current];
+      next[position] = answer[position];
+      return next;
+    });
+    setMessage(
+      `Hint used: position ${position + 1} is ${answer[position]}. ${hintsRemaining - 1} hint${hintsRemaining - 1 === 1 ? "" : "s"} remain for this run.`,
+    );
+  }
+
+  async function loadAlreadyAwardedToday() {
+    if (!userId) return 0;
+    const { start, end } = getSingaporeDayUtcBounds();
+    const { data, error } = await supabase
+      .from("dream_token_transactions")
+      .select("amount,title,created_at")
+      .eq("user_id", userId)
+      .eq("token_kind", "virtual")
+      .gte("created_at", start)
+      .lt("created_at", end)
+      .ilike("title", "Mastery Code Survival%")
+      .gt("amount", 0);
+
+    if (error) {
+      console.warn("Could not load Survival DT already awarded today:", error.message);
+      return 0;
+    }
+
+    return (data || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  }
+
+  async function endRun(failedLevel: number) {
+    if (rewarding) return;
+    setRunActive(false);
+    setRewarding(true);
+
+    const cleared = Math.max(0, failedLevel - 1);
+    const target = getSurvivalRewardTarget(failedLevel);
+    const newBest = failedLevel > personalBest;
+    let rewardDelta = 0;
+
+    if (newBest) {
+      setPersonalBest(failedLevel);
+      try {
+        window.localStorage.setItem(personalBestKey(userId), String(failedLevel));
+      } catch {
+        // Local persistence is optional; the run can still end normally.
+      }
+    }
+
+    if (failedLevel > dailyBest) {
+      setDailyBest(failedLevel);
+      try {
+        window.localStorage.setItem(dailyBestKey(userId), String(failedLevel));
+      } catch {
+        // Local persistence is optional.
+      }
+    }
+
+    if (userId && target > 0) {
+      const alreadyAwarded = await loadAlreadyAwardedToday();
+      rewardDelta = Math.max(0, target - alreadyAwarded);
+
+      if (rewardDelta > 0) {
+        const awarded = await onTokenTransaction(
+          rewardDelta,
+          `Mastery Code Survival daily best · failed level ${failedLevel}`,
+        );
+        if (!awarded) rewardDelta = 0;
+        if (awarded && canOfferDailyReferralPrompt()) {
+          setShowDailyReferralPrompt(true);
+        }
+      }
+    }
+
+    setRunEnd({
+      failedLevel,
+      wordsCleared: cleared,
+      answer,
+      rewardTarget: target,
+      rewardDelta,
+      newBest,
+    });
+    setMessage(
+      userId
+        ? rewardDelta > 0
+          ? `Run ended. Your improved daily best earned +${rewardDelta} DT.`
+          : "Run ended. Beat today’s best level to increase your Survival DT reward."
+        : "Run ended. Guests can play unlimited runs; log in to save DT rewards.",
+    );
+    setRewarding(false);
+  }
+
+  async function submitGuess(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (!runActive || transitionText || runEnd || !answer) return;
+
+    const guess = currentLetters.join("").toUpperCase();
+    if (guess.length !== wordLength || currentLetters.some((letter) => !letter)) {
+      setMessage(`Enter a complete ${wordLength}-letter word.`);
+      return;
+    }
+
+    const isAnswer = guess === answer;
+    const recognised = validWords.has(guess.toLowerCase());
+    if (!isAnswer && !recognised) {
+      setMessage(`“${guess}” is not recognised in the ${wordLength}-letter Survival dictionary.`);
+      return;
+    }
+
+    const feedback = buildPuzzleFeedback(guess, answer);
+    const nextAttempts = [...attempts, { guess, feedback }];
+    setAttempts(nextAttempts);
+
+    if (isAnswer) {
+      const nextLevel = level + 1;
+      setWordsCleared((current) => current + 1);
+
+      const nextLength = getSurvivalWordLength(nextLevel);
+      const lengthChanged = nextLength !== wordLength;
+      setTransitionText(
+        lengthChanged
+          ? `LEVEL ${nextLevel} · ${nextLength}-LETTER WORDS BEGIN`
+          : `LEVEL ${level} CLEARED`,
+      );
+      setMessage("Word cleared. Get ready for the next code.");
+
+      window.setTimeout(() => {
+        setTransitionText("");
+        openLevel(nextLevel, []);
+      }, lengthChanged ? 1250 : 700);
+      return;
+    }
+
+    if (nextAttempts.length >= maxAttempts) {
+      await endRun(level);
+      return;
+    }
+
+    resetInputForAnswer(answer, revealedPositions);
+    setMessage(`${maxAttempts - nextAttempts.length} guess${maxAttempts - nextAttempts.length === 1 ? "" : "es"} remain on Level ${level}.`);
+  }
+
+  useEffect(() => {
+    function handleKeyboard(event: KeyboardEvent) {
+      if (!runActive || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (/^[a-zA-Z]$/.test(event.key)) {
+        addLetter(event.key.toUpperCase());
+        return;
+      }
+      if (event.key === "Backspace") {
+        event.preventDefault();
+        deleteLetter();
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void submitGuess();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyboard);
+    return () => window.removeEventListener("keydown", handleKeyboard);
+  });
+
+  return (
+    <>
+      <div
+        style={{
+          minWidth: 0,
+          display: "grid",
+          gridTemplateColumns: mobile
+            ? "1fr"
+            : wide
+              ? "minmax(0, 1fr) 290px"
+              : "minmax(0, 1fr) 250px",
+          gridTemplateRows: mobile ? "auto auto" : "1fr",
+          gap: mobile ? "7px" : dense ? "14px" : "20px",
+        }}
+      >
+        <section
+          style={{
+            position: "relative",
+            minWidth: 0,
+            borderRadius: mobile ? "13px" : "19px",
+            border: "1px solid rgba(213,181,255,0.18)",
+            background:
+              "radial-gradient(circle at 50% 0%, rgba(197,140,255,0.08), transparent 38%), rgba(255,255,255,0.025)",
+            padding: mobile ? "6px" : dense ? "12px" : "16px",
+            display: "grid",
+            gridTemplateRows: "auto auto auto",
+            gap: mobile ? "6px" : dense ? "9px" : "13px",
+            overflow: "visible",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "flex-start" }}>
+            <div>
+              <p style={{ margin: 0, color: "#d5b5ff", fontSize: mobile ? "8px" : "10px", fontWeight: 900, letterSpacing: "0.17em", textTransform: "uppercase" }}>
+                Mastery Code · Survival Mode
+              </p>
+              <h2 style={{ margin: mobile ? "3px 0 0" : "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? (dense ? "22px" : "27px") : dense ? "31px" : wide ? "43px" : "37px", lineHeight: 0.95, fontWeight: 400 }}>
+                {runActive || runEnd ? `Level ${level}` : "Survive the Code"}
+              </h2>
+            </div>
+
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              {[
+                ["Hints", `${"◆".repeat(hintsRemaining)}${"◇".repeat(3 - hintsRemaining)}`],
+                ["Run", String(wordsCleared)],
+                ["Best", personalBest ? `L${personalBest}` : "—"],
+              ].map(([label, value]) => (
+                <div key={label} style={{ minWidth: mobile ? "58px" : "68px", padding: mobile ? "5px 7px" : "7px 9px", borderRadius: "12px", border: "1px solid rgba(213,181,255,0.15)", background: "rgba(197,140,255,0.055)", textAlign: "center" }}>
+                  <span style={{ display: "block", color: "rgba(255,255,255,0.42)", fontSize: "7px", textTransform: "uppercase", fontWeight: 850 }}>{label}</span>
+                  <strong style={{ display: "block", marginTop: "2px", color: label === "Hints" ? "#d5b5ff" : "white", fontSize: mobile ? "10px" : "12px" }}>{value}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {!runActive && !runEnd ? (
+            <div style={{ minHeight: mobile ? "300px" : "360px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "24px" }}>
+              <div style={{ width: "74px", height: "74px", borderRadius: "999px", border: "1px solid rgba(213,181,255,0.4)", background: "rgba(197,140,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#d5b5ff", fontSize: "30px", boxShadow: "0 0 34px rgba(197,140,255,0.12)" }}>◆</div>
+              <h3 style={{ margin: "18px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? "28px" : "38px", fontWeight: 400 }}>One run. Three hints. Keep going.</h3>
+              <p style={{ margin: "13px 0 0", maxWidth: "650px", color: "rgba(255,255,255,0.62)", fontSize: mobile ? "12px" : "14px", lineHeight: 1.6 }}>
+                Levels 1–3 use five-letter words. Levels 4–7 use six-letter words. Level 8 onward uses seven-letter words. One failed word ends the run.
+              </p>
+              <button type="button" disabled={loadingWords} onClick={startRun} style={{ marginTop: "22px", minHeight: "50px", padding: "0 26px", borderRadius: "999px", border: "1px solid rgba(213,181,255,0.55)", background: "linear-gradient(90deg, rgba(106,62,181,0.95), rgba(32,126,166,0.9))", color: "white", fontFamily: "inherit", fontSize: "12px", fontWeight: 900, cursor: loadingWords ? "not-allowed" : "pointer" }}>
+                {loadingWords ? "Loading Survival Words..." : "Start Survival Run"}
+              </button>
+            </div>
+          ) : runEnd ? (
+            <div style={{ minHeight: mobile ? "300px" : "360px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "24px" }}>
+              <p style={{ margin: 0, color: "#d5b5ff", fontSize: "10px", fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase" }}>Run Ended</p>
+              <h3 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? "38px" : "56px", fontWeight: 400 }}>Level {runEnd.failedLevel}</h3>
+              <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,0.66)", fontSize: "14px" }}>{runEnd.wordsCleared} words cleared · Answer: <strong style={{ color: "white" }}>{runEnd.answer}</strong></p>
+              {runEnd.newBest && <div style={{ marginTop: "12px", padding: "7px 12px", borderRadius: "999px", background: "rgba(106,255,155,0.09)", border: "1px solid rgba(106,255,155,0.24)", color: "#9fffd2", fontSize: "10px", fontWeight: 900 }}>★ NEW PERSONAL BEST</div>}
+              <p style={{ margin: "16px 0 0", color: runEnd.rewardDelta > 0 ? "#9fffd2" : "rgba(255,255,255,0.52)", fontSize: "12px", lineHeight: 1.5 }}>
+                {userId
+                  ? runEnd.rewardDelta > 0
+                    ? `+${runEnd.rewardDelta} DT · daily Survival reward improved`
+                    : `Daily reward target at this level: ${runEnd.rewardTarget} DT · no additional DT because today’s best payout is already at least this high.`
+                  : "Guest run · log in to earn DT from your daily best Survival result."}
+              </p>
+              <button type="button" onClick={startRun} style={{ marginTop: "20px", minHeight: "48px", padding: "0 24px", borderRadius: "999px", border: "1px solid rgba(213,181,255,0.52)", background: "rgba(197,140,255,0.12)", color: "white", fontFamily: "inherit", fontSize: "11px", fontWeight: 900, cursor: "pointer" }}>Play Again</button>
+            </div>
+          ) : (
+            <>
+              <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", overflow: "visible", padding: "2px 0" }}>
+                <MasteryCodeGrid
+                  attempts={attempts}
+                  currentLetters={currentLetters}
+                  wordLength={wordLength}
+                  maxAttempts={maxAttempts}
+                  cellSize={cellSize}
+                  mobile={mobile}
+                  wide={wide}
+                  dense={dense}
+                  hintedPositions={revealedPositions}
+                />
+
+                {transitionText && (
+                  <div style={{ position: "absolute", inset: 0, zIndex: 5, borderRadius: "18px", background: "rgba(2,8,21,0.88)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "20px", color: "#d5b5ff", fontSize: mobile ? "18px" : "25px", fontWeight: 900, letterSpacing: "0.08em" }}>
+                    {transitionText}
+                  </div>
+                )}
+              </div>
+
+              <MasteryCodeKeyboard
+                attempts={attempts}
+                onLetter={addLetter}
+                onDelete={deleteLetter}
+                mobile={mobile}
+                dense={dense}
+                wide={wide}
+                disabled={!runActive || Boolean(transitionText) || rewarding}
+              />
+            </>
+          )}
+        </section>
+
+        <form onSubmit={submitGuess} style={{ minWidth: 0, borderRadius: mobile ? "13px" : "19px", border: "1px solid rgba(213,181,255,0.13)", background: "rgba(255,255,255,0.02)", padding: mobile ? "8px" : dense ? "12px" : "15px", display: "grid", gridTemplateColumns: mobile ? "repeat(2, minmax(0,1fr))" : "1fr", alignContent: "center", gap: mobile ? "6px" : "10px" }}>
+          <div style={{ gridColumn: mobile ? "1 / -1" : "auto", padding: "12px", borderRadius: "14px", border: "1px solid rgba(213,181,255,0.13)", background: "rgba(197,140,255,0.045)" }}>
+            <p style={{ margin: 0, color: "#d5b5ff", fontSize: "9px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>Survival rules</p>
+            <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,0.63)", fontSize: mobile ? "9px" : "11px", lineHeight: 1.5 }}>One failed word ends the run. Hints reveal a correct-position letter and do not reset between levels.</p>
+          </div>
+
+          <button type="button" disabled={!runActive || hintsRemaining <= 0 || Boolean(transitionText)} onClick={useHint} style={{ minHeight: mobile ? "46px" : "52px", borderRadius: "13px", border: "1px solid rgba(213,181,255,0.32)", background: "rgba(197,140,255,0.09)", color: hintsRemaining > 0 ? "white" : "rgba(255,255,255,0.32)", fontFamily: "inherit", fontSize: "11px", fontWeight: 900, cursor: runActive && hintsRemaining > 0 ? "pointer" : "not-allowed" }}>
+            Use Hint · {hintsRemaining} Left
+          </button>
+
+          <button type="submit" disabled={!runActive || Boolean(transitionText) || rewarding} style={{ minHeight: mobile ? "46px" : "52px", borderRadius: "13px", border: "1px solid rgba(126,232,255,0.42)", background: "linear-gradient(90deg, rgba(32,126,166,0.92), rgba(106,62,181,0.92))", color: runActive ? "white" : "rgba(255,255,255,0.32)", fontFamily: "inherit", fontSize: "11px", fontWeight: 900, cursor: runActive ? "pointer" : "not-allowed", gridColumn: mobile ? "1 / -1" : "auto" }}>
+            Submit Guess
+          </button>
+
+          <div style={{ gridColumn: mobile ? "1 / -1" : "auto", display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: "6px" }}>
+            <div style={{ padding: "9px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)", textAlign: "center" }}><span style={{ display: "block", color: "rgba(255,255,255,0.4)", fontSize: "8px" }}>DAILY BEST</span><strong style={{ display: "block", marginTop: "3px", fontSize: "12px" }}>{dailyBest ? `L${dailyBest}` : "—"}</strong></div>
+            <div style={{ padding: "9px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)", textAlign: "center" }}><span style={{ display: "block", color: "rgba(255,255,255,0.4)", fontSize: "8px" }}>DT TARGET</span><strong style={{ display: "block", marginTop: "3px", color: "#9fffd2", fontSize: "12px" }}>{getSurvivalRewardTarget(level)} DT</strong></div>
+          </div>
+
+          <div role="status" style={{ gridColumn: mobile ? "1 / -1" : "auto", minHeight: mobile ? "34px" : "58px", padding: "8px 10px", borderRadius: "12px", border: "1px solid rgba(213,181,255,0.1)", background: "rgba(255,255,255,0.025)", color: "#d5b5ff", fontSize: mobile ? "9px" : "11px", lineHeight: 1.45, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+            {message}
+          </div>
+        </form>
+      </div>
+
+      <DailyActivityReferralPrompt open={showDailyReferralPrompt} onClose={() => setShowDailyReferralPrompt(false)} />
+    </>
+  );
+}

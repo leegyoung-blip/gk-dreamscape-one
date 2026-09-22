@@ -24,6 +24,8 @@ export default function CoreMissionStage({
   subject,
   quizId,
   attemptId,
+  primaryLevel,
+  topicId,
   question,
   topicTitle,
   response,
@@ -37,6 +39,8 @@ export default function CoreMissionStage({
   subject: CoreSubject;
   quizId: string;
   attemptId: string;
+  primaryLevel: number;
+  topicId?: string;
   question: QuizQuestion;
   topicTitle: string;
   response?: JsonObject;
@@ -68,6 +72,9 @@ export default function CoreMissionStage({
           subject={subject}
           quizId={quizId}
           attemptId={attemptId}
+          primaryLevel={primaryLevel}
+          topicId={topicId}
+          topicTitle={topicTitle}
           question={question}
           response={response}
           feedback={feedback}
@@ -94,6 +101,9 @@ export default function CoreMissionStage({
           subject={subject}
           quizId={quizId}
           attemptId={attemptId}
+          primaryLevel={primaryLevel}
+          topicId={topicId}
+          topicTitle={topicTitle}
           question={question}
           response={response}
           feedback={feedback}
@@ -156,6 +166,9 @@ export default function CoreMissionStage({
         subject={subject}
         quizId={quizId}
         attemptId={attemptId}
+        primaryLevel={primaryLevel}
+        topicId={topicId}
+        topicTitle={topicTitle}
         question={question}
         response={response}
         feedback={feedback}
