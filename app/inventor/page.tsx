@@ -303,6 +303,7 @@ export default function NovaWorldPage() {
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughStep, setWalkthroughStep] = useState(0);
   const [hoveredZone, setHoveredZone] = useState<Zone | null>(null);
+  const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
     cash: 0,
@@ -670,11 +671,13 @@ export default function NovaWorldPage() {
   const activeWalkthroughZone = activeWalkthroughZoneNumber
     ? (zones.find((zone) => zone.number === activeWalkthroughZoneNumber) ?? null)
     : null;
-  const displayedDesktopZone = activeWalkthroughZone ?? hoveredZone;
+  const displayedDesktopZone =
+    activeWalkthroughZone ?? selectedZone ?? hoveredZone;
 
   function startWalkthrough() {
     setShowMembershipPortal(false);
     setHoveredZone(null);
+    setSelectedZone(null);
     setWalkthroughStep(0);
     setWalkthroughOpen(true);
   }
@@ -689,6 +692,21 @@ export default function NovaWorldPage() {
     setWalkthroughOpen(false);
     setWalkthroughStep(0);
     setHoveredZone(null);
+    setSelectedZone(null);
+  }
+
+  function selectZone(zone: Zone) {
+    if (walkthroughOpen) return;
+    setHoveredZone(null);
+    setSelectedZone(zone);
+  }
+
+  function enterZone(zone: Zone) {
+    if (zone.id === "skyforge-hangar") {
+      rememberNovaRoverOrigin();
+    }
+
+    window.location.href = zone.href;
   }
 
   return (
@@ -773,10 +791,10 @@ export default function NovaWorldPage() {
         style={{
           position: isDesktop ? "absolute" : "relative",
           left: isDesktop ? "46px" : "auto",
-          top: isDesktop ? "80px" : "auto",
+          top: isDesktop ? "86px" : "auto",
           zIndex: 10,
           width: isDesktop
-            ? "min(420px, 42vw)"
+            ? "min(365px, 34vw)"
             : "min(640px, calc(100% - 36px))",
           margin: isDesktop ? 0 : isMobile ? "128px auto 26px" : "118px auto 28px",
           padding: isDesktop ? 0 : "0 2px",
@@ -785,7 +803,7 @@ export default function NovaWorldPage() {
         <p
           style={{
             margin: 0,
-            fontSize: isMobile ? "11px" : "14px",
+            fontSize: isMobile ? "10px" : "12px",
             fontWeight: 500,
             letterSpacing: isMobile ? "0.18em" : "0.24em",
             textTransform: "uppercase",
@@ -798,13 +816,13 @@ export default function NovaWorldPage() {
 
         <h1
           style={{
-            margin: isMobile ? "12px 0 0" : "16px 0 0",
+            margin: isMobile ? "10px 0 0" : "12px 0 0",
             fontFamily: 'Georgia, "Times New Roman", serif',
             fontSize: isMobile
-              ? "clamp(46px, 15vw, 64px)"
+              ? "clamp(42px, 13vw, 58px)"
               : isTablet
-              ? "clamp(58px, 9vw, 76px)"
-              : "76px",
+              ? "clamp(52px, 7vw, 64px)"
+              : "64px",
             fontWeight: 400,
             lineHeight: 1.03,
             letterSpacing: "0.01em",
@@ -816,8 +834,8 @@ export default function NovaWorldPage() {
 
         <p
           style={{
-            margin: "18px 0 0",
-            fontSize: isMobile ? "18px" : "22px",
+            margin: "12px 0 0",
+            fontSize: isMobile ? "16px" : "18px",
             fontWeight: 300,
             lineHeight: 1.35,
             color: "rgba(255,255,255,0.92)",
@@ -829,20 +847,20 @@ export default function NovaWorldPage() {
 
         <div
           style={{
-            marginTop: isMobile ? "24px" : "34px",
+            marginTop: isMobile ? "20px" : "22px",
             display: "flex",
             alignItems: "center",
-            gap: "16px",
+            gap: "12px",
             color: "#53d7ff",
-            fontSize: isMobile ? "16px" : "19px",
+            fontSize: isMobile ? "14px" : "15px",
             fontWeight: 300,
             letterSpacing: "0.03em",
           }}
         >
           <span
             style={{
-              width: "34px",
-              height: "34px",
+              width: "30px",
+              height: "30px",
               borderRadius: "999px",
               border: "1px solid rgba(83,215,255,0.8)",
               display: "flex",
@@ -876,24 +894,31 @@ export default function NovaWorldPage() {
               isWalkthroughActive={Boolean(activeWalkthroughZoneNumber)}
               isHighlighted={activeWalkthroughZoneNumber === zone.number}
               onEnter={() => {
-                if (!walkthroughOpen) setHoveredZone(zone);
+                if (!walkthroughOpen && !selectedZone) {
+                  setHoveredZone(zone);
+                }
               }}
               onLeave={() => {
-                if (!walkthroughOpen) setHoveredZone(null);
-              }}
-              onClick={() => {
-                if (zone.id === "skyforge-hangar") {
-                  rememberNovaRoverOrigin();
+                if (!walkthroughOpen && !selectedZone) {
+                  setHoveredZone(null);
                 }
-                window.location.href = zone.href;
               }}
+              onClick={() => selectZone(zone)}
             />
           ))}
 
           {displayedDesktopZone && (
             <NovaZoneHoverPopup
               zone={displayedDesktopZone}
-              isHighlighted={activeWalkthroughZoneNumber === displayedDesktopZone.number}
+              isHighlighted={
+                activeWalkthroughZoneNumber === displayedDesktopZone.number
+              }
+              isSelected={
+                !walkthroughOpen &&
+                selectedZone?.id === displayedDesktopZone.id
+              }
+              onClose={() => setSelectedZone(null)}
+              onEnterLocation={() => enterZone(displayedDesktopZone)}
             />
           )}
 
@@ -918,7 +943,7 @@ export default function NovaWorldPage() {
                 pointerEvents: "none",
               }}
             >
-              Tap a location to enter · hover for details
+              Select a location · then choose Enter
             </div>
           )}
         </section>
@@ -943,6 +968,7 @@ export default function NovaWorldPage() {
               zone={zone}
               screenMode={screenMode}
               isAdmin={isAdmin}
+              onClick={() => selectZone(zone)}
               walkthroughActive={walkthroughOpen}
               walkthroughHighlighted={
                 walkthroughOpen &&
@@ -951,6 +977,14 @@ export default function NovaWorldPage() {
             />
           ))}
         </section>
+      )}
+
+      {!isDesktop && selectedZone && !walkthroughOpen && (
+        <CompactZoneInfoCard
+          zone={selectedZone}
+          onClose={() => setSelectedZone(null)}
+          onEnter={() => enterZone(selectedZone)}
+        />
       )}
 
       {showMembershipPortal && (
@@ -962,13 +996,13 @@ export default function NovaWorldPage() {
       <div
         style={{
           position: "fixed",
-          right: isMobile ? "10px" : "18px",
-          bottom: isMobile ? "10px" : "16px",
+          right: isMobile ? "8px" : "14px",
+          bottom: isMobile ? "8px" : "12px",
           zIndex: 70,
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          gap: isMobile ? "4px" : "8px",
+          alignItems: "flex-end",
+          gap: 0,
           pointerEvents: "none",
         }}
       >
@@ -976,11 +1010,13 @@ export default function NovaWorldPage() {
           src="/nova/nova-character.png"
           alt="Nova"
           style={{
-            height: isDesktop ? "210px" : isMobile ? "120px" : "170px",
+            height: isDesktop ? "150px" : isMobile ? "82px" : "115px",
             width: "auto",
-            transform: isMobile ? "translateX(18px)" : "none",
+            marginBottom: "-9px",
+            opacity: 0.94,
+            transform: isMobile ? "translateX(8px)" : "translateX(2px)",
             pointerEvents: "none",
-            filter: "drop-shadow(0 28px 38px rgba(0,0,0,0.55))",
+            filter: "drop-shadow(0 16px 24px rgba(0,0,0,0.42))",
           }}
         />
 
@@ -988,24 +1024,24 @@ export default function NovaWorldPage() {
           type="button"
           onClick={startWalkthrough}
           style={{
-            minHeight: isMobile ? "40px" : "46px",
-            padding: isMobile ? "0 14px" : "0 19px",
+            minHeight: isMobile ? "34px" : "38px",
+            padding: isMobile ? "0 11px" : "0 14px",
             borderRadius: "999px",
-            border: "1px solid rgba(83,215,255,0.62)",
-            background: "rgba(20,84,118,0.82)",
+            border: "1px solid rgba(83,215,255,0.36)",
+            background: "rgba(2,18,36,0.72)",
             backdropFilter: "blur(16px)",
             WebkitBackdropFilter: "blur(16px)",
             color: "white",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "8px",
-            fontSize: isMobile ? "11px" : "13px",
-            fontWeight: 850,
-            letterSpacing: "0.1em",
+            gap: "6px",
+            fontSize: isMobile ? "9px" : "11px",
+            fontWeight: 800,
+            letterSpacing: "0.08em",
             textTransform: "uppercase",
             boxShadow:
-              "0 16px 36px rgba(0,0,0,0.32), 0 0 22px rgba(83,215,255,0.18)",
+              "0 10px 24px rgba(0,0,0,0.26), 0 0 14px rgba(83,215,255,0.12)",
             whiteSpace: "nowrap",
             cursor: "pointer",
             fontFamily: "inherit",
@@ -1250,7 +1286,7 @@ function FloatingControls({
               setDreamGemsOpen(false);
               setProfileAssetsOpen((current) => !current);
             }}
-            aria-label="Profile assets"
+            aria-label="Dream Tokens and profile assets"
             style={{
               minHeight: isMobile ? "38px" : "42px",
               padding: isMobile ? "0 10px" : "0 13px",
@@ -1267,7 +1303,7 @@ function FloatingControls({
           >
             <span style={{ color: "#8ee8ff" }}>◈</span>
             <strong style={{ color: "#53d7ff", fontSize: isMobile ? "10px" : "12px" }}>
-              {profileAssetsLoading ? "..." : formatDreamTokenAmount(profileAssetsTotal)}
+              {profileAssetsLoading ? "..." : formatDreamTokenAmount(profileAssets.cash)}
             </strong>
           </button>
 
@@ -1304,37 +1340,14 @@ function FloatingControls({
         style={{
           position: isDesktop ? "fixed" : "static",
           top: "18px",
-          right: isDesktop ? "126px" : "18px",
+          right: isDesktop ? "124px" : "18px",
           zIndex: 70,
           display: isDesktop ? "flex" : "contents",
           alignItems: "center",
           justifyContent: "flex-end",
-          gap: "14px",
+          gap: "10px",
         }}
       >
-        <Link
-          href="/cart"
-          aria-label="Cart"
-          style={{
-            width: "46px",
-            height: "46px",
-            padding: 0,
-            borderRadius: "999px",
-            border: "1px solid rgba(116,200,255,0.45)",
-            background: "rgba(2,8,19,0.58)",
-            backdropFilter: "blur(16px)",
-            color: "white",
-            textDecoration: "none",
-            display: isDesktop ? "flex" : "none",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "18px",
-            boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
-            flexShrink: 0,
-          }}
-        >
-          🛒
-        </Link>
 
         <div style={{ position: "relative", zIndex: 82 }}>
           <button
@@ -1389,7 +1402,7 @@ function FloatingControls({
               ◈
             </span>
 
-            <span>{isDesktop ? "Profile Assets" : "Assets"}</span>
+            <span>DT</span>
             <strong
               style={{
                 color: "#53d7ff",
@@ -1397,7 +1410,11 @@ function FloatingControls({
                 letterSpacing: "0.04em",
               }}
             >
-              {formatDreamTokenAmount(profileAssetsTotal)}
+              {profileAssetsLoading
+                ? "..."
+                : Math.round(Number(profileAssets.cash || 0)).toLocaleString(
+                    "en-SG",
+                  )}
             </strong>
             <span
               aria-hidden="true"
@@ -1744,7 +1761,7 @@ function FloatingControls({
             >
               ◆
             </span>
-            {!isMobile && <span>Dream Gems</span>}
+            <span>DG</span>
             <strong
               style={{
                 color: "#e9d5ff",
@@ -1754,7 +1771,9 @@ function FloatingControls({
             >
               {dreamGemsLoading
                 ? "..."
-                : formatDreamGemAmount(dreamGemBalance)}
+                : Math.round(Number(dreamGemBalance || 0)).toLocaleString(
+                    "en-SG",
+                  )}
             </strong>
             <span
               aria-hidden="true"
@@ -2162,8 +2181,6 @@ function NovaHotspot({
   onLeave: () => void;
   onClick: () => void;
 }) {
-  const compactTitle = zone.title.length > 18;
-
   return (
     <button
       id={`nova-zone-${zone.number}`}
@@ -2173,41 +2190,36 @@ function NovaHotspot({
       onFocus={onEnter}
       onBlur={onLeave}
       onClick={onClick}
-      aria-label={zone.title}
+      aria-label={`View ${zone.title}`}
       style={{
         position: "absolute",
         zIndex: isHighlighted ? 94 : 25,
         ...getNovaMarkerPosition(zone.id),
-        width: "auto",
-        minWidth: compactTitle ? "148px" : "112px",
-        maxWidth: "188px",
-        height: "46px",
-        padding: compactTitle ? "0 13px" : "0 16px",
+        minHeight: "38px",
+        padding: "4px 11px 4px 4px",
         transform: isActive
-          ? "translate(-50%, -50%) scale(1.06)"
+          ? "translate(-50%, -50%) scale(1.08)"
           : "translate(-50%, -50%)",
         borderRadius: "999px",
         border: isActive
           ? `1px solid ${zone.accent}`
-          : `1px solid ${zone.accent}99`,
+          : `1px solid ${zone.accent}70`,
         background: isActive
-          ? `linear-gradient(145deg, ${zone.accent}88, rgba(12,50,91,0.62))`
-          : "rgba(4,24,53,0.46)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          ? "rgba(3,18,40,0.92)"
+          : "rgba(3,18,40,0.68)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
         color: "white",
         fontFamily: "inherit",
-        fontSize: compactTitle ? "11px" : "12px",
-        lineHeight: 1.1,
-        letterSpacing: compactTitle ? "0.025em" : "0.045em",
-        fontWeight: 850,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "8px",
         whiteSpace: "nowrap",
-        textAlign: "center",
         cursor: "pointer",
         outline: "none",
         boxShadow: isActive
-          ? `0 0 0 4px ${zone.accent}18, 0 0 30px ${zone.accent}88, 0 14px 34px rgba(0,0,0,0.34)`
-          : `0 0 18px ${zone.accent}38, 0 12px 28px rgba(0,0,0,0.28)`,
+          ? `0 0 0 3px ${zone.accent}16, 0 0 24px ${zone.accent}72, 0 12px 28px rgba(0,0,0,0.34)`
+          : `0 0 16px ${zone.accent}28, 0 10px 24px rgba(0,0,0,0.24)`,
         opacity: isWalkthroughActive && !isHighlighted ? 0.13 : 1,
         filter:
           isWalkthroughActive && !isHighlighted
@@ -2215,10 +2227,40 @@ function NovaHotspot({
             : "none",
         pointerEvents: isWalkthroughActive && !isHighlighted ? "none" : "auto",
         transition:
-          "transform 220ms ease, opacity 220ms ease, filter 220ms ease, border-color 220ms ease, background 220ms ease, box-shadow 220ms ease",
+          "transform 200ms ease, opacity 200ms ease, filter 200ms ease, border-color 200ms ease, background 200ms ease, box-shadow 200ms ease",
       }}
     >
-      {zone.title}
+      <span
+        aria-hidden="true"
+        style={{
+          width: "28px",
+          height: "28px",
+          borderRadius: "999px",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          border: `1px solid ${zone.accent}`,
+          background: `${zone.accent}18`,
+          color: zone.accent,
+          fontSize: "11px",
+          fontWeight: 950,
+          boxShadow: `0 0 14px ${zone.accent}42`,
+        }}
+      >
+        {zone.number}
+      </span>
+
+      <span
+        style={{
+          fontSize: "11px",
+          lineHeight: 1,
+          letterSpacing: "0.045em",
+          fontWeight: 850,
+        }}
+      >
+        {zone.title}
+      </span>
     </button>
   );
 }
@@ -2226,9 +2268,15 @@ function NovaHotspot({
 function NovaZoneHoverPopup({
   zone,
   isHighlighted = false,
+  isSelected = false,
+  onClose,
+  onEnterLocation,
 }: {
   zone: Zone;
   isHighlighted?: boolean;
+  isSelected?: boolean;
+  onClose?: () => void;
+  onEnterLocation?: () => void;
 }) {
   const popupPosition = getNovaPopupPosition(zone.id);
   const popupTransform =
@@ -2242,74 +2290,289 @@ function NovaZoneHoverPopup({
     <div
       style={{
         position: "absolute",
-        zIndex: 62,
+        zIndex: isSelected ? 72 : 62,
         ...popupPositionWithoutTransform,
         width: "330px",
-        padding: "22px 24px",
+        padding: isSelected ? "22px 24px 20px" : "20px 22px",
         borderRadius: "20px",
-        border: `${isHighlighted ? 2 : 1}px solid ${zone.accent}${isHighlighted ? "" : "aa"}`,
+        border: `${isHighlighted || isSelected ? 2 : 1}px solid ${
+          zone.accent
+        }${isHighlighted || isSelected ? "" : "aa"}`,
         background:
-          "linear-gradient(145deg, rgba(8,35,70,0.95), rgba(3,13,34,0.97))",
+          "linear-gradient(145deg, rgba(8,35,70,0.97), rgba(3,13,34,0.985))",
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
-        boxShadow: isHighlighted
-          ? `0 0 0 8px ${zone.accent}18, 0 0 46px ${zone.accent}aa, 0 24px 60px rgba(0,0,0,0.52)`
-          : `0 0 28px ${zone.accent}55, 0 24px 60px rgba(0,0,0,0.45)`,
+        boxShadow:
+          isHighlighted || isSelected
+            ? `0 0 0 6px ${zone.accent}14, 0 0 40px ${zone.accent}72, 0 24px 60px rgba(0,0,0,0.52)`
+            : `0 0 24px ${zone.accent}42, 0 20px 48px rgba(0,0,0,0.42)`,
         color: "white",
-        pointerEvents: "none",
-        transform: `${popupTransform}${isHighlighted ? " scale(1.035)" : ""}`.trim(),
-        transition: "border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease",
+        pointerEvents: isSelected ? "auto" : "none",
+        transform: `${popupTransform}${
+          isHighlighted || isSelected ? " scale(1.025)" : ""
+        }`.trim(),
+        transition:
+          "border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease",
       }}
     >
+      {isSelected && (
+        <button
+          type="button"
+          aria-label="Close location details"
+          onClick={onClose}
+          style={{
+            position: "absolute",
+            top: "12px",
+            right: "12px",
+            width: "30px",
+            height: "30px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.16)",
+            background: "rgba(255,255,255,0.06)",
+            color: "white",
+            cursor: "pointer",
+            fontSize: "17px",
+          }}
+        >
+          ×
+        </button>
+      )}
+
       <p
         style={{
           margin: 0,
           color: zone.accent,
-          fontSize: "11px",
+          fontSize: "10px",
           letterSpacing: "0.18em",
           textTransform: "uppercase",
-          fontWeight: 800,
+          fontWeight: 850,
         }}
       >
         Location {zone.number}
       </p>
+
       <h2
         style={{
-          margin: "10px 0 0",
+          margin: "9px 34px 0 0",
           fontFamily: 'Georgia, "Times New Roman", serif',
-          fontSize: "28px",
+          fontSize: "27px",
           lineHeight: 1.12,
           fontWeight: 500,
         }}
       >
         {zone.title}
       </h2>
+
       <p
         style={{
-          margin: "12px 0 0",
-          color: "rgba(255,255,255,0.78)",
-          fontSize: "14px",
+          margin: "11px 0 0",
+          color: "rgba(255,255,255,0.76)",
+          fontSize: "13px",
           lineHeight: 1.55,
         }}
       >
         {zone.description}
       </p>
-      <div
+
+      {isSelected ? (
+        <button
+          type="button"
+          onClick={onEnterLocation}
+          style={{
+            marginTop: "17px",
+            width: "100%",
+            minHeight: "44px",
+            borderRadius: "13px",
+            border: `1px solid ${zone.accent}aa`,
+            background: `linear-gradient(135deg, ${zone.accent}42, rgba(15,58,100,0.9))`,
+            color: "white",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontSize: "11px",
+            fontWeight: 900,
+            letterSpacing: "0.09em",
+            textTransform: "uppercase",
+            boxShadow: `0 10px 24px ${zone.accent}20`,
+          }}
+        >
+          Enter {zone.title} →
+        </button>
+      ) : (
+        <div
+          style={{
+            marginTop: "15px",
+            color: zone.accent,
+            fontSize: "10px",
+            fontWeight: 850,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+          }}
+        >
+          Select this location to continue
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function CompactZoneInfoCard({
+  zone,
+  onClose,
+  onEnter,
+}: {
+  zone: Zone;
+  onClose: () => void;
+  onEnter: () => void;
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Close location details"
+        onClick={onClose}
         style={{
-          marginTop: "18px",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          color: zone.accent,
-          fontSize: "12px",
-          fontWeight: 850,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
+          position: "fixed",
+          inset: 0,
+          zIndex: 74,
+          border: "none",
+          background: "rgba(0,3,12,0.48)",
+          backdropFilter: "blur(3px)",
+          WebkitBackdropFilter: "blur(3px)",
+          cursor: "default",
+        }}
+      />
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${zone.title} details`}
+        style={{
+          position: "fixed",
+          left: "50%",
+          bottom: "14px",
+          zIndex: 75,
+          width: "min(520px, calc(100% - 24px))",
+          transform: "translateX(-50%)",
+          borderRadius: "22px",
+          border: `1px solid ${zone.accent}aa`,
+          background:
+            "linear-gradient(145deg, rgba(7,31,64,0.985), rgba(3,11,29,0.99))",
+          boxShadow: `0 0 34px ${zone.accent}32, 0 28px 72px rgba(0,0,0,0.58)`,
+          color: "white",
+          padding: "20px",
         }}
       >
-        Enter location <span aria-hidden="true">→</span>
+        <button
+          type="button"
+          aria-label="Close location details"
+          onClick={onClose}
+          style={{
+            position: "absolute",
+            top: "12px",
+            right: "12px",
+            width: "32px",
+            height: "32px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.17)",
+            background: "rgba(255,255,255,0.06)",
+            color: "white",
+            fontSize: "18px",
+            cursor: "pointer",
+          }}
+        >
+          ×
+        </button>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            paddingRight: "38px",
+          }}
+        >
+          <span
+            style={{
+              width: "34px",
+              height: "34px",
+              borderRadius: "999px",
+              border: `1px solid ${zone.accent}`,
+              background: `${zone.accent}18`,
+              color: zone.accent,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              fontSize: "12px",
+              fontWeight: 950,
+              boxShadow: `0 0 14px ${zone.accent}38`,
+            }}
+          >
+            {zone.number}
+          </span>
+
+          <div>
+            <p
+              style={{
+                margin: 0,
+                color: zone.accent,
+                fontSize: "9px",
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                fontWeight: 850,
+              }}
+            >
+              Nova’s World Location
+            </p>
+            <h2
+              style={{
+                margin: "4px 0 0",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: "24px",
+                lineHeight: 1.08,
+                fontWeight: 500,
+              }}
+            >
+              {zone.title}
+            </h2>
+          </div>
+        </div>
+
+        <p
+          style={{
+            margin: "14px 0 0",
+            color: "rgba(255,255,255,0.76)",
+            fontSize: "13px",
+            lineHeight: 1.55,
+          }}
+        >
+          {zone.description}
+        </p>
+
+        <button
+          type="button"
+          onClick={onEnter}
+          style={{
+            marginTop: "17px",
+            width: "100%",
+            minHeight: "46px",
+            borderRadius: "14px",
+            border: `1px solid ${zone.accent}aa`,
+            background: `linear-gradient(135deg, ${zone.accent}42, rgba(15,58,100,0.94))`,
+            color: "white",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontSize: "11px",
+            fontWeight: 900,
+            letterSpacing: "0.09em",
+            textTransform: "uppercase",
+          }}
+        >
+          Enter {zone.title} →
+        </button>
       </div>
-    </div>
+    </>
   );
 }
 

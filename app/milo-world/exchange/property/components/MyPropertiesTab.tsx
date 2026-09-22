@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import PropertyManagementModal from "./PropertyManagementModal";
 import ResidentLifePanel from "./ResidentLifePanel";
+import BusinessSpacePanel from "./BusinessSpacePanel";
 import {
   formatDateTime,
   formatNumber,
@@ -24,6 +25,7 @@ import {
   type PropertyResidentLifeProfile,
   type PropertyResidentLifeEvent,
   type PropertyResidentLifeStats,
+  type PropertyBusinessSpaceDashboard,
 } from "./propertyExchangeShared";
 
 type Props = PropertyTabStyles & {
@@ -46,6 +48,8 @@ type Props = PropertyTabStyles & {
   residentLifeProfiles: PropertyResidentLifeProfile[];
   residentLifeEvents: PropertyResidentLifeEvent[];
   residentLifeStats: PropertyResidentLifeStats;
+  businessSpaceDashboard: PropertyBusinessSpaceDashboard;
+  currentUserId: string | null;
   unreadMessages: number;
   actionLoading: boolean;
   message: string;
@@ -61,6 +65,13 @@ type Props = PropertyTabStyles & {
   onTogglePurchaseOffers: (unitId: string, enabled: boolean) => Promise<void>;
   onRefreshResidentMarket: () => Promise<void>;
   onRefreshResidentLife: () => Promise<void>;
+  onRefreshBusinessSpaces: () => Promise<void>;
+  onUseOwnedBusinessSpace: (slotId: number, unitId: string) => Promise<void>;
+  onLeaveBusinessSpace: (slotId: number) => Promise<void>;
+  onCreateBusinessSpaceListing: (unitId: string, weeklyRent: number, minWeeks: number, maxWeeks: number) => Promise<void>;
+  onCancelBusinessSpaceListing: (listingId: string) => Promise<void>;
+  onApplyForBusinessSpace: (listingId: string, slotId: number, weeklyRent: number, leaseWeeks: number) => Promise<void>;
+  onRespondBusinessSpaceApplication: (applicationId: string, action: "accept" | "reject") => Promise<void>;
   onRespondMaintenanceIssue: (issueId: string, action: "full_repair" | "quick_fix" | "ignore") => Promise<void>;
   onPreventiveService: (unitId: string) => Promise<void>;
   onOpenMessages: () => void;
@@ -88,6 +99,8 @@ export default function MyPropertiesTab({
   residentLifeProfiles,
   residentLifeEvents,
   residentLifeStats,
+  businessSpaceDashboard,
+  currentUserId,
   unreadMessages,
   actionLoading,
   message,
@@ -102,6 +115,13 @@ export default function MyPropertiesTab({
   onTogglePurchaseOffers,
   onRefreshResidentMarket,
   onRefreshResidentLife,
+  onRefreshBusinessSpaces,
+  onUseOwnedBusinessSpace,
+  onLeaveBusinessSpace,
+  onCreateBusinessSpaceListing,
+  onCancelBusinessSpaceListing,
+  onApplyForBusinessSpace,
+  onRespondBusinessSpaceApplication,
   onRespondMaintenanceIssue,
   onPreventiveService,
   onOpenMessages,
@@ -135,6 +155,8 @@ export default function MyPropertiesTab({
   const activeRentalListings = rentalListings.filter((listing) => listing.status === "active");
   const occupiedUnitIds = new Set(activeLeases.map((lease) => lease.unit_id));
   const rentalListedUnitIds = new Set(activeRentalListings.map((listing) => listing.unit_id));
+  const businessOccupiedUnitIds = new Set((businessSpaceDashboard.occupancies || []).filter((item) => ["active", "arrears"].includes(item.status)).map((item) => item.unit_id));
+  const businessListedUnitIds = new Set((businessSpaceDashboard.market_listings || []).filter((item) => item.owner_user_id === currentUserId).map((item) => item.unit_id));
   const contractedWeeklyRent = activeLeases.reduce(
     (sum, lease) => sum + Number(lease.weekly_rent || 0),
     0
@@ -147,6 +169,14 @@ export default function MyPropertiesTab({
     }
     if (rentalListedUnitIds.has(unit.unit_id)) {
       setLocalMessage("Take this property off the rental market before listing it for sale.");
+      return;
+    }
+    if (businessOccupiedUnitIds.has(unit.unit_id)) {
+      setLocalMessage("This commercial property is being used by a business. End that occupancy before selling it.");
+      return;
+    }
+    if (businessListedUnitIds.has(unit.unit_id)) {
+      setLocalMessage("Cancel the Business Space listing before putting this property up for sale.");
       return;
     }
     setListingUnitId(unit.unit_id);
@@ -473,6 +503,24 @@ export default function MyPropertiesTab({
           onOpenMessages={onOpenMessages}
         />
 
+        <BusinessSpacePanel
+          dashboard={businessSpaceDashboard}
+          currentUserId={currentUserId}
+          actionLoading={actionLoading}
+          isMobile={isMobile}
+          isCompact={isCompact}
+          glassPanel={glassPanel}
+          primaryButton={primaryButton}
+          secondaryButton={secondaryButton}
+          onRefresh={onRefreshBusinessSpaces}
+          onUseOwnedSpace={onUseOwnedBusinessSpace}
+          onLeaveSpace={onLeaveBusinessSpace}
+          onCreateListing={onCreateBusinessSpaceListing}
+          onCancelListing={onCancelBusinessSpaceListing}
+          onApplyForSpace={onApplyForBusinessSpace}
+          onRespondApplication={onRespondBusinessSpaceApplication}
+        />
+
         <section data-milo-guide="property-maintenance-overview" style={{ ...glassPanel, padding: isMobile ? "18px" : "24px", border: "1px solid rgba(121,242,206,0.15)", background: "linear-gradient(145deg, rgba(121,242,206,0.05), rgba(5,13,28,0.74))" }}>
           <div>
             <p style={{ margin: 0, color: "#79f2ce", fontSize: "11px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em" }}>Property Care</p>
@@ -521,8 +569,10 @@ export default function MyPropertiesTab({
                 const activeResale = activeResaleByUnit.get(unit.unit_id);
                 const occupied = occupiedUnitIds.has(unit.unit_id);
                 const listedForRent = rentalListedUnitIds.has(unit.unit_id);
-                const status = activeResale ? "Listed for Sale" : occupied ? "Tenant Active" : listedForRent ? "Listed for Rent" : "Vacant";
-                const statusColor = activeResale ? "#ffd18a" : occupied ? "#79f2ce" : listedForRent ? "#8ee8ff" : "rgba(255,255,255,0.62)";
+                const businessOccupied = businessOccupiedUnitIds.has(unit.unit_id);
+                const businessListed = businessListedUnitIds.has(unit.unit_id);
+                const status = activeResale ? "Listed for Sale" : businessOccupied ? "Business Active" : occupied ? "Tenant Active" : businessListed ? "Business Space Listed" : listedForRent ? "Listed for Rent" : "Vacant";
+                const statusColor = activeResale ? "#ffd18a" : businessOccupied ? "#c6b8ff" : occupied ? "#79f2ce" : businessListed ? "#ffd18a" : listedForRent ? "#8ee8ff" : "rgba(255,255,255,0.62)";
 
                 return (
                   <article key={unit.unit_id} style={{ overflow: "hidden", borderRadius: "20px", border: activeResale ? "1px solid rgba(255,209,138,0.25)" : "1px solid rgba(255,255,255,0.09)", background: "rgba(255,255,255,0.045)" }}>
@@ -572,10 +622,10 @@ export default function MyPropertiesTab({
                         <button
                           type="button"
                           onClick={() => openResaleListing(unit)}
-                          disabled={actionLoading || occupied || listedForRent}
-                          style={{ ...secondaryButton, width: "100%", minHeight: "38px", marginTop: "8px", opacity: actionLoading || occupied || listedForRent ? 0.45 : 1 }}
+                          disabled={actionLoading || occupied || listedForRent || businessOccupied || businessListed}
+                          style={{ ...secondaryButton, width: "100%", minHeight: "38px", marginTop: "8px", opacity: actionLoading || occupied || listedForRent || businessOccupied || businessListed ? 0.45 : 1 }}
                         >
-                          {occupied ? "Tenant Active" : listedForRent ? "Cancel Rental Listing First" : "List for Sale"}
+                          {businessOccupied ? "Business Active" : businessListed ? "Cancel Business Listing First" : occupied ? "Tenant Active" : listedForRent ? "Cancel Rental Listing First" : "List for Sale"}
                         </button>
                       )}
                     </div>

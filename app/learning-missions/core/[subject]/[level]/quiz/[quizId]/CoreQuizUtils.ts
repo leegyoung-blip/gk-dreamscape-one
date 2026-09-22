@@ -1,4 +1,5 @@
 import type {
+  ImmediateFeedback,
   JsonObject,
   QuestionType,
   QuizOption,
@@ -94,6 +95,7 @@ export function friendlyCorrectResponse(value: JsonObject | string | null) {
   if (typeof value.display === "string") return value.display;
   if (typeof value.display_answer === "string") return value.display_answer;
   if (typeof value.text === "string") return value.text;
+  if (typeof value.correct_option_id === "string") return value.correct_option_id;
   if (Array.isArray(value.correct_option_ids)) {
     return value.correct_option_ids.join(", ");
   }
@@ -123,6 +125,85 @@ export function friendlyCorrectResponse(value: JsonObject | string | null) {
   }
 
   return JSON.stringify(value);
+}
+
+function normaliseChoiceValue(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLocaleLowerCase();
+}
+
+function matchChoiceValueToOptionId(
+  value: unknown,
+  options: QuizOption[],
+): string | null {
+  const normalised = normaliseChoiceValue(value);
+  if (!normalised) return null;
+
+  const byId = options.find(
+    (option) => normaliseChoiceValue(option.id) === normalised,
+  );
+  if (byId) return byId.id;
+
+  const byText = options.find(
+    (option) => normaliseChoiceValue(option.text) === normalised,
+  );
+  return byText?.id ?? null;
+}
+
+/**
+ * Best-effort extraction of correct choice IDs from the current RPC feedback.
+ * The backend has historically emitted a few different correct_response
+ * shapes, so presentation code should not assume a single one.
+ */
+export function getCorrectChoiceOptionIds(
+  feedback: ImmediateFeedback | undefined,
+  options: QuizOption[],
+  selectedIds: string[] = [],
+) {
+  if (!feedback || feedback.pending_manual_review) return new Set<string>();
+
+  const correctResponse = feedback.correct_response;
+  const candidates: unknown[] = [];
+
+  if (typeof correctResponse === "string") {
+    candidates.push(correctResponse);
+  } else if (correctResponse && typeof correctResponse === "object") {
+    if (Array.isArray(correctResponse.correct_option_ids)) {
+      candidates.push(...correctResponse.correct_option_ids);
+    }
+    if (Array.isArray(correctResponse.option_ids)) {
+      candidates.push(...correctResponse.option_ids);
+    }
+    if (Array.isArray(correctResponse.answers)) {
+      candidates.push(...correctResponse.answers);
+    }
+
+    candidates.push(
+      correctResponse.correct_option_id,
+      correctResponse.option_id,
+      correctResponse.correctAnswer,
+      correctResponse.correct_answer,
+      correctResponse.display,
+      correctResponse.display_answer,
+      correctResponse.text,
+    );
+  }
+
+  const resolved = new Set<string>();
+
+  for (const candidate of candidates) {
+    const optionId = matchChoiceValueToOptionId(candidate, options);
+    if (optionId) resolved.add(optionId);
+  }
+
+  // When the learner is known to be correct but the older RPC did not expose
+  // a machine-readable answer key, their selected choice is safe to mark green.
+  if (resolved.size === 0 && feedback.is_correct === true) {
+    selectedIds.forEach((id) => resolved.add(id));
+  }
+
+  return resolved;
 }
 
 export function isCoreTopicLockError(value: unknown) {

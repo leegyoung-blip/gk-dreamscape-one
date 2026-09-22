@@ -653,6 +653,136 @@ export function getResidentAvatarSrc(avatarKey: string | null | undefined) {
   return `/milo-world/property-exchange/residents/${clean}.jpg`;
 }
 
+
+
+export type PropertyBusinessSpaceBusiness = {
+  slot_id: number;
+  status: string;
+  business_type_id: string | null;
+  business_name: string;
+  approved_budget: number;
+  cash: number;
+  staff_count: number;
+  customer_satisfaction: number;
+  business_title: string | null;
+  required_property_type: "office" | "retail" | null;
+  minimum_area_sqm: number | null;
+  target_area_sqm: number | null;
+  weekly_budget: number;
+  occupancy_id: string | null;
+  unit_id: string | null;
+  occupancy_mode: "owned" | "leased" | null;
+  weekly_space_cost: number | null;
+  fit_score: number | null;
+  capacity_staff: number | null;
+  occupancy_status: string | null;
+  property_name: string | null;
+  unit_number: number | null;
+  district: string | null;
+  current_value: number | null;
+  rental_potential: number | null;
+};
+
+export type PropertyBusinessSpaceUnit = {
+  unit_id: string;
+  property_id: string;
+  unit_number: number;
+  property_name: string;
+  district: string;
+  property_type: "office" | "retail";
+  area_sqm: number;
+  current_value: number;
+  rental_potential: number;
+  appeal: number;
+  quality: number;
+  efficiency: number;
+  occupied: boolean;
+  listed: boolean;
+};
+
+export type PropertyBusinessSpaceListing = {
+  listing_id: string;
+  unit_id: string;
+  owner_user_id: string;
+  asking_weekly_rent: number;
+  min_lease_weeks: number;
+  max_lease_weeks: number;
+  expires_at: string;
+  property_name: string;
+  district: string;
+  property_type: "office" | "retail";
+  area_sqm: number;
+  appeal: number;
+  quality: number;
+  efficiency: number;
+  rental_potential: number;
+  owner_name: string;
+};
+
+export type PropertyBusinessSpaceApplication = {
+  id: string;
+  listing_id: string;
+  unit_id: string;
+  landlord_user_id: string;
+  business_user_id: string;
+  business_slot_id: number;
+  business_name: string;
+  business_type_id: string;
+  proposed_weekly_rent: number;
+  lease_weeks: number;
+  fit_score: number;
+  status: string;
+  created_at: string;
+  responded_at: string | null;
+  property_name: string;
+  district: string;
+  property_type: string;
+  area_sqm: number;
+  asking_weekly_rent: number;
+};
+
+export type PropertyBusinessSpaceOccupancy = {
+  id: string;
+  unit_id: string;
+  landlord_user_id: string;
+  business_user_id: string;
+  business_slot_id: number;
+  business_name: string;
+  business_type_id: string;
+  occupancy_mode: "owned" | "leased";
+  weekly_space_cost: number;
+  lease_weeks: number;
+  start_date: string;
+  end_date: string | null;
+  next_cost_due_on: string;
+  paid_weeks: number;
+  fit_score: number;
+  capacity_staff: number;
+  status: string;
+  arrears_count: number;
+  property_name: string;
+  district: string;
+  property_type: string;
+  area_sqm: number;
+};
+
+export type PropertyBusinessSpaceStats = {
+  running_businesses: number;
+  businesses_with_space: number;
+  commercial_units_owned: number;
+  spaces_listed: number;
+  incoming_applications: number;
+};
+
+export type PropertyBusinessSpaceDashboard = {
+  businesses: PropertyBusinessSpaceBusiness[];
+  owned_commercial_units: PropertyBusinessSpaceUnit[];
+  market_listings: PropertyBusinessSpaceListing[];
+  applications: PropertyBusinessSpaceApplication[];
+  occupancies: PropertyBusinessSpaceOccupancy[];
+  stats: PropertyBusinessSpaceStats;
+};
+
 export type PropertyTabStyles = {
   glassPanel: CSSProperties;
   primaryButton: CSSProperties;

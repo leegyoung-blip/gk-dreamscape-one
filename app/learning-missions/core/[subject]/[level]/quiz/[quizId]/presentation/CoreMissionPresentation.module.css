@@ -1,0 +1,422 @@
+.languageStage {
+  margin-top: 9px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  box-sizing: border-box;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(65, 214, 255, 0.07), transparent 35%),
+    rgba(255, 255, 255, 0.032);
+  padding: clamp(18px, 2.3vh, 28px) clamp(18px, 2.4vw, 34px);
+  display: flex;
+  flex-direction: column;
+}
+
+.languageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.badgeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.typeBadge,
+.skillBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.typeBadge {
+  border: 1px solid rgba(126, 232, 255, 0.28);
+  background: rgba(83, 215, 255, 0.09);
+  color: #bff6ff;
+}
+
+.skillBadge {
+  border: 1px solid rgba(216, 180, 254, 0.26);
+  background: rgba(168, 85, 247, 0.09);
+  color: #eddcff;
+}
+
+.stageCue {
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.languageBody {
+  width: min(1080px, 100%);
+  margin: auto;
+  padding: clamp(14px, 3vh, 34px) 0 clamp(8px, 1.5vh, 18px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.instruction {
+  margin: 0 auto 12px;
+  max-width: 840px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: clamp(12px, 1.1vw, 14px);
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.promptWrap {
+  position: relative;
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: clamp(18px, 2.6vh, 30px) clamp(14px, 2vw, 24px);
+  border-radius: 20px;
+  border: 1px solid rgba(126, 232, 255, 0.12);
+  background: rgba(2, 10, 25, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.prompt {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(28px, 3.05vw, 44px);
+  font-weight: 820;
+  line-height: 1.25;
+  letter-spacing: -0.035em;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.choiceGrid {
+  width: min(980px, 100%);
+  margin: clamp(18px, 3vh, 30px) auto 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.choiceButton {
+  position: relative;
+  min-height: 82px;
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.105);
+  background: rgba(255, 255, 255, 0.045);
+  color: #ffffff;
+  padding: 12px 18px 12px 13px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease;
+}
+
+.choiceButton:not(:disabled):hover {
+  transform: translateY(-1px);
+  border-color: rgba(126, 232, 255, 0.28);
+  background: rgba(83, 215, 255, 0.075);
+}
+
+.choiceButton:focus-visible {
+  outline: 3px solid rgba(126, 232, 255, 0.28);
+  outline-offset: 2px;
+}
+
+.choiceButtonSelected {
+  border-color: rgba(126, 232, 255, 0.72);
+  background: linear-gradient(135deg, rgba(83, 215, 255, 0.16), rgba(116, 221, 196, 0.08));
+  box-shadow: 0 10px 28px rgba(47, 207, 235, 0.1);
+}
+
+.choiceButtonCorrect {
+  border-color: rgba(52, 211, 153, 0.68);
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.17), rgba(16, 185, 129, 0.075));
+  box-shadow: 0 9px 28px rgba(16, 185, 129, 0.08);
+}
+
+.choiceButtonWrong {
+  border-color: rgba(248, 113, 113, 0.7);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.16), rgba(127, 29, 29, 0.07));
+  box-shadow: 0 9px 28px rgba(239, 68, 68, 0.075);
+}
+
+.choiceButtonMuted {
+  opacity: 0.58;
+}
+
+.choiceLetter {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  border: 1px solid rgba(126, 232, 255, 0.1);
+  background: rgba(126, 232, 255, 0.09);
+  color: #c8f8ff;
+  font-size: 15px;
+  font-weight: 950;
+  transition: inherit;
+}
+
+.choiceButtonSelected .choiceLetter {
+  background: rgba(126, 232, 255, 0.18);
+  border-color: rgba(126, 232, 255, 0.3);
+}
+
+.choiceButtonCorrect .choiceLetter {
+  color: #d1fae5;
+  background: rgba(52, 211, 153, 0.16);
+  border-color: rgba(52, 211, 153, 0.26);
+}
+
+.choiceButtonWrong .choiceLetter {
+  color: #fee2e2;
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.26);
+}
+
+.choiceText {
+  min-width: 0;
+  font-size: clamp(16px, 1.35vw, 20px);
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+.choiceStatus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  min-height: 30px;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.choiceStatusSelected {
+  color: #bff6ff;
+  background: rgba(83, 215, 255, 0.1);
+}
+
+.choiceStatusCorrect {
+  color: #d1fae5;
+  background: rgba(52, 211, 153, 0.13);
+}
+
+.choiceStatusWrong {
+  color: #fee2e2;
+  background: rgba(248, 113, 113, 0.13);
+}
+
+.errorBox {
+  width: min(980px, 100%);
+  margin: 12px auto 0;
+  border-radius: 12px;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: rgba(239, 68, 68, 0.1);
+  color: #fecaca;
+  padding: 11px 13px;
+  box-sizing: border-box;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.feedback {
+  margin-top: 8px;
+  flex: 0 0 auto;
+  max-height: 130px;
+  overflow-y: auto;
+  border-radius: 15px;
+  padding: 13px 15px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  align-items: start;
+  box-sizing: border-box;
+}
+
+.feedbackCorrect {
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  background: rgba(52, 211, 153, 0.08);
+  color: #d1fae5;
+}
+
+.feedbackWrong {
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+  color: #fee2e2;
+}
+
+.feedbackPending {
+  border: 1px solid rgba(251, 191, 36, 0.26);
+  background: rgba(251, 191, 36, 0.08);
+  color: #fde7a6;
+}
+
+.feedbackIcon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.feedbackTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.feedbackText {
+  margin: 5px 0 0;
+  color: inherit;
+  opacity: 0.92;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.feedbackAnswer {
+  margin: 5px 0 0;
+  color: inherit;
+  opacity: 0.74;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1180px) {
+  .languageStage {
+    padding: 16px 20px;
+  }
+
+  .languageBody {
+    padding-top: 18px;
+  }
+
+  .prompt {
+    font-size: clamp(25px, 3.4vw, 36px);
+  }
+
+  .choiceButton {
+    min-height: 74px;
+  }
+}
+
+@media (max-width: 720px) {
+  .languageStage {
+    margin-top: 7px;
+    border-radius: 16px;
+    padding: 11px;
+  }
+
+  .languageHeader {
+    gap: 7px;
+  }
+
+  .typeBadge,
+  .skillBadge {
+    min-height: 23px;
+    padding: 0 8px;
+    font-size: 8px;
+  }
+
+  .stageCue {
+    display: none;
+  }
+
+  .languageBody {
+    margin: 0 auto;
+    padding: 12px 0 4px;
+  }
+
+  .instruction {
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+
+  .promptWrap {
+    border-radius: 15px;
+    padding: 15px 10px;
+  }
+
+  .prompt {
+    font-size: clamp(21px, 6.3vw, 29px);
+    line-height: 1.22;
+  }
+
+  .choiceGrid {
+    margin-top: 12px;
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .choiceButton {
+    min-height: 57px;
+    border-radius: 14px;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 9px;
+    padding: 8px 10px;
+  }
+
+  .choiceLetter {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+
+  .choiceText {
+    font-size: 15px;
+  }
+
+  .choiceStatus {
+    min-width: 26px;
+    min-height: 26px;
+    padding: 0 6px;
+    font-size: 11px;
+  }
+
+  .feedback {
+    max-height: 108px;
+    padding: 10px 11px;
+    gap: 8px;
+  }
+
+  .feedbackIcon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .feedbackText,
+  .feedbackAnswer {
+    font-size: 11px;
+  }
+}

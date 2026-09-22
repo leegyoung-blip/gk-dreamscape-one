@@ -12,10 +12,11 @@ import type {
 } from "../CoreQuizTypes";
 import {
   formatCoreQuestionType,
-  friendlyCorrectResponse,
   getQuestionVisualMediaCount,
 } from "../CoreQuizUtils";
+import CoreMissionFeedback from "./CoreMissionFeedback";
 import { resolvePresentationMode } from "./resolvePresentationMode";
+import LanguageChoiceRenderer from "./renderers/LanguageChoiceRenderer";
 import QuestionResponseEditor from "./renderers/QuestionResponseEditor";
 
 export default function CoreMissionStage({
@@ -44,6 +45,24 @@ export default function CoreMissionStage({
   const isMobile = screenMode === "mobile";
   const visualMediaCount = getQuestionVisualMediaCount(question);
   const presentationMode = resolvePresentationMode(question, subject);
+
+  if (presentationMode === "language_choice") {
+    return (
+      <>
+        <LanguageChoiceRenderer
+          question={question}
+          topicTitle={topicTitle}
+          response={response}
+          feedback={feedback}
+          error={error}
+          screenMode={screenMode}
+          locked={locked}
+          onChange={onChange}
+        />
+        <CoreMissionFeedback feedback={feedback} enhanced />
+      </>
+    );
+  }
 
   return (
     <>
@@ -95,43 +114,8 @@ export default function CoreMissionStage({
         {error && <div style={errorBox}>{error}</div>}
       </article>
 
-      <ImmediateFeedbackCard feedback={feedback} />
+      <CoreMissionFeedback feedback={feedback} />
     </>
-  );
-}
-
-function ImmediateFeedbackCard({
-  feedback,
-}: {
-  feedback?: ImmediateFeedback;
-}) {
-  if (!feedback) return null;
-
-  if (feedback.pending_manual_review) {
-    return (
-      <div style={feedbackCard(null)}>
-        <p style={{ margin: 0, fontWeight: 900 }}>Saved for teacher review.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={feedbackCard(feedback.is_correct === true)}>
-      <p style={{ margin: 0, fontWeight: 900 }}>
-        {feedback.is_correct ? "Correct!" : "Not quite."}
-      </p>
-      {feedback.explanation && (
-        <p style={{ margin: "6px 0 0", lineHeight: 1.5 }}>
-          <FractionText text={feedback.explanation} />
-        </p>
-      )}
-      {!feedback.is_correct && feedback.correct_response && (
-        <p style={{ margin: "6px 0 0", opacity: 0.82 }}>
-          Correct answer:{" "}
-          <FractionText text={friendlyCorrectResponse(feedback.correct_response)} />
-        </p>
-      )}
-    </div>
   );
 }
 
@@ -206,33 +190,6 @@ function questionPrompt(
         : "clamp(21px, 2.3vw, 27px)",
     lineHeight: workspaceOpen ? 1.16 : 1.2,
     letterSpacing: "-0.02em",
-  };
-}
-
-function feedbackCard(correct: boolean | null): CSSProperties {
-  return {
-    marginTop: "8px",
-    flex: "0 0 auto",
-    maxHeight: "118px",
-    overflowY: "auto",
-    boxSizing: "border-box",
-    borderRadius: "12px",
-    border:
-      correct === true
-        ? "1px solid rgba(52,211,153,0.28)"
-        : correct === false
-          ? "1px solid rgba(248,113,113,0.28)"
-          : "1px solid rgba(251,191,36,0.25)",
-    background:
-      correct === true
-        ? "rgba(52,211,153,0.08)"
-        : correct === false
-          ? "rgba(239,68,68,0.08)"
-          : "rgba(251,191,36,0.08)",
-    color:
-      correct === true ? "#c8fae8" : correct === false ? "#fecaca" : "#fde7a6",
-    padding: "13px",
-    fontSize: "13px",
   };
 }
 

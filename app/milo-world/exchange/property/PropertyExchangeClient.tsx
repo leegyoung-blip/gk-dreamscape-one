@@ -43,6 +43,7 @@ import {
   type PropertyMarketSegment,
   type PropertyMarketHistoryPoint,
   type PropertyMarketDashboard,
+  type PropertyBusinessSpaceDashboard,
 } from "./components/propertyExchangeShared";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -273,6 +274,20 @@ export default function PropertyExchangeClient() {
   const [districtMarkets, setDistrictMarkets] = useState<PropertyDistrictMarket[]>([]);
   const [marketSegments, setMarketSegments] = useState<PropertyMarketSegment[]>([]);
   const [marketHistory, setMarketHistory] = useState<PropertyMarketHistoryPoint[]>([]);
+  const [businessSpaceDashboard, setBusinessSpaceDashboard] = useState<PropertyBusinessSpaceDashboard>({
+    businesses: [],
+    owned_commercial_units: [],
+    market_listings: [],
+    applications: [],
+    occupancies: [],
+    stats: {
+      running_businesses: 0,
+      businesses_with_space: 0,
+      commercial_units_owned: 0,
+      spaces_listed: 0,
+      incoming_applications: 0,
+    },
+  });
   const [phoneOpenRequest, setPhoneOpenRequest] = useState(0);
 
   const [previewProperty, setPreviewProperty] = useState<PropertyOffering | null>(null);
@@ -420,6 +435,7 @@ export default function PropertyExchangeClient() {
     await refreshResidentSimulation(false);
     await refreshLeaseLifecycle(false);
     await refreshDistrictMarket(false);
+    await supabase.rpc("process_milo_business_space_costs", { p_as_of: new Date().toISOString().slice(0, 10) });
     await Promise.all([
       loadDreamTokens(),
       loadPropertyMarket(user.id),
@@ -428,6 +444,7 @@ export default function PropertyExchangeClient() {
       loadPropertyCommunications(),
       loadResidentLifeDashboard(),
       loadDistrictMarketDashboard(),
+      loadBusinessSpaceDashboard(),
     ]);
     setLoading(false);
   }
@@ -861,6 +878,68 @@ export default function PropertyExchangeClient() {
     })) as PropertyMarketHistoryPoint[]);
   }
 
+  async function loadBusinessSpaceDashboard() {
+    const { data, error } = await supabase.rpc("get_my_milo_business_space_dashboard");
+    if (error) {
+      console.warn("Could not load Business Space dashboard:", error.message);
+      setBusinessSpaceDashboard({
+        businesses: [], owned_commercial_units: [], market_listings: [], applications: [], occupancies: [],
+        stats: { running_businesses: 0, businesses_with_space: 0, commercial_units_owned: 0, spaces_listed: 0, incoming_applications: 0 },
+      });
+      return;
+    }
+
+    const dashboard = (data || {}) as Partial<PropertyBusinessSpaceDashboard>;
+    setBusinessSpaceDashboard({
+      businesses: (dashboard.businesses || []).map((item) => ({
+        ...item,
+        slot_id: Number(item.slot_id || 0),
+        approved_budget: Number(item.approved_budget || 0),
+        cash: Number(item.cash || 0),
+        staff_count: Number(item.staff_count || 0),
+        customer_satisfaction: Number(item.customer_satisfaction || 0),
+        minimum_area_sqm: item.minimum_area_sqm == null ? null : Number(item.minimum_area_sqm),
+        target_area_sqm: item.target_area_sqm == null ? null : Number(item.target_area_sqm),
+        weekly_budget: Number(item.weekly_budget || 0),
+        weekly_space_cost: item.weekly_space_cost == null ? null : Number(item.weekly_space_cost),
+        fit_score: item.fit_score == null ? null : Number(item.fit_score),
+        capacity_staff: item.capacity_staff == null ? null : Number(item.capacity_staff),
+        unit_number: item.unit_number == null ? null : Number(item.unit_number),
+        current_value: item.current_value == null ? null : Number(item.current_value),
+        rental_potential: item.rental_potential == null ? null : Number(item.rental_potential),
+      })),
+      owned_commercial_units: (dashboard.owned_commercial_units || []).map((item) => ({
+        ...item, unit_number: Number(item.unit_number || 0), area_sqm: Number(item.area_sqm || 0), current_value: Number(item.current_value || 0), rental_potential: Number(item.rental_potential || 0), appeal: Number(item.appeal || 0), quality: Number(item.quality || 0), efficiency: Number(item.efficiency || 0), occupied: Boolean(item.occupied), listed: Boolean(item.listed),
+      })),
+      market_listings: (dashboard.market_listings || []).map((item) => ({
+        ...item, asking_weekly_rent: Number(item.asking_weekly_rent || 0), min_lease_weeks: Number(item.min_lease_weeks || 0), max_lease_weeks: Number(item.max_lease_weeks || 0), area_sqm: Number(item.area_sqm || 0), appeal: Number(item.appeal || 0), quality: Number(item.quality || 0), efficiency: Number(item.efficiency || 0), rental_potential: Number(item.rental_potential || 0),
+      })),
+      applications: (dashboard.applications || []).map((item) => ({
+        ...item, business_slot_id: Number(item.business_slot_id || 0), proposed_weekly_rent: Number(item.proposed_weekly_rent || 0), lease_weeks: Number(item.lease_weeks || 0), fit_score: Number(item.fit_score || 0), area_sqm: Number(item.area_sqm || 0), asking_weekly_rent: Number(item.asking_weekly_rent || 0),
+      })),
+      occupancies: (dashboard.occupancies || []).map((item) => ({
+        ...item, business_slot_id: Number(item.business_slot_id || 0), weekly_space_cost: Number(item.weekly_space_cost || 0), lease_weeks: Number(item.lease_weeks || 0), paid_weeks: Number(item.paid_weeks || 0), fit_score: Number(item.fit_score || 0), capacity_staff: Number(item.capacity_staff || 0), arrears_count: Number(item.arrears_count || 0), area_sqm: Number(item.area_sqm || 0),
+      })),
+      stats: {
+        running_businesses: Number(dashboard.stats?.running_businesses || 0),
+        businesses_with_space: Number(dashboard.stats?.businesses_with_space || 0),
+        commercial_units_owned: Number(dashboard.stats?.commercial_units_owned || 0),
+        spaces_listed: Number(dashboard.stats?.spaces_listed || 0),
+        incoming_applications: Number(dashboard.stats?.incoming_applications || 0),
+      },
+    });
+  }
+
+  async function refreshBusinessSpaces(showMessage = false) {
+    const { data, error } = await supabase.rpc("process_milo_business_space_costs", { p_as_of: new Date().toISOString().slice(0, 10) });
+    if (error) console.warn("Could not process Business Space costs:", error.message);
+    await Promise.all([loadBusinessSpaceDashboard(), loadDreamTokens()]);
+    if (showMessage && !error) {
+      const result = (data || {}) as Record<string, unknown>;
+      setTradeMessage(`Business spaces updated${Number(result.payments_processed || 0) > 0 ? ` · ${Number(result.payments_processed || 0)} rent payment${Number(result.payments_processed || 0) === 1 ? "" : "s"} processed` : ""}.`);
+    }
+  }
+
   async function loadPropertyMarket(id: string) {
     setMarketLoading(true);
 
@@ -1092,6 +1171,7 @@ export default function PropertyExchangeClient() {
     await refreshResidentSimulation(showResidentMessage);
     await refreshLeaseLifecycle(false);
     await refreshDistrictMarket(false);
+    await supabase.rpc("process_milo_business_space_costs", { p_as_of: new Date().toISOString().slice(0, 10) });
     await Promise.all([
       loadDreamTokens(),
       loadPropertyMarket(userId),
@@ -1100,7 +1180,71 @@ export default function PropertyExchangeClient() {
       loadPropertyCommunications(),
       loadResidentLifeDashboard(),
       loadDistrictMarketDashboard(),
+      loadBusinessSpaceDashboard(),
     ]);
+  }
+
+  async function useOwnedBusinessSpace(slotId: number, unitId: string) {
+    if (actionLoading) return;
+    setActionLoading(true); setTradeMessage("");
+    const { data, error } = await supabase.rpc("occupy_my_owned_milo_business_space", { p_business_slot_id: slotId, p_unit_id: unitId });
+    setActionLoading(false);
+    if (error) { setTradeMessage(`Could not use this business space: ${error.message}`); return; }
+    const result = (data || {}) as Record<string, unknown>;
+    setTradeMessage(`Business premises connected · Fit ${Number(result.fit_score || 0)}/100.`);
+    await loadBusinessSpaceDashboard();
+  }
+
+  async function leaveBusinessSpace(slotId: number) {
+    if (actionLoading) return;
+    setActionLoading(true); setTradeMessage("");
+    const { error } = await supabase.rpc("leave_milo_business_space", { p_business_slot_id: slotId });
+    setActionLoading(false);
+    if (error) { setTradeMessage(`Could not leave the premises: ${error.message}`); return; }
+    setTradeMessage("Business premises released.");
+    await loadBusinessSpaceDashboard();
+  }
+
+  async function createBusinessSpaceListing(unitId: string, weeklyRent: number, minWeeks: number, maxWeeks: number) {
+    if (actionLoading) return;
+    setActionLoading(true); setTradeMessage("");
+    const { error } = await supabase.rpc("create_milo_business_space_listing", { p_unit_id: unitId, p_asking_weekly_rent: Math.max(1, Math.round(weeklyRent)), p_min_lease_weeks: minWeeks, p_max_lease_weeks: maxWeeks });
+    setActionLoading(false);
+    if (error) { setTradeMessage(`Could not list the business space: ${error.message}`); return; }
+    setTradeMessage("Commercial property listed for Business Builder tenants.");
+    await loadBusinessSpaceDashboard();
+  }
+
+  async function cancelBusinessSpaceListing(listingId: string) {
+    if (actionLoading) return;
+    setActionLoading(true); setTradeMessage("");
+    const { error } = await supabase.rpc("cancel_milo_business_space_listing", { p_listing_id: listingId });
+    setActionLoading(false);
+    if (error) { setTradeMessage(`Could not cancel the business-space listing: ${error.message}`); return; }
+    setTradeMessage("Business-space listing cancelled.");
+    await loadBusinessSpaceDashboard();
+  }
+
+  async function applyForBusinessSpace(listingId: string, slotId: number, weeklyRent: number, leaseWeeks: number) {
+    if (actionLoading) return;
+    setActionLoading(true); setTradeMessage("");
+    const { data, error } = await supabase.rpc("apply_my_milo_business_to_space", { p_listing_id: listingId, p_business_slot_id: slotId, p_proposed_weekly_rent: Math.max(1, Math.round(weeklyRent)), p_lease_weeks: leaseWeeks });
+    setActionLoading(false);
+    if (error) { setTradeMessage(`Business-space application failed: ${error.message}`); return; }
+    const result = (data || {}) as Record<string, unknown>;
+    setTradeMessage(`Application sent · Space fit ${Number(result.fit_score || 0)}/100.`);
+    await loadBusinessSpaceDashboard();
+  }
+
+  async function respondBusinessSpaceApplication(applicationId: string, action: "accept" | "reject") {
+    if (actionLoading) return;
+    setActionLoading(true); setTradeMessage("");
+    const { data, error } = await supabase.rpc("respond_to_milo_business_space_application", { p_application_id: applicationId, p_action: action });
+    setActionLoading(false);
+    if (error) { setTradeMessage(`Could not respond to the business: ${error.message}`); return; }
+    const result = (data || {}) as Record<string, unknown>;
+    setTradeMessage(action === "accept" ? `Business tenancy accepted · Fit ${Number(result.fit_score || 0)}/100.` : "Business application declined.");
+    await loadBusinessSpaceDashboard();
   }
 
   function openPreview(property: PropertyOffering) {
@@ -1729,6 +1873,8 @@ export default function PropertyExchangeClient() {
               residentLifeProfiles={residentLifeProfiles}
               residentLifeEvents={residentLifeEvents}
               residentLifeStats={residentLifeStats}
+              businessSpaceDashboard={businessSpaceDashboard}
+              currentUserId={userId}
               unreadMessages={propertyUnreadCount}
               actionLoading={actionLoading}
               message={tradeMessage}
@@ -1749,6 +1895,13 @@ export default function PropertyExchangeClient() {
                   loadPropertyCommunications(),
                 ]);
               }}
+              onRefreshBusinessSpaces={() => refreshBusinessSpaces(true)}
+              onUseOwnedBusinessSpace={useOwnedBusinessSpace}
+              onLeaveBusinessSpace={leaveBusinessSpace}
+              onCreateBusinessSpaceListing={createBusinessSpaceListing}
+              onCancelBusinessSpaceListing={cancelBusinessSpaceListing}
+              onApplyForBusinessSpace={applyForBusinessSpace}
+              onRespondBusinessSpaceApplication={respondBusinessSpaceApplication}
               onRespondMaintenanceIssue={respondMaintenanceIssue}
               onPreventiveService={preventiveService}
               onOpenMessages={() => setPhoneOpenRequest((value) => value + 1)}
