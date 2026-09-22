@@ -32,7 +32,7 @@ type Props = {
   onRespond: (
     sourceType: "rental_application" | "purchase_offer" | "renewal",
     sourceId: string,
-    action: "accept" | "decline" | "reject" | "counter",
+    action: "accept" | "decline" | "reject" | "counter" | "meet_halfway" | "hold_price" | "longer_lease" | "lower_rent_longer" | "ask_budget" | "ask_best",
     counterWeeklyRent?: number,
     counterLeaseWeeks?: number
   ) => Promise<void>;
@@ -68,7 +68,7 @@ export default function PropertyPhone({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const [countering, setCountering] = useState(false);
+  const [countering, setCountering] = useState<false | "rent" | "sale">(false);
   const [counterRent, setCounterRent] = useState(0);
   const [counterWeeks, setCounterWeeks] = useState(12);
   const [showResidentProfile, setShowResidentProfile] = useState(false);
@@ -164,13 +164,21 @@ export default function PropertyPhone({
   }, [openRequest]);
 
   useEffect(() => {
-    if (!selectedRenewal) {
-      setCountering(false);
+    setCountering(false);
+    if (selectedRenewal) {
+      setCounterRent(selectedRenewal.proposed_weekly_rent);
+      setCounterWeeks(selectedRenewal.proposed_lease_weeks);
       return;
     }
-    setCounterRent(selectedRenewal.proposed_weekly_rent);
-    setCounterWeeks(selectedRenewal.proposed_lease_weeks);
-  }, [selectedRenewal]);
+    if (pendingApplication) {
+      setCounterRent(pendingApplication.proposed_weekly_rent);
+      setCounterWeeks(pendingApplication.lease_weeks);
+      return;
+    }
+    if (activePurchaseOffer) {
+      setCounterRent(activePurchaseOffer.offer_amount);
+    }
+  }, [selectedRenewal, pendingApplication, activePurchaseOffer]);
 
   function openConversation(conversationId: string) {
     setSelectedConversationId(conversationId);
@@ -531,55 +539,88 @@ export default function PropertyPhone({
                 <div style={{ flexShrink: 0, padding: "8px 9px 11px", background: "rgba(255,255,255,0.97)", borderTop: "1px solid rgba(15,23,42,0.08)" }}>
                   {selectedRenewal ? (
                     <div style={{ display: "grid", gap: "7px" }}>
-                      {!countering ? (
-                        <>
-                          <div style={{ padding: "7px 8px", borderRadius: "10px", background: "#eff6ff", color: "#1e40af", fontSize: "9px", lineHeight: 1.4 }}>
-                            Renewal proposal: <strong>{formatNumber(selectedRenewal.proposed_weekly_rent)} DT/wk</strong> for <strong>{selectedRenewal.proposed_lease_weeks} weeks</strong>.
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "5px" }}>
-                            <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "accept")} style={actionButton("#16a34a")}>Accept</button>
-                            <button type="button" disabled={actionLoading} onClick={() => setCountering(true)} style={actionButton("#2563eb")}>Counter</button>
-                            <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "decline")} style={actionButton("#64748b")}>Decline</button>
-                          </div>
-                        </>
-                      ) : (
+                      <div style={{ padding: "7px 8px", borderRadius: "10px", background: "#eff6ff", color: "#1e40af", fontSize: "9px", lineHeight: 1.4 }}>
+                        Renewal offer: <strong>{formatNumber(selectedRenewal.proposed_weekly_rent)} DT/wk</strong> for <strong>{selectedRenewal.proposed_lease_weeks} weeks</strong>
+                        <span style={{ display: "block", marginTop: "3px", color: "#64748b", fontSize: "8px" }}>Negotiation round {Math.min(4, selectedRenewal.round_number || 1)} of 4</span>
+                      </div>
+                      {countering === "rent" ? (
                         <div style={{ display: "grid", gap: "6px" }}>
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}>
-                            <label style={{ display: "grid", gap: "3px", color: "#64748b", fontSize: "8px" }}>
-                              Weekly rent
-                              <input type="number" min={1} value={counterRent} onChange={(e) => setCounterRent(Math.max(1, Math.round(Number(e.target.value) || 1)))} style={phoneInput} />
-                            </label>
-                            <label style={{ display: "grid", gap: "3px", color: "#64748b", fontSize: "8px" }}>
-                              Weeks
-                              <input type="number" min={1} max={104} value={counterWeeks} onChange={(e) => setCounterWeeks(Math.max(1, Math.min(104, Math.round(Number(e.target.value) || 1))))} style={phoneInput} />
-                            </label>
+                            <label style={{ display: "grid", gap: "3px", color: "#64748b", fontSize: "8px" }}>Weekly rent<input type="number" min={1} value={counterRent} onChange={(e) => setCounterRent(Math.max(1, Math.round(Number(e.target.value) || 1)))} style={phoneInput} /></label>
+                            <label style={{ display: "grid", gap: "3px", color: "#64748b", fontSize: "8px" }}>Weeks<input type="number" min={1} max={104} value={counterWeeks} onChange={(e) => setCounterWeeks(Math.max(1, Math.min(104, Math.round(Number(e.target.value) || 1))))} style={phoneInput} /></label>
                           </div>
                           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "5px" }}>
                             <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "counter", counterRent, counterWeeks)} style={actionButton("#2563eb")}>Send Counter</button>
                             <button type="button" onClick={() => setCountering(false)} style={actionButton("#94a3b8")}>Cancel</button>
                           </div>
                         </div>
+                      ) : (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "accept")} style={actionButton("#16a34a")}>Accept</button>
+                          <button type="button" disabled={actionLoading} onClick={() => setCountering("rent")} style={actionButton("#2563eb")}>Counter</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "meet_halfway")} style={softButton}>Meet Halfway</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "hold_price")} style={softButton}>Keep Current Rent</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "longer_lease")} style={softButton}>Longer Lease</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "lower_rent_longer")} style={softButton}>Lower Rent + Longer</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "ask_budget")} style={softButton}>Ask Their Budget</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("renewal", selectedRenewal.negotiation_id, "decline")} style={dangerSoftButton}>Decline</button>
+                        </div>
                       )}
                     </div>
                   ) : pendingApplication ? (
                     <div style={{ display: "grid", gap: "7px" }}>
                       <div style={{ padding: "7px 8px", borderRadius: "10px", background: "#eff6ff", color: "#1e40af", fontSize: "9px", lineHeight: 1.4 }}>
-                        Rental offer: <strong>{formatNumber(pendingApplication.proposed_weekly_rent)} DT/wk</strong> for <strong>{pendingApplication.lease_weeks} weeks</strong> · fit {pendingApplication.fit_score}/100.
+                        Rental offer: <strong>{formatNumber(pendingApplication.proposed_weekly_rent)} DT/wk</strong> for <strong>{pendingApplication.lease_weeks} weeks</strong> · fit {pendingApplication.fit_score}/100
+                        <span style={{ display: "block", marginTop: "3px", color: "#64748b", fontSize: "8px" }}>Round {Math.min(4, pendingApplication.negotiation_round || 1)} of 4</span>
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}>
-                        <button type="button" disabled={actionLoading} onClick={() => void onRespond("rental_application", pendingApplication.application_id, "accept")} style={actionButton("#16a34a")}>Accept Tenant</button>
-                        <button type="button" disabled={actionLoading} onClick={() => void onRespond("rental_application", pendingApplication.application_id, "decline")} style={actionButton("#64748b")}>Decline</button>
-                      </div>
+                      {countering === "rent" ? (
+                        <div style={{ display: "grid", gap: "6px" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}>
+                            <label style={{ display: "grid", gap: "3px", color: "#64748b", fontSize: "8px" }}>Weekly rent<input type="number" min={1} value={counterRent} onChange={(e) => setCounterRent(Math.max(1, Math.round(Number(e.target.value) || 1)))} style={phoneInput} /></label>
+                            <label style={{ display: "grid", gap: "3px", color: "#64748b", fontSize: "8px" }}>Weeks<input type="number" min={1} max={104} value={counterWeeks} onChange={(e) => setCounterWeeks(Math.max(1, Math.min(104, Math.round(Number(e.target.value) || 1))))} style={phoneInput} /></label>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "5px" }}>
+                            <button type="button" disabled={actionLoading} onClick={() => void onRespond("rental_application", pendingApplication.application_id, "counter", counterRent, counterWeeks)} style={actionButton("#2563eb")}>Send Counter</button>
+                            <button type="button" onClick={() => setCountering(false)} style={actionButton("#94a3b8")}>Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("rental_application", pendingApplication.application_id, "accept")} style={actionButton("#16a34a")}>Accept</button>
+                          <button type="button" disabled={actionLoading} onClick={() => setCountering("rent")} style={actionButton("#2563eb")}>Counter</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("rental_application", pendingApplication.application_id, "meet_halfway")} style={softButton}>Meet Halfway</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("rental_application", pendingApplication.application_id, "hold_price")} style={softButton}>Hold Asking Rent</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("rental_application", pendingApplication.application_id, "longer_lease")} style={softButton}>Longer Lease</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("rental_application", pendingApplication.application_id, "lower_rent_longer")} style={softButton}>Lower Rent + Longer</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("rental_application", pendingApplication.application_id, "ask_budget")} style={softButton}>Ask Their Budget</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("rental_application", pendingApplication.application_id, "decline")} style={dangerSoftButton}>Decline</button>
+                        </div>
+                      )}
                     </div>
                   ) : activePurchaseOffer ? (
                     <div style={{ display: "grid", gap: "7px" }}>
                       <div style={{ padding: "7px 8px", borderRadius: "10px", background: "#fff7ed", color: "#9a3412", fontSize: "9px", lineHeight: 1.4 }}>
-                        Purchase offer: <strong>{formatNumber(activePurchaseOffer.offer_amount)} DT</strong>.
+                        Purchase offer: <strong>{formatNumber(activePurchaseOffer.offer_amount)} DT</strong>
+                        <span style={{ display: "block", marginTop: "3px", color: "#78716c", fontSize: "8px" }}>Market value when offered: {formatNumber(activePurchaseOffer.value_at_offer)} DT · Round {Math.min(4, activePurchaseOffer.negotiation_round || 1)} of 4</span>
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}>
-                        <button type="button" disabled={actionLoading} onClick={() => void onRespond("purchase_offer", activePurchaseOffer.offer_id, "accept")} style={actionButton("#16a34a")}>Accept Sale</button>
-                        <button type="button" disabled={actionLoading} onClick={() => void onRespond("purchase_offer", activePurchaseOffer.offer_id, "reject")} style={actionButton("#64748b")}>Decline</button>
-                      </div>
+                      {countering === "sale" ? (
+                        <div style={{ display: "grid", gap: "6px" }}>
+                          <label style={{ display: "grid", gap: "3px", color: "#64748b", fontSize: "8px" }}>Your counter price<input type="number" min={1} value={counterRent} onChange={(e) => setCounterRent(Math.max(1, Math.round(Number(e.target.value) || 1)))} style={phoneInput} /></label>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "5px" }}>
+                            <button type="button" disabled={actionLoading} onClick={() => void onRespond("purchase_offer", activePurchaseOffer.offer_id, "counter", counterRent)} style={actionButton("#2563eb")}>Send Counter</button>
+                            <button type="button" onClick={() => setCountering(false)} style={actionButton("#94a3b8")}>Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px" }}>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("purchase_offer", activePurchaseOffer.offer_id, "accept")} style={actionButton("#16a34a")}>Accept Sale</button>
+                          <button type="button" disabled={actionLoading} onClick={() => setCountering("sale")} style={actionButton("#2563eb")}>Counter Price</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("purchase_offer", activePurchaseOffer.offer_id, "meet_halfway")} style={softButton}>Meet Halfway</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("purchase_offer", activePurchaseOffer.offer_id, "hold_price")} style={softButton}>Ask Market Value</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("purchase_offer", activePurchaseOffer.offer_id, "ask_best")} style={softButton}>Ask Best Offer</button>
+                          <button type="button" disabled={actionLoading} onClick={() => void onRespond("purchase_offer", activePurchaseOffer.offer_id, "reject")} style={dangerSoftButton}>Decline</button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div style={{ borderRadius: "999px", background: "#f1f5f9", padding: "9px 12px", color: "#94a3b8", fontSize: "9px", textAlign: "center" }}>
@@ -609,6 +650,25 @@ function actionButton(background: string) {
     cursor: "pointer",
   } as const;
 }
+
+const softButton = {
+  minHeight: "32px",
+  border: "1px solid rgba(37,99,235,0.14)",
+  borderRadius: "9px",
+  background: "#eef4ff",
+  color: "#1d4ed8",
+  padding: "0 7px",
+  fontSize: "8px",
+  fontWeight: 850,
+  cursor: "pointer",
+} as const;
+
+const dangerSoftButton = {
+  ...softButton,
+  border: "1px solid rgba(220,38,38,0.12)",
+  background: "#fff1f2",
+  color: "#be123c",
+} as const;
 
 const phoneInput = {
   width: "100%",

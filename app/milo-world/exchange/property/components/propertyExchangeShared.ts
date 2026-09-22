@@ -122,6 +122,9 @@ export type PropertyRentalApplication = {
   reliability: number;
   status: string;
   applied_at: string;
+  negotiation_round?: number;
+  resident_target_rent?: number | null;
+  resident_walkaway_rent?: number | null;
 };
 
 export type PropertyLease = {
@@ -160,6 +163,9 @@ export type PropertyPurchaseOffer = {
   status: string;
   created_at: string;
   expires_at: string;
+  negotiation_round?: number;
+  resident_target_price?: number | null;
+  resident_walkaway_price?: number | null;
 };
 
 export type PropertyUnitMarketSetting = {

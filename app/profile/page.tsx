@@ -356,6 +356,12 @@ const CANCELLATION_REASONS = [
 export default function ProfilePage() {
   const router = useRouter();
 
+  const [previousPageName, setPreviousPageName] =
+    useState("Previous Page");
+
+  const [previousPageUrl, setPreviousPageUrl] =
+    useState<string | null>(null);
+
   const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<
@@ -591,6 +597,196 @@ export default function ProfilePage() {
             : hasStudentRewardsAccess
               ? "Student Access"
               : "Basic Access";
+
+  function getFriendlyPageName(
+    pathname: string,
+  ) {
+    const cleanPath =
+      pathname.replace(/\/+$/, "") || "/";
+
+    const exactNames: Record<string, string> = {
+      "/": "Dreamscape Home",
+      "/cart": "Cart",
+      "/collections": "Collections",
+      "/pricing": "Pricing",
+      "/profile": "Profile",
+      "/teacher-dashboard": "Teaching Dashboard",
+      "/curriculum-developer": "Quiz Builder",
+      "/organisation/manage": "Organisation Portal",
+      "/admin/dream-tokens": "Admin Panel",
+      "/admin/agents": "Agents",
+      "/learning-missions/core": "Learning Missions",
+      "/learning-missions/progress-rewards": "Progress & Rewards",
+      "/nova/membership-portal": "Membership",
+      "/nova-world": "Nova World",
+    };
+
+    if (exactNames[cleanPath]) {
+      return exactNames[cleanPath];
+    }
+
+    if (cleanPath.includes("nova-home")) {
+      return "Nova Home";
+    }
+
+    if (cleanPath.includes("knowledge-arena")) {
+      return "Knowledge Arena";
+    }
+
+    if (
+      cleanPath.includes("skyforge") ||
+      cleanPath.includes("rover")
+    ) {
+      return "Skyforge Hangar";
+    }
+
+    if (
+      cleanPath.includes("milo") &&
+      cleanPath.includes("exchange")
+    ) {
+      return "Milo Exchange";
+    }
+
+    if (
+      cleanPath.includes("milo") &&
+      cleanPath.includes("business")
+    ) {
+      return "Business Builder";
+    }
+
+    if (
+      cleanPath.includes("categories")
+    ) {
+      return "Categories";
+    }
+
+    const lastSegment =
+      cleanPath
+        .split("/")
+        .filter(Boolean)
+        .pop();
+
+    if (!lastSegment) {
+      return "Previous Page";
+    }
+
+    return lastSegment
+      .replace(/[-_]+/g, " ")
+      .replace(
+        /\b\w/g,
+        (character) =>
+          character.toUpperCase(),
+      );
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    let detectedUrl: string | null = null;
+
+    /*
+     * Chromium/Edge: inspect the actual immediately previous
+     * session-history entry.
+     */
+    const navigationApi = (
+      window as Window & {
+        navigation?: {
+          currentEntry?: {
+            index?: number;
+          };
+          entries?: () => Array<{
+            index?: number;
+            url?: string;
+          }>;
+        };
+      }
+    ).navigation;
+
+    try {
+      const currentIndex =
+        navigationApi?.currentEntry?.index;
+
+      const entries =
+        navigationApi?.entries?.();
+
+      if (
+        typeof currentIndex === "number" &&
+        Array.isArray(entries)
+      ) {
+        const previousEntry =
+          entries.find(
+            (entry) =>
+              entry.index ===
+              currentIndex - 1,
+          );
+
+        if (previousEntry?.url) {
+          detectedUrl =
+            previousEntry.url;
+        }
+      }
+    } catch {
+      // Fall through to referrer.
+    }
+
+    /*
+     * Fallback for browsers without the Navigation API.
+     */
+    if (!detectedUrl) {
+      try {
+        if (document.referrer) {
+          detectedUrl =
+            document.referrer;
+        }
+      } catch {
+        detectedUrl = null;
+      }
+    }
+
+    if (!detectedUrl) {
+      setPreviousPageName(
+        "Previous Page",
+      );
+      setPreviousPageUrl(null);
+      return;
+    }
+
+    try {
+      const previousUrl =
+        new URL(
+          detectedUrl,
+          window.location.origin,
+        );
+
+      if (
+        previousUrl.origin !==
+        window.location.origin
+      ) {
+        setPreviousPageName(
+          "Previous Page",
+        );
+        setPreviousPageUrl(null);
+        return;
+      }
+
+      setPreviousPageName(
+        getFriendlyPageName(
+          previousUrl.pathname,
+        ),
+      );
+
+      setPreviousPageUrl(
+        `${previousUrl.pathname}${previousUrl.search}${previousUrl.hash}`,
+      );
+    } catch {
+      setPreviousPageName(
+        "Previous Page",
+      );
+      setPreviousPageUrl(null);
+    }
+  }, []);
 
   useEffect(() => {
     function updateShareMode() {
@@ -2101,96 +2297,19 @@ Thank you.`;
     }
 
     /*
-     * Cart is the one intentional exception:
-     * Profile -> Back should never return the learner to /cart.
-     *
-     * Chromium browsers expose the current session-history entries
-     * through the Navigation API, which lets us inspect the actual
-     * immediately previous URL without changing history first.
+     * Always return to the real previous page — including Cart.
      */
-    const navigationApi = (
-      window as Window & {
-        navigation?: {
-          currentEntry?: {
-            index?: number;
-          };
-          entries?: () => Array<{
-            index?: number;
-            url?: string;
-          }>;
-        };
-      }
-    ).navigation;
-
-    try {
-      const currentIndex =
-        navigationApi?.currentEntry?.index;
-
-      const entries =
-        navigationApi?.entries?.();
-
-      if (
-        typeof currentIndex === "number" &&
-        Array.isArray(entries)
-      ) {
-        const previousEntry =
-          entries.find(
-            (entry) =>
-              entry.index ===
-              currentIndex - 1,
-          );
-
-        if (previousEntry?.url) {
-          const previousUrl =
-            new URL(
-              previousEntry.url,
-              window.location.origin,
-            );
-
-          if (
-            previousUrl.origin ===
-              window.location.origin &&
-            (
-              previousUrl.pathname === "/cart" ||
-              previousUrl.pathname.startsWith("/cart/")
-            )
-          ) {
-            router.push("/");
-            return;
-          }
-        }
-      }
-    } catch {
-      // Fall through to referrer/history fallback.
+    if (window.history.length > 1) {
+      router.back();
+      return;
     }
 
     /*
-     * Fallback for browsers without the Navigation API.
-     * This also covers direct document navigations from /cart.
+     * If session history is unavailable but we detected a same-site
+     * referrer, use it directly.
      */
-    try {
-      if (document.referrer) {
-        const referrerUrl =
-          new URL(document.referrer);
-
-        if (
-          referrerUrl.origin ===
-            window.location.origin &&
-          (
-            referrerUrl.pathname === "/cart" ||
-            referrerUrl.pathname.startsWith("/cart/")
-          )
-        ) {
-          router.push("/");
-          return;
-        }
-      }
-    } catch {
-      // Ignore malformed/blocked referrer values.
-    }
-
-    if (window.history.length > 1) {
-      router.back();
+    if (previousPageUrl) {
+      router.push(previousPageUrl);
       return;
     }
 
@@ -2224,14 +2343,24 @@ Thank you.`;
 
       <div className="relative z-10 w-full max-w-none">
         {/* Top navigation */}
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={goBackToPreviousPage}
-            className="rounded-full border border-cyan-200/25 bg-white/[0.06] px-4 py-2.5 text-xs font-bold uppercase tracking-[0.1em] text-white shadow-[0_14px_34px_rgba(0,0,0,0.25)] backdrop-blur-xl transition hover:scale-[1.02] hover:border-cyan-200/45 sm:px-5"
-          >
-            ← Back
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={goBackToPreviousPage}
+              className="rounded-full border border-cyan-200/25 bg-white/[0.06] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-white shadow-[0_14px_34px_rgba(0,0,0,0.25)] backdrop-blur-xl transition hover:scale-[1.02] hover:border-cyan-200/45 sm:px-5 sm:text-xs sm:tracking-[0.1em]"
+            >
+              ← Back to {previousPageName}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              className="rounded-full border border-violet-200/22 bg-violet-300/[0.08] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-white shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:scale-[1.02] hover:border-violet-200/42 hover:bg-violet-300/[0.13] sm:px-5 sm:text-xs sm:tracking-[0.1em]"
+            >
+              ⌂ Dreamscape Home
+            </button>
+          </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
             <button

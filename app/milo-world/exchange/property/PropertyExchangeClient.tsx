@@ -470,6 +470,9 @@ export default function PropertyExchangeClient() {
       lease_weeks: Number(item.lease_weeks || 0),
       fit_score: Number(item.fit_score || 0),
       reliability: Number(item.reliability || 0),
+      negotiation_round: Number(item.negotiation_round || 1),
+      resident_target_rent: item.resident_target_rent == null ? null : Number(item.resident_target_rent),
+      resident_walkaway_rent: item.resident_walkaway_rent == null ? null : Number(item.resident_walkaway_rent),
     })));
     setLeases((dashboard.leases || []).map((item) => ({
       ...item,
@@ -483,6 +486,9 @@ export default function PropertyExchangeClient() {
       ...item,
       offer_amount: Number(item.offer_amount || 0),
       value_at_offer: Number(item.value_at_offer || 0),
+      negotiation_round: Number(item.negotiation_round || 1),
+      resident_target_price: item.resident_target_price == null ? null : Number(item.resident_target_price),
+      resident_walkaway_price: item.resident_walkaway_price == null ? null : Number(item.resident_walkaway_price),
     })));
     setMarketSettings(dashboard.market_settings || []);
   }
@@ -651,7 +657,7 @@ export default function PropertyExchangeClient() {
   async function respondPropertyCommunication(
     sourceType: "rental_application" | "purchase_offer" | "renewal",
     sourceId: string,
-    action: "accept" | "decline" | "reject" | "counter",
+    action: "accept" | "decline" | "reject" | "counter" | "meet_halfway" | "hold_price" | "longer_lease" | "lower_rent_longer" | "ask_budget" | "ask_best",
     counterWeeklyRent?: number,
     counterLeaseWeeks?: number
   ) {
