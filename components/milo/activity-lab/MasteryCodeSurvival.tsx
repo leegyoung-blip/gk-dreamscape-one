@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import DailyActivityReferralPrompt, {
@@ -18,16 +18,6 @@ import {
   type MasteryAttempt,
 } from "./mastery-code-shared";
 
-type SurvivalWordPool = {
-  wordLength: number;
-  answers: {
-    easy: string[];
-    medium: string[];
-    hard: string[];
-  };
-  valid: string[];
-};
-
 type RunEndState = {
   failedLevel: number;
   wordsCleared: number;
@@ -35,12 +25,6 @@ type RunEndState = {
   rewardTarget: number;
   rewardDelta: number;
   newBest: boolean;
-};
-
-const SURVIVAL_WORD_URLS: Record<number, string> = {
-  5: "/milo-world/activities/survival/5-letter.json",
-  6: "/milo-world/activities/survival/6-letter.json",
-  7: "/milo-world/activities/survival/7-letter.json",
 };
 
 function personalBestKey(userId: string) {
@@ -74,12 +58,8 @@ export default function MasteryCodeSurvival({
   width: number;
   onTokenTransaction: (amount: number, description: string) => Promise<boolean>;
 }) {
-  const [pools, setPools] = useState<Record<number, SurvivalWordPool | null>>({
-    5: null,
-    6: null,
-    7: null,
-  });
-  const [loadingWords, setLoadingWords] = useState(true);
+  const [loadingAnswer, setLoadingAnswer] = useState(false);
+  const [validatingGuess, setValidatingGuess] = useState(false);
   const [runActive, setRunActive] = useState(false);
   const [level, setLevel] = useState(1);
   const [answer, setAnswer] = useState("");
@@ -98,15 +78,10 @@ export default function MasteryCodeSurvival({
   const [rewarding, setRewarding] = useState(false);
   const [showDailyReferralPrompt, setShowDailyReferralPrompt] = useState(false);
   const usedAnswersRef = useRef<Set<string>>(new Set());
+  const dictionaryCacheRef = useRef<Map<string, boolean>>(new Map());
 
   const wordLength = getSurvivalWordLength(level);
   const maxAttempts = getSurvivalMaxAttempts(wordLength);
-  const currentPool = pools[wordLength];
-  const validWords = useMemo(
-    () => new Set((currentPool?.valid || []).map((word) => word.toLowerCase())),
-    [currentPool],
-  );
-
   const mobileTarget = dense ? 57 : 72;
   const mobileGap = 4;
   const mobileAllowance = 44;
@@ -138,70 +113,58 @@ export default function MasteryCodeSurvival({
     }
   }, [userId]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadPools() {
-      setLoadingWords(true);
-      try {
-        const entries = await Promise.all(
-          [5, 6, 7].map(async (length) => {
-            const response = await fetch(SURVIVAL_WORD_URLS[length], {
-              cache: "force-cache",
-            });
-            if (!response.ok) {
-              throw new Error(`Could not load ${length}-letter Survival words.`);
-            }
-            return [length, (await response.json()) as SurvivalWordPool] as const;
-          }),
-        );
-
-        if (!cancelled) {
-          setPools(Object.fromEntries(entries));
-        }
-      } catch (error) {
-        console.warn("Could not load Mastery Code Survival word pools:", error);
-        if (!cancelled) {
-          setMessage("Survival Mode word pools could not be loaded.");
-        }
-      } finally {
-        if (!cancelled) setLoadingWords(false);
-      }
-    }
-
-    loadPools();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  function chooseAnswer(nextLevel: number) {
+  async function chooseAnswer(nextLevel: number) {
     const length = getSurvivalWordLength(nextLevel);
-    const pool = pools[length];
-    if (!pool) return "";
+    const difficulty = pickTier(nextLevel, length);
+    const excludeWords = Array.from(usedAnswersRef.current).slice(-250);
 
-    const tier = pickTier(nextLevel, length);
-    const preferred = pool.answers[tier] || [];
-    const allAnswers = [
-      ...pool.answers.easy,
-      ...pool.answers.medium,
-      ...pool.answers.hard,
-    ];
-
-    let available = preferred.filter(
-      (word) => !usedAnswersRef.current.has(word.toLowerCase()),
+    const { data, error } = await supabase.rpc(
+      "milo_mastery_survival_get_answer",
+      {
+        p_word_length: length,
+        p_difficulty: difficulty,
+        p_exclude_words: excludeWords,
+      },
     );
-    if (!available.length) {
-      available = allAnswers.filter(
-        (word) => !usedAnswersRef.current.has(word.toLowerCase()),
-      );
-    }
-    if (!available.length) available = allAnswers;
-    if (!available.length) return "";
 
-    const selected = available[Math.floor(Math.random() * available.length)].toUpperCase();
+    if (error) {
+      console.warn("Could not load a Survival answer:", error.message);
+      return "";
+    }
+
+    const selected = String(data || "").trim().toUpperCase();
+
+    if (
+      selected.length !== length ||
+      !new RegExp(`^[A-Z]{${length}}$`).test(selected)
+    ) {
+      console.warn("Survival answer RPC returned an invalid answer:", selected);
+      return "";
+    }
+
     usedAnswersRef.current.add(selected.toLowerCase());
     return selected;
+  }
+
+  async function isRecognisedEnglishWord(word: string) {
+    const key = word.trim().toLowerCase();
+    const cached = dictionaryCacheRef.current.get(key);
+
+    if (cached !== undefined) return cached;
+
+    const { data, error } = await supabase.rpc(
+      "milo_mastery_survival_is_valid_guess",
+      { p_word: key },
+    );
+
+    if (error) {
+      console.warn("Could not validate Survival dictionary word:", error.message);
+      throw error;
+    }
+
+    const recognised = Boolean(data);
+    dictionaryCacheRef.current.set(key, recognised);
+    return recognised;
   }
 
   function resetInputForAnswer(nextAnswer: string, hints: number[] = []) {
@@ -212,23 +175,31 @@ export default function MasteryCodeSurvival({
     );
   }
 
-  function openLevel(nextLevel: number, existingHints: number[] = []) {
-    const nextAnswer = chooseAnswer(nextLevel);
-    if (!nextAnswer) {
-      setMessage("No Survival word is available for this level.");
-      setRunActive(false);
-      return;
-    }
+  async function openLevel(nextLevel: number, existingHints: number[] = []) {
+    setLoadingAnswer(true);
 
-    setLevel(nextLevel);
-    setAnswer(nextAnswer);
-    setAttempts([]);
-    setRevealedPositions(existingHints);
-    resetInputForAnswer(nextAnswer, existingHints);
+    try {
+      const nextAnswer = await chooseAnswer(nextLevel);
+
+      if (!nextAnswer) {
+        setMessage("A Survival word could not be loaded. Please try again.");
+        setRunActive(false);
+        return false;
+      }
+
+      setLevel(nextLevel);
+      setAnswer(nextAnswer);
+      setAttempts([]);
+      setRevealedPositions(existingHints);
+      resetInputForAnswer(nextAnswer, existingHints);
+      return true;
+    } finally {
+      setLoadingAnswer(false);
+    }
   }
 
-  function startRun() {
-    if (loadingWords || !pools[5] || !pools[6] || !pools[7]) return;
+  async function startRun() {
+    if (loadingAnswer) return;
 
     usedAnswersRef.current = new Set();
     setRunEnd(null);
@@ -237,7 +208,8 @@ export default function MasteryCodeSurvival({
     setTransitionText("");
     setMessage("Survive as long as you can. One failed word ends the run.");
     setRunActive(true);
-    openLevel(1, []);
+
+    await openLevel(1, []);
   }
 
   function addLetter(letter: string) {
@@ -387,10 +359,27 @@ export default function MasteryCodeSurvival({
     }
 
     const isAnswer = guess === answer;
-    const recognised = validWords.has(guess.toLowerCase());
-    if (!isAnswer && !recognised) {
-      setMessage(`“${guess}” is not recognised in the ${wordLength}-letter Survival dictionary.`);
-      return;
+
+    if (!isAnswer) {
+      setValidatingGuess(true);
+
+      try {
+        const recognised = await isRecognisedEnglishWord(guess);
+
+        if (!recognised) {
+          setMessage(
+            `“${guess}” is not recognised in the Survival English dictionary.`,
+          );
+          return;
+        }
+      } catch {
+        setMessage(
+          "Dictionary validation is temporarily unavailable. Please try that guess again.",
+        );
+        return;
+      } finally {
+        setValidatingGuess(false);
+      }
     }
 
     const feedback = buildPuzzleFeedback(guess, answer);
@@ -412,7 +401,7 @@ export default function MasteryCodeSurvival({
 
       window.setTimeout(() => {
         setTransitionText("");
-        openLevel(nextLevel, []);
+        void openLevel(nextLevel, []);
       }, lengthChanged ? 1250 : 700);
       return;
     }
@@ -509,8 +498,8 @@ export default function MasteryCodeSurvival({
               <p style={{ margin: "13px 0 0", maxWidth: "650px", color: "rgba(255,255,255,0.62)", fontSize: mobile ? "12px" : "14px", lineHeight: 1.6 }}>
                 Levels 1–3 use five-letter words. Levels 4–7 use six-letter words. Level 8 onward uses seven-letter words. One failed word ends the run.
               </p>
-              <button type="button" disabled={loadingWords} onClick={startRun} style={{ marginTop: "22px", minHeight: "50px", padding: "0 26px", borderRadius: "999px", border: "1px solid rgba(213,181,255,0.55)", background: "linear-gradient(90deg, rgba(106,62,181,0.95), rgba(32,126,166,0.9))", color: "white", fontFamily: "inherit", fontSize: "12px", fontWeight: 900, cursor: loadingWords ? "not-allowed" : "pointer" }}>
-                {loadingWords ? "Loading Survival Words..." : "Start Survival Run"}
+              <button type="button" disabled={loadingAnswer} onClick={() => void startRun()} style={{ marginTop: "22px", minHeight: "50px", padding: "0 26px", borderRadius: "999px", border: "1px solid rgba(213,181,255,0.55)", background: "linear-gradient(90deg, rgba(106,62,181,0.95), rgba(32,126,166,0.9))", color: "white", fontFamily: "inherit", fontSize: "12px", fontWeight: 900, cursor: loadingAnswer ? "not-allowed" : "pointer" }}>
+                {loadingAnswer ? "Loading Word..." : "Start Survival Run"}
               </button>
             </div>
           ) : runEnd ? (
@@ -526,7 +515,7 @@ export default function MasteryCodeSurvival({
                     : `Daily reward target at this level: ${runEnd.rewardTarget} DT · no additional DT because today’s best payout is already at least this high.`
                   : "Guest run · log in to earn DT from your daily best Survival result."}
               </p>
-              <button type="button" onClick={startRun} style={{ marginTop: "20px", minHeight: "48px", padding: "0 24px", borderRadius: "999px", border: "1px solid rgba(213,181,255,0.52)", background: "rgba(197,140,255,0.12)", color: "white", fontFamily: "inherit", fontSize: "11px", fontWeight: 900, cursor: "pointer" }}>Play Again</button>
+              <button type="button" onClick={() => void startRun()} style={{ marginTop: "20px", minHeight: "48px", padding: "0 24px", borderRadius: "999px", border: "1px solid rgba(213,181,255,0.52)", background: "rgba(197,140,255,0.12)", color: "white", fontFamily: "inherit", fontSize: "11px", fontWeight: 900, cursor: "pointer" }}>Play Again</button>
             </div>
           ) : (
             <>
@@ -557,7 +546,7 @@ export default function MasteryCodeSurvival({
                 mobile={mobile}
                 dense={dense}
                 wide={wide}
-                disabled={!runActive || Boolean(transitionText) || rewarding}
+                disabled={!runActive || Boolean(transitionText) || rewarding || validatingGuess || loadingAnswer}
               />
             </>
           )}
@@ -574,7 +563,7 @@ export default function MasteryCodeSurvival({
           </button>
 
           <button type="submit" disabled={!runActive || Boolean(transitionText) || rewarding} style={{ minHeight: mobile ? "46px" : "52px", borderRadius: "13px", border: "1px solid rgba(126,232,255,0.42)", background: "linear-gradient(90deg, rgba(32,126,166,0.92), rgba(106,62,181,0.92))", color: runActive ? "white" : "rgba(255,255,255,0.32)", fontFamily: "inherit", fontSize: "11px", fontWeight: 900, cursor: runActive ? "pointer" : "not-allowed", gridColumn: mobile ? "1 / -1" : "auto" }}>
-            Submit Guess
+            {validatingGuess ? "Checking Word..." : "Submit Guess"}
           </button>
 
           <div style={{ gridColumn: mobile ? "1 / -1" : "auto", display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: "6px" }}>

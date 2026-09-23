@@ -22,7 +22,7 @@ type Props = {
 };
 
 const GUIDE_VERSIONS: Record<MiloExchangeGuidePage, string> = {
-  home: "v2",
+  home: "v3",
   stocks: "v3",
   property: "v14",
 };
@@ -43,6 +43,14 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
         "These cards separate available Dream Tokens, stock value and the equity you actually own in property after finance debt. Total Net Worth combines them.",
       target: "home-portfolio-summary",
       tip: "Cash is what you can spend immediately. Property equity is property value minus unpaid finance debt.",
+    },
+    {
+      eyebrow: "Step 2 · City Pulse",
+      title: "See the whole Dreamscape economy",
+      description:
+        "City Pulse brings jobs, resident demand, business confidence, property conditions and the fictional stock market into one simple overview.",
+      target: "home-city-pulse",
+      tip: "The public Pulse reads a stored daily snapshot. Opening the page does not advance or recalculate the economy.",
     },
     {
       eyebrow: "Step 3 · Stocks",

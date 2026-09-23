@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import MiloExchangeGuide from "./components/MiloExchangeGuide";
+import CityPulseHomeCard from "./components/CityPulseHomeCard";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
@@ -164,6 +165,7 @@ export default function MiloExchangeMainPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [userId, setUserId] = useState<string | null>(null);
+  const [viewerRole, setViewerRole] = useState("regular");
   const [dreamTokens, setDreamTokens] = useState(0);
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [stockHoldings, setStockHoldings] = useState<StockHolding[]>([]);
@@ -251,6 +253,7 @@ export default function MiloExchangeMainPage() {
     setUserId(user.id);
 
     await Promise.all([
+      loadViewerProfile(user.id),
       loadDreamTokens(user.id),
       loadStockPortfolio(user.id),
       loadPropertyPortfolio(user.id),
@@ -267,6 +270,7 @@ export default function MiloExchangeMainPage() {
     setRefreshing(true);
 
     await Promise.all([
+      loadViewerProfile(userId),
       loadDreamTokens(userId),
       loadStockPortfolio(userId),
       loadPropertyPortfolio(userId),
@@ -276,6 +280,23 @@ export default function MiloExchangeMainPage() {
     ]);
 
     setRefreshing(false);
+  }
+
+
+  async function loadViewerProfile(id: string) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Could not load viewer role:", error.message);
+      setViewerRole("regular");
+      return;
+    }
+
+    setViewerRole(String(data?.role || "regular").trim().toLowerCase());
   }
 
   async function loadDreamTokens(_id: string) {
@@ -964,6 +985,11 @@ export default function MiloExchangeMainPage() {
             </article>
           ))}
         </section>
+
+        <CityPulseHomeCard
+          isMobile={isMobile}
+          isAdmin={viewerRole === "admin"}
+        />
 
         <section
           style={{
