@@ -1,0 +1,84 @@
+.addWorkButton,
+.guideButton {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease;
+}
+
+.addWorkButton {
+  padding: 6px 14px 6px 8px;
+  gap: 9px;
+  border: 1px solid rgba(251, 215, 110, 0.62);
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255,255,255,0.26), transparent 28%),
+    linear-gradient(135deg, #f5cf70, #d79a2b);
+  box-shadow:
+    0 13px 30px rgba(216, 156, 46, 0.28),
+    inset 0 0 0 1px rgba(255, 240, 185, 0.20);
+  color: #1e1405;
+  text-align: left;
+}
+
+.addWorkIcon {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  background: rgba(39, 24, 3, 0.11);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.addWorkCopy strong,
+.addWorkCopy small { display: block; }
+.addWorkCopy strong { font-size: 11px; font-weight: 950; }
+.addWorkCopy small { margin-top: 1px; color: rgba(35, 22, 4, 0.68); font-size: 8px; font-weight: 800; }
+
+.addWorkButton:hover,
+.guideButton:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.addWorkButton:disabled { cursor: not-allowed; opacity: 0.48; transform: none; }
+
+.guideButton {
+  min-width: 82px;
+  padding: 0 13px;
+  gap: 8px;
+  border: 1px solid rgba(142, 232, 255, 0.22);
+  background: linear-gradient(145deg, rgba(83,215,255,0.09), rgba(124,58,237,0.07));
+  color: #dcfaff;
+  box-shadow: inset 0 0 24px rgba(83,215,255,0.025);
+  font-size: 10px;
+  font-weight: 900;
+}
+.guideButton span { color: #8dfcff; font-size: 13px; }
+
+.guideTarget {
+  position: relative;
+  z-index: 2147481990;
+  animation: novaGuidePulse 1.45s ease-in-out infinite;
+}
+
+.guideTabTarget {
+  position: relative;
+  z-index: 2147481990;
+  outline: 2px solid rgba(141, 252, 255, 0.76) !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 22px rgba(83, 215, 255, 0.22) !important;
+}
+
+@keyframes novaGuidePulse {
+  0%, 100% { box-shadow: 0 13px 30px rgba(216,156,46,.28), 0 0 0 0 rgba(245,207,112,.28); }
+  50% { box-shadow: 0 13px 30px rgba(216,156,46,.34), 0 0 0 7px rgba(245,207,112,0); }
+}
+
+@media (max-width: 680px) {
+  .addWorkButton { min-height: 41px; padding-right: 10px; }
+  .addWorkCopy small { display: none; }
+  .guideButton { min-width: 70px; }
+}

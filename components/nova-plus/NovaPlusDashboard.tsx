@@ -10,11 +10,17 @@ import ProgressTab from "@/components/nova-plus/tabs/ProgressTab";
 import ParentReportTab from "@/components/nova-plus/tabs/ParentReportTab";
 import NovaSchoolworkUploader from "@/components/nova-plus/NovaSchoolworkUploader";
 import NovaSchoolworkHistory from "@/components/nova-plus/NovaSchoolworkHistory";
+import NovaPlusGuide, {
+  NOVA_PLUS_GUIDE_STEPS,
+} from "@/components/nova-plus/NovaPlusGuide";
 import { useNovaPlusProfile } from "@/hooks/useNovaPlusProfile";
 import { useNovaSchoolworkEvidence } from "@/hooks/useNovaSchoolworkEvidence";
 import { supabase } from "@/lib/supabase";
 import type { NovaPlusTab } from "@/lib/nova-plus/types";
 import styles from "./NovaPlusDashboard.module.css";
+import actionStyles from "./NovaPlusHeaderActions.module.css";
+
+const GUIDE_METADATA_KEY = "nova_plus_guide_seen_v1";
 
 const TABS: Array<{ key: NovaPlusTab; label: string; icon: string }> = [
   { key: "learning", label: "My Learning", icon: "◎" },
@@ -36,6 +42,9 @@ export default function NovaPlusDashboard() {
   const [resumeSchoolworkId, setResumeSchoolworkId] = useState<string | null>(null);
   const [historyFocusUploadId, setHistoryFocusUploadId] =
     useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideStep, setGuideStep] = useState(0);
+  const [firstGuidePending, setFirstGuidePending] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,8 +54,18 @@ export default function NovaPlusDashboard() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!cancelled) {
-        setViewerId(user?.id ?? null);
+      if (cancelled) return;
+
+      setViewerId(user?.id ?? null);
+
+      if (!user || typeof window === "undefined") return;
+
+      const localKey = `${GUIDE_METADATA_KEY}:${user.id}`;
+      const metadataSeen = Boolean(user.user_metadata?.[GUIDE_METADATA_KEY]);
+      const localSeen = window.localStorage.getItem(localKey) === "1";
+
+      if (!metadataSeen && !localSeen) {
+        setFirstGuidePending(true);
       }
     }
 
@@ -70,16 +89,59 @@ export default function NovaPlusDashboard() {
     refresh,
   } = useNovaPlusProfile(requestedLearnerId);
 
-  const learnerName = useMemo(() => {
+  const accountName = useMemo(() => {
     const label = selectedLearner?.label?.trim();
-    return label && label !== "Learner" ? label : "Learner";
+    return label || "Account";
   }, [selectedLearner?.label]);
 
-  const schoolworkEvidence =
-    useNovaSchoolworkEvidence(selectedLearnerId);
+  const schoolworkEvidence = useNovaSchoolworkEvidence(selectedLearnerId);
+
+  useEffect(() => {
+    if (!firstGuidePending || !viewerId || !selectedLearnerId || !profile) return;
+
+    setGuideStep(0);
+    setGuideOpen(true);
+    setFirstGuidePending(false);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(`${GUIDE_METADATA_KEY}:${viewerId}`, "1");
+    }
+
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || user.user_metadata?.[GUIDE_METADATA_KEY]) return;
+
+      const { error: guideError } = await supabase.auth.updateUser({
+        data: {
+          ...user.user_metadata,
+          [GUIDE_METADATA_KEY]: true,
+        },
+      });
+
+      if (guideError) {
+        // localStorage still prevents the guide repeatedly opening on this device.
+        console.info("Could not persist NOVA+ guide completion to auth metadata:", guideError.message);
+      }
+    })();
+  }, [firstGuidePending, viewerId, selectedLearnerId, profile]);
+
+  const currentGuideStep = NOVA_PLUS_GUIDE_STEPS[guideStep];
+
+  function openGuide() {
+    setGuideStep(0);
+    setGuideOpen(true);
+  }
 
   function closeNovaPlus() {
     router.push("/learning-missions/progress-rewards");
+  }
+
+  function openAddWork() {
+    setResumeSchoolworkId(null);
+    setSchoolworkOpen(true);
   }
 
   return (
@@ -106,24 +168,24 @@ export default function NovaPlusDashboard() {
         <div className={styles.heroCopy}>
           <div className={styles.brandLine}>
             <span className={styles.kicker}>NOVA+</span>
-            
           </div>
 
           <h1>Learning Intelligence</h1>
           <p>
-            A clear view of {learnerName}&apos;s strengths, learning gaps and what to focus on next.
+            A clear view of {accountName}&apos;s strengths, learning gaps and what
+            to focus on next.
           </p>
 
           {learners.length > 1 && (
             <label className={styles.learnerPicker}>
-              <span>Learner</span>
+              <span>Account</span>
               <select
                 value={selectedLearnerId ?? ""}
                 onChange={(event) => void selectLearner(event.target.value)}
               >
-                {learners.map((learner) => (
-                  <option key={learner.id} value={learner.id}>
-                    {learner.label}
+                {learners.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.label}
                   </option>
                 ))}
               </select>
@@ -142,14 +204,28 @@ export default function NovaPlusDashboard() {
         <div className={styles.heroActions}>
           <button
             type="button"
-            className={styles.refreshButton}
+            className={`${actionStyles.addWorkButton} ${
+              guideOpen && currentGuideStep?.target === "add-work"
+                ? actionStyles.guideTarget
+                : ""
+            }`}
             disabled={loading || !selectedLearnerId}
-            onClick={() => {
-              setResumeSchoolworkId(null);
-              setSchoolworkOpen(true);
-            }}
+            onClick={openAddWork}
           >
-            + Add Work
+            <span className={actionStyles.addWorkIcon}>＋</span>
+            <span className={actionStyles.addWorkCopy}>
+              <strong>Add Work</strong>
+              <small>Upload schoolwork</small>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={actionStyles.guideButton}
+            onClick={openGuide}
+            aria-expanded={guideOpen}
+          >
+            <span>✦</span> Guide
           </button>
 
           <button
@@ -198,7 +274,11 @@ export default function NovaPlusDashboard() {
           <button
             key={item.key}
             type="button"
-            className={tab === item.key ? styles.activeTab : ""}
+            className={`${tab === item.key ? styles.activeTab : ""} ${
+              guideOpen && currentGuideStep?.tab === item.key
+                ? actionStyles.guideTabTarget
+                : ""
+            }`}
             onClick={() => setTab(item.key)}
           >
             <span>{item.icon}</span>
@@ -219,68 +299,81 @@ export default function NovaPlusDashboard() {
         {loading && !profile ? (
           <div className={styles.stateCard}>
             <span className={styles.spinner} />
-            <strong>Building the learner picture…</strong>
-            <p>Nova is loading the persistent learning profile.</p>
+            <strong>Building the learning picture…</strong>
+            <p>Nova is loading this account&apos;s persistent learning profile.</p>
           </div>
         ) : error && !profile ? (
           <div className={styles.stateCard}>
             <div className={styles.lockIcon}>N+</div>
             <strong>NOVA+ could not load</strong>
             <p>{error}</p>
-            <button type="button" onClick={closeNovaPlus}>Return to Progress & Rewards</button>
+            <button type="button" onClick={closeNovaPlus}>
+              Return to Progress & Rewards
+            </button>
           </div>
         ) : !profile || !selectedLearnerId ? (
           <div className={styles.stateCard}>
-            <strong>No learner profile is available yet.</strong>
+            <strong>No NOVA+ profile is available for this account yet.</strong>
           </div>
         ) : tab === "learning" ? (
           <MyLearningTab
             learnerId={selectedLearnerId}
-            learnerLabel={learnerName}
+            learnerLabel={accountName}
             profile={profile}
             onOpenRecommendations={() => setTab("recommendations")}
           />
         ) : tab === "strengths" ? (
           <StrengthsGapsTab
             learnerId={selectedLearnerId}
+            accountName={accountName}
             profile={profile}
             onOpenRecommendations={() => setTab("recommendations")}
           />
         ) : tab === "mastery" ? (
           <MasteryMapTab
             learnerId={selectedLearnerId}
+            accountName={accountName}
             profile={profile}
             onOpenRecommendations={() => setTab("recommendations")}
           />
         ) : tab === "recommendations" ? (
           <NovaRecommendsTab
             learnerId={selectedLearnerId}
-            learnerLabel={learnerName}
+            learnerLabel={accountName}
             canLaunchPractice={Boolean(viewerId && viewerId === selectedLearnerId)}
             isAdminPreview={isAdminPreview}
           />
         ) : tab === "progress" ? (
           <ProgressTab
             profile={profile}
-            learnerLabel={learnerName}
+            learnerLabel={accountName}
             onOpenRecommendations={() => setTab("recommendations")}
           />
         ) : (
           <ParentReportTab
             profile={profile}
             learnerId={selectedLearnerId}
-            learnerLabel={learnerName}
+            learnerLabel={accountName}
             onOpenRecommendations={() => setTab("recommendations")}
           />
         )}
       </section>
+
+      <NovaPlusGuide
+        open={guideOpen}
+        accountName={accountName}
+        stepIndex={guideStep}
+        onStepChange={setGuideStep}
+        onSelectTab={setTab}
+        onClose={() => setGuideOpen(false)}
+      />
 
       {selectedLearnerId && (
         <>
           <NovaSchoolworkUploader
             open={schoolworkOpen}
             learnerId={selectedLearnerId}
-            learnerLabel={learnerName}
+            learnerLabel={accountName}
             resumeUploadId={resumeSchoolworkId}
             onResumeHandled={() => setResumeSchoolworkId(null)}
             onViewExistingUpload={(uploadId) => {
@@ -298,7 +391,7 @@ export default function NovaPlusDashboard() {
           <NovaSchoolworkHistory
             open={schoolworkHistoryOpen}
             learnerId={selectedLearnerId}
-            learnerLabel={learnerName}
+            learnerLabel={accountName}
             initialUploadId={historyFocusUploadId}
             onInitialUploadHandled={() => setHistoryFocusUploadId(null)}
             onClose={() => {

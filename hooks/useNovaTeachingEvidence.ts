@@ -59,7 +59,7 @@ export function useNovaTeachingEvidence(
         setData(EMPTY);
         setError(
           rpcError.message.includes("NOVA_PLUS_ACCESS_REQUIRED")
-            ? "Teaching evidence is not available for this learner."
+            ? "Teaching evidence is not available for this account."
             : rpcError.message,
         );
         setLoading(false);

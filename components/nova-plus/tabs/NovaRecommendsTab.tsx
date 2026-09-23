@@ -239,6 +239,7 @@ function teachingSignalsForRecommendation(
 
 function RecommendationCard({
   item,
+  learnerLabel,
   canLaunchPractice,
   isAdminPreview,
   featured = false,
@@ -248,6 +249,7 @@ function RecommendationCard({
   onStartLearningCycle,
 }: {
   item: NovaRecommendation;
+  learnerLabel: string;
   canLaunchPractice: boolean;
   isAdminPreview: boolean;
   featured?: boolean;
@@ -475,14 +477,14 @@ function RecommendationCard({
             }
           >
             <strong>
-              Open from the learner
+              Open from {learnerLabel}&apos;s
               account
             </strong>
 
             <span>
               This keeps the practice
-              attempt recorded under the
-              learner, not the viewer.
+              attempt recorded under
+              {learnerLabel}, not the viewer.
             </span>
           </div>
         )}
@@ -606,7 +608,7 @@ function RecommendationCard({
                   TEACHING EVIDENCE
                 </span>
                 <strong>
-                  How the learner responded
+                  How {learnerLabel} responded
                   to support
                 </strong>
               </div>
@@ -671,6 +673,7 @@ function RecommendationCard({
                     <small>
                       {teachingRecoveryExplanation(
                         signal,
+                        learnerLabel,
                       )}
                     </small>
 
@@ -831,9 +834,11 @@ function RecommendationCard({
 
 function CycleCard({
   cycle,
+  learnerLabel,
   canLaunchPractice,
 }: {
   cycle: NovaLearningCycle;
+  learnerLabel: string;
   canLaunchPractice: boolean;
 }) {
   const ready =
@@ -1113,12 +1118,12 @@ function CycleCard({
             }
           >
             <strong>
-              Learner action required
+              Action required from {learnerLabel}
             </strong>
             <span>
               Practice and Nova Check must
               be completed from the
-              learner&apos;s own account.
+              {learnerLabel}&apos;s own account.
             </span>
           </div>
         )}
@@ -1554,8 +1559,8 @@ export default function NovaRecommendsTab({
                     Nova is tracking new
                     evidence after
                     targeted practice,
-                    not simply asking the
-                    learner to repeat
+                    not simply asking
+                    {learnerLabel} to repeat
                     quizzes forever.
                   </p>
                 </div>
@@ -1579,6 +1584,7 @@ export default function NovaRecommendsTab({
                     <CycleCard
                       key={cycle.id}
                       cycle={cycle}
+                      learnerLabel={learnerLabel}
                       canLaunchPractice={
                         canLaunchPractice
                       }
@@ -1629,6 +1635,7 @@ export default function NovaRecommendsTab({
 
               <RecommendationCard
                 item={focus}
+                learnerLabel={learnerLabel}
                 canLaunchPractice={
                   canLaunchPractice
                 }
@@ -1714,6 +1721,7 @@ export default function NovaRecommendsTab({
                   <RecommendationCard
                     key={item.id}
                     item={item}
+                    learnerLabel={learnerLabel}
                     canLaunchPractice={
                       canLaunchPractice
                     }
@@ -1786,6 +1794,7 @@ export default function NovaRecommendsTab({
 
               <RecommendationCard
                 item={finish}
+                learnerLabel={learnerLabel}
                 canLaunchPractice={
                   canLaunchPractice
                 }
@@ -1831,8 +1840,8 @@ export default function NovaRecommendsTab({
             This page stays
             concept-based and updates
             with learning evidence. The
-            weekly plan remains the
-            learner&apos;s schedule.
+            weekly plan remains
+            {learnerLabel}&apos;s schedule.
           </p>
         </div>
 

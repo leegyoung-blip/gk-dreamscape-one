@@ -15,6 +15,7 @@ export default function MasteryCodeKeyboard({
   mobile,
   dense,
   wide,
+  viewportHeight,
   disabled = false,
 }: {
   attempts: MasteryAttempt[];
@@ -23,6 +24,7 @@ export default function MasteryCodeKeyboard({
   mobile: boolean;
   dense: boolean;
   wide: boolean;
+  viewportHeight?: number;
   disabled?: boolean;
 }) {
   const letterStates = useMemo(
@@ -30,16 +32,34 @@ export default function MasteryCodeKeyboard({
     [attempts],
   );
 
-  // 1.5× the original vertical key heights on every device.
+  // Keep the enlarged keyboard on tall screens, but shrink it progressively
+  // when viewport height is limited so all three rows remain visible.
+  const resolvedViewportHeight = viewportHeight ?? 1200;
   const keyHeight = mobile
     ? dense
       ? 54
       : 66
-    : dense
-      ? 57
-      : wide
-        ? 78
-        : 69;
+    : resolvedViewportHeight < 760
+      ? 46
+      : resolvedViewportHeight < 820
+        ? 50
+        : resolvedViewportHeight < 900
+          ? 54
+          : resolvedViewportHeight < 960
+            ? 58
+            : dense
+              ? 57
+              : wide
+                ? 78
+                : 69;
+
+  const keyboardGap = mobile
+    ? 5
+    : resolvedViewportHeight < 820
+      ? 5
+      : resolvedViewportHeight < 960
+        ? 6
+        : 8;
 
   function getKeyColours(letter: string): CSSProperties {
     const state = letterStates[letter];
@@ -82,7 +102,7 @@ export default function MasteryCodeKeyboard({
         maxWidth: wide ? "820px" : "690px",
         margin: "0 auto",
         display: "grid",
-        gap: mobile ? "5px" : "8px",
+        gap: `${keyboardGap}px`,
         opacity: disabled ? 0.55 : 1,
       }}
     >
@@ -94,7 +114,7 @@ export default function MasteryCodeKeyboard({
             margin: "0 auto",
             display: "flex",
             justifyContent: "center",
-            gap: mobile ? "4px" : wide ? "7px" : "5px",
+            gap: mobile ? "4px" : resolvedViewportHeight < 960 ? "5px" : wide ? "7px" : "5px",
           }}
         >
           {row.split("").map((letter) => (

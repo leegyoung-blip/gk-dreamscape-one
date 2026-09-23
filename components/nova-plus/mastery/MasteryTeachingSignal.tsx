@@ -36,8 +36,10 @@ export function teachingHaloClassName(
 
 export default function MasteryTeachingSignal({
   signals,
+  accountName,
 }: {
   signals: NovaTeachingSignal[];
+  accountName: string;
 }) {
   const primary = signals[0];
   if (!primary) return null;
@@ -58,7 +60,9 @@ export default function MasteryTeachingSignal({
       <div className={styles.signalCopy}>
         <strong>{humaniseMisconceptionCode(primary.misconception_code)}</strong>
         <p>{teachingEvidenceExplanation(primary)}</p>
-        {attempts > 0 && <p>{teachingRecoveryExplanation(primary)}</p>}
+        {attempts > 0 && (
+          <p>{teachingRecoveryExplanation(primary, accountName)}</p>
+        )}
       </div>
 
       <div className={styles.metrics}>

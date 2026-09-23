@@ -262,10 +262,13 @@ export function teachingEvidenceExplanation(signal: NovaTeachingSignal) {
   return `The same difficulty has appeared across ${signal.distinct_questions} different questions, giving Nova repeated evidence.`;
 }
 
-export function teachingRecoveryExplanation(signal: NovaTeachingSignal) {
+export function teachingRecoveryExplanation(
+  signal: NovaTeachingSignal,
+  accountName = "This account",
+) {
   switch (signal.recovery_state) {
     case "recovery_signal":
-      return "The learner then answered the transfer check correctly, suggesting the support helped.";
+      return `${accountName} then answered the transfer check correctly, suggesting the support helped.`;
     case "needs_reinforcement":
       return "The transfer check was still difficult after support, so this concept may need another explanation or more practice.";
     case "mixed_transfer":

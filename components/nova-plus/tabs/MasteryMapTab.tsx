@@ -24,6 +24,7 @@ import styles from "./MasteryMapTab.module.css";
 
 type Props = {
   learnerId: string;
+  accountName: string;
   profile: NovaPlusProfilePayload;
   onOpenRecommendations: () => void;
 };
@@ -339,6 +340,7 @@ function groupTopics(
 
 export default function MasteryMapTab({
   learnerId,
+  accountName,
   profile,
   onOpenRecommendations,
 }: Props) {
@@ -469,7 +471,7 @@ export default function MasteryMapTab({
         <span className={styles.eyebrow}>MASTERY MAP</span>
         <h2>Curriculum map data is not available yet.</h2>
         <p>
-          Refresh the NOVA+ learner profile after installing the current Mastery
+          Refresh {accountName}&apos;s NOVA+ profile after installing the current Mastery
           Map payload function.
         </p>
       </section>
@@ -483,7 +485,7 @@ export default function MasteryMapTab({
           <span className={styles.eyebrow}>MASTERY MAP</span>
           <h2>Explore the curriculum as a live mastery orbit.</h2>
           <p>
-            Topic sectors show the learner&apos;s curriculum picture at a glance.
+            Topic sectors show {accountName}&apos;s curriculum picture at a glance.
             Select a topic to reveal its concepts; select a concept for detailed
             mastery, schoolwork and Teaching Engine evidence.
           </p>
@@ -633,6 +635,7 @@ export default function MasteryMapTab({
       {selectedConcept && (
         <MasteryConceptDetail
           concept={selectedConcept}
+          accountName={accountName}
           state={conceptState(selectedConcept)}
           stateMeta={STATE_META[conceptState(selectedConcept)]}
           subjectLabel={subjectMeta.label}

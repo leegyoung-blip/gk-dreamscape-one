@@ -30,7 +30,10 @@ function formatDate(value: string | null) {
   }).format(date);
 }
 
-function parentFriendlyExplanation(concept: CurriculumConcept) {
+function parentFriendlyExplanation(
+  concept: CurriculumConcept,
+  accountName: string,
+) {
   const supplied = String(concept.public_explanation || "").trim();
   if (supplied) return supplied;
 
@@ -40,14 +43,15 @@ function parentFriendlyExplanation(concept: CurriculumConcept) {
   );
 
   if (verbLed) {
-    return `This checks whether the learner can ${name.charAt(0).toLowerCase()}${name.slice(1)} accurately and independently.`;
+    return `This checks whether ${accountName} can ${name.charAt(0).toLowerCase()}${name.slice(1)} accurately and independently.`;
   }
 
-  return `This checks the learner's understanding and application of ${name.toLowerCase()}.`;
+  return `This checks ${accountName}'s understanding and application of ${name.toLowerCase()}.`;
 }
 
 export default function MasteryConceptDetail({
   concept,
+  accountName,
   state,
   stateMeta,
   subjectLabel,
@@ -57,6 +61,7 @@ export default function MasteryConceptDetail({
   onClose,
 }: {
   concept: CurriculumConcept;
+  accountName: string;
   state: MasteryDetailState;
   stateMeta: MasteryDetailStateMeta;
   subjectLabel: string;
@@ -122,15 +127,15 @@ export default function MasteryConceptDetail({
       <div className={styles.contentGrid}>
         <div className={styles.explanation}>
           <span>WHAT THIS MEANS</span>
-          <p>{parentFriendlyExplanation(concept)}</p>
+          <p>{parentFriendlyExplanation(concept, accountName)}</p>
           <small>
-            Status is based on the learner&apos;s recorded curriculum evidence. A
+            Status is based on {accountName}&apos;s recorded curriculum evidence. A
             teaching halo adds context but does not change this mastery state.
           </small>
         </div>
 
         {teachingSignals.length > 0 && (
-          <MasteryTeachingSignal signals={teachingSignals} />
+          <MasteryTeachingSignal signals={teachingSignals} accountName={accountName} />
         )}
 
         {schoolwork && (

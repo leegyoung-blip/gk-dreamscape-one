@@ -28,6 +28,7 @@ import styles from "./StrengthsGapsTab.module.css";
 
 type Props = {
   learnerId: string;
+  accountName: string;
   profile: NovaPlusProfilePayload;
   onOpenRecommendations: () => void;
 };
@@ -201,8 +202,10 @@ function teachingTone(signal: NovaTeachingSignal) {
 
 function TeachingEvidenceDetails({
   signals,
+  accountName,
 }: {
   signals: NovaTeachingSignal[];
+  accountName: string;
 }) {
   const visible = sortTeachingSignals(signals).slice(0, 3);
 
@@ -211,7 +214,7 @@ function TeachingEvidenceDetails({
       <div className={styles.teachingEvidenceHeading}>
         <div>
           <span>TEACHING EVIDENCE</span>
-          <strong>How the learner responded to support</strong>
+          <strong>How {accountName} responded to support</strong>
         </div>
         <b>{signals.length}</b>
       </div>
@@ -254,7 +257,7 @@ function TeachingEvidenceDetails({
             </div>
 
             <small className={styles.teachingRecoveryCopy}>
-              {teachingRecoveryExplanation(signal)}
+              {teachingRecoveryExplanation(signal, accountName)}
             </small>
           </div>
         ))}
@@ -275,11 +278,13 @@ function ConceptCard({
   state,
   schoolwork,
   teachingSignals = [],
+  accountName,
 }: {
   skill: ProfileSkill;
   state: ConceptState;
   schoolwork?: NovaSchoolworkSkillEvidence;
   teachingSignals?: NovaTeachingSignal[];
+  accountName: string;
 }) {
   const meta = STATE_META[state];
   const primaryTeachingSignal = sortTeachingSignals(teachingSignals)[0] ?? null;
@@ -389,7 +394,7 @@ function ConceptCard({
           )}
 
           {teachingSignals.length > 0 && (
-            <TeachingEvidenceDetails signals={teachingSignals} />
+            <TeachingEvidenceDetails signals={teachingSignals} accountName={accountName} />
           )}
 
           {state === "attention" && (
@@ -409,11 +414,13 @@ function StateColumn({
   skills,
   schoolworkBySkillId,
   teachingByConceptKey,
+  accountName,
 }: {
   state: ConceptState;
   skills: ProfileSkill[];
   schoolworkBySkillId: Map<string, NovaSchoolworkSkillEvidence>;
   teachingByConceptKey: Map<string, NovaTeachingSignal[]>;
+  accountName: string;
 }) {
   const meta = STATE_META[state];
   const visible = sortConcepts(state, skills).slice(0, 8);
@@ -447,6 +454,7 @@ function StateColumn({
               state={state}
               schoolwork={schoolworkBySkillId.get(String(skill.skill_id))}
               teachingSignals={teachingSignalsForSkill(skill, teachingByConceptKey)}
+              accountName={accountName}
             />
           ))
         ) : (
@@ -523,6 +531,7 @@ function OtherLearningObservations({
 
 export default function StrengthsGapsTab({
   learnerId,
+  accountName,
   profile,
   onOpenRecommendations,
 }: Props) {
@@ -571,7 +580,7 @@ export default function StrengthsGapsTab({
           <span className={styles.eyebrow}>STRENGTHS & GAPS</span>
           <h2>Strong concepts. Developing concepts. Clear priorities.</h2>
           <p>
-            Nova groups concepts by the learner&apos;s current evidence so the important areas are easy to see.
+            Nova groups concepts using {accountName}&apos;s current evidence so the important areas are easy to see.
           </p>
         </div>
 
@@ -595,18 +604,21 @@ export default function StrengthsGapsTab({
           skills={strong}
           schoolworkBySkillId={schoolworkEvidence.bySkillId}
           teachingByConceptKey={teachingEvidence.byConceptKey}
+          accountName={accountName}
         />
         <StateColumn
           state="developing"
           skills={developing}
           schoolworkBySkillId={schoolworkEvidence.bySkillId}
           teachingByConceptKey={teachingEvidence.byConceptKey}
+          accountName={accountName}
         />
         <StateColumn
           state="attention"
           skills={attention}
           schoolworkBySkillId={schoolworkEvidence.bySkillId}
           teachingByConceptKey={teachingEvidence.byConceptKey}
+          accountName={accountName}
         />
       </section>
 

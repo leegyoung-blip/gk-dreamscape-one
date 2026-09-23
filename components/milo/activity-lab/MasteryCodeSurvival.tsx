@@ -49,6 +49,7 @@ export default function MasteryCodeSurvival({
   wide,
   dense,
   width,
+  height,
   onTokenTransaction,
 }: {
   userId: string;
@@ -56,6 +57,7 @@ export default function MasteryCodeSurvival({
   wide: boolean;
   dense: boolean;
   width: number;
+  height: number;
   onTokenTransaction: (amount: number, description: string) => Promise<boolean>;
 }) {
   const [loadingAnswer, setLoadingAnswer] = useState(false);
@@ -89,19 +91,47 @@ export default function MasteryCodeSurvival({
     (Math.max(width, 320) - mobileAllowance - mobileGap * (wordLength - 1)) /
       wordLength,
   );
+
+  // Desktop/tablet sizing must respond to HEIGHT as well as width.
+  // Survival can display up to 8 grid rows plus a 3-row keyboard, so using
+  // width-only sizing causes the bottom keyboard rows to be clipped when the
+  // browser window is resized or on landscape tablets/laptops.
+  const shortViewport = !mobile && height < 960;
+  const veryShortViewport = !mobile && height < 820;
+
+  const desktopCellSize = (() => {
+    if (veryShortViewport) {
+      return wordLength === 7 ? 36 : wordLength === 6 ? 40 : 44;
+    }
+
+    if (shortViewport) {
+      return wordLength === 7 ? 42 : wordLength === 6 ? 47 : 52;
+    }
+
+    if (dense) {
+      return wordLength === 7 ? 43 : 48;
+    }
+
+    if (wide) {
+      return wordLength === 7 ? 58 : 66;
+    }
+
+    return wordLength === 7 ? 50 : 56;
+  })();
+
   const cellSize = mobile
     ? Math.max(36, Math.min(mobileTarget, mobileCap))
-    : dense
-      ? wordLength === 7
-        ? 43
-        : 48
-      : wide
-        ? wordLength === 7
-          ? 58
-          : 66
-        : wordLength === 7
-          ? 50
-          : 56;
+    : desktopCellSize;
+
+  const survivalGap = mobile
+    ? "6px"
+    : veryShortViewport
+      ? "6px"
+      : shortViewport
+        ? "8px"
+        : dense
+          ? "9px"
+          : "13px";
 
   useEffect(() => {
     try {
@@ -463,7 +493,7 @@ export default function MasteryCodeSurvival({
             padding: mobile ? "6px" : dense ? "12px" : "16px",
             display: "grid",
             gridTemplateRows: "auto auto auto",
-            gap: mobile ? "6px" : dense ? "9px" : "13px",
+            gap: survivalGap,
             overflow: "visible",
           }}
         >
@@ -472,7 +502,19 @@ export default function MasteryCodeSurvival({
               <p style={{ margin: 0, color: "#d5b5ff", fontSize: mobile ? "8px" : "10px", fontWeight: 900, letterSpacing: "0.17em", textTransform: "uppercase" }}>
                 Mastery Code · Survival Mode
               </p>
-              <h2 style={{ margin: mobile ? "3px 0 0" : "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? (dense ? "22px" : "27px") : dense ? "31px" : wide ? "43px" : "37px", lineHeight: 0.95, fontWeight: 400 }}>
+              <h2 style={{ margin: mobile ? "3px 0 0" : "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile
+                  ? dense
+                    ? "22px"
+                    : "27px"
+                  : veryShortViewport
+                    ? "28px"
+                    : shortViewport
+                      ? "33px"
+                      : dense
+                        ? "31px"
+                        : wide
+                          ? "43px"
+                          : "37px", lineHeight: 0.95, fontWeight: 400 }}>
                 {runActive || runEnd ? `Level ${level}` : "Survive the Code"}
               </h2>
             </div>
@@ -546,6 +588,7 @@ export default function MasteryCodeSurvival({
                 mobile={mobile}
                 dense={dense}
                 wide={wide}
+                viewportHeight={height}
                 disabled={!runActive || Boolean(transitionText) || rewarding || validatingGuess || loadingAnswer}
               />
             </>

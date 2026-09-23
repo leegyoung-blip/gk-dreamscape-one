@@ -32,7 +32,7 @@ export default function ActivityLabPage() {
   const wide = width >= 1320;
   const compact = width < 1180;
   const dense = height < 790;
-  const needsVerticalScroll = mobile || compact || dense;
+  const needsVerticalScroll = mobile || compact || height < 960;
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeMode, setActiveMode] = useState<ActivityMode>("quick");
@@ -324,6 +324,7 @@ export default function ActivityLabPage() {
               wide={wide}
               dense={dense}
               width={width}
+              height={height}
               onTokenTransaction={addTokenTransaction}
             />
           )}
