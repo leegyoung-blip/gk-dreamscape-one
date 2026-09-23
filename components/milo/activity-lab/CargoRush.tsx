@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 type CargoRushProps = {
+  userId: string;
   mobile: boolean;
   dense: boolean;
   width: number;
   height: number;
+  onTokenTransaction: (amount: number, description: string) => Promise<boolean>;
 };
 
 type CargoBay = {
@@ -109,10 +111,12 @@ const PACKAGE_CATALOG: Array<{ label: string; category: CargoCategory }> = [
 
 
 export default function CargoRush({
+  userId,
   mobile,
   dense,
   width,
   height,
+  onTokenTransaction,
 }: CargoRushProps) {
   const [showInstructions, setShowInstructions] = useState(false);
   const [showPreviewNotice, setShowPreviewNotice] = useState(false);
@@ -126,12 +130,23 @@ export default function CargoRush({
   const [sortedCount, setSortedCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
   const [missedCount, setMissedCount] = useState(0);
+  const [stageDeliveries, setStageDeliveries] = useState<Record<RushStage["key"], number>>({
+    calm: 0,
+    busy: 0,
+    fast: 0,
+    rush: 0,
+  });
+  const [completedRunId, setCompletedRunId] = useState<number | null>(null);
+  const [rewardState, setRewardState] = useState<"idle" | "awarding" | "awarded" | "guest" | "failed">("idle");
+  const [awardedDt, setAwardedDt] = useState(0);
 
   const nextPackageId = useRef(1);
   const lastFrameAt = useRef<number | null>(null);
   const spawnAccumulator = useRef(0);
   const feedbackTimer = useRef<number | null>(null);
   const bayPulseTimer = useRef<number | null>(null);
+  const currentRunId = useRef(0);
+  const awardedRunIds = useRef<Set<number>>(new Set());
 
   const veryCompact = width < 980 || height < 720;
   const bayColumns = mobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))";
@@ -145,6 +160,26 @@ export default function CargoRush({
         : RUSH_STAGES[3];
   const finalTen = running && timeLeft <= 10 && timeLeft > 0;
   const stageProgress = Math.min(100, Math.max(0, (elapsed / 60) * 100));
+  const totalHandled = sortedCount + wrongCount + missedCount;
+  const routingAccuracy = totalHandled > 0 ? Math.round((sortedCount / totalHandled) * 100) : 0;
+  const score = Math.max(
+    0,
+    stageDeliveries.calm * 100 +
+      stageDeliveries.busy * 120 +
+      stageDeliveries.fast * 140 +
+      stageDeliveries.rush * 160 -
+      wrongCount * 40 -
+      missedCount * 25,
+  );
+  const accuracyBonus = routingAccuracy >= 90 ? 5 : routingAccuracy >= 80 ? 2 : 0;
+  const runDtReward = sortedCount > 0 ? Math.max(1, Math.floor(score / 200) + accuracyBonus) : 0;
+  const bestStage = RUSH_STAGES.reduce((best, stage) => {
+    const stageCount = stageDeliveries[stage.key];
+    const bestCount = stageDeliveries[best.key];
+    if (stageCount > bestCount) return stage;
+    if (stageCount === bestCount && stageCount > 0) return stage;
+    return best;
+  }, RUSH_STAGES[0]);
 
   const glassPanel: CSSProperties = {
     border: "1px solid rgba(133,226,255,0.16)",
@@ -251,6 +286,7 @@ export default function CargoRush({
           setPaused(false);
           setPackages([]);
           setSelectedPackageId(null);
+          setCompletedRunId(currentRunId.current);
           setShowPreviewNotice(true);
           return 0;
         }
@@ -260,6 +296,45 @@ export default function CargoRush({
 
     return () => window.clearInterval(timer);
   }, [running, paused]);
+
+  useEffect(() => {
+    if (!showPreviewNotice || completedRunId === null) return;
+    if (awardedRunIds.current.has(completedRunId)) return;
+
+    if (!userId) {
+      setRewardState("guest");
+      setAwardedDt(0);
+      awardedRunIds.current.add(completedRunId);
+      return;
+    }
+
+    if (runDtReward <= 0) {
+      setRewardState("awarded");
+      setAwardedDt(0);
+      awardedRunIds.current.add(completedRunId);
+      return;
+    }
+
+    let cancelled = false;
+    awardedRunIds.current.add(completedRunId);
+    setRewardState("awarding");
+
+    void onTokenTransaction(runDtReward, `Cargo Rush reward · Run ${completedRunId}`).then((success) => {
+      if (cancelled) return;
+      if (success) {
+        setAwardedDt(runDtReward);
+        setRewardState("awarded");
+      } else {
+        awardedRunIds.current.delete(completedRunId);
+        setAwardedDt(0);
+        setRewardState("failed");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [completedRunId, onTokenTransaction, runDtReward, showPreviewNotice, userId]);
 
   useEffect(() => {
     return () => {
@@ -285,6 +360,10 @@ export default function CargoRush({
   }
 
   function startRun() {
+    currentRunId.current += 1;
+    setCompletedRunId(null);
+    setRewardState("idle");
+    setAwardedDt(0);
     setShowPreviewNotice(false);
     setTimeLeft(60);
     setPackages([]);
@@ -294,6 +373,7 @@ export default function CargoRush({
     setSortedCount(0);
     setWrongCount(0);
     setMissedCount(0);
+    setStageDeliveries({ calm: 0, busy: 0, fast: 0, rush: 0 });
     setPaused(false);
     setRunning(true);
     spawnAccumulator.current = 0;
@@ -327,6 +407,10 @@ export default function CargoRush({
       setPackages((current) => current.filter((item) => item.id !== packageId));
       setSelectedPackageId(null);
       setSortedCount((current) => current + 1);
+      setStageDeliveries((current) => ({
+        ...current,
+        [rushStage.key]: current[rushStage.key] + 1,
+      }));
       pulseBay(bayId, "correct");
       showRouteFeedback(
         "correct",
@@ -552,7 +636,7 @@ export default function CargoRush({
                   textTransform: "uppercase",
                 }}
               >
-                Phase 3B · Rush Systems Online
+                Phase 4A · Results Online
               </span>
             </div>
           </div>
@@ -610,9 +694,9 @@ export default function CargoRush({
         >
           {[
             ["TIME", formattedTime, running ? (paused ? "Paused" : "Belts live") : "Run timer"],
-            ["SCORE", "0", "Phase 3A"],
-            ["COMBO", "×1", "Phase 3A"],
-            ["RUN DT", "+0", "Phase 4"],
+            ["SCORE", score.toLocaleString(), "Live run score"],
+            ["COMBO", "×1", "Phase 3A later"],
+            ["RUN DT", "+0", "Phase 4B"],
           ].map(([label, value, sub]) => (
             <div key={label} style={hudTile}>
               <p
@@ -1238,7 +1322,7 @@ export default function CargoRush({
                   fontSize: "8px",
                 }}
               >
-                The warehouse now accelerates through Calm, Busy, Fast and Rush. Score/combo logic remains separate; DT rewards remain Phase 4.
+                The warehouse accelerates through Calm, Busy, Fast and Rush. Score is now live; combo progression is still pending and DT rewards remain Phase 4B.
               </p>
             )}
           </div>
@@ -1275,25 +1359,26 @@ export default function CargoRush({
             zIndex: 50,
             display: "grid",
             placeItems: "center",
-            padding: mobile ? "14px" : "24px",
-            background: "rgba(1,5,13,0.76)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
+            padding: mobile ? "12px" : "24px",
+            background: "rgba(1,5,13,0.8)",
+            backdropFilter: "blur(9px)",
+            WebkitBackdropFilter: "blur(9px)",
+            overflowY: "auto",
           }}
           onClick={() => {
+            if (showPreviewNotice) return;
             setShowInstructions(false);
-            setShowPreviewNotice(false);
           }}
         >
           <div
             style={{
-              width: "min(560px, 100%)",
+              width: showPreviewNotice ? "min(720px, 100%)" : "min(560px, 100%)",
               borderRadius: mobile ? "20px" : "26px",
               border: "1px solid rgba(137,231,255,0.22)",
               background:
                 "linear-gradient(150deg, rgba(10,31,53,0.99), rgba(3,11,25,0.99))",
               boxShadow: "0 34px 90px rgba(0,0,0,0.52)",
-              padding: mobile ? "22px 18px" : "30px",
+              padding: mobile ? "20px 16px" : "28px",
             }}
             onClick={(event) => event.stopPropagation()}
           >
@@ -1313,111 +1398,294 @@ export default function CargoRush({
               style={{
                 margin: "7px 0 0",
                 fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: mobile ? "28px" : "34px",
+                fontSize: mobile ? "28px" : "36px",
                 fontWeight: 400,
               }}
             >
-              {showPreviewNotice ? "Sorting run complete" : "How to Play"}
+              {showPreviewNotice ? "Cargo Delivered" : "How to Play"}
             </h3>
 
             {showPreviewNotice ? (
-              <p
-                style={{
-                  margin: "13px 0 0",
-                  color: "rgba(255,255,255,0.58)",
-                  fontSize: mobile ? "11px" : "12px",
-                  lineHeight: 1.65,
-                }}
-              >
-                You sorted {sortedCount} package{sortedCount === 1 ? "" : "s"}, made {wrongCount} wrong route{wrongCount === 1 ? "" : "s"},
-                and missed {missedCount} package{missedCount === 1 ? "" : "s"}. Phase 3B adds live warehouse escalation through Calm, Busy, Fast and Rush. Score/combo logic and DT rewards remain separate.
-              </p>
-            ) : (
-              <div
-                style={{
-                  marginTop: "16px",
-                  display: "grid",
-                  gap: "9px",
-                }}
-              >
-                {[
-                  ["1", "Watch the lanes", "Packages enter automatically on three live conveyor lanes."],
-                  ["2", "Select the cargo", "Tap a moving package. On desktop, you can also drag it directly."],
-                  ["3", "Choose the bay", "Send each item to Food, Tech, Fashion or Energy. Wrong bays reject the package."],
-                  ["4", "Do not miss it", "Cargo that reaches the end counts as missed. The warehouse gets faster every 15 seconds, ending in Rush mode."],
-                ].map(([num, title, body]) => (
+              <div style={{ marginTop: mobile ? "15px" : "18px" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: mobile ? "1fr" : "1.2fr .8fr",
+                    gap: "10px",
+                  }}
+                >
                   <div
-                    key={num}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "34px minmax(0,1fr)",
-                      gap: "10px",
-                      alignItems: "start",
+                      borderRadius: "18px",
+                      border: "1px solid rgba(255,211,103,.22)",
+                      background: "linear-gradient(145deg, rgba(79,55,17,.34), rgba(18,20,29,.72))",
+                      padding: mobile ? "16px" : "18px",
                     }}
                   >
+                    <p style={{ margin: 0, color: "rgba(255,225,151,.62)", fontSize: "8px", fontWeight: 950, letterSpacing: ".16em" }}>
+                      RUN SCORE
+                    </p>
+                    <div style={{ marginTop: "5px", display: "flex", alignItems: "baseline", gap: "9px", flexWrap: "wrap" }}>
+                      <strong style={{ color: "#ffe19a", fontSize: mobile ? "38px" : "48px", lineHeight: 1 }}>
+                        {score.toLocaleString()}
+                      </strong>
+                      <span style={{ color: "rgba(255,255,255,.38)", fontSize: "9px", fontWeight: 850 }}>
+                        points
+                      </span>
+                    </div>
+                    <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,.46)", fontSize: mobile ? "9px" : "10px", lineHeight: 1.5 }}>
+                      Later Rush stages are worth more points. Wrong routes and missed cargo apply small score penalties.
+                    </p>
+                  </div>
+
+                  <div
+                    style={{
+                      borderRadius: "18px",
+                      border: "1px solid rgba(126,232,255,.16)",
+                      background: "rgba(73,205,244,.055)",
+                      padding: mobile ? "16px" : "18px",
+                    }}
+                  >
+                    <p style={{ margin: 0, color: "rgba(167,239,255,.58)", fontSize: "8px", fontWeight: 950, letterSpacing: ".16em" }}>
+                      ROUTING ACCURACY
+                    </p>
+                    <strong style={{ display: "block", marginTop: "5px", fontSize: mobile ? "32px" : "38px", lineHeight: 1, color: "white" }}>
+                      {routingAccuracy}%
+                    </strong>
+                    <div style={{ marginTop: "10px", height: "7px", borderRadius: "999px", background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
+                      <div style={{ width: `${routingAccuracy}%`, height: "100%", borderRadius: "inherit", background: "linear-gradient(90deg,#7de7ff,#8ff0c1)" }} />
+                    </div>
+                    <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,.38)", fontSize: "9px" }}>
+                      {sortedCount} correct · {wrongCount} wrong · {missedCount} missed
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "10px",
+                    display: "grid",
+                    gridTemplateColumns: mobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))",
+                    gap: "7px",
+                  }}
+                >
+                  {[
+                    ["DELIVERED", String(sortedCount), "#8ff0c1"],
+                    ["WRONG ROUTES", String(wrongCount), "#ff9da6"],
+                    ["MISSED", String(missedCount), "#ffd273"],
+                    ["BEST STAGE", sortedCount > 0 ? bestStage.label : "—", sortedCount > 0 ? bestStage.accent : "#ffffff"],
+                  ].map(([label, value, accent]) => (
                     <div
+                      key={label}
                       style={{
-                        width: "34px",
-                        height: "34px",
-                        borderRadius: "10px",
-                        border: "1px solid rgba(137,231,255,0.2)",
-                        background: "rgba(92,218,255,0.065)",
-                        color: "#9aecff",
-                        display: "grid",
-                        placeItems: "center",
-                        fontSize: "11px",
-                        fontWeight: 950,
+                        minWidth: 0,
+                        borderRadius: "14px",
+                        border: "1px solid rgba(255,255,255,.08)",
+                        background: "rgba(255,255,255,.035)",
+                        padding: "11px",
                       }}
                     >
-                      {num}
+                      <p style={{ margin: 0, color: "rgba(255,255,255,.34)", fontSize: "7px", fontWeight: 950, letterSpacing: ".1em" }}>{label}</p>
+                      <strong style={{ display: "block", marginTop: "4px", color: accent, fontSize: mobile ? "18px" : "20px", lineHeight: 1 }}>{value}</strong>
                     </div>
-                    <div>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontSize: mobile ? "11px" : "12px",
-                          fontWeight: 900,
-                        }}
-                      >
-                        {title}
-                      </p>
-                      <p
-                        style={{
-                          margin: "3px 0 0",
-                          color: "rgba(255,255,255,0.45)",
-                          fontSize: mobile ? "10px" : "11px",
-                          lineHeight: 1.45,
-                        }}
-                      >
-                        {body}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setShowInstructions(false);
-                setShowPreviewNotice(false);
-              }}
-              style={{
-                width: "100%",
-                minHeight: "44px",
-                marginTop: "20px",
-                borderRadius: "13px",
-                border: "1px solid rgba(132,226,255,0.22)",
-                background: "rgba(86,213,255,0.09)",
-                color: "white",
-                fontSize: "11px",
-                fontWeight: 900,
-                cursor: "pointer",
-              }}
-            >
-              Back to Warehouse
-            </button>
+                <div
+                  style={{
+                    marginTop: "10px",
+                    borderRadius: "16px",
+                    border: "1px solid rgba(126,232,255,.12)",
+                    background: "rgba(1,9,20,.42)",
+                    padding: mobile ? "12px" : "14px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                    <div>
+                      <p style={{ margin: 0, color: "#9aebff", fontSize: "8px", fontWeight: 950, letterSpacing: ".13em" }}>DELIVERIES BY STAGE</p>
+                      <p style={{ margin: "3px 0 0", color: "rgba(255,255,255,.34)", fontSize: "8px" }}>See where you handled the warehouse best.</p>
+                    </div>
+                    <span style={{ padding: "5px 8px", borderRadius: "999px", border: "1px solid rgba(255,214,111,.18)", color: "#ffd66f", background: "rgba(255,214,111,.05)", fontSize: "8px", fontWeight: 900 }}>
+                      {rewardState === "awarded"
+                        ? `+${awardedDt} DT awarded`
+                        : rewardState === "awarding"
+                          ? "Awarding DT…"
+                          : rewardState === "guest"
+                            ? "Log in to earn DT"
+                            : rewardState === "failed"
+                              ? "DT award failed"
+                              : `+${runDtReward} DT`}
+                    </span>
+                  </div>
+                  <div style={{ marginTop: "10px", display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: mobile ? "5px" : "7px" }}>
+                    {RUSH_STAGES.map((stage) => (
+                      <div key={stage.key} style={{ minWidth: 0, textAlign: "center" }}>
+                        <div style={{ height: mobile ? "44px" : "54px", borderRadius: "10px", border: `1px solid ${stage.accent}24`, background: `${stage.accent}0d`, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "6px" }}>
+                          <div
+                            style={{
+                              width: "65%",
+                              minHeight: "4px",
+                              height: `${Math.min(100, Math.max(8, stageDeliveries[stage.key] * 11))}%`,
+                              borderRadius: "7px 7px 4px 4px",
+                              background: `linear-gradient(180deg, ${stage.accent}, ${stage.accent}66)`,
+                            }}
+                          />
+                        </div>
+                        <strong style={{ display: "block", marginTop: "5px", color: stage.accent, fontSize: mobile ? "14px" : "16px" }}>{stageDeliveries[stage.key]}</strong>
+                        <span style={{ display: "block", marginTop: "2px", color: "rgba(255,255,255,.34)", fontSize: mobile ? "6px" : "7px", fontWeight: 900 }}>{stage.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "10px",
+                    borderRadius: "16px",
+                    border: "1px solid rgba(255,214,111,.2)",
+                    background: "linear-gradient(135deg, rgba(255,205,82,.1), rgba(255,255,255,.025))",
+                    padding: mobile ? "13px" : "15px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div>
+                    <p style={{ margin: 0, color: "#ffd66f", fontSize: "8px", fontWeight: 950, letterSpacing: ".14em" }}>DREAM TOKEN REWARD</p>
+                    <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,.42)", fontSize: "9px", lineHeight: 1.45 }}>
+                      Score earns about 1 DT per 200 points, with a small accuracy bonus at 80% and 90%.
+                    </p>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <strong style={{ display: "block", color: "#ffe19a", fontSize: mobile ? "26px" : "30px", lineHeight: 1 }}>
+                      +{rewardState === "awarded" ? awardedDt : runDtReward} DT
+                    </strong>
+                    <span style={{ display: "block", marginTop: "4px", color: rewardState === "failed" ? "#ff9da6" : "rgba(255,255,255,.38)", fontSize: "8px", fontWeight: 850 }}>
+                      {rewardState === "awarding"
+                        ? "Adding to your balance…"
+                        : rewardState === "awarded"
+                          ? "Added to your Dream Token balance"
+                          : rewardState === "guest"
+                            ? "Sign in before a run to receive DT"
+                            : rewardState === "failed"
+                              ? "Could not add DT. Reopen results to retry."
+                              : "Calculated from this run"}
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "12px",
+                    display: "grid",
+                    gridTemplateColumns: mobile ? "1fr" : "1fr 1fr",
+                    gap: "8px",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={startRun}
+                    style={{
+                      minHeight: "46px",
+                      borderRadius: "14px",
+                      border: "1px solid rgba(255,215,111,.38)",
+                      background: "linear-gradient(135deg, rgba(255,206,82,.98), rgba(246,166,59,.94))",
+                      color: "#201300",
+                      fontSize: "11px",
+                      fontWeight: 950,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Play Again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPreviewNotice(false)}
+                    style={{
+                      minHeight: "46px",
+                      borderRadius: "14px",
+                      border: "1px solid rgba(132,226,255,.2)",
+                      background: "rgba(86,213,255,.07)",
+                      color: "white",
+                      fontSize: "11px",
+                      fontWeight: 900,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Back to Warehouse
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div
+                  style={{
+                    marginTop: "16px",
+                    display: "grid",
+                    gap: "9px",
+                  }}
+                >
+                  {[
+                    ["1", "Watch the lanes", "Packages enter automatically on three live conveyor lanes."],
+                    ["2", "Select the cargo", "Tap a moving package. On desktop, you can also drag it directly."],
+                    ["3", "Choose the bay", "Send each item to Food, Tech, Fashion or Energy. Wrong bays reject the package."],
+                    ["4", "Do not miss it", "Cargo that reaches the end counts as missed. The warehouse gets faster every 15 seconds, ending in Rush mode."],
+                  ].map(([num, title, body]) => (
+                    <div
+                      key={num}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "34px minmax(0,1fr)",
+                        gap: "10px",
+                        alignItems: "start",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "34px",
+                          height: "34px",
+                          borderRadius: "10px",
+                          border: "1px solid rgba(137,231,255,0.2)",
+                          background: "rgba(92,218,255,0.065)",
+                          color: "#9aecff",
+                          display: "grid",
+                          placeItems: "center",
+                          fontSize: "11px",
+                          fontWeight: 950,
+                        }}
+                      >
+                        {num}
+                      </div>
+                      <div>
+                        <p style={{ margin: 0, fontSize: mobile ? "11px" : "12px", fontWeight: 900 }}>{title}</p>
+                        <p style={{ margin: "3px 0 0", color: "rgba(255,255,255,0.45)", fontSize: mobile ? "10px" : "11px", lineHeight: 1.45 }}>{body}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowInstructions(false)}
+                  style={{
+                    width: "100%",
+                    minHeight: "44px",
+                    marginTop: "20px",
+                    borderRadius: "13px",
+                    border: "1px solid rgba(132,226,255,0.22)",
+                    background: "rgba(86,213,255,0.09)",
+                    color: "white",
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                  }}
+                >
+                  Back to Warehouse
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

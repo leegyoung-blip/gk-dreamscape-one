@@ -798,10 +798,12 @@ export default function ActivityLabPage() {
             </div>
           ) : activeMode === "cargo" ? (
             <CargoRush
+              userId={userId}
               mobile={mobile}
               dense={dense}
               width={width}
               height={height}
+              onTokenTransaction={addTokenTransaction}
             />
           ) : (
             <ComingSoonPanel mode="merge" mobile={mobile} />
