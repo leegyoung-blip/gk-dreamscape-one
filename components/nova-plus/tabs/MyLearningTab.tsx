@@ -3,6 +3,8 @@
 import { useState } from "react";
 import LearnerAvatarPicker from "@/components/nova-plus/LearnerAvatarPicker";
 import SubjectMilestoneCard from "@/components/nova-plus/my-learning/SubjectMilestoneCard";
+import MilestoneInfoModal from "@/components/nova-plus/my-learning/MilestoneInfoModal";
+import { milestoneForEvidence, milestoneText } from "@/components/nova-plus/my-learning/milestones";
 import type {
   NovaPlusProfilePayload,
   NovaSubjectKey,
@@ -72,44 +74,14 @@ function prioritySubject(rows: Array<ProfileSubjectSummary | null>) {
     .sort((a, b) => safeNumber(a.mastery_score) - safeNumber(b.mastery_score))[0] ?? null;
 }
 
-function ScoreInfo() {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <span
-      className={`${styles.scoreInfo} ${open ? styles.scoreInfoOpen : ""}`}
-      onMouseLeave={() => setOpen(false)}
-    >
-      <button
-        type="button"
-        className={styles.scoreInfoButton}
-        aria-label="What do the mastery scores mean?"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
-      >
-        i
-      </button>
-
-      <span className={styles.scoreInfoPopover} role="tooltip">
-        <strong>What the scores mean</strong>
-        <span><b className={styles.infoGreen}>85–100%</b> Strong</span>
-        <span><b className={styles.infoOrange}>70–84%</b> Developing</span>
-        <span><b className={styles.infoRed}>Below 70%</b> Needs attention</span>
-        <small>
-          Nova only shows a status after enough recorded learning evidence is available. Scores reflect the learner&apos;s current mastery picture and can change as new evidence is added.
-        </small>
-      </span>
-    </span>
-  );
-}
-
 export default function MyLearningTab({
   learnerId,
   learnerLabel,
   profile,
   onOpenRecommendations,
 }: Props) {
+  const [milestoneInfoOpen, setMilestoneInfoOpen] = useState(false);
+
   const curriculumRows = CURRICULUM_SUBJECTS.map((subject) =>
     summaryFor(profile, subject),
   );
@@ -131,6 +103,13 @@ export default function MyLearningTab({
     : priority
       ? SUBJECT_META[priority.subject as NovaSubjectKey]?.label ?? priority.subject
       : "Keep exploring";
+
+  const strongestMilestone = strongest
+    ? milestoneForEvidence(
+        safeNumber(strongest.mastery_score),
+        safeNumber(strongest.questions_attempted),
+      )
+    : null;
 
   return (
     <div className={styles.page}>
@@ -176,21 +155,34 @@ export default function MyLearningTab({
               <span className={styles.eyebrow}>SUBJECT MILESTONES</span>
               <h3>Where your subjects currently stand</h3>
             </div>
-            <ScoreInfo />
+            <button
+              type="button"
+              className={styles.scoreInfoButton}
+              aria-label="How do subject milestones work?"
+              aria-haspopup="dialog"
+              onClick={() => setMilestoneInfoOpen(true)}
+            >
+              i
+            </button>
           </div>
 
           <div className={styles.subjectGrid}>
             {CURRICULUM_SUBJECTS.map((subjectKey) => {
               const summary = summaryFor(profile, subjectKey);
               const state = subjectState(summary);
+              const stateMeta = STATE_META[state];
+              const subjectMeta = SUBJECT_META[subjectKey];
 
               return (
                 <SubjectMilestoneCard
                   key={subjectKey}
-                  subjectKey={subjectKey}
                   summary={summary}
+                  label={subjectMeta.label}
+                  icon={subjectMeta.icon}
                   statusLabel={subjectStateLabel(state)}
-                  statusMeta={STATE_META[state]}
+                  colour={stateMeta.colour}
+                  soft={stateMeta.soft}
+                  border={stateMeta.border}
                 />
               );
             })}
@@ -199,7 +191,10 @@ export default function MyLearningTab({
           {(() => {
             const state = subjectState(knowledge);
             const stateMeta = STATE_META[state];
-            const hasEvidence = Boolean(knowledge && knowledge.questions_attempted >= 5);
+            const knowledgeMilestone = milestoneForEvidence(
+              safeNumber(knowledge?.mastery_score),
+              safeNumber(knowledge?.questions_attempted),
+            );
 
             return (
               <article
@@ -226,14 +221,14 @@ export default function MyLearningTab({
                 <span className={styles.knowledgeStatus} style={{ color: stateMeta.colour }}>
                   {subjectStateLabel(state)}
                 </span>
-                <b>
-                  {hasEvidence ? `${Math.round(safeNumber(knowledge?.mastery_score))}%` : "—"}
-                </b>
+                <b>{milestoneText(knowledgeMilestone)}</b>
               </article>
             );
           })()}
         </div>
       </section>
+
+      <MilestoneInfoModal open={milestoneInfoOpen} onClose={() => setMilestoneInfoOpen(false)} />
 
       <section className={styles.actionGrid}>
         <article className={`${styles.actionCard} ${styles.strongCard}`}>
@@ -246,9 +241,7 @@ export default function MyLearningTab({
                 : "Building your picture"}
             </strong>
             <small>
-              {strongest
-                ? `${Math.round(safeNumber(strongest.mastery_score))}% mastery`
-                : "Complete more missions"}
+              {strongest ? milestoneText(strongestMilestone) : "Complete more missions"}
             </small>
           </div>
         </article>

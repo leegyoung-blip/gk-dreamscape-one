@@ -1,67 +1,36 @@
-import { MILESTONES, type MilestoneLevel } from "./milestones";
+import { MILESTONES, type Milestone } from "./milestones";
 import styles from "./SubjectMilestoneCard.module.css";
 
 type Props = {
-  level: MilestoneLevel | null;
+  milestone: Milestone | null;
   accent: string;
-  buildingPicture?: boolean;
 };
 
-export default function MilestoneTrack({
-  level,
-  accent,
-  buildingPicture = false,
-}: Props) {
+export default function MilestoneTrack({ milestone, accent }: Props) {
   return (
-    <div
-      className={`${styles.trackWrap} ${buildingPicture ? styles.trackPending : ""}`}
-      aria-label={
-        buildingPicture || !level
-          ? "Milestone track. Building picture."
-          : `Milestone ${level} of 6`
-      }
-    >
-      <div className={styles.track} aria-hidden="true">
-        <span className={styles.trackBase} />
-        {!buildingPicture && level ? (
-          <span
-            className={styles.trackProgress}
-            style={{
-              width: `${((level - 1) / (MILESTONES.length - 1)) * 100}%`,
-              background: accent,
-              boxShadow: `0 0 14px ${accent}55`,
-            }}
-          />
-        ) : null}
-
-        {MILESTONES.map((milestone) => {
-          const reached = Boolean(level && milestone.level <= level && !buildingPicture);
-          const current = Boolean(level === milestone.level && !buildingPicture);
+    <div className={`${styles.trackWrap} ${!milestone ? styles.trackPending : ""}`}>
+      <div className={styles.track} aria-label={milestone ? `Milestone ${milestone.level} of 6` : "Building picture"}>
+        {MILESTONES.map((item, index) => {
+          const reached = Boolean(milestone && item.level <= milestone.level);
+          const current = Boolean(milestone && item.level === milestone.level);
 
           return (
-            <span
-              key={milestone.level}
-              className={`${styles.node} ${reached ? styles.nodeReached : ""} ${
-                current ? styles.nodeCurrent : ""
-              }`}
-              style={
-                reached
-                  ? {
-                      borderColor: accent,
-                      background: current ? accent : "rgba(4, 13, 29, 0.96)",
-                      boxShadow: current
-                        ? `0 0 0 4px ${accent}22, 0 0 18px ${accent}66`
-                        : `0 0 10px ${accent}33`,
-                    }
-                  : undefined
-              }
-            >
-              <span>{milestone.level}</span>
-            </span>
+            <div className={styles.trackStep} key={item.level}>
+              <span
+                className={`${styles.trackDot} ${reached ? styles.trackDotReached : ""} ${current ? styles.trackDotCurrent : ""}`}
+                style={reached ? { borderColor: accent, background: accent } : undefined}
+              />
+              {index < MILESTONES.length - 1 && (
+                <span
+                  className={`${styles.trackLine} ${milestone && item.level < milestone.level ? styles.trackLineReached : ""}`}
+                  style={milestone && item.level < milestone.level ? { background: accent } : undefined}
+                />
+              )}
+              <span className={styles.trackNumber}>{item.level}</span>
+            </div>
           );
         })}
       </div>
-
       <div className={styles.trackEnds} aria-hidden="true">
         <span>Starting</span>
         <span>Strong</span>

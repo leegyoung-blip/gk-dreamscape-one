@@ -18,6 +18,7 @@ type CargoBay = {
   code: string;
   hint: string;
   accent: string;
+  image: string;
 };
 
 const CARGO_BAYS: CargoBay[] = [
@@ -27,6 +28,7 @@ const CARGO_BAYS: CargoBay[] = [
     code: "FD-01",
     hint: "Fresh & pantry",
     accent: "#72f0b0",
+    image: "/milo/activity-lab/cargo-rush/bays/cargo-bay-food.png",
   },
   {
     id: "tech",
@@ -34,6 +36,7 @@ const CARGO_BAYS: CargoBay[] = [
     code: "TC-02",
     hint: "Devices & gear",
     accent: "#78ddff",
+    image: "/milo/activity-lab/cargo-rush/bays/cargo-bay-tech.png",
   },
   {
     id: "fashion",
@@ -41,6 +44,7 @@ const CARGO_BAYS: CargoBay[] = [
     code: "FS-03",
     hint: "Wearables",
     accent: "#d5a4ff",
+    image: "/milo/activity-lab/cargo-rush/bays/cargo-bay-fashion.png",
   },
   {
     id: "energy",
@@ -48,6 +52,7 @@ const CARGO_BAYS: CargoBay[] = [
     code: "EN-04",
     hint: "Power cargo",
     accent: "#ffd56f",
+    image: "/milo/activity-lab/cargo-rush/bays/cargo-bay-energy.png",
   },
 ];
 
@@ -57,6 +62,7 @@ type MovingPackage = {
   id: number;
   label: string;
   category: CargoCategory;
+  image: string;
   lane: number;
   x: number;
   speed: number;
@@ -90,23 +96,27 @@ const RUSH_STAGES: RushStage[] = [
   { key: "rush", label: "RUSH", spawnEvery: 0.64, speedMultiplier: 1.5, beltDuration: 0.76, accent: "#ff8b95" },
 ];
 
-const PACKAGE_CATALOG: Array<{ label: string; category: CargoCategory }> = [
-  { label: "Apples", category: "food" },
-  { label: "Bread", category: "food" },
-  { label: "Rice", category: "food" },
-  { label: "Juice", category: "food" },
-  { label: "Laptop", category: "tech" },
-  { label: "Camera", category: "tech" },
-  { label: "Tablet", category: "tech" },
-  { label: "Headphones", category: "tech" },
-  { label: "Jacket", category: "fashion" },
-  { label: "Shoes", category: "fashion" },
-  { label: "Cap", category: "fashion" },
-  { label: "Backpack", category: "fashion" },
-  { label: "Battery", category: "energy" },
-  { label: "Power Cell", category: "energy" },
-  { label: "Solar Pack", category: "energy" },
-  { label: "Charge Core", category: "energy" },
+const PACKAGE_CATALOG: Array<{ label: string; category: CargoCategory; image: string }> = [
+  // Food
+  { label: "Apples", category: "food", image: "/milo/activity-lab/cargo-rush/items/cargo-item-apples.png" },
+  { label: "Bread", category: "food", image: "/milo/activity-lab/cargo-rush/items/cargo-item-bread.png" },
+  { label: "Rice", category: "food", image: "/milo/activity-lab/cargo-rush/items/cargo-item-rice.png" },
+  { label: "Juice", category: "food", image: "/milo/activity-lab/cargo-rush/items/cargo-item-juice.png" },
+  // Tech
+  { label: "Laptop", category: "tech", image: "/milo/activity-lab/cargo-rush/items/cargo-item-laptop.png" },
+  { label: "Camera", category: "tech", image: "/milo/activity-lab/cargo-rush/items/cargo-item-camera.png" },
+  { label: "Tablet", category: "tech", image: "/milo/activity-lab/cargo-rush/items/cargo-item-tablet.png" },
+  { label: "Headphones", category: "tech", image: "/milo/activity-lab/cargo-rush/items/cargo-item-headphones.png" },
+  // Fashion
+  { label: "Jacket", category: "fashion", image: "/milo/activity-lab/cargo-rush/items/cargo-item-jacket.png" },
+  { label: "Shoes", category: "fashion", image: "/milo/activity-lab/cargo-rush/items/cargo-item-shoes.png" },
+  { label: "Cap", category: "fashion", image: "/milo/activity-lab/cargo-rush/items/cargo-item-cap.png" },
+  { label: "Backpack", category: "fashion", image: "/milo/activity-lab/cargo-rush/items/cargo-item-backpack.png" },
+  // Energy
+  { label: "Battery", category: "energy", image: "/milo/activity-lab/cargo-rush/items/cargo-item-battery.png" },
+  { label: "Power Cell", category: "energy", image: "/milo/activity-lab/cargo-rush/items/cargo-item-power-cell.png" },
+  { label: "Solar Pack", category: "energy", image: "/milo/activity-lab/cargo-rush/items/cargo-item-solar-pack.png" },
+  { label: "Charge Core", category: "energy", image: "/milo/activity-lab/cargo-rush/items/cargo-item-charge-core.png" },
 ];
 
 
@@ -240,6 +250,7 @@ export default function CargoRush({
               id: nextPackageId.current++,
               label: cargo.label,
               category: cargo.category,
+              image: cargo.image,
               lane,
               x: 10,
               speed: 8.5 + Math.random() * 2.5,
@@ -636,7 +647,7 @@ export default function CargoRush({
                   textTransform: "uppercase",
                 }}
               >
-                Phase 4A · Results Online
+                Phase 4B · Rewards Online
               </span>
             </div>
           </div>
@@ -696,7 +707,7 @@ export default function CargoRush({
             ["TIME", formattedTime, running ? (paused ? "Paused" : "Belts live") : "Run timer"],
             ["SCORE", score.toLocaleString(), "Live run score"],
             ["COMBO", "×1", "Phase 3A later"],
-            ["RUN DT", "+0", "Phase 4B"],
+            ["RUN DT", running || timeLeft === 0 ? `+${runDtReward}` : "+0", "Projected reward"],
           ].map(([label, value, sub]) => (
             <div key={label} style={hudTile}>
               <p
@@ -1060,7 +1071,7 @@ export default function CargoRush({
                           : "0 12px 24px rgba(0,0,0,0.32)",
                         padding: mobile ? "6px 7px" : "8px 9px",
                         display: "grid",
-                        gridTemplateColumns: mobile ? "30px minmax(0,1fr)" : "36px minmax(0,1fr)",
+                        gridTemplateColumns: mobile ? "34px minmax(0,1fr)" : "42px minmax(0,1fr)",
                         alignItems: "center",
                         gap: mobile ? "6px" : "8px",
                         color: "white",
@@ -1073,23 +1084,29 @@ export default function CargoRush({
                       }}
                     >
                       <div
-                        aria-label="Package art placeholder"
+                        aria-hidden="true"
                         style={{
-                          width: mobile ? "30px" : "36px",
-                          height: mobile ? "30px" : "36px",
-                          borderRadius: "9px",
-                          border: "1px dashed rgba(160,231,255,0.3)",
-                          background: "rgba(112,214,255,0.05)",
+                          width: mobile ? "34px" : "42px",
+                          height: mobile ? "34px" : "42px",
+                          borderRadius: "10px",
+                          background: "radial-gradient(circle, rgba(117,224,255,.12), rgba(117,224,255,.02) 72%)",
                           display: "grid",
                           placeItems: "center",
-                          color: "rgba(191,242,255,0.52)",
-                          fontSize: "7px",
-                          fontWeight: 950,
-                          textAlign: "center",
-                          lineHeight: 1.05,
+                          overflow: "hidden",
                         }}
                       >
-                        PNG
+                        <img
+                          src={item.image}
+                          alt=""
+                          draggable={false}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "contain",
+                            pointerEvents: "none",
+                            filter: "drop-shadow(0 5px 7px rgba(0,0,0,.34))",
+                          }}
+                        />
                       </div>
 
                       <div style={{ minWidth: 0 }}>
@@ -1235,22 +1252,27 @@ export default function CargoRush({
                   }}
                 >
                   <div
+                    aria-hidden="true"
                     style={{
-                      width: mobile ? "30px" : "34px",
-                      height: mobile ? "30px" : "34px",
+                      width: mobile ? "48px" : "56px",
+                      height: mobile ? "48px" : "56px",
                       flex: "0 0 auto",
-                      borderRadius: "9px",
-                      border: `1px dashed ${bay.accent}66`,
-                      background: `${bay.accent}0d`,
-                      color: `${bay.accent}bb`,
                       display: "grid",
                       placeItems: "center",
-                      fontSize: "7px",
-                      fontWeight: 950,
-                      textAlign: "center",
                     }}
                   >
-                    ICON
+                    <img
+                      src={bay.image}
+                      alt=""
+                      draggable={false}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                        pointerEvents: "none",
+                        filter: "drop-shadow(0 8px 9px rgba(0,0,0,.38))",
+                      }}
+                    />
                   </div>
                   <span
                     style={{
@@ -1322,7 +1344,7 @@ export default function CargoRush({
                   fontSize: "8px",
                 }}
               >
-                The warehouse accelerates through Calm, Busy, Fast and Rush. Score is now live; combo progression is still pending and DT rewards remain Phase 4B.
+                The warehouse accelerates through Calm, Busy, Fast and Rush. Score and DT rewards are live. Combo progression remains a later polish pass.
               </p>
             )}
           </div>
