@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 type CargoRushProps = {
@@ -49,11 +49,64 @@ const CARGO_BAYS: CargoBay[] = [
   },
 ];
 
-const PACKAGE_PREVIEWS = [
-  { label: "Apples", category: "FOOD", lane: 0 },
-  { label: "Laptop", category: "TECH", lane: 1 },
-  { label: "Jacket", category: "FASHION", lane: 2 },
+type CargoCategory = CargoBay["id"];
+
+type MovingPackage = {
+  id: number;
+  label: string;
+  category: CargoCategory;
+  lane: number;
+  x: number;
+  speed: number;
+  status: "active" | "missed";
+};
+
+type RouteFeedback = {
+  tone: "correct" | "wrong" | "missed" | "hint";
+  title: string;
+  detail: string;
+};
+
+type BayPulse = {
+  id: CargoCategory;
+  tone: "correct" | "wrong";
+};
+
+type RushStage = {
+  key: "calm" | "busy" | "fast" | "rush";
+  label: string;
+  spawnEvery: number;
+  speedMultiplier: number;
+  beltDuration: number;
+  accent: string;
+};
+
+const RUSH_STAGES: RushStage[] = [
+  { key: "calm", label: "CALM", spawnEvery: 1.25, speedMultiplier: 1, beltDuration: 1.8, accent: "#8ee8ff" },
+  { key: "busy", label: "BUSY", spawnEvery: 1.02, speedMultiplier: 1.13, beltDuration: 1.42, accent: "#8ff0c1" },
+  { key: "fast", label: "FAST", spawnEvery: 0.82, speedMultiplier: 1.3, beltDuration: 1.08, accent: "#ffd66f" },
+  { key: "rush", label: "RUSH", spawnEvery: 0.64, speedMultiplier: 1.5, beltDuration: 0.76, accent: "#ff8b95" },
 ];
+
+const PACKAGE_CATALOG: Array<{ label: string; category: CargoCategory }> = [
+  { label: "Apples", category: "food" },
+  { label: "Bread", category: "food" },
+  { label: "Rice", category: "food" },
+  { label: "Juice", category: "food" },
+  { label: "Laptop", category: "tech" },
+  { label: "Camera", category: "tech" },
+  { label: "Tablet", category: "tech" },
+  { label: "Headphones", category: "tech" },
+  { label: "Jacket", category: "fashion" },
+  { label: "Shoes", category: "fashion" },
+  { label: "Cap", category: "fashion" },
+  { label: "Backpack", category: "fashion" },
+  { label: "Battery", category: "energy" },
+  { label: "Power Cell", category: "energy" },
+  { label: "Solar Pack", category: "energy" },
+  { label: "Charge Core", category: "energy" },
+];
+
 
 export default function CargoRush({
   mobile,
@@ -63,9 +116,35 @@ export default function CargoRush({
 }: CargoRushProps) {
   const [showInstructions, setShowInstructions] = useState(false);
   const [showPreviewNotice, setShowPreviewNotice] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(60);
+  const [packages, setPackages] = useState<MovingPackage[]>([]);
+  const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null);
+  const [routeFeedback, setRouteFeedback] = useState<RouteFeedback | null>(null);
+  const [bayPulse, setBayPulse] = useState<BayPulse | null>(null);
+  const [sortedCount, setSortedCount] = useState(0);
+  const [wrongCount, setWrongCount] = useState(0);
+  const [missedCount, setMissedCount] = useState(0);
+
+  const nextPackageId = useRef(1);
+  const lastFrameAt = useRef<number | null>(null);
+  const spawnAccumulator = useRef(0);
+  const feedbackTimer = useRef<number | null>(null);
+  const bayPulseTimer = useRef<number | null>(null);
 
   const veryCompact = width < 980 || height < 720;
   const bayColumns = mobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))";
+  const elapsed = 60 - timeLeft;
+  const rushStage = elapsed < 15
+    ? RUSH_STAGES[0]
+    : elapsed < 30
+      ? RUSH_STAGES[1]
+      : elapsed < 45
+        ? RUSH_STAGES[2]
+        : RUSH_STAGES[3];
+  const finalTen = running && timeLeft <= 10 && timeLeft > 0;
+  const stageProgress = Math.min(100, Math.max(0, (elapsed / 60) * 100));
 
   const glassPanel: CSSProperties = {
     border: "1px solid rgba(133,226,255,0.16)",
@@ -83,6 +162,205 @@ export default function CargoRush({
     borderRadius: mobile ? "12px" : "16px",
     padding: mobile ? "8px 9px" : dense ? "9px 11px" : "11px 13px",
   };
+
+  useEffect(() => {
+    if (!running || paused) {
+      lastFrameAt.current = null;
+      return;
+    }
+
+    let frameId = 0;
+
+    const tick = (now: number) => {
+      const previous = lastFrameAt.current ?? now;
+      const deltaSeconds = Math.min((now - previous) / 1000, 0.08);
+      lastFrameAt.current = now;
+      spawnAccumulator.current += deltaSeconds;
+
+      setPackages((current) => {
+        const moved = current.map((item) => {
+          if (item.status !== "active") return item;
+          const nextX = item.x + item.speed * rushStage.speedMultiplier * deltaSeconds;
+          return {
+            ...item,
+            x: nextX,
+            status: nextX >= 96 ? "missed" : "active",
+          } as MovingPackage;
+        });
+
+        if (spawnAccumulator.current >= rushStage.spawnEvery) {
+          spawnAccumulator.current = 0;
+
+          const lanes = [0, 1, 2].sort(() => Math.random() - 0.5);
+          const lane = lanes.find(
+            (candidate) =>
+              !moved.some(
+                (item) => item.status === "active" && item.lane === candidate && item.x < 28,
+              ),
+          );
+
+          if (lane !== undefined) {
+            const cargo = PACKAGE_CATALOG[Math.floor(Math.random() * PACKAGE_CATALOG.length)];
+            moved.push({
+              id: nextPackageId.current++,
+              label: cargo.label,
+              category: cargo.category,
+              lane,
+              x: 10,
+              speed: 8.5 + Math.random() * 2.5,
+              status: "active",
+            });
+          }
+        }
+
+        return moved;
+      });
+
+      frameId = requestAnimationFrame(tick);
+    };
+
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [running, paused, rushStage.speedMultiplier, rushStage.spawnEvery]);
+
+  useEffect(() => {
+    const missed = packages.filter((item) => item.status === "missed");
+    if (missed.length === 0) return;
+
+    const missedIds = new Set(missed.map((item) => item.id));
+    setPackages((current) => current.filter((item) => !missedIds.has(item.id)));
+    setMissedCount((current) => current + missed.length);
+    setSelectedPackageId((current) => (current !== null && missedIds.has(current) ? null : current));
+
+    const lastMissed = missed[missed.length - 1];
+    showRouteFeedback(
+      "missed",
+      "Cargo missed",
+      `${lastMissed.label} reached the end of the conveyor.`,
+    );
+  }, [packages]);
+
+  useEffect(() => {
+    if (!running || paused) return;
+
+    const timer = window.setInterval(() => {
+      setTimeLeft((current) => {
+        if (current <= 1) {
+          window.clearInterval(timer);
+          setRunning(false);
+          setPaused(false);
+          setPackages([]);
+          setSelectedPackageId(null);
+          setShowPreviewNotice(true);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [running, paused]);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimer.current) window.clearTimeout(feedbackTimer.current);
+      if (bayPulseTimer.current) window.clearTimeout(bayPulseTimer.current);
+    };
+  }, []);
+
+  function showRouteFeedback(
+    tone: RouteFeedback["tone"],
+    title: string,
+    detail: string,
+  ) {
+    setRouteFeedback({ tone, title, detail });
+    if (feedbackTimer.current) window.clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = window.setTimeout(() => setRouteFeedback(null), 1500);
+  }
+
+  function pulseBay(id: CargoCategory, tone: BayPulse["tone"]) {
+    setBayPulse({ id, tone });
+    if (bayPulseTimer.current) window.clearTimeout(bayPulseTimer.current);
+    bayPulseTimer.current = window.setTimeout(() => setBayPulse(null), 620);
+  }
+
+  function startRun() {
+    setShowPreviewNotice(false);
+    setTimeLeft(60);
+    setPackages([]);
+    setSelectedPackageId(null);
+    setRouteFeedback(null);
+    setBayPulse(null);
+    setSortedCount(0);
+    setWrongCount(0);
+    setMissedCount(0);
+    setPaused(false);
+    setRunning(true);
+    spawnAccumulator.current = 0;
+    lastFrameAt.current = null;
+  }
+
+  function togglePause() {
+    if (!running) return;
+    setPaused((current) => !current);
+  }
+
+  function selectPackage(packageId: number) {
+    if (!running || paused) return;
+    const cargo = packages.find((item) => item.id === packageId && item.status === "active");
+    if (!cargo) return;
+
+    setSelectedPackageId((current) => (current === packageId ? null : packageId));
+    setRouteFeedback(null);
+  }
+
+  function routePackageToBay(packageId: number, bayId: CargoCategory) {
+    if (!running || paused) return;
+
+    const cargo = packages.find((item) => item.id === packageId && item.status === "active");
+    if (!cargo) {
+      setSelectedPackageId(null);
+      return;
+    }
+
+    if (cargo.category === bayId) {
+      setPackages((current) => current.filter((item) => item.id !== packageId));
+      setSelectedPackageId(null);
+      setSortedCount((current) => current + 1);
+      pulseBay(bayId, "correct");
+      showRouteFeedback(
+        "correct",
+        "Correct delivery",
+        `${cargo.label} routed to ${CARGO_BAYS.find((bay) => bay.id === bayId)?.title ?? "the bay"}.`,
+      );
+      return;
+    }
+
+    setPackages((current) =>
+      current.map((item) =>
+        item.id === packageId ? { ...item, x: Math.max(10, item.x - 5) } : item,
+      ),
+    );
+    setSelectedPackageId(null);
+    setWrongCount((current) => current + 1);
+    pulseBay(bayId, "wrong");
+    showRouteFeedback(
+      "wrong",
+      "Wrong bay",
+      `${cargo.label} was rejected. Try another destination.`,
+    );
+  }
+
+  function routeSelectedToBay(bayId: CargoCategory) {
+    if (!running || paused) return;
+    if (selectedPackageId === null) {
+      showRouteFeedback("hint", "Select cargo first", "Tap a moving package, then choose its destination bay.");
+      return;
+    }
+    routePackageToBay(selectedPackageId, bayId);
+  }
+
+  const formattedTime = `00:${String(timeLeft).padStart(2, "0")}`;
 
   return (
     <div
@@ -112,6 +390,19 @@ export default function CargoRush({
           from { background-position-x: 0; }
           to { background-position-x: 36px; }
         }
+        @keyframes cargoRushFlash {
+          0%, 100% { opacity: .18; }
+          50% { opacity: .58; }
+        }
+        @keyframes cargoRushBadge {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.045); }
+        }
+        @keyframes cargoWrongShake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-4px); }
+          75% { transform: translateX(4px); }
+        }
         .cargo-rush-shell button { font-family: inherit; }
         .cargo-belt-track {
           background-image: repeating-linear-gradient(90deg, rgba(149,227,255,.08) 0 16px, rgba(149,227,255,.015) 16px 32px);
@@ -126,7 +417,7 @@ export default function CargoRush({
         }
       `}</style>
 
-      {/* PHASE 1 ASSET PLACEHOLDER
+      {/* ASSET PLACEHOLDER
           Replace this visual layer later with:
           /public/milo/activity-lab/cargo-rush/warehouse-bg.png
       */}
@@ -140,6 +431,23 @@ export default function CargoRush({
             "linear-gradient(180deg, rgba(4,15,31,0.18), rgba(2,8,20,0.72))",
         }}
       />
+
+      {running && rushStage.key === "rush" && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 1,
+            pointerEvents: "none",
+            border: finalTen ? "2px solid rgba(255,108,122,.22)" : "1px solid rgba(255,108,122,.12)",
+            boxShadow: finalTen
+              ? "inset 0 0 90px rgba(255,76,93,.11)"
+              : "inset 0 0 60px rgba(255,76,93,.06)",
+            animation: finalTen ? "cargoRushFlash .72s ease-in-out infinite" : undefined,
+          }}
+        />
+      )}
 
       <div
         aria-hidden="true"
@@ -244,7 +552,7 @@ export default function CargoRush({
                   textTransform: "uppercase",
                 }}
               >
-                Phase 1 Preview
+                Phase 3B · Rush Systems Online
               </span>
             </div>
           </div>
@@ -269,21 +577,24 @@ export default function CargoRush({
             </button>
             <button
               type="button"
-              disabled
-              aria-label="Pause will be enabled when Cargo Rush gameplay is built"
-              title="Pause becomes active with gameplay in Phase 2"
+              onClick={togglePause}
+              disabled={!running}
+              aria-label={paused ? "Resume Cargo Rush" : "Pause Cargo Rush"}
+              title={!running ? "Start a run first" : paused ? "Resume run" : "Pause run"}
               style={{
                 width: mobile ? "34px" : "38px",
                 height: mobile ? "34px" : "38px",
                 borderRadius: "999px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(255,255,255,0.035)",
-                color: "rgba(255,255,255,0.36)",
+                border: running
+                  ? "1px solid rgba(137,231,255,0.25)"
+                  : "1px solid rgba(255,255,255,0.1)",
+                background: running ? "rgba(86,213,255,0.08)" : "rgba(255,255,255,0.035)",
+                color: running ? "#dff9ff" : "rgba(255,255,255,0.36)",
                 fontWeight: 900,
-                cursor: "not-allowed",
+                cursor: running ? "pointer" : "not-allowed",
               }}
             >
-              Ⅱ
+              {paused ? "▶" : "Ⅱ"}
             </button>
           </div>
         </div>
@@ -298,10 +609,10 @@ export default function CargoRush({
           }}
         >
           {[
-            ["TIME", "01:00", "Run timer"],
-            ["SCORE", "0", "Sort to score"],
-            ["COMBO", "×1", "Build to ×5"],
-            ["RUN DT", "+0", "Awarded later"],
+            ["TIME", formattedTime, running ? (paused ? "Paused" : "Belts live") : "Run timer"],
+            ["SCORE", "0", "Phase 3A"],
+            ["COMBO", "×1", "Phase 3A"],
+            ["RUN DT", "+0", "Phase 4"],
           ].map(([label, value, sub]) => (
             <div key={label} style={hudTile}>
               <p
@@ -351,6 +662,78 @@ export default function CargoRush({
 
         <div
           style={{
+            ...glassPanel,
+            borderRadius: mobile ? "12px" : "14px",
+            padding: mobile ? "7px 9px" : "8px 11px",
+            display: "grid",
+            gridTemplateColumns: mobile ? "auto minmax(0,1fr)" : "auto minmax(0,1fr) auto",
+            alignItems: "center",
+            gap: mobile ? "8px" : "10px",
+          }}
+        >
+          <div
+            style={{
+              padding: mobile ? "5px 8px" : "6px 10px",
+              borderRadius: "999px",
+              border: `1px solid ${rushStage.accent}55`,
+              background: `${rushStage.accent}12`,
+              color: rushStage.accent,
+              fontSize: mobile ? "8px" : "9px",
+              fontWeight: 950,
+              letterSpacing: ".12em",
+              whiteSpace: "nowrap",
+              animation: running && rushStage.key === "rush" ? "cargoRushBadge .8s ease-in-out infinite" : undefined,
+            }}
+          >
+            {running ? rushStage.label : "READY"}
+          </div>
+
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                height: mobile ? "6px" : "7px",
+                overflow: "hidden",
+                borderRadius: "999px",
+                background: "rgba(255,255,255,.055)",
+                border: "1px solid rgba(255,255,255,.05)",
+              }}
+            >
+              <div
+                style={{
+                  width: `${stageProgress}%`,
+                  height: "100%",
+                  borderRadius: "inherit",
+                  background: `linear-gradient(90deg, #7de7ff, #8ff0c1 34%, #ffd66f 67%, #ff7f8d)`,
+                  transition: "width 350ms linear",
+                }}
+              />
+            </div>
+            {!mobile && (
+              <div
+                style={{
+                  marginTop: "4px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  color: "rgba(255,255,255,.28)",
+                  fontSize: "7px",
+                  fontWeight: 900,
+                  letterSpacing: ".08em",
+                }}
+              >
+                <span>CALM</span><span>BUSY</span><span>FAST</span><span>RUSH</span>
+              </div>
+            )}
+          </div>
+
+          {!mobile && (
+            <span style={{ color: "rgba(255,255,255,.36)", fontSize: "8px", fontWeight: 850, whiteSpace: "nowrap" }}>
+              {running ? `Belts ×${rushStage.speedMultiplier.toFixed(2)}` : "60-second run"}
+            </span>
+          )}
+        </div>
+
+        <div
+          style={{
             minHeight: mobile ? "430px" : 0,
             display: "grid",
             gridTemplateRows: "minmax(0, 1fr) auto",
@@ -360,6 +743,7 @@ export default function CargoRush({
           <div
             style={{
               ...glassPanel,
+              position: "relative",
               minHeight: 0,
               borderRadius: mobile ? "16px" : "22px",
               padding: mobile ? "9px" : dense ? "10px" : "13px",
@@ -399,31 +783,122 @@ export default function CargoRush({
                       fontSize: "9px",
                     }}
                   >
-                    Three starting conveyor lanes · live movement begins in Phase 2
+                    Tap cargo, then tap a bay · drag to a bay also works on desktop
                   </p>
                 )}
               </div>
 
-              <span
-                style={{
-                  padding: "5px 8px",
-                  borderRadius: "999px",
-                  border: "1px solid rgba(115,239,176,0.18)",
-                  background: "rgba(115,239,176,0.055)",
-                  color: "#89f3bd",
-                  fontSize: mobile ? "7px" : "8px",
-                  fontWeight: 950,
-                  letterSpacing: "0.09em",
-                  textTransform: "uppercase",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Bay system online
-              </span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "5px", flexWrap: "wrap" }}>
+                {running && (
+                  <>
+                    <span style={{ padding: "4px 7px", borderRadius: "999px", background: "rgba(115,239,176,.06)", color: "#89f3bd", fontSize: mobile ? "7px" : "8px", fontWeight: 900 }}>✓ {sortedCount}</span>
+                    <span style={{ padding: "4px 7px", borderRadius: "999px", background: "rgba(255,108,120,.06)", color: "#ff9ba4", fontSize: mobile ? "7px" : "8px", fontWeight: 900 }}>× {wrongCount}</span>
+                    <span style={{ padding: "4px 7px", borderRadius: "999px", background: "rgba(255,199,92,.06)", color: "#ffd273", fontSize: mobile ? "7px" : "8px", fontWeight: 900 }}>↗ {missedCount}</span>
+                  </>
+                )}
+                <span
+                  style={{
+                    padding: "5px 8px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(115,239,176,0.18)",
+                    background: "rgba(115,239,176,0.055)",
+                    color: "#89f3bd",
+                    fontSize: mobile ? "7px" : "8px",
+                    fontWeight: 950,
+                    letterSpacing: "0.09em",
+                    textTransform: "uppercase",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {running ? (paused ? "Belts paused" : finalTen ? "FINAL 10" : `${rushStage.label} MODE`) : "Bay system online"}
+                </span>
+              </div>
             </div>
 
+            {routeFeedback && (
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  position: "absolute",
+                  left: mobile ? "10px" : "14px",
+                  right: mobile ? "10px" : "14px",
+                  top: mobile ? "47px" : "51px",
+                  zIndex: 20,
+                  minHeight: "36px",
+                  padding: "7px 10px",
+                  borderRadius: "11px",
+                  border: `1px solid ${
+                    routeFeedback.tone === "correct"
+                      ? "rgba(112,240,176,.34)"
+                      : routeFeedback.tone === "wrong"
+                        ? "rgba(255,103,120,.34)"
+                        : routeFeedback.tone === "missed"
+                          ? "rgba(255,200,100,.34)"
+                          : "rgba(126,232,255,.28)"
+                  }`,
+                  background:
+                    routeFeedback.tone === "correct"
+                      ? "rgba(19,75,57,.94)"
+                      : routeFeedback.tone === "wrong"
+                        ? "rgba(82,26,35,.94)"
+                        : routeFeedback.tone === "missed"
+                          ? "rgba(78,54,20,.94)"
+                          : "rgba(16,47,68,.94)",
+                  boxShadow: "0 10px 30px rgba(0,0,0,.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "10px",
+                  pointerEvents: "none",
+                }}
+              >
+                <strong style={{ fontSize: mobile ? "9px" : "10px" }}>{routeFeedback.title}</strong>
+                <span
+                  style={{
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    color: "rgba(255,255,255,.7)",
+                    fontSize: mobile ? "8px" : "9px",
+                  }}
+                >
+                  {routeFeedback.detail}
+                </span>
+              </div>
+            )}
+
+            {finalTen && (
+              <div
+                aria-live="polite"
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: mobile ? "50px" : "54px",
+                  transform: "translateX(-50%)",
+                  zIndex: 18,
+                  padding: mobile ? "5px 9px" : "6px 12px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,116,128,.45)",
+                  background: "rgba(88,19,30,.88)",
+                  color: "#ffdce0",
+                  boxShadow: "0 0 28px rgba(255,70,90,.18)",
+                  fontSize: mobile ? "8px" : "9px",
+                  fontWeight: 950,
+                  letterSpacing: ".12em",
+                  whiteSpace: "nowrap",
+                  animation: "cargoRushBadge .72s ease-in-out infinite",
+                  pointerEvents: "none",
+                }}
+              >
+                FINAL {timeLeft} · RUSH MODE
+              </div>
+            )}
+
             {[0, 1, 2].map((lane) => {
-              const preview = PACKAGE_PREVIEWS.find((item) => item.lane === lane);
+              const lanePackages = packages.filter((item) => item.lane === lane);
+
               return (
                 <div
                   key={lane}
@@ -437,6 +912,8 @@ export default function CargoRush({
                     backgroundColor: "rgba(1,9,20,0.76)",
                     boxShadow:
                       "inset 0 8px 22px rgba(0,0,0,0.35), inset 0 -2px 0 rgba(119,219,255,0.06)",
+                    animationPlayState: running && !paused ? "running" : "paused",
+                    animationDuration: `${rushStage.beltDuration}s`,
                   }}
                 >
                   <div
@@ -446,8 +923,9 @@ export default function CargoRush({
                       top: 0,
                       bottom: 0,
                       width: mobile ? "35px" : "42px",
+                      zIndex: 4,
                       borderRight: "1px solid rgba(146,231,255,0.1)",
-                      background: "rgba(92,218,255,0.035)",
+                      background: "rgba(6,22,40,0.92)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -457,75 +935,124 @@ export default function CargoRush({
                       writingMode: mobile ? "vertical-rl" : undefined,
                     }}
                   >
-                    {mobile ? `L${lane + 1}` : `L${lane + 1}`}
+                    L{lane + 1}
                   </div>
 
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: mobile ? "50px" : "64px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      width: mobile ? "110px" : dense ? "126px" : "142px",
-                      minHeight: mobile ? "56px" : "58px",
-                      borderRadius: "13px",
-                      border: "1px solid rgba(255,255,255,0.13)",
-                      background:
-                        "linear-gradient(145deg, rgba(21,45,66,0.96), rgba(7,17,31,0.98))",
-                      boxShadow: "0 12px 24px rgba(0,0,0,0.28)",
-                      padding: mobile ? "7px 9px" : "8px 10px",
-                      display: "grid",
-                      gridTemplateColumns: "36px minmax(0,1fr)",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <div
-                      aria-label="Package art placeholder"
+                  {lanePackages.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      draggable={!mobile && running && !paused}
+                      aria-pressed={selectedPackageId === item.id}
+                      aria-label={`${item.label} package moving on lane ${lane + 1}. ${selectedPackageId === item.id ? "Selected." : "Tap to select."}`}
+                      onClick={() => selectPackage(item.id)}
+                      onDragStart={(event) => {
+                        if (!running || paused) {
+                          event.preventDefault();
+                          return;
+                        }
+                        setSelectedPackageId(item.id);
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/cargo-package-id", String(item.id));
+                      }}
                       style={{
-                        width: "36px",
-                        height: "36px",
-                        borderRadius: "9px",
-                        border: "1px dashed rgba(160,231,255,0.3)",
-                        background: "rgba(112,214,255,0.05)",
+                        position: "absolute",
+                        left: `${item.x}%`,
+                        top: "50%",
+                        transform: selectedPackageId === item.id
+                          ? "translate(-50%, -50%) scale(1.035)"
+                          : "translate(-50%, -50%)",
+                        width: mobile ? "104px" : dense ? "118px" : "136px",
+                        minHeight: mobile ? "54px" : "58px",
+                        borderRadius: "13px",
+                        border: selectedPackageId === item.id
+                          ? "1px solid rgba(255,214,111,0.82)"
+                          : "1px solid rgba(255,255,255,0.13)",
+                        background: selectedPackageId === item.id
+                          ? "linear-gradient(145deg, rgba(64,55,29,0.98), rgba(17,21,31,0.99))"
+                          : "linear-gradient(145deg, rgba(21,45,66,0.98), rgba(7,17,31,0.99))",
+                        boxShadow: selectedPackageId === item.id
+                          ? "0 0 0 2px rgba(255,210,99,.08), 0 15px 32px rgba(0,0,0,.38), 0 0 24px rgba(255,198,67,.16)"
+                          : "0 12px 24px rgba(0,0,0,0.32)",
+                        padding: mobile ? "6px 7px" : "8px 9px",
                         display: "grid",
-                        placeItems: "center",
-                        color: "rgba(191,242,255,0.52)",
-                        fontSize: "7px",
-                        fontWeight: 950,
-                        textAlign: "center",
-                        lineHeight: 1.05,
+                        gridTemplateColumns: mobile ? "30px minmax(0,1fr)" : "36px minmax(0,1fr)",
+                        alignItems: "center",
+                        gap: mobile ? "6px" : "8px",
+                        color: "white",
+                        textAlign: "left",
+                        cursor: running && !paused ? (mobile ? "pointer" : "grab") : "default",
+                        pointerEvents: running && !paused ? "auto" : "none",
+                        zIndex: selectedPackageId === item.id ? 6 : 2,
+                        willChange: "left, transform",
+                        transition: "transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
                       }}
                     >
-                      PNG
-                    </div>
-
-                    <div style={{ minWidth: 0 }}>
-                      <p
+                      <div
+                        aria-label="Package art placeholder"
                         style={{
-                          margin: 0,
-                          color: "rgba(152,230,255,0.52)",
+                          width: mobile ? "30px" : "36px",
+                          height: mobile ? "30px" : "36px",
+                          borderRadius: "9px",
+                          border: "1px dashed rgba(160,231,255,0.3)",
+                          background: "rgba(112,214,255,0.05)",
+                          display: "grid",
+                          placeItems: "center",
+                          color: "rgba(191,242,255,0.52)",
                           fontSize: "7px",
                           fontWeight: 950,
-                          letterSpacing: "0.08em",
+                          textAlign: "center",
+                          lineHeight: 1.05,
                         }}
                       >
-                        {preview?.category}
-                      </p>
-                      <p
-                        style={{
-                          margin: "2px 0 0",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          fontSize: mobile ? "11px" : "12px",
-                          fontWeight: 900,
-                        }}
-                      >
-                        {preview?.label}
-                      </p>
+                        PNG
+                      </div>
+
+                      <div style={{ minWidth: 0 }}>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "rgba(152,230,255,0.52)",
+                            fontSize: "7px",
+                            fontWeight: 950,
+                            letterSpacing: "0.08em",
+                          }}
+                        >
+                          {selectedPackageId === item.id ? "SELECTED" : "IN TRANSIT"}
+                        </p>
+                        <p
+                          style={{
+                            margin: "2px 0 0",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            fontSize: mobile ? "10px" : "12px",
+                            fontWeight: 900,
+                          }}
+                        >
+                          {item.label}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+
+                  {!running && lanePackages.length === 0 && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: "50%",
+                        top: "50%",
+                        transform: "translate(-50%, -50%)",
+                        color: "rgba(160,229,255,0.24)",
+                        fontSize: mobile ? "8px" : "9px",
+                        fontWeight: 900,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Awaiting cargo
                     </div>
-                  </div>
+                  )}
 
                   <div
                     aria-hidden="true"
@@ -537,6 +1064,7 @@ export default function CargoRush({
                       color: "rgba(137,232,255,0.3)",
                       fontSize: mobile ? "18px" : "24px",
                       fontWeight: 400,
+                      zIndex: 3,
                     }}
                   >
                     →
@@ -553,19 +1081,53 @@ export default function CargoRush({
               gap: mobile ? "6px" : "8px",
             }}
           >
-            {CARGO_BAYS.map((bay) => (
-              <div
+            {CARGO_BAYS.map((bay) => {
+              const pulse = bayPulse?.id === bay.id ? bayPulse.tone : null;
+              return (
+              <button
                 key={bay.id}
+                type="button"
+                onClick={() => routeSelectedToBay(bay.id)}
+                onDragOver={(event) => {
+                  if (running && !paused) {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                  }
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const rawId = event.dataTransfer.getData("text/cargo-package-id");
+                  const packageId = Number(rawId);
+                  if (Number.isFinite(packageId)) routePackageToBay(packageId, bay.id);
+                }}
+                aria-label={`Route selected cargo to ${bay.title} bay`}
                 style={{
                   position: "relative",
                   minHeight: mobile ? "82px" : dense ? "78px" : "88px",
                   overflow: "hidden",
                   borderRadius: mobile ? "13px" : "17px",
-                  border: `1px solid ${bay.accent}33`,
-                  background:
-                    "linear-gradient(180deg, rgba(11,27,43,0.94), rgba(5,12,27,0.98))",
-                  boxShadow: `inset 0 0 30px ${bay.accent}0d, 0 12px 28px rgba(0,0,0,.18)`,
+                  border: pulse === "correct"
+                    ? "1px solid rgba(112,240,176,.86)"
+                    : pulse === "wrong"
+                      ? "1px solid rgba(255,104,119,.86)"
+                      : `1px solid ${bay.accent}33`,
+                  background: pulse === "correct"
+                    ? "linear-gradient(180deg, rgba(25,79,61,.98), rgba(5,26,23,.98))"
+                    : pulse === "wrong"
+                      ? "linear-gradient(180deg, rgba(88,30,39,.98), rgba(30,9,16,.98))"
+                      : "linear-gradient(180deg, rgba(11,27,43,0.94), rgba(5,12,27,0.98))",
+                  boxShadow: pulse === "correct"
+                    ? "0 0 28px rgba(112,240,176,.23), inset 0 0 30px rgba(112,240,176,.09)"
+                    : pulse === "wrong"
+                      ? "0 0 28px rgba(255,104,119,.2), inset 0 0 30px rgba(255,104,119,.08)"
+                      : `inset 0 0 30px ${bay.accent}0d, 0 12px 28px rgba(0,0,0,.18)`,
                   padding: mobile ? "9px" : "10px 11px",
+                  color: "white",
+                  textAlign: "left",
+                  cursor: running && !paused ? "pointer" : "default",
+                  transform: pulse ? "translateY(-2px) scale(1.015)" : "none",
+                  animation: pulse === "wrong" ? "cargoWrongShake 180ms ease-in-out 2" : undefined,
+                  transition: "transform 150ms ease, border-color 150ms ease, background 150ms ease, box-shadow 150ms ease",
                 }}
               >
                 <div
@@ -639,8 +1201,9 @@ export default function CargoRush({
                     {bay.hint}
                   </p>
                 )}
-              </div>
-            ))}
+              </button>
+              );
+            })}
           </div>
         </div>
 
@@ -665,7 +1228,7 @@ export default function CargoRush({
                 fontWeight: 850,
               }}
             >
-              Route every package to the correct cargo bay before time runs out.
+              Tap a package, then tap its correct bay. On desktop, you can also drag cargo directly into a bay.
             </p>
             {!mobile && (
               <p
@@ -675,14 +1238,14 @@ export default function CargoRush({
                   fontSize: "8px",
                 }}
               >
-                Gameplay, sorting controls and live scoring are intentionally not active in Phase 1.
+                The warehouse now accelerates through Calm, Busy, Fast and Rush. Score/combo logic remains separate; DT rewards remain Phase 4.
               </p>
             )}
           </div>
 
           <button
             type="button"
-            onClick={() => setShowPreviewNotice(true)}
+            onClick={startRun}
             style={{
               flex: "0 0 auto",
               minHeight: mobile ? "42px" : "44px",
@@ -699,7 +1262,7 @@ export default function CargoRush({
               letterSpacing: "0.02em",
             }}
           >
-            Start Run
+            {running ? "Restart Run" : timeLeft === 0 ? "Run Again" : "Start Run"}
           </button>
         </div>
       </div>
@@ -754,7 +1317,7 @@ export default function CargoRush({
                 fontWeight: 400,
               }}
             >
-              {showPreviewNotice ? "Gameplay starts in Phase 2" : "How to Play"}
+              {showPreviewNotice ? "Sorting run complete" : "How to Play"}
             </h3>
 
             {showPreviewNotice ? (
@@ -766,8 +1329,8 @@ export default function CargoRush({
                   lineHeight: 1.65,
                 }}
               >
-                Phase 1A + 1B builds the complete responsive warehouse shell and visual system only.
-                Package spawning, movement, sorting and score logic will be connected in Phase 2.
+                You sorted {sortedCount} package{sortedCount === 1 ? "" : "s"}, made {wrongCount} wrong route{wrongCount === 1 ? "" : "s"},
+                and missed {missedCount} package{missedCount === 1 ? "" : "s"}. Phase 3B adds live warehouse escalation through Calm, Busy, Fast and Rush. Score/combo logic and DT rewards remain separate.
               </p>
             ) : (
               <div
@@ -778,10 +1341,10 @@ export default function CargoRush({
                 }}
               >
                 {[
-                  ["1", "Watch the lanes", "Packages will enter on three conveyor lanes."],
-                  ["2", "Choose the right bay", "Send Food, Tech, Fashion and Energy cargo to its matching destination."],
-                  ["3", "Build your combo", "Consecutive correct deliveries will increase the combo up to ×5."],
-                  ["4", "Beat the rush", "The warehouse will speed up as the 60-second run progresses."],
+                  ["1", "Watch the lanes", "Packages enter automatically on three live conveyor lanes."],
+                  ["2", "Select the cargo", "Tap a moving package. On desktop, you can also drag it directly."],
+                  ["3", "Choose the bay", "Send each item to Food, Tech, Fashion or Energy. Wrong bays reject the package."],
+                  ["4", "Do not miss it", "Cargo that reaches the end counts as missed. The warehouse gets faster every 15 seconds, ending in Rush mode."],
                 ].map(([num, title, body]) => (
                   <div
                     key={num}
