@@ -4,6 +4,7 @@ import { useState } from "react";
 import LearnerAvatarPicker from "@/components/nova-plus/LearnerAvatarPicker";
 import SubjectMilestoneCard from "@/components/nova-plus/my-learning/SubjectMilestoneCard";
 import MilestoneInfoModal from "@/components/nova-plus/my-learning/MilestoneInfoModal";
+import MilestoneJourney from "@/components/nova-plus/my-learning/MilestoneJourney";
 import { milestoneForEvidence, milestoneText } from "@/components/nova-plus/my-learning/milestones";
 import type {
   NovaPlusProfilePayload,
@@ -229,6 +230,8 @@ export default function MyLearningTab({
       </section>
 
       <MilestoneInfoModal open={milestoneInfoOpen} onClose={() => setMilestoneInfoOpen(false)} />
+
+      <MilestoneJourney profile={profile} />
 
       <section className={styles.actionGrid}>
         <article className={`${styles.actionCard} ${styles.strongCard}`}>

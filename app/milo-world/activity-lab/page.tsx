@@ -651,7 +651,19 @@ export default function ActivityLabPage() {
           zIndex: 4,
           minWidth: 0,
           minHeight: 0,
-          padding: mobile ? (dense ? "6px" : "8px") : dense ? "10px" : "14px",
+          padding: activeMode === "cargo"
+            ? mobile
+              ? "4px"
+              : dense
+                ? "7px"
+                : "9px"
+            : mobile
+              ? dense
+                ? "6px"
+                : "8px"
+              : dense
+                ? "10px"
+                : "14px",
           display: "grid",
           gridTemplateColumns: mobile
             ? "1fr"
@@ -660,10 +672,10 @@ export default function ActivityLabPage() {
               : "220px minmax(0, 1fr)",
           gap: dense ? "10px" : "14px",
           overflowX: "hidden",
-          overflowY: needsVerticalScroll ? "auto" : "hidden",
+          overflowY: activeMode === "cargo" ? "hidden" : needsVerticalScroll ? "auto" : "hidden",
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch",
-          paddingBottom: needsVerticalScroll ? "18px" : undefined,
+          paddingBottom: activeMode === "cargo" ? undefined : needsVerticalScroll ? "18px" : undefined,
         }}
       >
         {!mobile && (
@@ -681,15 +693,25 @@ export default function ActivityLabPage() {
           style={{
             minWidth: 0,
             minHeight: 0,
-            height: needsVerticalScroll ? "max-content" : "100%",
-            overflow: needsVerticalScroll ? "visible" : "hidden",
+            height: activeMode === "cargo" ? "100%" : needsVerticalScroll ? "max-content" : "100%",
+            overflow: activeMode === "cargo" ? "hidden" : needsVerticalScroll ? "visible" : "hidden",
             borderRadius: mobile ? "17px" : "24px",
             border: "1px solid rgba(126,232,255,0.17)",
             background:
               "linear-gradient(145deg, rgba(5,22,43,0.88), rgba(3,9,24,0.95))",
             boxShadow:
               "0 30px 90px rgba(0,0,0,0.35), inset 0 0 50px rgba(83,215,255,0.025)",
-            padding: mobile ? "6px" : dense ? "14px" : "18px",
+            padding: activeMode === "cargo"
+              ? mobile
+                ? "4px"
+                : dense
+                  ? "7px"
+                  : "9px"
+              : mobile
+                ? "6px"
+                : dense
+                  ? "14px"
+                  : "18px",
           }}
         >
           {activeMode === "mastery" ? (

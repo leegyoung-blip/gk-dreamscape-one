@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 
 type CargoRushProps = {
   userId: string;
@@ -149,6 +149,7 @@ export default function CargoRush({
   const [completedRunId, setCompletedRunId] = useState<number | null>(null);
   const [rewardState, setRewardState] = useState<"idle" | "awarding" | "awarded" | "guest" | "failed">("idle");
   const [awardedDt, setAwardedDt] = useState(0);
+  const [touchDrag, setTouchDrag] = useState<{ id: number; x: number; y: number } | null>(null);
 
   const nextPackageId = useRef(1);
   const lastFrameAt = useRef<number | null>(null);
@@ -159,7 +160,9 @@ export default function CargoRush({
   const awardedRunIds = useRef<Set<number>>(new Set());
 
   const veryCompact = width < 980 || height < 720;
+  const phoneLandscape = mobile && width > height;
   const bayColumns = mobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))";
+  const draggedCargo = touchDrag ? packages.find((item) => item.id === touchDrag.id) ?? null : null;
   const elapsed = 60 - timeLeft;
   const rushStage = elapsed < 15
     ? RUSH_STAGES[0]
@@ -354,6 +357,12 @@ export default function CargoRush({
     };
   }, []);
 
+  useEffect(() => {
+    if (phoneLandscape && running && !paused) {
+      setPaused(true);
+    }
+  }, [phoneLandscape, running, paused]);
+
   function showRouteFeedback(
     tone: RouteFeedback["tone"],
     title: string,
@@ -455,6 +464,151 @@ export default function CargoRush({
     routePackageToBay(selectedPackageId, bayId);
   }
 
+  function beginTouchDrag(event: ReactPointerEvent<HTMLButtonElement>, packageId: number) {
+    if (!mobile || !running || paused) return;
+    const cargo = packages.find((item) => item.id === packageId && item.status === "active");
+    if (!cargo) return;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setSelectedPackageId(packageId);
+    setTouchDrag({ id: packageId, x: event.clientX, y: event.clientY });
+    setRouteFeedback(null);
+  }
+
+  function moveTouchDrag(event: ReactPointerEvent<HTMLButtonElement>, packageId: number) {
+    if (!mobile || touchDrag?.id !== packageId) return;
+    setTouchDrag({ id: packageId, x: event.clientX, y: event.clientY });
+  }
+
+  function endTouchDrag(event: ReactPointerEvent<HTMLButtonElement>, packageId: number) {
+    if (!mobile || touchDrag?.id !== packageId) return;
+    const target = document.elementFromPoint(event.clientX, event.clientY);
+    const bayElement = target?.closest("[data-cargo-bay]") as HTMLElement | null;
+    const bayId = bayElement?.dataset.cargoBay as CargoCategory | undefined;
+    if (bayId && CARGO_BAYS.some((bay) => bay.id === bayId)) {
+      routePackageToBay(packageId, bayId);
+    } else {
+      setSelectedPackageId(null);
+    }
+    setTouchDrag(null);
+  }
+
+  function renderPackage(item: MovingPackage, lane: number, vertical: boolean) {
+    const selected = selectedPackageId === item.id;
+    return (
+      <button
+        key={item.id}
+        type="button"
+        draggable={!mobile && running && !paused}
+        aria-pressed={selected}
+        aria-label={`${item.label} package moving on lane ${lane + 1}. ${selected ? "Selected." : "Drag it to a cargo bay."}`}
+        onClick={() => {
+          if (!mobile) selectPackage(item.id);
+        }}
+        onPointerDown={(event) => beginTouchDrag(event, item.id)}
+        onPointerMove={(event) => moveTouchDrag(event, item.id)}
+        onPointerUp={(event) => endTouchDrag(event, item.id)}
+        onPointerCancel={() => setTouchDrag(null)}
+        onDragStart={(event) => {
+          if (!running || paused) {
+            event.preventDefault();
+            return;
+          }
+          setSelectedPackageId(item.id);
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/cargo-package-id", String(item.id));
+        }}
+        style={{
+          position: "absolute",
+          ...(vertical
+            ? {
+                left: "50%",
+                bottom: `${item.x}%`,
+                transform: selected ? "translate(-50%, 50%) scale(1.04)" : "translate(-50%, 50%)",
+                width: "calc(100% - 10px)",
+                maxWidth: "88px",
+                minHeight: "54px",
+              }
+            : {
+                left: `${item.x}%`,
+                top: "50%",
+                transform: selected ? "translate(-50%, -50%) scale(1.035)" : "translate(-50%, -50%)",
+                width: dense ? "102px" : "110px",
+                minHeight: dense ? "48px" : "52px",
+              }),
+          borderRadius: vertical ? "12px" : "13px",
+          border: selected ? "1px solid rgba(255,214,111,0.9)" : "1px solid rgba(255,255,255,0.13)",
+          background: selected
+            ? "linear-gradient(145deg, rgba(64,55,29,0.98), rgba(17,21,31,0.99))"
+            : "linear-gradient(145deg, rgba(21,45,66,0.98), rgba(7,17,31,0.99))",
+          boxShadow: selected
+            ? "0 0 0 2px rgba(255,210,99,.08), 0 14px 28px rgba(0,0,0,.42), 0 0 22px rgba(255,198,67,.16)"
+            : "0 10px 20px rgba(0,0,0,0.34)",
+          padding: vertical ? "5px" : "6px 7px",
+          display: "grid",
+          gridTemplateColumns: vertical ? "1fr" : "34px minmax(0,1fr)",
+          justifyItems: vertical ? "center" : undefined,
+          alignItems: "center",
+          gap: vertical ? "2px" : "6px",
+          color: "white",
+          textAlign: vertical ? "center" : "left",
+          cursor: running && !paused ? (mobile ? "grab" : "grab") : "default",
+          pointerEvents: running && !paused ? "auto" : "none",
+          touchAction: mobile ? "none" : undefined,
+          userSelect: "none",
+          zIndex: selected ? 8 : 3,
+          willChange: vertical ? "bottom, transform" : "left, transform",
+          transition: "transform 110ms ease, border-color 110ms ease, box-shadow 110ms ease",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            width: vertical ? "34px" : "34px",
+            height: vertical ? "34px" : "34px",
+            borderRadius: "9px",
+            background: "radial-gradient(circle, rgba(117,224,255,.13), rgba(117,224,255,.02) 72%)",
+            display: "grid",
+            placeItems: "center",
+            overflow: "hidden",
+          }}
+        >
+          <img
+            src={item.image}
+            alt=""
+            draggable={false}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              pointerEvents: "none",
+              filter: "drop-shadow(0 5px 7px rgba(0,0,0,.34))",
+            }}
+          />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          {!vertical && (
+            <p style={{ margin: 0, color: "rgba(152,230,255,0.5)", fontSize: "6px", fontWeight: 950, letterSpacing: "0.07em" }}>
+              {selected ? "SELECTED" : "IN TRANSIT"}
+            </p>
+          )}
+          <p
+            style={{
+              margin: vertical ? "1px 0 0" : "2px 0 0",
+              maxWidth: "100%",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              fontSize: vertical ? "9px" : "10px",
+              fontWeight: 900,
+            }}
+          >
+            {item.label}
+          </p>
+        </div>
+      </button>
+    );
+  }
+
   const formattedTime = `00:${String(timeLeft).padStart(2, "0")}`;
 
   return (
@@ -463,8 +617,8 @@ export default function CargoRush({
       style={{
         position: "relative",
         width: "100%",
-        minHeight: mobile ? "760px" : "100%",
-        height: mobile ? "auto" : "100%",
+        minHeight: 0,
+        height: "100%",
         overflow: "hidden",
         borderRadius: mobile ? "14px" : "20px",
         border: "1px solid rgba(136,231,255,0.13)",
@@ -485,6 +639,10 @@ export default function CargoRush({
           from { background-position-x: 0; }
           to { background-position-x: 36px; }
         }
+        @keyframes cargoBeltMoveVertical {
+          from { background-position-y: 0; }
+          to { background-position-y: -36px; }
+        }
         @keyframes cargoRushFlash {
           0%, 100% { opacity: .18; }
           50% { opacity: .58; }
@@ -500,8 +658,12 @@ export default function CargoRush({
         }
         .cargo-rush-shell button { font-family: inherit; }
         .cargo-belt-track {
-          background-image: repeating-linear-gradient(90deg, rgba(149,227,255,.08) 0 16px, rgba(149,227,255,.015) 16px 32px);
+          background-image: repeating-linear-gradient(90deg, rgba(149,227,255,.08) 0 14px, rgba(149,227,255,.015) 14px 28px);
           animation: cargoBeltMove 1.8s linear infinite;
+        }
+        .cargo-belt-track-vertical {
+          background-image: repeating-linear-gradient(0deg, rgba(149,227,255,.08) 0 14px, rgba(149,227,255,.015) 14px 28px);
+          animation: cargoBeltMoveVertical 1.8s linear infinite;
         }
         .cargo-floor-grid {
           background-image:
@@ -562,27 +724,6 @@ export default function CargoRush({
         }}
       />
 
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          inset: mobile ? "72px 8px auto" : "74px 18px auto",
-          height: mobile ? "104px" : "128px",
-          borderRadius: "20px",
-          border: "1px dashed rgba(143,231,255,0.22)",
-          background:
-            "linear-gradient(135deg, rgba(20,95,126,0.09), rgba(84,65,155,0.08))",
-          display: "grid",
-          placeItems: "center",
-          color: "rgba(176,238,255,0.34)",
-          fontSize: mobile ? "8px" : "9px",
-          fontWeight: 900,
-          letterSpacing: "0.15em",
-          textTransform: "uppercase",
-        }}
-      >
-        Warehouse background PNG placeholder
-      </div>
 
       <div
         style={{
@@ -591,7 +732,9 @@ export default function CargoRush({
           minHeight: 0,
           height: "100%",
           display: "grid",
-          gridTemplateRows: "auto auto minmax(0, 1fr) auto",
+          gridTemplateRows: mobile
+            ? "auto auto auto minmax(0, 1fr) auto"
+            : "auto auto auto minmax(0, 1fr) auto",
           gap: mobile ? "8px" : dense ? "9px" : "12px",
           padding: mobile ? "9px" : dense ? "10px" : "13px",
         }}
@@ -829,7 +972,7 @@ export default function CargoRush({
 
         <div
           style={{
-            minHeight: mobile ? "430px" : 0,
+            minHeight: 0,
             display: "grid",
             gridTemplateRows: "minmax(0, 1fr) auto",
             gap: mobile ? "8px" : "10px",
@@ -843,8 +986,8 @@ export default function CargoRush({
               borderRadius: mobile ? "16px" : "22px",
               padding: mobile ? "9px" : dense ? "10px" : "13px",
               display: "grid",
-              gridTemplateRows: "auto repeat(3, minmax(0, 1fr))",
-              gap: mobile ? "6px" : "8px",
+              gridTemplateRows: "auto auto minmax(0, 1fr)",
+              gap: mobile ? "5px" : "7px",
               overflow: "hidden",
             }}
           >
@@ -910,404 +1053,259 @@ export default function CargoRush({
               </div>
             </div>
 
-            {routeFeedback && (
-              <div
-                role="status"
-                aria-live="polite"
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                minHeight: mobile ? "28px" : "30px",
+                borderRadius: "10px",
+                border: `1px solid ${
+                  routeFeedback?.tone === "correct"
+                    ? "rgba(112,240,176,.3)"
+                    : routeFeedback?.tone === "wrong"
+                      ? "rgba(255,103,120,.3)"
+                      : routeFeedback?.tone === "missed"
+                        ? "rgba(255,200,100,.3)"
+                        : "rgba(126,232,255,.12)"
+                }`,
+                background:
+                  routeFeedback?.tone === "correct"
+                    ? "rgba(19,75,57,.52)"
+                    : routeFeedback?.tone === "wrong"
+                      ? "rgba(82,26,35,.52)"
+                      : routeFeedback?.tone === "missed"
+                        ? "rgba(78,54,20,.52)"
+                        : "rgba(4,18,34,.58)",
+                padding: mobile ? "5px 8px" : "6px 10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "8px",
+                overflow: "hidden",
+              }}
+            >
+              <strong style={{ flex: "0 0 auto", color: routeFeedback ? "white" : "#9aebff", fontSize: mobile ? "8px" : "9px" }}>
+                {routeFeedback?.title ?? (mobile ? "Drag cargo down to a crate" : "Route cargo before it reaches the belt exit")}
+              </strong>
+              <span
                 style={{
-                  position: "absolute",
-                  left: mobile ? "10px" : "14px",
-                  right: mobile ? "10px" : "14px",
-                  top: mobile ? "47px" : "51px",
-                  zIndex: 20,
-                  minHeight: "36px",
-                  padding: "7px 10px",
-                  borderRadius: "11px",
-                  border: `1px solid ${
-                    routeFeedback.tone === "correct"
-                      ? "rgba(112,240,176,.34)"
-                      : routeFeedback.tone === "wrong"
-                        ? "rgba(255,103,120,.34)"
-                        : routeFeedback.tone === "missed"
-                          ? "rgba(255,200,100,.34)"
-                          : "rgba(126,232,255,.28)"
-                  }`,
-                  background:
-                    routeFeedback.tone === "correct"
-                      ? "rgba(19,75,57,.94)"
-                      : routeFeedback.tone === "wrong"
-                        ? "rgba(82,26,35,.94)"
-                        : routeFeedback.tone === "missed"
-                          ? "rgba(78,54,20,.94)"
-                          : "rgba(16,47,68,.94)",
-                  boxShadow: "0 10px 30px rgba(0,0,0,.3)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "10px",
-                  pointerEvents: "none",
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  color: "rgba(255,255,255,.55)",
+                  fontSize: mobile ? "7px" : "8px",
                 }}
               >
-                <strong style={{ fontSize: mobile ? "9px" : "10px" }}>{routeFeedback.title}</strong>
+                {routeFeedback?.detail ?? (mobile ? "Belts move upward · crates stay fixed below" : "Drag cargo directly into Food, Tech, Fashion or Energy")}
+              </span>
+              {finalTen && (
                 <span
                   style={{
-                    minWidth: 0,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    color: "rgba(255,255,255,.7)",
-                    fontSize: mobile ? "8px" : "9px",
+                    flex: "0 0 auto",
+                    padding: "3px 6px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(255,116,128,.4)",
+                    background: "rgba(88,19,30,.7)",
+                    color: "#ffdce0",
+                    fontSize: "7px",
+                    fontWeight: 950,
+                    letterSpacing: ".08em",
+                    animation: "cargoRushBadge .72s ease-in-out infinite",
                   }}
                 >
-                  {routeFeedback.detail}
+                  {timeLeft}s RUSH
                 </span>
-              </div>
-            )}
+              )}
+            </div>
 
-            {finalTen && (
+            {mobile ? (
               <div
-                aria-live="polite"
                 style={{
-                  position: "absolute",
-                  left: "50%",
-                  top: mobile ? "50px" : "54px",
-                  transform: "translateX(-50%)",
-                  zIndex: 18,
-                  padding: mobile ? "5px 9px" : "6px 12px",
-                  borderRadius: "999px",
-                  border: "1px solid rgba(255,116,128,.45)",
-                  background: "rgba(88,19,30,.88)",
-                  color: "#ffdce0",
-                  boxShadow: "0 0 28px rgba(255,70,90,.18)",
-                  fontSize: mobile ? "8px" : "9px",
-                  fontWeight: 950,
-                  letterSpacing: ".12em",
-                  whiteSpace: "nowrap",
-                  animation: "cargoRushBadge .72s ease-in-out infinite",
-                  pointerEvents: "none",
+                  minHeight: 0,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gap: "6px",
                 }}
               >
-                FINAL {timeLeft} · RUSH MODE
-              </div>
-            )}
-
-            {[0, 1, 2].map((lane) => {
-              const lanePackages = packages.filter((item) => item.lane === lane);
-
-              return (
-                <div
-                  key={lane}
-                  className="cargo-belt-track"
-                  style={{
-                    position: "relative",
-                    minHeight: mobile ? "80px" : dense ? "66px" : "76px",
-                    overflow: "hidden",
-                    borderRadius: mobile ? "12px" : "15px",
-                    border: "1px solid rgba(145,226,255,0.12)",
-                    backgroundColor: "rgba(1,9,20,0.76)",
-                    boxShadow:
-                      "inset 0 8px 22px rgba(0,0,0,0.35), inset 0 -2px 0 rgba(119,219,255,0.06)",
-                    animationPlayState: running && !paused ? "running" : "paused",
-                    animationDuration: `${rushStage.beltDuration}s`,
-                  }}
-                >
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: mobile ? "35px" : "42px",
-                      zIndex: 4,
-                      borderRight: "1px solid rgba(146,231,255,0.1)",
-                      background: "rgba(6,22,40,0.92)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "rgba(180,239,255,0.38)",
-                      fontSize: "8px",
-                      fontWeight: 950,
-                      writingMode: mobile ? "vertical-rl" : undefined,
-                    }}
-                  >
-                    L{lane + 1}
-                  </div>
-
-                  {lanePackages.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      draggable={!mobile && running && !paused}
-                      aria-pressed={selectedPackageId === item.id}
-                      aria-label={`${item.label} package moving on lane ${lane + 1}. ${selectedPackageId === item.id ? "Selected." : "Tap to select."}`}
-                      onClick={() => selectPackage(item.id)}
-                      onDragStart={(event) => {
-                        if (!running || paused) {
-                          event.preventDefault();
-                          return;
-                        }
-                        setSelectedPackageId(item.id);
-                        event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/cargo-package-id", String(item.id));
-                      }}
+                {[0, 1, 2].map((lane) => {
+                  const lanePackages = packages.filter((item) => item.lane === lane);
+                  return (
+                    <div
+                      key={lane}
+                      className="cargo-belt-track-vertical"
                       style={{
-                        position: "absolute",
-                        left: `${item.x}%`,
-                        top: "50%",
-                        transform: selectedPackageId === item.id
-                          ? "translate(-50%, -50%) scale(1.035)"
-                          : "translate(-50%, -50%)",
-                        width: mobile ? "104px" : dense ? "118px" : "136px",
-                        minHeight: mobile ? "54px" : "58px",
-                        borderRadius: "13px",
-                        border: selectedPackageId === item.id
-                          ? "1px solid rgba(255,214,111,0.82)"
-                          : "1px solid rgba(255,255,255,0.13)",
-                        background: selectedPackageId === item.id
-                          ? "linear-gradient(145deg, rgba(64,55,29,0.98), rgba(17,21,31,0.99))"
-                          : "linear-gradient(145deg, rgba(21,45,66,0.98), rgba(7,17,31,0.99))",
-                        boxShadow: selectedPackageId === item.id
-                          ? "0 0 0 2px rgba(255,210,99,.08), 0 15px 32px rgba(0,0,0,.38), 0 0 24px rgba(255,198,67,.16)"
-                          : "0 12px 24px rgba(0,0,0,0.32)",
-                        padding: mobile ? "6px 7px" : "8px 9px",
-                        display: "grid",
-                        gridTemplateColumns: mobile ? "34px minmax(0,1fr)" : "42px minmax(0,1fr)",
-                        alignItems: "center",
-                        gap: mobile ? "6px" : "8px",
-                        color: "white",
-                        textAlign: "left",
-                        cursor: running && !paused ? (mobile ? "pointer" : "grab") : "default",
-                        pointerEvents: running && !paused ? "auto" : "none",
-                        zIndex: selectedPackageId === item.id ? 6 : 2,
-                        willChange: "left, transform",
-                        transition: "transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
+                        position: "relative",
+                        minWidth: 0,
+                        minHeight: 0,
+                        height: "100%",
+                        overflow: "hidden",
+                        borderRadius: "12px",
+                        border: "1px solid rgba(145,226,255,0.13)",
+                        backgroundColor: "rgba(1,9,20,0.78)",
+                        boxShadow: "inset 0 8px 22px rgba(0,0,0,.38), inset 0 0 0 1px rgba(119,219,255,.025)",
+                        animationPlayState: running && !paused ? "running" : "paused",
+                        animationDuration: `${rushStage.beltDuration}s`,
                       }}
                     >
                       <div
-                        aria-hidden="true"
                         style={{
-                          width: mobile ? "34px" : "42px",
-                          height: mobile ? "34px" : "42px",
-                          borderRadius: "10px",
-                          background: "radial-gradient(circle, rgba(117,224,255,.12), rgba(117,224,255,.02) 72%)",
-                          display: "grid",
-                          placeItems: "center",
-                          overflow: "hidden",
+                          position: "absolute",
+                          left: "50%",
+                          top: "5px",
+                          transform: "translateX(-50%)",
+                          zIndex: 10,
+                          padding: "3px 6px",
+                          borderRadius: "999px",
+                          background: "rgba(5,21,38,.9)",
+                          color: "rgba(180,239,255,.52)",
+                          fontSize: "7px",
+                          fontWeight: 950,
                         }}
                       >
-                        <img
-                          src={item.image}
-                          alt=""
-                          draggable={false}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "contain",
-                            pointerEvents: "none",
-                            filter: "drop-shadow(0 5px 7px rgba(0,0,0,.34))",
-                          }}
-                        />
+                        L{lane + 1} ↑
                       </div>
-
-                      <div style={{ minWidth: 0 }}>
-                        <p
-                          style={{
-                            margin: 0,
-                            color: "rgba(152,230,255,0.52)",
-                            fontSize: "7px",
-                            fontWeight: 950,
-                            letterSpacing: "0.08em",
-                          }}
-                        >
-                          {selectedPackageId === item.id ? "SELECTED" : "IN TRANSIT"}
-                        </p>
-                        <p
-                          style={{
-                            margin: "2px 0 0",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            fontSize: mobile ? "10px" : "12px",
-                            fontWeight: 900,
-                          }}
-                        >
-                          {item.label}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-
-                  {!running && lanePackages.length === 0 && (
+                      {lanePackages.map((item) => renderPackage(item, lane, true))}
+                      {!running && lanePackages.length === 0 && (
+                        <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "rgba(160,229,255,.22)", fontSize: "7px", fontWeight: 900, writingMode: "vertical-rl", letterSpacing: ".08em" }}>
+                          AWAITING CARGO
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div
+                style={{
+                  minHeight: 0,
+                  display: "grid",
+                  gridTemplateRows: "repeat(3, minmax(0, 1fr))",
+                  gap: "7px",
+                }}
+              >
+                {[0, 1, 2].map((lane) => {
+                  const lanePackages = packages.filter((item) => item.lane === lane);
+                  return (
                     <div
+                      key={lane}
+                      className="cargo-belt-track"
                       style={{
-                        position: "absolute",
-                        left: "50%",
-                        top: "50%",
-                        transform: "translate(-50%, -50%)",
-                        color: "rgba(160,229,255,0.24)",
-                        fontSize: mobile ? "8px" : "9px",
-                        fontWeight: 900,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
+                        position: "relative",
+                        minHeight: dense ? "54px" : "60px",
+                        overflow: "hidden",
+                        borderRadius: "13px",
+                        border: "1px solid rgba(145,226,255,0.12)",
+                        backgroundColor: "rgba(1,9,20,0.76)",
+                        boxShadow: "inset 0 8px 22px rgba(0,0,0,0.35), inset 0 -2px 0 rgba(119,219,255,0.06)",
+                        animationPlayState: running && !paused ? "running" : "paused",
+                        animationDuration: `${rushStage.beltDuration}s`,
                       }}
                     >
-                      Awaiting cargo
+                      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "34px", zIndex: 5, borderRight: "1px solid rgba(146,231,255,0.1)", background: "rgba(6,22,40,0.92)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(180,239,255,0.4)", fontSize: "7px", fontWeight: 950 }}>
+                        L{lane + 1}
+                      </div>
+                      {lanePackages.map((item) => renderPackage(item, lane, false))}
+                      {!running && lanePackages.length === 0 && (
+                        <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", color: "rgba(160,229,255,.22)", fontSize: "8px", fontWeight: 900, letterSpacing: ".08em" }}>
+                          AWAITING CARGO
+                        </div>
+                      )}
+                      <div aria-hidden="true" style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "rgba(137,232,255,.28)", fontSize: "19px", zIndex: 3 }}>→</div>
                     </div>
-                  )}
-
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      position: "absolute",
-                      right: mobile ? "10px" : "16px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      color: "rgba(137,232,255,0.3)",
-                      fontSize: mobile ? "18px" : "24px",
-                      fontWeight: 400,
-                      zIndex: 3,
-                    }}
-                  >
-                    →
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div
             style={{
               display: "grid",
               gridTemplateColumns: bayColumns,
-              gap: mobile ? "6px" : "8px",
+              gap: mobile ? "5px" : "7px",
             }}
           >
             {CARGO_BAYS.map((bay) => {
               const pulse = bayPulse?.id === bay.id ? bayPulse.tone : null;
               return (
-              <button
-                key={bay.id}
-                type="button"
-                onClick={() => routeSelectedToBay(bay.id)}
-                onDragOver={(event) => {
-                  if (running && !paused) {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                  }
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  const rawId = event.dataTransfer.getData("text/cargo-package-id");
-                  const packageId = Number(rawId);
-                  if (Number.isFinite(packageId)) routePackageToBay(packageId, bay.id);
-                }}
-                aria-label={`Route selected cargo to ${bay.title} bay`}
-                style={{
-                  position: "relative",
-                  minHeight: mobile ? "82px" : dense ? "78px" : "88px",
-                  overflow: "hidden",
-                  borderRadius: mobile ? "13px" : "17px",
-                  border: pulse === "correct"
-                    ? "1px solid rgba(112,240,176,.86)"
-                    : pulse === "wrong"
-                      ? "1px solid rgba(255,104,119,.86)"
-                      : `1px solid ${bay.accent}33`,
-                  background: pulse === "correct"
-                    ? "linear-gradient(180deg, rgba(25,79,61,.98), rgba(5,26,23,.98))"
-                    : pulse === "wrong"
-                      ? "linear-gradient(180deg, rgba(88,30,39,.98), rgba(30,9,16,.98))"
-                      : "linear-gradient(180deg, rgba(11,27,43,0.94), rgba(5,12,27,0.98))",
-                  boxShadow: pulse === "correct"
-                    ? "0 0 28px rgba(112,240,176,.23), inset 0 0 30px rgba(112,240,176,.09)"
-                    : pulse === "wrong"
-                      ? "0 0 28px rgba(255,104,119,.2), inset 0 0 30px rgba(255,104,119,.08)"
-                      : `inset 0 0 30px ${bay.accent}0d, 0 12px 28px rgba(0,0,0,.18)`,
-                  padding: mobile ? "9px" : "10px 11px",
-                  color: "white",
-                  textAlign: "left",
-                  cursor: running && !paused ? "pointer" : "default",
-                  transform: pulse ? "translateY(-2px) scale(1.015)" : "none",
-                  animation: pulse === "wrong" ? "cargoWrongShake 180ms ease-in-out 2" : undefined,
-                  transition: "transform 150ms ease, border-color 150ms ease, background 150ms ease, box-shadow 150ms ease",
-                }}
-              >
-                <div
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    height: "3px",
-                    background: bay.accent,
-                    opacity: 0.7,
+                <button
+                  key={bay.id}
+                  data-cargo-bay={bay.id}
+                  type="button"
+                  onClick={() => {
+                    if (!mobile) routeSelectedToBay(bay.id);
                   }}
-                />
-                <div
+                  onDragOver={(event) => {
+                    if (running && !paused) {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                    }
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const rawId = event.dataTransfer.getData("text/cargo-package-id");
+                    const packageId = Number(rawId);
+                    if (Number.isFinite(packageId)) routePackageToBay(packageId, bay.id);
+                  }}
+                  aria-label={`Route cargo to ${bay.title} crate`}
                   style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    gap: "7px",
+                    position: "relative",
+                    minHeight: mobile ? "62px" : dense ? "66px" : "72px",
+                    overflow: "hidden",
+                    borderRadius: mobile ? "12px" : "15px",
+                    border:
+                      pulse === "correct"
+                        ? "1px solid rgba(112,240,176,.86)"
+                        : pulse === "wrong"
+                          ? "1px solid rgba(255,104,119,.86)"
+                          : `1px solid ${bay.accent}38`,
+                    background:
+                      pulse === "correct"
+                        ? "linear-gradient(180deg, rgba(25,79,61,.98), rgba(5,26,23,.98))"
+                        : pulse === "wrong"
+                          ? "linear-gradient(180deg, rgba(88,30,39,.98), rgba(30,9,16,.98))"
+                          : "linear-gradient(180deg, rgba(11,27,43,.96), rgba(5,12,27,.99))",
+                    boxShadow:
+                      pulse === "correct"
+                        ? "0 0 24px rgba(112,240,176,.22), inset 0 0 24px rgba(112,240,176,.08)"
+                        : pulse === "wrong"
+                          ? "0 0 24px rgba(255,104,119,.2), inset 0 0 24px rgba(255,104,119,.08)"
+                          : `inset 0 0 24px ${bay.accent}0d, 0 9px 22px rgba(0,0,0,.18)`,
+                    padding: mobile ? "5px 7px" : "6px 9px",
+                    color: "white",
+                    textAlign: "left",
+                    cursor: running && !paused ? "pointer" : "default",
+                    transform: pulse ? "translateY(-1px) scale(1.01)" : "none",
+                    animation: pulse === "wrong" ? "cargoWrongShake 180ms ease-in-out 2" : undefined,
+                    transition: "transform 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease",
                   }}
                 >
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      width: mobile ? "48px" : "56px",
-                      height: mobile ? "48px" : "56px",
-                      flex: "0 0 auto",
-                      display: "grid",
-                      placeItems: "center",
-                    }}
-                  >
+                  <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "3px", background: bay.accent, opacity: .72 }} />
+                  <div style={{ height: "100%", display: "flex", alignItems: "center", gap: mobile ? "6px" : "8px" }}>
                     <img
                       src={bay.image}
                       alt=""
                       draggable={false}
                       style={{
-                        width: "100%",
-                        height: "100%",
+                        width: mobile ? "46px" : dense ? "48px" : "54px",
+                        height: mobile ? "46px" : dense ? "48px" : "54px",
+                        flex: "0 0 auto",
                         objectFit: "contain",
                         pointerEvents: "none",
-                        filter: "drop-shadow(0 8px 9px rgba(0,0,0,.38))",
+                        filter: "drop-shadow(0 7px 8px rgba(0,0,0,.38))",
                       }}
                     />
+                    <div style={{ minWidth: 0 }}>
+                      <strong style={{ display: "block", color: "white", fontSize: mobile ? "11px" : "12px", lineHeight: 1.05 }}>
+                        {bay.title}
+                      </strong>
+                      <span style={{ display: "block", marginTop: "3px", color: `${bay.accent}b8`, fontSize: mobile ? "7px" : "7px", fontWeight: 900, letterSpacing: ".06em" }}>
+                        {mobile ? "DROP HERE" : bay.code}
+                      </span>
+                    </div>
                   </div>
-                  <span
-                    style={{
-                      color: `${bay.accent}bb`,
-                      fontSize: "7px",
-                      fontWeight: 950,
-                      letterSpacing: "0.08em",
-                    }}
-                  >
-                    {bay.code}
-                  </span>
-                </div>
-                <p
-                  style={{
-                    margin: "7px 0 0",
-                    color: "white",
-                    fontSize: mobile ? "12px" : "13px",
-                    fontWeight: 950,
-                    lineHeight: 1,
-                  }}
-                >
-                  {bay.title}
-                </p>
-                {!veryCompact && (
-                  <p
-                    style={{
-                      margin: "4px 0 0",
-                      color: "rgba(255,255,255,0.33)",
-                      fontSize: "8px",
-                    }}
-                  >
-                    {bay.hint}
-                  </p>
-                )}
-              </button>
+                </button>
               );
             })}
           </div>
@@ -1334,7 +1332,7 @@ export default function CargoRush({
                 fontWeight: 850,
               }}
             >
-              Tap a package, then tap its correct bay. On desktop, you can also drag cargo directly into a bay.
+              {mobile ? "Drag each package back down into its correct crate." : "Drag each package into its correct cargo crate before it reaches the belt exit."}
             </p>
             {!mobile && (
               <p
@@ -1372,6 +1370,72 @@ export default function CargoRush({
           </button>
         </div>
       </div>
+
+      {mobile && touchDrag && draggedCargo && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            left: touchDrag.x,
+            top: touchDrag.y,
+            zIndex: 120,
+            width: "72px",
+            minHeight: "62px",
+            transform: "translate(-50%, -50%) scale(1.06)",
+            pointerEvents: "none",
+            borderRadius: "13px",
+            border: "1px solid rgba(255,220,128,.8)",
+            background: "rgba(8,20,34,.96)",
+            boxShadow: "0 14px 34px rgba(0,0,0,.48), 0 0 24px rgba(255,207,88,.18)",
+            padding: "5px",
+            display: "grid",
+            placeItems: "center",
+          }}
+        >
+          <img src={draggedCargo.image} alt="" style={{ width: "38px", height: "38px", objectFit: "contain" }} />
+          <strong style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "8px" }}>{draggedCargo.label}</strong>
+        </div>
+      )}
+
+      {phoneLandscape && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 140,
+            display: "grid",
+            placeItems: "center",
+            padding: "18px",
+            background: "rgba(1,6,15,.94)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+          }}
+        >
+          <div style={{ width: "min(420px, 100%)", textAlign: "center" }}>
+            <div
+              aria-hidden="true"
+              style={{
+                width: "54px",
+                height: "86px",
+                margin: "0 auto",
+                borderRadius: "12px",
+                border: "3px solid #8ee8ff",
+                boxShadow: "0 0 28px rgba(126,232,255,.16)",
+                position: "relative",
+              }}
+            >
+              <div style={{ position: "absolute", left: "50%", bottom: "5px", width: "12px", height: "3px", borderRadius: "999px", transform: "translateX(-50%)", background: "#8ee8ff" }} />
+            </div>
+            <p style={{ margin: "14px 0 0", color: "#8ee8ff", fontSize: "9px", fontWeight: 950, letterSpacing: ".16em", textTransform: "uppercase" }}>Portrait mode</p>
+            <h3 style={{ margin: "7px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "28px", fontWeight: 400 }}>
+              Turn your phone upright
+            </h3>
+            <p style={{ margin: "9px auto 0", maxWidth: "330px", color: "rgba(255,255,255,.58)", fontSize: "11px", lineHeight: 1.5 }}>
+              Cargo Rush uses vertical conveyor belts on mobile. Keep your phone in portrait and drag packages back down into the four crates.
+            </p>
+          </div>
+        </div>
+      )}
 
       {(showInstructions || showPreviewNotice) && (
         <div
@@ -1650,9 +1714,9 @@ export default function CargoRush({
                   }}
                 >
                   {[
-                    ["1", "Watch the lanes", "Packages enter automatically on three live conveyor lanes."],
-                    ["2", "Select the cargo", "Tap a moving package. On desktop, you can also drag it directly."],
-                    ["3", "Choose the bay", "Send each item to Food, Tech, Fashion or Energy. Wrong bays reject the package."],
+                    ["1", "Watch the lanes", mobile ? "Packages rise upward on three vertical conveyor belts." : "Packages enter automatically on three live conveyor lanes."],
+                    ["2", "Grab the cargo", mobile ? "Press and drag a moving package back toward the crates below." : "Drag a moving package directly toward its destination crate."],
+                    ["3", "Choose the crate", "Send each item to Food, Tech, Fashion or Energy. Wrong crates reject the package."],
                     ["4", "Do not miss it", "Cargo that reaches the end counts as missed. The warehouse gets faster every 15 seconds, ending in Rush mode."],
                   ].map(([num, title, body]) => (
                     <div
