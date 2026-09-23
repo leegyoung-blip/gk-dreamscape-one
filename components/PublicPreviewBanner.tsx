@@ -103,7 +103,7 @@ export default function PublicPreviewBanner() {
             whiteSpace: isMobile ? "normal" : "nowrap",
           }}
         >
-          Public Preview · Until 1 October
+          Public Preview · Until 15 October
         </p>
       </div>
 

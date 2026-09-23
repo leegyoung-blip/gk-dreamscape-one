@@ -90,10 +90,10 @@ type RushStage = {
 };
 
 const RUSH_STAGES: RushStage[] = [
-  { key: "calm", label: "CALM", spawnEvery: 1.25, speedMultiplier: 1, beltDuration: 1.8, accent: "#8ee8ff" },
-  { key: "busy", label: "BUSY", spawnEvery: 1.02, speedMultiplier: 1.13, beltDuration: 1.42, accent: "#8ff0c1" },
-  { key: "fast", label: "FAST", spawnEvery: 0.82, speedMultiplier: 1.3, beltDuration: 1.08, accent: "#ffd66f" },
-  { key: "rush", label: "RUSH", spawnEvery: 0.64, speedMultiplier: 1.5, beltDuration: 0.76, accent: "#ff8b95" },
+  { key: "calm", label: "CALM", spawnEvery: 1.55, speedMultiplier: 0.92, beltDuration: 2.15, accent: "#8ee8ff" },
+  { key: "busy", label: "BUSY", spawnEvery: 1.34, speedMultiplier: 1.0, beltDuration: 1.9, accent: "#8ff0c1" },
+  { key: "fast", label: "FAST", spawnEvery: 1.14, speedMultiplier: 1.1, beltDuration: 1.62, accent: "#ffd66f" },
+  { key: "rush", label: "RUSH", spawnEvery: 0.98, speedMultiplier: 1.22, beltDuration: 1.34, accent: "#ff8b95" },
 ];
 
 const PACKAGE_CATALOG: Array<{ label: string; category: CargoCategory; image: string }> = [
@@ -243,7 +243,7 @@ export default function CargoRush({
           const lane = lanes.find(
             (candidate) =>
               !moved.some(
-                (item) => item.status === "active" && item.lane === candidate && item.x < 28,
+                (item) => item.status === "active" && item.lane === candidate && item.x < 38,
               ),
           );
 
@@ -256,7 +256,7 @@ export default function CargoRush({
               image: cargo.image,
               lane,
               x: 10,
-              speed: 8.5 + Math.random() * 2.5,
+              speed: 6.1 + Math.random() * 1.6,
               status: "active",
             });
           }
@@ -523,88 +523,45 @@ export default function CargoRush({
             ? {
                 left: "50%",
                 bottom: `${item.x}%`,
-                transform: selected ? "translate(-50%, 50%) scale(1.04)" : "translate(-50%, 50%)",
-                width: "calc(100% - 10px)",
-                maxWidth: "88px",
-                minHeight: "54px",
+                transform: selected ? "translate(-50%, 50%) scale(1.08)" : "translate(-50%, 50%)",
+                width: "60px",
+                height: "60px",
               }
             : {
                 left: `${item.x}%`,
                 top: "50%",
-                transform: selected ? "translate(-50%, -50%) scale(1.035)" : "translate(-50%, -50%)",
-                width: dense ? "102px" : "110px",
-                minHeight: dense ? "48px" : "52px",
+                transform: selected ? "translate(-50%, -50%) scale(1.08)" : "translate(-50%, -50%)",
+                width: dense ? "54px" : "58px",
+                height: dense ? "54px" : "58px",
               }),
-          borderRadius: vertical ? "12px" : "13px",
-          border: selected ? "1px solid rgba(255,214,111,0.9)" : "1px solid rgba(255,255,255,0.13)",
-          background: selected
-            ? "linear-gradient(145deg, rgba(64,55,29,0.98), rgba(17,21,31,0.99))"
-            : "linear-gradient(145deg, rgba(21,45,66,0.98), rgba(7,17,31,0.99))",
-          boxShadow: selected
-            ? "0 0 0 2px rgba(255,210,99,.08), 0 14px 28px rgba(0,0,0,.42), 0 0 22px rgba(255,198,67,.16)"
-            : "0 10px 20px rgba(0,0,0,0.34)",
-          padding: vertical ? "5px" : "6px 7px",
+          border: "none",
+          outline: "none",
+          background: "transparent",
+          boxShadow: selected ? "0 0 24px rgba(126,232,255,.34)" : "none",
+          padding: 0,
           display: "grid",
-          gridTemplateColumns: vertical ? "1fr" : "34px minmax(0,1fr)",
-          justifyItems: vertical ? "center" : undefined,
-          alignItems: "center",
-          gap: vertical ? "2px" : "6px",
-          color: "white",
-          textAlign: vertical ? "center" : "left",
-          cursor: running && !paused ? (mobile ? "grab" : "grab") : "default",
+          placeItems: "center",
+          cursor: running && !paused ? "grab" : "default",
           pointerEvents: running && !paused ? "auto" : "none",
           touchAction: mobile ? "none" : undefined,
           userSelect: "none",
           zIndex: selected ? 8 : 3,
           willChange: vertical ? "bottom, transform" : "left, transform",
-          transition: "transform 110ms ease, border-color 110ms ease, box-shadow 110ms ease",
+          transition: "transform 110ms ease, box-shadow 110ms ease, filter 110ms ease",
+          filter: selected ? "drop-shadow(0 8px 14px rgba(0,0,0,.34))" : "drop-shadow(0 6px 11px rgba(0,0,0,.32))",
         }}
       >
-        <div
-          aria-hidden="true"
+        <img
+          src={item.image}
+          alt=""
+          draggable={false}
           style={{
-            width: vertical ? "34px" : "34px",
-            height: vertical ? "34px" : "34px",
-            borderRadius: "9px",
-            background: "radial-gradient(circle, rgba(117,224,255,.13), rgba(117,224,255,.02) 72%)",
-            display: "grid",
-            placeItems: "center",
-            overflow: "hidden",
+            width: vertical ? "52px" : dense ? "46px" : "50px",
+            height: vertical ? "52px" : dense ? "46px" : "50px",
+            objectFit: "contain",
+            pointerEvents: "none",
           }}
-        >
-          <img
-            src={item.image}
-            alt=""
-            draggable={false}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              pointerEvents: "none",
-              filter: "drop-shadow(0 5px 7px rgba(0,0,0,.34))",
-            }}
-          />
-        </div>
-        <div style={{ minWidth: 0 }}>
-          {!vertical && (
-            <p style={{ margin: 0, color: "rgba(152,230,255,0.5)", fontSize: "6px", fontWeight: 950, letterSpacing: "0.07em" }}>
-              {selected ? "SELECTED" : "IN TRANSIT"}
-            </p>
-          )}
-          <p
-            style={{
-              margin: vertical ? "1px 0 0" : "2px 0 0",
-              maxWidth: "100%",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              fontSize: vertical ? "9px" : "10px",
-              fontWeight: 900,
-            }}
-          >
-            {item.label}
-          </p>
-        </div>
+        />
       </button>
     );
   }
