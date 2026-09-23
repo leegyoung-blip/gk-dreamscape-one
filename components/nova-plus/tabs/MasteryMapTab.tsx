@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent } from "react";
 import type {
   CurriculumConcept,
   NovaPlusProfilePayload,
@@ -12,6 +13,13 @@ import {
   SUBJECT_META,
 } from "@/lib/nova-plus/helpers";
 import { useNovaSchoolworkEvidence } from "@/hooks/useNovaSchoolworkEvidence";
+import { useNovaTeachingEvidence } from "@/hooks/useNovaTeachingEvidence";
+import { teachingConceptMapKey } from "@/lib/nova-plus/teaching-evidence";
+import MasteryOrbit, {
+  type MasteryOrbitState,
+  type MasteryOrbitTopic,
+} from "@/components/nova-plus/mastery/MasteryOrbit";
+import MasteryConceptDetail from "@/components/nova-plus/mastery/MasteryConceptDetail";
 import styles from "./MasteryMapTab.module.css";
 
 type Props = {
@@ -22,20 +30,9 @@ type Props = {
 
 type AcademicSubject = "english" | "math" | "science";
 type LiveAcademicSubject = "english" | "math";
-type MapState = "strong" | "developing" | "attention" | "unknown";
+type MapState = MasteryOrbitState;
 
-type TopicGroup = {
-  key: string;
-  domain: string;
-  topic: string;
-  concepts: CurriculumConcept[];
-  state: MapState;
-  strong: number;
-  developing: number;
-  attention: number;
-  unknown: number;
-  assessed: number;
-};
+type TopicGroup = MasteryOrbitTopic;
 
 type SubjectSummary = {
   subject: AcademicSubject;
@@ -130,25 +127,25 @@ const STATE_META: Record<
   strong: {
     label: "Strong",
     colour: "#4de2a1",
-    soft: "rgba(77,226,161,.08)",
+    soft: "rgba(77,226,161,.09)",
     border: "rgba(77,226,161,.28)",
   },
   developing: {
     label: "Developing",
     colour: "#ffae57",
-    soft: "rgba(255,174,87,.08)",
+    soft: "rgba(255,174,87,.09)",
     border: "rgba(255,174,87,.28)",
   },
   attention: {
     label: "Needs Attention",
     colour: "#ff6c72",
-    soft: "rgba(255,108,114,.08)",
+    soft: "rgba(255,108,114,.09)",
     border: "rgba(255,108,114,.3)",
   },
   unknown: {
     label: "Not Yet Assessed",
     colour: "#8999ad",
-    soft: "rgba(137,153,173,.07)",
+    soft: "rgba(137,153,173,.075)",
     border: "rgba(137,153,173,.19)",
   },
 };
@@ -214,40 +211,6 @@ function topicState(concepts: CurriculumConcept[]): MapState {
   return "developing";
 }
 
-function formatDate(value: string | null) {
-  if (!value) return "Not practised yet";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not practised yet";
-
-  return new Intl.DateTimeFormat("en-SG", {
-    timeZone: "Asia/Singapore",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date);
-}
-
-function parentFriendlyExplanation(concept: CurriculumConcept) {
-  const supplied = String(concept.public_explanation || "").trim();
-  if (supplied) return supplied;
-
-  const name = String(concept.skill_name || "this concept").trim();
-  const verbLed = /^(identify|recognise|recognize|use|retrieve|answer|compare|order|represent|solve|add|subtract|multiply|divide|read|write|interpret|explain|apply|find|measure|estimate|classify|describe|infer|sequence|distinguish|calculate|convert|complete|choose|determine|construct|name|match|count|arrange|reason|understand|connect|express|simplify|partition|continue|compose)\b/i.test(
-    name,
-  );
-
-  if (verbLed) {
-    return `This checks whether the learner can ${name.charAt(0).toLowerCase()}${name.slice(1)} accurately and independently.`;
-  }
-
-  return `This checks the learner's understanding and application of ${name.toLowerCase()}.`;
-}
-
-function teacherPrompt(concept: CurriculumConcept) {
-  const name = String(concept.skill_name || "this concept").trim();
-  return `You can ask the teacher: “How is the learner doing with ${name} in class? Can they apply it independently and consistently?”`;
-}
-
 function inferCurrentLevel(
   concepts: CurriculumConcept[],
   profile: NovaPlusProfilePayload,
@@ -270,8 +233,8 @@ function inferCurrentLevel(
   );
   if (canonicalRanked[0]) return canonicalRanked[0][0];
 
-  // Fallback only for choosing the learner's likely level. These rows are never
-  // displayed as Mastery Map concepts.
+  // Fallback only for choosing the learner's likely level. These rows never
+  // appear as Mastery Map concepts.
   const historicEvidence = new Map<number, number>();
 
   for (const skill of profile.skills) {
@@ -380,6 +343,8 @@ export default function MasteryMapTab({
   onOpenRecommendations,
 }: Props) {
   const schoolworkEvidence = useNovaSchoolworkEvidence(learnerId);
+  const teachingEvidence = useNovaTeachingEvidence(learnerId);
+
   const curriculumConcepts = useMemo(
     () => (profile.curriculum_concepts ?? []).filter(isCanonicalMapConcept),
     [profile.curriculum_concepts],
@@ -404,17 +369,15 @@ export default function MasteryMapTab({
 
   const [selectedLevel, setSelectedLevel] = useState(inferredLevel);
   const [subject, setSubject] = useState<LiveAcademicSubject>("english");
-  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
+  const [selectedTopicKey, setSelectedTopicKey] = useState<string | null>(null);
   const [selectedConcept, setSelectedConcept] =
     useState<CurriculumConcept | null>(null);
-  const [openInfoId, setOpenInfoId] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedLevel(inferredLevel);
     setSubject("english");
-    setExpandedTopics(new Set());
+    setSelectedTopicKey(null);
     setSelectedConcept(null);
-    setOpenInfoId(null);
   }, [profile.student_user_id, inferredLevel]);
 
   const levelConcepts = useMemo(
@@ -465,16 +428,39 @@ export default function MasteryMapTab({
     [visibleConcepts, subject, selectedLevel],
   );
 
+  useEffect(() => {
+    if (
+      selectedTopicKey &&
+      !topics.some((topic) => topic.key === selectedTopicKey)
+    ) {
+      setSelectedTopicKey(null);
+      setSelectedConcept(null);
+    }
+  }, [selectedTopicKey, topics]);
+
   const currentSummary = subjectSummaries.find((row) => row.subject === subject);
   const subjectMeta = SUBJECT_META[subject as NovaSubjectKey];
 
-  function toggleTopic(key: string) {
-    setExpandedTopics((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  function teachingSignalsForConcept(concept: CurriculumConcept) {
+    const key = teachingConceptMapKey(concept.subject, concept.skill_code);
+    return key ? teachingEvidence.byConceptKey.get(key) || [] : [];
+  }
+
+  function selectTopic(topicKey: string | null) {
+    setSelectedTopicKey(topicKey);
+    setSelectedConcept(null);
+  }
+
+  function selectConcept(concept: CurriculumConcept | null) {
+    setSelectedConcept(concept);
+  }
+
+  function stepBack() {
+    if (selectedConcept) {
+      setSelectedConcept(null);
+      return;
+    }
+    if (selectedTopicKey) setSelectedTopicKey(null);
   }
 
   if (curriculumConcepts.length === 0) {
@@ -495,11 +481,11 @@ export default function MasteryMapTab({
       <section className={styles.introCard}>
         <div>
           <span className={styles.eyebrow}>MASTERY MAP</span>
-          <h2>See the curriculum. See what is secure. See what comes next.</h2>
+          <h2>Explore the curriculum as a live mastery orbit.</h2>
           <p>
-            English and Mathematics use the canonical concept map. Grey concepts
-            are part of the curriculum but have not been assessed yet. Science
-            remains locked until its assessment mapping is released.
+            Topic sectors show the learner&apos;s curriculum picture at a glance.
+            Select a topic to reveal its concepts; select a concept for detailed
+            mastery, schoolwork and Teaching Engine evidence.
           </p>
         </div>
 
@@ -508,11 +494,10 @@ export default function MasteryMapTab({
             <span>Primary level</span>
             <select
               value={selectedLevel}
-              onChange={(event) => {
+              onChange={(event: ChangeEvent<HTMLSelectElement>) => {
                 setSelectedLevel(Number(event.target.value));
-                setExpandedTopics(new Set());
+                setSelectedTopicKey(null);
                 setSelectedConcept(null);
-                setOpenInfoId(null);
               }}
             >
               {availableLevels.map((level) => (
@@ -567,9 +552,8 @@ export default function MasteryMapTab({
               className={active ? styles.subjectActive : styles.subjectButton}
               onClick={() => {
                 setSubject(summary.subject as LiveAcademicSubject);
-                setExpandedTopics(new Set());
+                setSelectedTopicKey(null);
                 setSelectedConcept(null);
-                setOpenInfoId(null);
               }}
             >
               <span className={styles.subjectIcon}>{meta.icon}</span>
@@ -596,285 +580,70 @@ export default function MasteryMapTab({
             <span className={styles.eyebrow}>
               PRIMARY {selectedLevel} · {subjectMeta.label.toUpperCase()}
             </span>
-            <h3>{subjectMeta.label} curriculum pathway</h3>
+            <h3>{subjectMeta.label} curriculum orbit</h3>
             <p>
-              Open a topic to see every canonical concept inside it. Status comes
-              from recorded learner evidence; untouched concepts stay grey.
+              Sector colour follows mastery status. The segmented rim shows the
+              actual concept mix, so one weak concept does not visually make an
+              entire topic look weak.
             </p>
           </div>
 
           <div className={styles.mapTotals}>
-            <span>
-              <b>{currentSummary?.strong ?? 0}</b> Strong
-            </span>
-            <span>
-              <b>{currentSummary?.developing ?? 0}</b> Developing
-            </span>
-            <span>
-              <b>{currentSummary?.attention ?? 0}</b> Needs attention
-            </span>
-            <span>
-              <b>{currentSummary?.unknown ?? 0}</b> Not assessed
-            </span>
+            <span><b>{currentSummary?.strong ?? 0}</b> Strong</span>
+            <span><b>{currentSummary?.developing ?? 0}</b> Developing</span>
+            <span><b>{currentSummary?.attention ?? 0}</b> Needs attention</span>
+            <span><b>{currentSummary?.unknown ?? 0}</b> Not assessed</span>
           </div>
         </header>
+
+        {teachingEvidence.error && (
+          <div className={styles.teachingWarning}>
+            Teaching evidence could not be loaded. Mastery and schoolwork evidence
+            are still available.
+          </div>
+        )}
 
         {topics.length === 0 ? (
           <div className={styles.noTopics}>
             No canonical concepts are available for this subject and level yet.
           </div>
         ) : (
-          <div className={styles.pathway}>
-            {topics.map((topic, index) => {
-              const meta = STATE_META[topic.state];
-              const expanded = expandedTopics.has(topic.key);
-              const total = Math.max(topic.concepts.length, 1);
-
-              return (
-                <article key={topic.key} className={styles.topicStep}>
-                  <div
-                    className={styles.pathNode}
-                    style={{ borderColor: meta.border }}
-                  >
-                    <span style={{ background: meta.colour }} />
-                    <b>{String(index + 1).padStart(2, "0")}</b>
-                  </div>
-
-                  <div
-                    className={styles.topicCard}
-                    style={{ borderColor: meta.border, background: meta.soft }}
-                  >
-                    <button
-                      type="button"
-                      className={styles.topicSummary}
-                      onClick={() => toggleTopic(topic.key)}
-                      aria-expanded={expanded}
-                    >
-                      <div className={styles.topicTitle}>
-                        <span>{topic.domain}</span>
-                        <h4>{topic.topic}</h4>
-                        <small>
-                          {topic.assessed} of {topic.concepts.length} concepts assessed
-                        </small>
-                      </div>
-
-                      <div className={styles.topicStatus}>
-                        <strong style={{ color: meta.colour }}>{meta.label}</strong>
-                        <span>{expanded ? "−" : "+"}</span>
-                      </div>
-                    </button>
-
-                    <div className={styles.topicBar} aria-hidden="true">
-                      {topic.strong > 0 && (
-                        <i
-                          className={styles.barGreen}
-                          style={{ width: `${(topic.strong / total) * 100}%` }}
-                        />
-                      )}
-                      {topic.developing > 0 && (
-                        <i
-                          className={styles.barOrange}
-                          style={{ width: `${(topic.developing / total) * 100}%` }}
-                        />
-                      )}
-                      {topic.attention > 0 && (
-                        <i
-                          className={styles.barRed}
-                          style={{ width: `${(topic.attention / total) * 100}%` }}
-                        />
-                      )}
-                      {topic.unknown > 0 && (
-                        <i
-                          className={styles.barGrey}
-                          style={{ width: `${(topic.unknown / total) * 100}%` }}
-                        />
-                      )}
-                    </div>
-
-                    {expanded && (
-                      <div className={styles.conceptGrid}>
-                        {topic.concepts.map((concept) => {
-                          const state = conceptState(concept);
-                          const stateMeta = STATE_META[state];
-                          return (
-                            <div
-                              key={concept.skill_id}
-                              className={styles.conceptNode}
-                              style={{
-                                borderColor: stateMeta.border,
-                                background: stateMeta.soft,
-                              }}
-                              onMouseLeave={() => {
-                                if (openInfoId === concept.skill_id) {
-                                  setOpenInfoId(null);
-                                }
-                              }}
-                            >
-                              <button
-                                type="button"
-                                className={styles.conceptMain}
-                                onClick={() => setSelectedConcept(concept)}
-                              >
-                                <span
-                                  className={styles.conceptDot}
-                                  style={{ background: stateMeta.colour }}
-                                />
-                                <strong>{concept.skill_name}</strong>
-                                <small style={{ color: stateMeta.colour }}>
-                                  {stateMeta.label}
-                                </small>
-
-                                {schoolworkEvidence.bySkillId.has(
-                                  String(concept.skill_id),
-                                ) && (
-                                  <em className={styles.schoolworkBadge}>
-                                    + Work
-                                  </em>
-                                )}
-                              </button>
-
-                              <button
-                                type="button"
-                                className={styles.conceptInfoButton}
-                                aria-label={`Explain ${concept.skill_name}`}
-                                aria-expanded={openInfoId === concept.skill_id}
-                                onMouseEnter={() => setOpenInfoId(concept.skill_id)}
-                                onFocus={() => setOpenInfoId(concept.skill_id)}
-                                onBlur={() => setOpenInfoId(null)}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setOpenInfoId((current) =>
-                                    current === concept.skill_id
-                                      ? null
-                                      : concept.skill_id,
-                                  );
-                                }}
-                              >
-                                i
-                              </button>
-
-                              {openInfoId === concept.skill_id && (
-                                <div
-                                  className={styles.conceptInfoPopover}
-                                  role="tooltip"
-                                >
-                                  <span>WHAT THIS MEANS</span>
-                                  <p>{parentFriendlyExplanation(concept)}</p>
-                                  <small>{teacherPrompt(concept)}</small>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+          <MasteryOrbit
+            subjectLabel={subjectMeta.label}
+            subjectIcon={subjectMeta.icon}
+            primaryLevel={selectedLevel}
+            topics={topics}
+            totalConcepts={currentSummary?.total ?? visibleConcepts.length}
+            assessedConcepts={currentSummary?.assessed ?? 0}
+            selectedTopicKey={selectedTopicKey}
+            selectedConcept={selectedConcept}
+            stateMeta={STATE_META}
+            conceptState={conceptState}
+            hasSchoolwork={(concept) =>
+              schoolworkEvidence.bySkillId.has(String(concept.skill_id))
+            }
+            teachingSignalsForConcept={teachingSignalsForConcept}
+            onSelectTopic={selectTopic}
+            onSelectConcept={selectConcept}
+            onBack={stepBack}
+          />
         )}
       </section>
 
-      {selectedConcept &&
-        (() => {
-          const state = conceptState(selectedConcept);
-          const meta = STATE_META[state];
-          return (
-            <section
-              className={styles.detailPanel}
-              style={{ borderColor: meta.border }}
-            >
-              <div className={styles.detailMain}>
-                <span className={styles.detailStatus} style={{ color: meta.colour }}>
-                  <i style={{ background: meta.colour }} /> {meta.label}
-                </span>
-                <h3>{selectedConcept.skill_name}</h3>
-                <p>
-                  {subjectMeta.label} · Primary {selectedConcept.primary_level} ·{" "}
-                  {selectedConcept.topic}
-                </p>
-              </div>
-
-              <div className={styles.detailMetrics}>
-                <span>
-                  <small>Mastery</small>
-                  <strong>
-                    {selectedConcept.has_evidence &&
-                    selectedConcept.mastery_score !== null
-                      ? `${Math.round(selectedConcept.mastery_score)}%`
-                      : "—"}
-                  </strong>
-                </span>
-                <span>
-                  <small>Confidence</small>
-                  <strong>
-                    {selectedConcept.has_evidence &&
-                    selectedConcept.confidence_score !== null
-                      ? `${Math.round(selectedConcept.confidence_score)}%`
-                      : "—"}
-                  </strong>
-                </span>
-                <span>
-                  <small>Questions</small>
-                  <strong>{selectedConcept.questions_attempted}</strong>
-                </span>
-                <span>
-                  <small>Trend</small>
-                  <strong>
-                    {selectedConcept.trend === "no_data"
-                      ? "—"
-                      : selectedConcept.trend}
-                  </strong>
-                </span>
-              </div>
-
-              {(() => {
-                const schoolwork =
-                  schoolworkEvidence.bySkillId.get(
-                    String(selectedConcept.skill_id),
-                  );
-
-                if (!schoolwork) return null;
-
-                return (
-                  <div className={styles.schoolworkEvidence}>
-                    <span>UPLOADED SCHOOLWORK</span>
-                    <strong>
-                      {schoolwork.event_count} approved question
-                      {schoolwork.event_count === 1 ? "" : "s"} from{" "}
-                      {schoolwork.upload_count} upload
-                      {schoolwork.upload_count === 1 ? "" : "s"}
-                    </strong>
-                    <small>
-                      This evidence is weighted below Dreamscape quiz evidence
-                      and was added only after review.
-                    </small>
-                  </div>
-                );
-              })()}
-
-              <div className={styles.detailFooter}>
-                <span>
-                  Last practised: {formatDate(selectedConcept.last_attempted_at)}
-                </span>
-                {state !== "unknown" && (
-                  <button type="button" onClick={onOpenRecommendations}>
-                    See Nova&apos;s recommendation →
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className={styles.closeDetail}
-                  onClick={() => setSelectedConcept(null)}
-                  aria-label="Close concept detail"
-                >
-                  ×
-                </button>
-              </div>
-            </section>
-          );
-        })()}
+      {selectedConcept && (
+        <MasteryConceptDetail
+          concept={selectedConcept}
+          state={conceptState(selectedConcept)}
+          stateMeta={STATE_META[conceptState(selectedConcept)]}
+          subjectLabel={subjectMeta.label}
+          schoolwork={schoolworkEvidence.bySkillId.get(
+            String(selectedConcept.skill_id),
+          )}
+          teachingSignals={teachingSignalsForConcept(selectedConcept)}
+          onOpenRecommendations={onOpenRecommendations}
+          onClose={() => setSelectedConcept(null)}
+        />
+      )}
     </div>
   );
 }

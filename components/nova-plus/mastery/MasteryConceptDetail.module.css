@@ -1,0 +1,206 @@
+.panel {
+  position: sticky;
+  bottom: 16px;
+  z-index: 20;
+  padding: 19px 20px;
+  border: 1px solid;
+  border-radius: 19px;
+  background: rgba(4, 13, 28, 0.975);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.44), 0 0 30px rgba(83, 215, 255, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.titleBlock h3 {
+  margin: 6px 0 0;
+  font-size: clamp(22px, 2.2vw, 30px);
+  letter-spacing: -0.035em;
+}
+
+.titleBlock p {
+  margin: 6px 0 0;
+  color: rgba(235, 247, 255, 0.48);
+  font-size: 11px;
+}
+
+.closeButton {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.04);
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.metrics {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(90px, 1fr));
+  gap: 8px;
+}
+
+.metrics span {
+  min-height: 67px;
+  padding: 10px 11px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.034);
+}
+
+.metrics small,
+.metrics strong {
+  display: block;
+}
+
+.metrics small {
+  color: rgba(235, 247, 255, 0.38);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.metrics strong {
+  margin-top: 6px;
+  font-size: 16px;
+  text-transform: capitalize;
+}
+
+.contentGrid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  align-items: stretch;
+}
+
+.explanation,
+.schoolwork {
+  padding: 13px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(142, 232, 255, 0.09);
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.explanation > span,
+.schoolwork > span {
+  display: block;
+  color: #8dfcff;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.explanation p {
+  margin: 7px 0 0;
+  color: rgba(240, 249, 255, 0.75);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.explanation small,
+.schoolwork small {
+  display: block;
+  margin-top: 8px;
+  color: rgba(235, 247, 255, 0.38);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.schoolwork {
+  border-color: rgba(216, 180, 254, 0.12);
+  background: linear-gradient(120deg, rgba(124, 58, 237, 0.05), rgba(83, 215, 255, 0.025));
+}
+
+.schoolwork > span {
+  color: #cbb2ff;
+}
+
+.schoolwork strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.footer {
+  margin-top: 11px;
+  padding-top: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.footer > span {
+  margin-right: auto;
+  color: rgba(235, 247, 255, 0.4);
+  font-size: 9px;
+}
+
+.footer button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(142, 232, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(83, 215, 255, 0.07);
+  color: #d9f9ff;
+  font-size: 10px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+@media (max-width: 980px) {
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .panel {
+    position: relative;
+    bottom: auto;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .footer > span {
+    margin-right: 0;
+  }
+
+  .footer button {
+    width: 100%;
+  }
+}

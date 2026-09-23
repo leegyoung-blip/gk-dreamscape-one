@@ -287,6 +287,46 @@ function ResponsiveScrollStyles() {
 
       /* Mobile portrait only: keep charts/data inside the viewport. */
       @media (max-width: 820px) and (orientation: portrait) {
+        .milo-stock-page {
+          width: 100vw !important;
+          max-width: 100vw !important;
+          overflow-x: clip !important;
+        }
+
+        .milo-stock-content-wrap {
+          width: calc(100vw - 16px) !important;
+          max-width: calc(100vw - 16px) !important;
+          min-width: 0 !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+        }
+
+        .milo-stock-content-wrap > *,
+        .milo-stock-page [data-milo-guide],
+        .milo-stock-page section,
+        .milo-stock-page aside,
+        .milo-stock-page article,
+        .milo-stock-page nav {
+          min-width: 0 !important;
+          max-width: 100% !important;
+        }
+
+        .milo-stock-page h1,
+        .milo-stock-page h2,
+        .milo-stock-page h3,
+        .milo-stock-page p,
+        .milo-stock-page span,
+        .milo-stock-page strong,
+        .milo-stock-page small {
+          overflow-wrap: anywhere;
+        }
+
+        .milo-stock-page button,
+        .milo-stock-page input {
+          min-width: 0 !important;
+          max-width: 100% !important;
+        }
+
         .milo-responsive-chart {
           width: 100% !important;
           max-width: 100% !important;
@@ -1237,7 +1277,7 @@ export default function MiloStockExchangePage() {
     position: "relative",
     zIndex: 5,
     width: isMobile
-      ? "min(100%, calc(100% - 20px))"
+      ? "calc(100% - 16px)"
       : "min(1680px, calc(100% - 36px))",
     margin: "0 auto",
     padding: isMobile ? "12px 0 64px" : "28px 0 90px",
@@ -1514,7 +1554,7 @@ export default function MiloStockExchangePage() {
       <ResponsiveScrollStyles />
       <Background />
 
-      <div style={contentWrap}>
+      <div className="milo-stock-content-wrap" style={contentWrap}>
         <header
           style={{
             display: "flex",
@@ -1536,7 +1576,7 @@ export default function MiloStockExchangePage() {
             className="milo-mobile-nav"
             style={{
               display: isMobile ? "grid" : "flex",
-              gridTemplateColumns: isMobile ? "1fr 1fr" : undefined,
+              gridTemplateColumns: isMobile ? "minmax(0, 1fr) minmax(0, 1fr)" : undefined,
               gap: "10px",
               width: isMobile ? "100%" : "auto",
             }}
@@ -1737,7 +1777,7 @@ export default function MiloStockExchangePage() {
                   style={{
                     display: "grid",
                     gridTemplateColumns: isMobile
-                      ? "1fr 1fr"
+                      ? "minmax(0, 1fr) minmax(0, 1fr)"
                       : "repeat(4, minmax(0, 1fr))",
                     gap: "12px",
                   }}
@@ -2077,6 +2117,7 @@ export default function MiloStockExchangePage() {
                               display: "flex",
                               justifyContent: "space-between",
                               gap: "10px",
+                              minWidth: 0,
                             }}
                           >
                             <strong style={{ fontSize: "17px" }}>{stock.symbol}</strong>
@@ -2272,7 +2313,8 @@ export default function MiloStockExchangePage() {
                             color: companyStatusColor(selectedCompanyEconomy?.hiring_status || "steady"),
                             fontSize: "11px",
                             fontWeight: 900,
-                            whiteSpace: "nowrap",
+                            whiteSpace: isMobile ? "normal" : "nowrap",
+                            textAlign: "center",
                           }}
                         >
                           {companyStatusLabel(selectedCompanyEconomy?.hiring_status || "steady")}
@@ -2283,7 +2325,7 @@ export default function MiloStockExchangePage() {
                         style={{
                           marginTop: "15px",
                           display: "grid",
-                          gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,minmax(0,1fr))",
+                          gridTemplateColumns: isMobile ? "minmax(0, 1fr) minmax(0, 1fr)" : "repeat(4,minmax(0,1fr))",
                           gap: "9px",
                         }}
                       >
@@ -2455,7 +2497,8 @@ export default function MiloStockExchangePage() {
                             color: marketMoodColor(selectedMarketState?.market_mood || "steady"),
                             fontSize: "11px",
                             fontWeight: 900,
-                            whiteSpace: "nowrap",
+                            whiteSpace: isMobile ? "normal" : "nowrap",
+                            textAlign: "center",
                           }}
                         >
                           {marketMoodLabel(selectedMarketState?.market_mood || "steady")}
@@ -2466,7 +2509,7 @@ export default function MiloStockExchangePage() {
                         style={{
                           marginTop: "15px",
                           display: "grid",
-                          gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(5,minmax(0,1fr))",
+                          gridTemplateColumns: isMobile ? "minmax(0, 1fr) minmax(0, 1fr)" : "repeat(5,minmax(0,1fr))",
                           gap: "9px",
                         }}
                       >
@@ -2854,7 +2897,7 @@ export default function MiloStockExchangePage() {
                         style={{
                           marginTop: "17px",
                           display: "grid",
-                          gridTemplateColumns: "1fr 1fr",
+                          gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
                           gap: "10px",
                         }}
                       >
@@ -2961,7 +3004,7 @@ export default function MiloStockExchangePage() {
                         style={{
                           marginTop: "14px",
                           display: "grid",
-                          gridTemplateColumns: "1fr 1fr",
+                          gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
                           gap: "10px",
                         }}
                       >

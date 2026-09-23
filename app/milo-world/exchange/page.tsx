@@ -1094,7 +1094,18 @@ export default function MiloExchangeMainPage() {
                 No Stock Exchange or Property Exchange transactions yet.
               </div>
             ) : (
-              <div className="milo-scrollbar" style={{ display: "grid", gap: "9px", maxHeight: isDesktop ? "650px" : "none", overflowY: isDesktop ? "auto" : "visible", paddingRight: isDesktop ? "5px" : 0 }}>
+              <div
+                className="milo-scrollbar"
+                style={{
+                  display: "grid",
+                  gap: "9px",
+                  maxHeight: isMobile ? "360px" : isDesktop ? "650px" : "none",
+                  overflowY: isMobile || isDesktop ? "auto" : "visible",
+                  overscrollBehavior: isMobile ? "contain" : undefined,
+                  WebkitOverflowScrolling: isMobile ? "touch" : undefined,
+                  paddingRight: isMobile || isDesktop ? "5px" : 0,
+                }}
+              >
                 {transactions.map((transaction) => {
                   const isPositive = Number(transaction.amount) >= 0;
                   const category = getTransactionCategory(transaction.title);
@@ -1166,7 +1177,19 @@ export default function MiloExchangeMainPage() {
                 No ranked portfolios yet.
               </div>
             ) : (
-              <div className="milo-scrollbar" style={{ marginTop: "18px", display: "grid", gap: "9px", maxHeight: isDesktop ? "590px" : "none", overflowY: isDesktop ? "auto" : "visible", paddingRight: isDesktop ? "4px" : 0 }}>
+              <div
+                className="milo-scrollbar"
+                style={{
+                  marginTop: "18px",
+                  display: "grid",
+                  gap: "9px",
+                  maxHeight: isMobile ? "380px" : isDesktop ? "590px" : "none",
+                  overflowY: isMobile || isDesktop ? "auto" : "visible",
+                  overscrollBehavior: isMobile ? "contain" : undefined,
+                  WebkitOverflowScrolling: isMobile ? "touch" : undefined,
+                  paddingRight: isMobile || isDesktop ? "4px" : 0,
+                }}
+              >
                 {leaderboardRows.map((row) => (
                   <article key={`${row.rank_position}-${row.username}`} style={{ borderRadius: "16px", border: row.is_current_user ? "1px solid rgba(132,218,255,0.45)" : "1px solid rgba(255,255,255,0.09)", background: row.is_current_user ? "rgba(83,215,255,0.13)" : "rgba(255,255,255,0.05)", padding: "13px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center" }}>

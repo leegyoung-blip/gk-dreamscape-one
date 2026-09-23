@@ -1,0 +1,106 @@
+.panel {
+  padding: 14px;
+  border: 1px solid rgba(141, 252, 255, 0.12);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 92% 10%, rgba(124, 58, 237, 0.08), transparent 34%),
+    linear-gradient(135deg, rgba(83, 215, 255, 0.045), rgba(124, 58, 237, 0.035));
+}
+
+.heading {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.mark {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(196, 181, 253, 0.22);
+  border-radius: 10px;
+  background: rgba(124, 58, 237, 0.1);
+  color: #ede9fe;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.heading span,
+.heading strong {
+  display: block;
+}
+
+.heading span {
+  color: #8dfcff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.heading strong {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.signalCopy {
+  margin-top: 11px;
+  padding: 11px 12px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.026);
+}
+
+.signalCopy > strong {
+  font-size: 12px;
+}
+
+.signalCopy p {
+  margin: 6px 0 0;
+  color: rgba(235, 247, 255, 0.53);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.metrics {
+  margin-top: 9px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.metrics span {
+  min-height: 58px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.metrics small,
+.metrics b {
+  display: block;
+}
+
+.metrics small {
+  color: rgba(235, 247, 255, 0.38);
+  font-size: 8px;
+}
+
+.metrics b {
+  margin-top: 5px;
+  font-size: 13px;
+}
+
+.moreSignals {
+  display: block;
+  margin-top: 9px;
+  color: rgba(235, 247, 255, 0.38);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+@media (max-width: 560px) {
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+}

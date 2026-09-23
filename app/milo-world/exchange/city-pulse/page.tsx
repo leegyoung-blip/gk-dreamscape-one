@@ -371,12 +371,12 @@ export default function MiloCityPulsePage() {
           </div>
 
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            {[
+            {([
               ["Residents", counts.residents],
               ["Tenants", counts.active_tenants],
               ["Business Spaces", counts.active_business_spaces],
               ["Stock Agents", counts.active_stock_agents],
-            ].map(([label, value]) => (
+            ] as Array<[string, unknown]>).map(([label, value]) => (
               <div
                 key={String(label)}
                 style={{
