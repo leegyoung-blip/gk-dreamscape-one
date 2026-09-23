@@ -46,6 +46,12 @@ type RecipeDef = {
   ingredients: IngredientKey[];
 };
 
+type OrderSlot = {
+  id: number;
+  recipeKey: string;
+  reward: number;
+};
+
 type BoardCell = PrepItem | null;
 type DragState = { itemId: number; fromIndex: number; x: number; y: number } | null;
 
@@ -108,17 +114,17 @@ const UNLOCK_GROUPS: Array<{
 }> = [
   {
     title: "Starting Café",
-    threshold: "0 recipes",
+    threshold: "0 orders",
     items: INGREDIENTS.filter((item) => item.unlockAt === 0),
   },
   {
     title: "Mid Shift",
-    threshold: "3 recipes",
+    threshold: "3 orders",
     items: INGREDIENTS.filter((item) => item.unlockAt === 3),
   },
   {
     title: "Busy Café",
-    threshold: "8 recipes",
+    threshold: "8 orders",
     items: INGREDIENTS.filter((item) => item.unlockAt === 8),
   },
 ];
@@ -191,6 +197,16 @@ function familyLabel(family: string) {
   return family.charAt(0).toUpperCase() + family.slice(1);
 }
 
+function orderReward(recipe: RecipeDef) {
+  return [0, 150, 240, 360, 520, 720][recipe.tier] ?? 150;
+}
+
+function orderTierCap(ordersServed: number) {
+  if (ordersServed < 3) return 2;
+  if (ordersServed < 8) return 4;
+  return 5;
+}
+
 export default function MilosMixAndServe({ mobile, dense, width, height }: Props) {
   const compact = height < 760 || width < 1100;
   const [stage, setStage] = useState<StageId>("western");
@@ -201,11 +217,16 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
   const [dragState, setDragState] = useState<DragState>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showRecipeBook, setShowRecipeBook] = useState(false);
-  const [status, setStatus] = useState("Phase 2 is live. Generate ingredients, prepare base dishes and combine recipes on the prep counter.");
+  const [status, setStatus] = useState("Phase 3A/3B is live. Build dishes and serve the three customer orders.");
   const [recipesMade, setRecipesMade] = useState(0);
   const [successfulCombines, setSuccessfulCombines] = useState(0);
   const [ingredientsSpawned, setIngredientsSpawned] = useState(0);
+  const [orders, setOrders] = useState<OrderSlot[]>([]);
+  const [ordersServed, setOrdersServed] = useState(0);
+  const [score, setScore] = useState(0);
+  const [failedOrders] = useState(0);
   const nextId = useRef(1000);
+  const nextOrderId = useRef(1);
 
   useEffect(() => {
     if (!running) setPaused(false);
@@ -213,8 +234,8 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
 
   const occupied = useMemo(() => board.filter(Boolean).length, [board]);
   const unlockedIngredients = useMemo(
-    () => INGREDIENTS.filter((item) => recipesMade >= item.unlockAt),
-    [recipesMade],
+    () => INGREDIENTS.filter((item) => ordersServed >= item.unlockAt),
+    [ordersServed],
   );
   const highestTierMade = useMemo(() => {
     let highest = 0;
@@ -223,23 +244,52 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
     });
     return highest;
   }, [board]);
-  const unlockTarget = nextUnlockThreshold(recipesMade);
+  const unlockTarget = nextUnlockThreshold(ordersServed);
 
   function resetSandbox() {
     setBoard(initialBoard());
     nextId.current = 1000;
+    nextOrderId.current = 1;
     setSelectedIndex(null);
     setDragState(null);
     setRecipesMade(0);
     setSuccessfulCombines(0);
     setIngredientsSpawned(0);
-    setStatus("Phase 2 is live. Generate ingredients, prepare base dishes and combine recipes on the prep counter.");
+    setOrdersServed(0);
+    setScore(0);
+    setOrders([]);
+    setStatus("Phase 3A/3B is live. Build dishes and serve the three customer orders.");
+  }
+
+  function eligibleOrderRecipes(servedCount: number) {
+    const unlockedKeys = new Set(INGREDIENTS.filter((item) => servedCount >= item.unlockAt).map((item) => item.key));
+    const tierCap = orderTierCap(servedCount);
+    return RECIPES.filter(
+      (recipe) => recipe.tier <= tierCap && recipe.ingredients.every((ingredient) => unlockedKeys.has(ingredient)),
+    );
+  }
+
+  function createOrder(servedCount: number, avoidKeys: string[] = []): OrderSlot {
+    const eligible = eligibleOrderRecipes(servedCount);
+    const fresh = eligible.filter((recipe) => !avoidKeys.includes(recipe.key));
+    const pool = fresh.length > 0 ? fresh : eligible;
+    const recipe = pool[Math.floor(Math.random() * pool.length)] ?? RECIPES[0];
+    return { id: nextOrderId.current++, recipeKey: recipe.key, reward: orderReward(recipe) };
+  }
+
+  function fillInitialOrders() {
+    const slots: OrderSlot[] = [];
+    for (let index = 0; index < 3; index += 1) {
+      slots.push(createOrder(0, slots.map((order) => order.recipeKey)));
+    }
+    setOrders(slots);
   }
 
   function startKitchen() {
     resetSandbox();
     setRunning(true);
     setPaused(false);
+    window.setTimeout(fillInitialOrders, 0);
   }
 
   function emptyCellIndex(cells: BoardCell[]) {
@@ -248,6 +298,51 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
 
   function addStatus(message: string) {
     setStatus(message);
+  }
+
+  function replaceOrder(orderId: number, servedCount: number) {
+    setOrders((current) => {
+      const otherKeys = current.filter((order) => order.id !== orderId).map((order) => order.recipeKey);
+      return current.map((order) => order.id === orderId ? createOrder(servedCount, otherKeys) : order);
+    });
+  }
+
+  function serveDishToOrder(fromIndex: number, orderId: number) {
+    if (!running || paused) return;
+    const order = orders.find((entry) => entry.id === orderId);
+    const dish = board[fromIndex];
+    if (!order || !dish) return;
+    if (dish.type !== "dish") {
+      addStatus("Only a finished dish can be served to a customer order.");
+      return;
+    }
+    if (dish.key !== order.recipeKey) {
+      const requested = RECIPES.find((recipe) => recipe.key === order.recipeKey);
+      addStatus(`${dish.label} does not match this order${requested ? ` for ${requested.label}` : ""}.`);
+      return;
+    }
+
+    setBoard((current) => {
+      if (!current[fromIndex] || current[fromIndex]?.id !== dish.id) return current;
+      const next = [...current];
+      next[fromIndex] = null;
+      return next;
+    });
+
+    const nextServed = ordersServed + 1;
+    setOrdersServed(nextServed);
+    setScore((current) => current + order.reward);
+    setSelectedIndex(null);
+    addStatus(`${dish.label} served! +${order.reward} points.`);
+    replaceOrder(orderId, nextServed);
+  }
+
+  function serveSelectedToOrder(orderId: number) {
+    if (selectedIndex === null) {
+      addStatus("Select a finished dish first, then tap the matching customer order.");
+      return;
+    }
+    serveDishToOrder(selectedIndex, orderId);
   }
 
   function spawnIngredient() {
@@ -281,10 +376,10 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
     setSelectedIndex(null);
   }
 
-  function prepareSelected() {
-    if (!running || paused || selectedIndex === null) return;
+  function prepareItemAt(index: number) {
+    if (!running || paused) return;
     setBoard((current) => {
-      const item = current[selectedIndex];
+      const item = current[index];
       if (!item) return current;
       const recipe = findSinglePrep(item);
       if (!recipe) {
@@ -292,12 +387,18 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
         return current;
       }
       const next = [...current];
-      next[selectedIndex] = createDish(++nextId.current, recipe);
+      next[index] = createDish(++nextId.current, recipe);
       setRecipesMade((count) => count + 1);
       setSuccessfulCombines((count) => count + 1);
       addStatus(`${recipe.label} prepared.`);
       return next;
     });
+    setSelectedIndex(null);
+  }
+
+  function prepareSelected() {
+    if (selectedIndex === null) return;
+    prepareItemAt(selectedIndex);
   }
 
   function moveOrCombine(fromIndex: number, toIndex: number) {
@@ -354,6 +455,8 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
   }
 
   function resolveDropTarget(target: Element | null) {
+    const order = target?.closest("[data-order-id]") as HTMLElement | null;
+    if (order?.dataset.orderId !== undefined) return { type: "order" as const, orderId: Number(order.dataset.orderId) };
     const cell = target?.closest("[data-prep-cell]") as HTMLElement | null;
     if (cell?.dataset.prepCell !== undefined) return { type: "cell" as const, index: Number(cell.dataset.prepCell) };
     if (target?.closest('[data-prep-zone="discard"]')) return { type: "discard" as const };
@@ -364,12 +467,10 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
   function endPointerDrag(event: ReactPointerEvent<HTMLButtonElement>) {
     if (!dragState) return;
     const target = resolveDropTarget(document.elementFromPoint(event.clientX, event.clientY));
-    if (target?.type === "cell") moveOrCombine(dragState.fromIndex, target.index);
+    if (target?.type === "order") serveDishToOrder(dragState.fromIndex, target.orderId);
+    else if (target?.type === "cell") moveOrCombine(dragState.fromIndex, target.index);
     else if (target?.type === "discard") discardItem(dragState.fromIndex);
-    else if (target?.type === "prep") {
-      setSelectedIndex(dragState.fromIndex);
-      setTimeout(() => prepareSelected(), 0);
-    }
+    else if (target?.type === "prep") prepareItemAt(dragState.fromIndex);
     setDragState(null);
   }
 
@@ -401,10 +502,14 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
     event.preventDefault();
     const raw = event.dataTransfer.getData("text/milo-prep-cell");
     const fromIndex = Number(raw);
-    if (Number.isFinite(fromIndex)) {
-      setSelectedIndex(fromIndex);
-      setTimeout(() => prepareSelected(), 0);
-    }
+    if (Number.isFinite(fromIndex)) prepareItemAt(fromIndex);
+  }
+
+  function onDropOrder(event: DragEvent<HTMLElement>, orderId: number) {
+    event.preventDefault();
+    const raw = event.dataTransfer.getData("text/milo-prep-cell");
+    const fromIndex = Number(raw);
+    if (Number.isFinite(fromIndex)) serveDishToOrder(fromIndex, orderId);
   }
 
   const panel: CSSProperties = {
@@ -443,7 +548,7 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
         background: "radial-gradient(circle at 50% 0%, rgba(255,174,70,.08), transparent 28%), linear-gradient(155deg,#061524,#040b18 58%,#080815)",
         padding: mobile ? 7 : dense ? 8 : 10,
         display: "grid",
-        gridTemplateRows: "auto auto auto minmax(0,1fr) auto",
+        gridTemplateRows: "auto auto auto auto minmax(0,1fr)",
         gap: mobile ? 6 : 8,
       }}
     >
@@ -452,7 +557,7 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
           <p style={{ margin: 0, color: "#ffbf68", fontSize: mobile ? 7 : 8, fontWeight: 950, letterSpacing: ".16em", textTransform: "uppercase" }}>Milo’s Western Café · Stage 1</p>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
             <h2 style={{ margin: "3px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : compact ? 29 : 34, lineHeight: 1, fontWeight: 400 }}>Milo’s Mix & Serve</h2>
-            {!mobile && <span style={{ color: "rgba(255,255,255,.3)", fontSize: 8, fontWeight: 900 }}>PHASE 2 · RECIPE SANDBOX</span>}
+            {!mobile && <span style={{ color: "rgba(255,255,255,.3)", fontSize: 8, fontWeight: 900 }}>PHASE 3A/3B · LIVE ORDERS</span>}
           </div>
         </div>
 
@@ -474,10 +579,10 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
 
       <div style={{ display: "grid", gridTemplateColumns: mobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap: 6 }}>
         {[
-          ["RECIPES MADE", String(recipesMade), "Successful dish creations"],
-          ["COMBINES", String(successfulCombines), "Prep + merge actions"],
-          ["UNLOCKED", `${unlockedIngredients.length} / 11`, unlockTarget ? `Next unlock at ${unlockTarget} recipes` : "All Stage 1 ingredients unlocked"],
-          ["HIGHEST TIER", highestTierMade ? `T${highestTierMade}` : "—", "Best dish currently on board"],
+          ["SCORE", score.toLocaleString(), "Order score"],
+          ["ORDERS SERVED", String(ordersServed), "Completed customer orders"],
+          ["FAILED ORDERS", `${failedOrders} / 3`, "Live failures start in Phase 3C"],
+          ["UNLOCKED", `${unlockedIngredients.length} / 11`, unlockTarget ? `Next unlock at ${unlockTarget} orders` : "All Stage 1 ingredients unlocked"],
         ].map(([label, value, sub]) => (
           <div key={label} style={{ ...panel, borderRadius: 13, padding: mobile ? "7px 9px" : "8px 10px", minWidth: 0 }}>
             <p style={{ margin: 0, color: "rgba(166,235,255,.46)", fontSize: 6, fontWeight: 950, letterSpacing: ".12em" }}>{label}</p>
@@ -486,6 +591,52 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
               {!mobile && !compact && <span style={{ color: "rgba(255,255,255,.25)", fontSize: 7, whiteSpace: "nowrap" }}>{sub}</span>}
             </div>
           </div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6, minWidth: 0 }}>
+        {orders.length > 0 ? orders.map((order) => {
+          const recipe = RECIPES.find((entry) => entry.key === order.recipeKey)!;
+          const selectedDish = selectedIndex !== null ? board[selectedIndex] : null;
+          const selectedMatches = selectedDish?.type === "dish" && selectedDish.key === order.recipeKey;
+          return (
+            <button
+              key={order.id}
+              type="button"
+              data-order-id={order.id}
+              onClick={() => serveSelectedToOrder(order.id)}
+              onDragOver={(event) => { if (running && !paused) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }}
+              onDrop={(event) => onDropOrder(event, order.id)}
+              style={{
+                ...panel,
+                minWidth: 0,
+                borderRadius: mobile ? 12 : 14,
+                padding: mobile ? 7 : 9,
+                color: "white",
+                textAlign: "left",
+                cursor: running && !paused ? "pointer" : "default",
+                border: selectedMatches ? "1px solid rgba(132,239,178,.6)" : `1px solid ${familyTint(recipe.family)}2a`,
+                boxShadow: selectedMatches ? "0 0 20px rgba(132,239,178,.12)" : panel.boxShadow,
+              }}
+            >
+              <div style={{ display: "grid", gridTemplateColumns: mobile ? "36px minmax(0,1fr)" : "46px minmax(0,1fr) auto", alignItems: "center", gap: 7, minWidth: 0 }}>
+                <img src={recipe.image} alt="" draggable={false} style={{ width: mobile ? 34 : 44, height: mobile ? 34 : 44, objectFit: "contain" }} />
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, color: familyTint(recipe.family), fontSize: 6, fontWeight: 950, letterSpacing: ".1em" }}>ORDER · TIER {recipe.tier}</p>
+                  <strong style={{ display: "block", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: mobile ? 8 : 10 }}>{recipe.label}</strong>
+                  <span style={{ color: "rgba(255,255,255,.36)", fontSize: 7 }}>+{order.reward} pts</span>
+                </div>
+                {!mobile && <span style={{ color: selectedMatches ? "#84efb2" : "rgba(255,255,255,.35)", fontSize: 7, fontWeight: 900 }}>{selectedMatches ? "READY" : "SERVE"}</span>}
+              </div>
+              <div style={{ marginTop: 6, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: 6 }}>
+                <div style={{ height: 5, borderRadius: 999, background: "rgba(255,255,255,.055)", overflow: "hidden" }}><div style={{ width: "100%", height: "100%", background: "linear-gradient(90deg,#87efad,#ffd36c,#ff7f8c)" }} /></div>
+                <span style={{ color: "rgba(255,255,255,.42)", fontSize: 7, fontWeight: 900 }}>30s</span>
+              </div>
+              {!mobile && <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,.24)", fontSize: 6.5 }}>Timer becomes live in Phase 3C.</p>}
+            </button>
+          );
+        }) : Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} style={{ ...panel, borderRadius: mobile ? 12 : 14, padding: mobile ? 7 : 9, minHeight: mobile ? 58 : 72, display: "grid", placeItems: "center", color: "rgba(255,255,255,.25)", fontSize: 8, fontWeight: 900 }}>OPEN THE KITCHEN</div>
         ))}
       </div>
 
@@ -571,7 +722,7 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
             <p style={{ margin: 0, color: "#ffd08a", fontSize: 7, fontWeight: 950, letterSpacing: ".14em" }}>UNLOCK PROGRESSION</p>
             <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
               {UNLOCK_GROUPS.map(({ title, threshold, items }) => {
-                const unlocked = items.every((item) => recipesMade >= item.unlockAt);
+                const unlocked = items.every((item) => ordersServed >= item.unlockAt);
                 return (
                   <div key={title} style={{ borderRadius: 12, border: unlocked ? "1px solid rgba(132,239,178,.2)" : "1px solid rgba(255,255,255,.06)", background: unlocked ? "rgba(132,239,178,.04)" : "rgba(255,255,255,.015)", padding: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center" }}>
@@ -580,7 +731,7 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
                     </div>
                     <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 5 }}>
                       {items.map((item) => (
-                        <div key={item.key} title={item.label} style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid rgba(255,255,255,.08)", background: recipesMade >= item.unlockAt ? "rgba(83,215,255,.06)" : "rgba(255,255,255,.02)", display: "grid", placeItems: "center", opacity: recipesMade >= item.unlockAt ? 1 : 0.38 }}>
+                        <div key={item.key} title={item.label} style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid rgba(255,255,255,.08)", background: ordersServed >= item.unlockAt ? "rgba(83,215,255,.06)" : "rgba(255,255,255,.02)", display: "grid", placeItems: "center", opacity: ordersServed >= item.unlockAt ? 1 : 0.38 }}>
                           <img src={item.image} alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
                         </div>
                       ))}
@@ -623,7 +774,7 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
             <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center" }}>
               <div>
                 <p style={{ margin: 0, color: "#9feeff", fontSize: 7, fontWeight: 950, letterSpacing: ".14em" }}>RECIPE FAMILIES</p>
-                <p style={{ margin: "2px 0 0", color: "rgba(255,255,255,.3)", fontSize: 7 }}>All 20 Western Café dish assets are wired into the recipe engine.</p>
+                <p style={{ margin: "2px 0 0", color: "rgba(255,255,255,.3)", fontSize: 7 }}>Recipes {recipesMade} · Combines {successfulCombines} · Supplies {ingredientsSpawned} · Highest tier {highestTierMade ? `T${highestTierMade}` : "—"}</p>
               </div>
             </div>
             <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 6 }}>
@@ -665,13 +816,14 @@ export default function MilosMixAndServe({ mobile, dense, width, height }: Props
         <div onClick={() => setShowHelp(false)} style={{ position: "absolute", inset: 0, zIndex: 50, display: "grid", placeItems: "center", padding: 14, background: "rgba(1,6,14,.82)", backdropFilter: "blur(8px)" }}>
           <div onClick={(event) => event.stopPropagation()} style={{ ...panel, width: "min(640px,100%)", borderRadius: 24, padding: mobile ? 18 : 24 }}>
             <p style={{ margin: 0, color: "#ffbf68", fontSize: 8, fontWeight: 950, letterSpacing: ".15em" }}>MILO’S MIX & SERVE</p>
-            <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 28 : 34, fontWeight: 400 }}>How Phase 2 works</h3>
+            <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 28 : 34, fontWeight: 400 }}>How Phase 3A/3B works</h3>
             <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
               {[
                 ["1", "Supply ingredients", "Use Supply + to add a random unlocked ingredient to an empty prep-counter cell."],
                 ["2", "Prepare base dishes", "Select Potato or Lettuce and use Prep Selected to create Fries or Side Salad."],
                 ["3", "Combine recipes", "Drag or click one item onto another. If their ingredient set matches a recipe, the result dish is created."],
-                ["4", "Unlock more ingredients", "After 3 successful recipes, Cheese, Bread, Ham and Chicken unlock. After 8, Bacon and Egg unlock."],
+                ["4", "Serve live orders", "Drag a finished dish onto the matching customer order, or select the dish and tap the order. The dish is consumed and a new order appears immediately."],
+                ["5", "Unlock more ingredients", "After 3 served orders, Cheese, Bread, Ham and Chicken unlock. After 8, Bacon and Egg unlock."],
               ].map(([num, title, body]) => (
                 <div key={num} style={{ display: "grid", gridTemplateColumns: "30px minmax(0,1fr)", gap: 8 }}>
                   <div style={{ width: 30, height: 30, borderRadius: 9, display: "grid", placeItems: "center", border: "1px solid rgba(255,191,104,.2)", background: "rgba(255,173,66,.06)", color: "#ffc46d", fontSize: 9, fontWeight: 950 }}>{num}</div>
