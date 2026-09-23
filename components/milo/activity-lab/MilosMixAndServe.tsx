@@ -215,7 +215,8 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [dragState, setDragState] = useState<DragState>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [showRecipeBook, setShowRecipeBook] = useState(false);
+  const [showRecipeBook, setShowRecipeBook] = useState(true);
+  const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [status, setStatus] = useState("Stage 1 is live. Build dishes, beat each 30-second timer and survive until three orders are missed.");
   const [recipesMade, setRecipesMade] = useState(0);
   const [successfulCombines, setSuccessfulCombines] = useState(0);
@@ -252,6 +253,12 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
   }, [orders]);
 
   useEffect(() => {
+    if (expandedOrderId !== null && !orders.some((order) => order.id === expandedOrderId)) {
+      setExpandedOrderId(null);
+    }
+  }, [orders, expandedOrderId]);
+
+  useEffect(() => {
     ordersServedRef.current = ordersServed;
   }, [ordersServed]);
 
@@ -259,8 +266,10 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
     failedOrdersRef.current = failedOrders;
   }, [failedOrders]);
 
+  const hasActiveOrders = orders.length > 0;
+
   useEffect(() => {
-    if (!running || paused || cafeClosed || ordersRef.current.length === 0) return;
+    if (!running || paused || cafeClosed || !hasActiveOrders || ordersRef.current.length === 0) return;
 
     const timer = window.setInterval(() => {
       const current = ordersRef.current;
@@ -311,7 +320,7 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [running, paused, cafeClosed]);
+  }, [running, paused, cafeClosed, hasActiveOrders]);
 
   const occupied = useMemo(() => board.filter(Boolean).length, [board]);
   const unlockedIngredients = useMemo(
@@ -323,6 +332,7 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
   const tierDt = highestTierServed >= 5 ? 6 : highestTierServed === 4 ? 4 : highestTierServed === 3 ? 2 : 0;
   const survivalDt = Math.min(10, Math.floor(runSeconds / 90));
   const runDtReward = ordersServed > 0 ? Math.max(1, scoreDt + orderDt + tierDt + survivalDt) : 0;
+  const preGameMenu = !running && !cafeClosed && completedRunId === null;
   const highestTierMade = useMemo(() => {
     let highest = 0;
     board.forEach((item) => {
@@ -376,6 +386,7 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
     nextOrderId.current = 1;
     setSelectedIndex(null);
     setDragState(null);
+    setExpandedOrderId(null);
     setRecipesMade(0);
     setSuccessfulCombines(0);
     setIngredientsSpawned(0);
@@ -424,6 +435,7 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
   }
 
   function startKitchen() {
+    setShowRecipeBook(false);
     currentRunId.current += 1;
     resetSandbox();
     setRunning(true);
@@ -705,21 +717,21 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minWidth: 0 }}>
         <div style={{ minWidth: 0 }}>
-          <p style={{ margin: 0, color: "#ffbf68", fontSize: mobile ? 7 : 8, fontWeight: 950, letterSpacing: ".16em", textTransform: "uppercase" }}>Milo’s Western Café · Stage 1</p>
+          <p style={{ margin: 0, color: "#ffbf68", fontSize: mobile ? 9 : 10, fontWeight: 950, letterSpacing: ".16em", textTransform: "uppercase" }}>Milo’s Western Café · Stage 1</p>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
             <h2 style={{ margin: "3px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : compact ? 29 : 34, lineHeight: 1, fontWeight: 400 }}>Milo’s Mix & Serve</h2>
-            {!mobile && <span style={{ color: "rgba(255,255,255,.3)", fontSize: 8, fontWeight: 900 }}>PHASE 4 · REWARDS ONLINE LIVE</span>}
+            {!mobile && <span style={{ color: "rgba(255,255,255,.3)", fontSize: 10, fontWeight: 900 }}>PHASE 4 · REWARDS ONLINE LIVE</span>}
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button type="button" onClick={() => setStage("stage2")} style={{ minHeight: mobile ? 32 : 36, padding: "0 10px", borderRadius: 999, border: "1px solid rgba(255,210,102,.18)", background: "rgba(255,190,65,.055)", color: "#ffd66f", fontSize: mobile ? 8 : 9, fontWeight: 900, cursor: "pointer" }}>
+          <button type="button" onClick={() => setStage("stage2")} style={{ minHeight: mobile ? 32 : 36, padding: "0 10px", borderRadius: 999, border: "1px solid rgba(255,210,102,.18)", background: "rgba(255,190,65,.055)", color: "#ffd66f", fontSize: mobile ? 10 : 11, fontWeight: 900, cursor: "pointer" }}>
             Stage 2 · Soon
           </button>
-          <button type="button" onClick={() => setShowRecipeBook(true)} style={{ minHeight: mobile ? 32 : 36, padding: "0 10px", borderRadius: 999, border: "1px solid rgba(255,191,104,.2)", background: "rgba(255,173,66,.06)", color: "#ffd08a", fontSize: mobile ? 8 : 9, fontWeight: 900, cursor: "pointer" }}>
+          <button type="button" onClick={() => setShowRecipeBook(true)} style={{ minHeight: mobile ? 32 : 36, padding: "0 10px", borderRadius: 999, border: "1px solid rgba(255,191,104,.2)", background: "rgba(255,173,66,.06)", color: "#ffd08a", fontSize: mobile ? 10 : 11, fontWeight: 900, cursor: "pointer" }}>
             Menu Book
           </button>
-          <button type="button" onClick={() => setShowHelp(true)} style={{ minHeight: mobile ? 32 : 36, padding: "0 10px", borderRadius: 999, border: "1px solid rgba(128,226,255,.2)", background: "rgba(83,215,255,.06)", color: "#dffaff", fontSize: mobile ? 8 : 9, fontWeight: 900, cursor: "pointer" }}>
+          <button type="button" onClick={() => setShowHelp(true)} style={{ minHeight: mobile ? 32 : 36, padding: "0 10px", borderRadius: 999, border: "1px solid rgba(128,226,255,.2)", background: "rgba(83,215,255,.06)", color: "#dffaff", fontSize: mobile ? 10 : 11, fontWeight: 900, cursor: "pointer" }}>
             ? How to Play
           </button>
           <button type="button" onClick={() => running && setPaused((value) => !value)} disabled={!running} aria-label={paused ? "Resume kitchen" : "Pause kitchen"} style={{ width: mobile ? 32 : 36, height: mobile ? 32 : 36, borderRadius: 999, border: "1px solid rgba(128,226,255,.18)", background: "rgba(83,215,255,.06)", color: running ? "white" : "rgba(255,255,255,.3)", cursor: running ? "pointer" : "not-allowed" }}>
@@ -736,10 +748,10 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
           ["ORDER STREAK", `×${Math.max(1, orderStreak)}`, bestOrderStreak > 0 ? `Best ×${bestOrderStreak}` : "Serve consecutive orders"],
         ].map(([label, value, sub]) => (
           <div key={label} style={{ ...panel, borderRadius: 13, padding: mobile ? "7px 9px" : "8px 10px", minWidth: 0 }}>
-            <p style={{ margin: 0, color: "rgba(166,235,255,.46)", fontSize: 6, fontWeight: 950, letterSpacing: ".12em" }}>{label}</p>
+            <p style={{ margin: 0, color: "rgba(166,235,255,.46)", fontSize: 8, fontWeight: 950, letterSpacing: ".12em" }}>{label}</p>
             <div style={{ marginTop: 2, display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 6 }}>
-              <strong style={{ fontSize: mobile ? 15 : 18, lineHeight: 1, color: label === "ORDER STREAK" ? "#ffd66f" : label === "FAILED ORDERS" ? "#ff9ca7" : "white" }}>{value}</strong>
-              {!mobile && !compact && <span style={{ color: "rgba(255,255,255,.25)", fontSize: 7, whiteSpace: "nowrap" }}>{sub}</span>}
+              <strong style={{ fontSize: mobile ? 18 : 21, lineHeight: 1, color: label === "ORDER STREAK" ? "#ffd66f" : label === "FAILED ORDERS" ? "#ff9ca7" : "white" }}>{value}</strong>
+              {!mobile && !compact && <span style={{ color: "rgba(255,255,255,.25)", fontSize: 9, whiteSpace: "nowrap" }}>{sub}</span>}
             </div>
           </div>
         ))}
@@ -771,16 +783,54 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
               }}
             >
               <div style={{ display: "grid", gridTemplateColumns: mobile ? "36px minmax(0,1fr)" : "46px minmax(0,1fr) auto", alignItems: "center", gap: 7, minWidth: 0 }}>
-                <img src={recipe.image} alt="" draggable={false} style={{ width: mobile ? 34 : 44, height: mobile ? 34 : 44, objectFit: "contain" }} />
+                <img
+                  src={recipe.image}
+                  alt=""
+                  draggable={false}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setExpandedOrderId((current) => current === order.id ? null : order.id);
+                  }}
+                  style={{ width: mobile ? 40 : 50, height: mobile ? 40 : 50, objectFit: "contain", cursor: "pointer" }}
+                />
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, color: familyTint(recipe.family), fontSize: 6, fontWeight: 950, letterSpacing: ".1em" }}>ORDER · TIER {recipe.tier}</p>
-                  <strong style={{ display: "block", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: mobile ? 8 : 10 }}>{recipe.label}</strong>
-                  <span style={{ color: "rgba(255,255,255,.36)", fontSize: 7 }}>+{order.reward} pts</span>
+                  <p style={{ margin: 0, color: familyTint(recipe.family), fontSize: 8, fontWeight: 950, letterSpacing: ".1em" }}>ORDER · TIER {recipe.tier}</p>
+                  <strong style={{ display: "block", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: mobile ? 10 : 12 }}>{recipe.label}</strong>
+                  <span style={{ color: "rgba(255,255,255,.36)", fontSize: 9 }}>+{order.reward} pts</span>
                 </div>
-                {!mobile && <span style={{ color: selectedMatches ? "#84efb2" : "rgba(255,255,255,.35)", fontSize: 7, fontWeight: 900 }}>{selectedMatches ? "READY" : "SERVE"}</span>}
+                {!mobile && <span style={{ color: selectedMatches ? "#84efb2" : "rgba(255,255,255,.35)", fontSize: 9, fontWeight: 900 }}>{selectedMatches ? "READY" : "SERVE"}</span>}
               </div>
-              <div style={{ marginTop: 6, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: 6 }}>
-                <div style={{ height: 6, borderRadius: 999, background: "rgba(255,255,255,.055)", overflow: "hidden" }}>
+              {expandedOrderId === order.id && (
+                <div
+                  onClick={(event) => event.stopPropagation()}
+                  style={{
+                    marginTop: 7,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                    padding: "6px 8px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,255,255,.08)",
+                    background: "rgba(2,10,20,.72)",
+                  }}
+                >
+                  {recipe.ingredients.map((ingredientKey) => {
+                    const ingredient = INGREDIENTS.find((item) => item.key === ingredientKey)!;
+                    return (
+                      <img
+                        key={ingredientKey}
+                        src={ingredient.image}
+                        alt=""
+                        title={ingredient.label}
+                        draggable={false}
+                        style={{ width: mobile ? 24 : 30, height: mobile ? 24 : 30, objectFit: "contain" }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+              <div style={{ marginTop: 7, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: 7 }}>
+                <div style={{ height: 10, borderRadius: 999, background: "rgba(255,255,255,.055)", overflow: "hidden" }}>
                   <div
                     style={{
                       width: `${Math.max(0, Math.min(100, (order.secondsLeft / ORDER_DURATION_SECONDS) * 100))}%`,
@@ -792,9 +842,9 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
                     }}
                   />
                 </div>
-                <span style={{ color: order.secondsLeft <= 8 ? "#ff9ca7" : "rgba(255,255,255,.54)", fontSize: 7, fontWeight: 950 }}>{order.secondsLeft}s</span>
+                <span style={{ color: order.secondsLeft <= 8 ? "#ff9ca7" : "rgba(255,255,255,.54)", fontSize: 9, fontWeight: 950 }}>{order.secondsLeft}s</span>
               </div>
-              {!mobile && <p style={{ margin: "4px 0 0", color: order.secondsLeft <= 8 ? "rgba(255,156,167,.72)" : "rgba(255,255,255,.24)", fontSize: 6.5 }}>{order.secondsLeft <= 8 ? "Hurry — this customer is about to leave." : "Serve before the 30-second order timer runs out."}</p>}
+              {!mobile && <p style={{ margin: "4px 0 0", color: order.secondsLeft <= 8 ? "rgba(255,156,167,.72)" : "rgba(255,255,255,.24)", fontSize: 8 }}>{order.secondsLeft <= 8 ? "Hurry — this customer is about to leave." : "Serve before the 30-second order timer runs out."}</p>}
             </button>
           );
         }) : Array.from({ length: 3 }).map((_, index) => (
@@ -804,14 +854,14 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
 
       <div style={{ ...panel, borderRadius: 14, padding: mobile ? 7 : 8, display: "grid", gridTemplateColumns: mobile ? "1fr" : "minmax(0,1fr) auto", alignItems: "center", gap: 8 }}>
         <div style={{ minWidth: 0 }}>
-          <strong style={{ display: "block", fontSize: mobile ? 8 : 9 }}>{running ? paused ? "Kitchen paused" : "Kitchen open" : "Ready to open the kitchen"}</strong>
-          <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.34)", fontSize: mobile ? 6 : 7, lineHeight: 1.35 }}>{status}</span>
+          <strong style={{ display: "block", fontSize: mobile ? 10 : 11 }}>{running ? paused ? "Kitchen paused" : "Kitchen open" : "Ready to open the kitchen"}</strong>
+          <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.34)", fontSize: mobile ? 8 : 9, lineHeight: 1.35 }}>{status}</span>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: mobile ? "stretch" : "flex-end" }}>
           <button type="button" onClick={spawnIngredient} disabled={!running || paused} style={{ minHeight: 36, padding: "0 14px", borderRadius: 12, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.08)", color: "white", fontWeight: 900, cursor: running && !paused ? "pointer" : "not-allowed" }}>Supply +</button>
           <button type="button" onClick={prepareSelected} disabled={!running || paused || selectedIndex === null} style={{ minHeight: 36, padding: "0 14px", borderRadius: 12, border: "1px solid rgba(255,196,100,.2)", background: "rgba(255,173,66,.08)", color: "white", fontWeight: 900, cursor: running && !paused && selectedIndex !== null ? "pointer" : "not-allowed" }}>Prep Selected</button>
           <button type="button" onClick={() => selectedIndex !== null && discardItem(selectedIndex)} disabled={!running || paused || selectedIndex === null} style={{ minHeight: 36, padding: "0 14px", borderRadius: 12, border: "1px solid rgba(255,129,143,.18)", background: "rgba(255,100,120,.06)", color: "white", fontWeight: 900, cursor: running && !paused && selectedIndex !== null ? "pointer" : "not-allowed" }}>Discard</button>
-          <button type="button" onClick={startKitchen} style={{ minHeight: 36, padding: "0 14px", borderRadius: 12, border: "1px solid rgba(255,211,104,.34)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontWeight: 950, cursor: "pointer" }}>{running ? "Reset Kitchen" : "Start Kitchen"}</button>
+          <button type="button" onClick={() => { if (running) startKitchen(); else setShowRecipeBook(true); }} style={{ minHeight: 38, padding: "0 16px", borderRadius: 12, border: "1px solid rgba(255,211,104,.34)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontWeight: 950, cursor: "pointer" }}>{running ? "Reset Kitchen" : "View Menu & Start"}</button>
         </div>
       </div>
 
@@ -819,10 +869,10 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
         <div style={{ ...panel, minHeight: 0, borderRadius: 16, padding: mobile ? 7 : 9, display: "grid", gridTemplateRows: "auto minmax(0,1fr)", gap: 6, overflow: "hidden" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <div>
-              <p style={{ margin: 0, color: "#9feeff", fontSize: 7, fontWeight: 950, letterSpacing: ".14em" }}>PREP COUNTER</p>
-              {!mobile && <p style={{ margin: "2px 0 0", color: "rgba(255,255,255,.3)", fontSize: 7 }}>Click or drag items into empty cells to move them. Drop one ingredient or dish onto another to create a valid recipe.</p>}
+              <p style={{ margin: 0, color: "#9feeff", fontSize: 9, fontWeight: 950, letterSpacing: ".14em" }}>PREP COUNTER</p>
+              {!mobile && <p style={{ margin: "2px 0 0", color: "rgba(255,255,255,.3)", fontSize: 9 }}>Click or drag items into empty cells to move them. Drop one ingredient or dish onto another to create a valid recipe.</p>}
             </div>
-            <span style={{ color: "rgba(255,255,255,.34)", fontSize: 7, fontWeight: 850 }}>{occupied} / {BOARD_SIZE} spaces</span>
+            <span style={{ color: "rgba(255,255,255,.34)", fontSize: 9, fontWeight: 850 }}>{occupied} / {BOARD_SIZE} spaces</span>
           </div>
 
           <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "repeat(5,minmax(0,1fr))", gridTemplateRows: "repeat(4,minmax(0,1fr))", gap: mobile ? 5 : 6 }}>
@@ -844,7 +894,7 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
                   onPointerCancel={() => setDragState(null)}
                   style={{
                     minWidth: 0,
-                    minHeight: mobile ? 54 : compact ? 58 : 70,
+                    minHeight: mobile ? 58 : compact ? 66 : 78,
                     borderRadius: mobile ? 10 : 12,
                     border: selected ? "1px solid rgba(255,212,102,.82)" : item ? `1px solid ${familyTint(item.family)}22` : "1px solid rgba(255,255,255,.06)",
                     background: selected ? "rgba(255,201,76,.1)" : item ? "linear-gradient(145deg,rgba(18,45,61,.9),rgba(8,19,31,.94))" : "rgba(255,255,255,.018)",
@@ -859,17 +909,22 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
                   }}
                 >
                   {item ? (
-                    <div style={{ textAlign: "center", minWidth: 0, width: "100%" }}>
-                      <img src={item.image} alt="" draggable={false} style={{ width: mobile ? 34 : 40, height: mobile ? 34 : 40, objectFit: "contain", display: "block", margin: "0 auto" }} />
-                      {!mobile && !compact && (
-                        <>
-                          <span style={{ display: "block", marginTop: 3, color: "white", fontSize: 7.2, fontWeight: 800, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{item.label}</span>
-                          <span style={{ display: "block", marginTop: 1, color: item.type === "dish" ? familyTint(item.family) : "rgba(255,255,255,.32)", fontSize: 6.3, fontWeight: 850 }}>
-                            {item.type === "dish" ? `${familyLabel(item.family!)} · Tier ${item.tier}` : "Ingredient"}
-                          </span>
-                        </>
-                      )}
-                    </div>
+                    <img
+                      src={item.image}
+                      alt=""
+                      aria-label={item.label}
+                      draggable={false}
+                      style={{
+                        width: "86%",
+                        height: "86%",
+                        maxWidth: mobile ? 54 : compact ? 66 : 88,
+                        maxHeight: mobile ? 54 : compact ? 66 : 88,
+                        objectFit: "contain",
+                        display: "block",
+                        filter: selected ? "drop-shadow(0 0 12px rgba(255,206,92,.28))" : "drop-shadow(0 7px 10px rgba(0,0,0,.26))",
+                        pointerEvents: "none",
+                      }}
+                    />
                   ) : (
                     <span style={{ color: "rgba(255,255,255,.14)", fontSize: 8 }}>+</span>
                   )}
@@ -881,15 +936,15 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
 
         <div style={{ minHeight: 0, display: "grid", gridTemplateRows: mobile ? "auto auto auto" : "auto auto minmax(0,1fr)", gap: 7 }}>
           <div style={{ ...panel, borderRadius: 16, padding: 10 }}>
-            <p style={{ margin: 0, color: "#ffd08a", fontSize: 7, fontWeight: 950, letterSpacing: ".14em" }}>UNLOCK PROGRESSION</p>
+            <p style={{ margin: 0, color: "#ffd08a", fontSize: 9, fontWeight: 950, letterSpacing: ".14em" }}>UNLOCK PROGRESSION</p>
             <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
               {UNLOCK_GROUPS.map(({ title, threshold, items }) => {
                 const unlocked = items.every((item) => ordersServed >= item.unlockAt);
                 return (
                   <div key={title} style={{ borderRadius: 12, border: unlocked ? "1px solid rgba(132,239,178,.2)" : "1px solid rgba(255,255,255,.06)", background: unlocked ? "rgba(132,239,178,.04)" : "rgba(255,255,255,.015)", padding: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center" }}>
-                      <strong style={{ fontSize: 9 }}>{title}</strong>
-                      <span style={{ color: unlocked ? "#84efb2" : "rgba(255,255,255,.34)", fontSize: 7, fontWeight: 900 }}>{unlocked ? "UNLOCKED" : threshold}</span>
+                      <strong style={{ fontSize: 10.5 }}>{title}</strong>
+                      <span style={{ color: unlocked ? "#84efb2" : "rgba(255,255,255,.34)", fontSize: 8.5, fontWeight: 900 }}>{unlocked ? "UNLOCKED" : threshold}</span>
                     </div>
                     <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 5 }}>
                       {items.map((item) => (
@@ -913,8 +968,8 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
             >
               <div>
                 <div style={{ width: 46, height: 46, margin: "0 auto", borderRadius: 14, background: "rgba(255,173,66,.08)", display: "grid", placeItems: "center", color: "#ffc46d", fontSize: 18, fontWeight: 950 }}>⌂</div>
-                <strong style={{ display: "block", marginTop: 7, fontSize: 10 }}>Prep Station</strong>
-                <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,.32)", fontSize: 7, lineHeight: 1.35 }}>Use for base one-ingredient dishes like Fries and Side Salad.</p>
+                <strong style={{ display: "block", marginTop: 7, fontSize: 12 }}>Prep Station</strong>
+                <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,.32)", fontSize: 8.5, lineHeight: 1.4 }}>Use for base one-ingredient dishes like Fries and Side Salad.</p>
               </div>
             </div>
 
@@ -926,8 +981,8 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
             >
               <div>
                 <div style={{ width: 46, height: 46, margin: "0 auto", borderRadius: 14, background: "rgba(255,100,120,.07)", display: "grid", placeItems: "center", color: "#ff9da8", fontSize: 18, fontWeight: 950 }}>↺</div>
-                <strong style={{ display: "block", marginTop: 7, fontSize: 10 }}>Discard Tray</strong>
-                <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,.32)", fontSize: 7, lineHeight: 1.35 }}>Drag unwanted items here to clear board space.</p>
+                <strong style={{ display: "block", marginTop: 7, fontSize: 12 }}>Discard Tray</strong>
+                <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,.32)", fontSize: 8.5, lineHeight: 1.4 }}>Drag unwanted items here to clear board space.</p>
               </div>
             </div>
           </div>
@@ -935,7 +990,7 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
           <div style={{ ...panel, borderRadius: 16, padding: 10, minHeight: 0, overflow: "hidden" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center" }}>
               <div>
-                <p style={{ margin: 0, color: "#9feeff", fontSize: 7, fontWeight: 950, letterSpacing: ".14em" }}>RECIPE FAMILIES</p>
+                <p style={{ margin: 0, color: "#9feeff", fontSize: 9, fontWeight: 950, letterSpacing: ".14em" }}>RECIPE FAMILIES</p>
                 <p style={{ margin: "2px 0 0", color: "rgba(255,255,255,.3)", fontSize: 7 }}>Recipes {recipesMade} · Combines {successfulCombines} · Supplies {ingredientsSpawned} · Unlocked {unlockedIngredients.length}/11 · Highest tier {highestTierMade ? `T${highestTierMade}` : "—"}</p>
               </div>
             </div>
@@ -944,7 +999,7 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
                 const familyRecipes = RECIPES.filter((recipe) => recipe.family === family);
                 return (
                   <div key={family} style={{ borderRadius: 12, border: `1px solid ${familyTint(family)}2a`, background: "rgba(255,255,255,.018)", padding: 8 }}>
-                    <strong style={{ fontSize: 9, color: familyTint(family) }}>{familyLabel(family)}</strong>
+                    <strong style={{ fontSize: 11, color: familyTint(family) }}>{familyLabel(family)}</strong>
                     <div style={{ marginTop: 6, display: "flex", gap: 4, flexWrap: "wrap" }}>
                       {familyRecipes.map((recipe) => (
                         <div key={recipe.key} title={recipe.label} style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", display: "grid", placeItems: "center" }}>
@@ -1053,7 +1108,7 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
       {showHelp && (
         <div onClick={() => setShowHelp(false)} style={{ position: "absolute", inset: 0, zIndex: 50, display: "grid", placeItems: "center", padding: 14, background: "rgba(1,6,14,.82)", backdropFilter: "blur(8px)" }}>
           <div onClick={(event) => event.stopPropagation()} style={{ ...panel, width: "min(640px,100%)", borderRadius: 24, padding: mobile ? 18 : 24 }}>
-            <p style={{ margin: 0, color: "#ffbf68", fontSize: 8, fontWeight: 950, letterSpacing: ".15em" }}>MILO’S MIX & SERVE</p>
+            <p style={{ margin: 0, color: "#ffbf68", fontSize: 10, fontWeight: 950, letterSpacing: ".15em" }}>MILO’S MIX & SERVE</p>
             <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 28 : 34, fontWeight: 400 }}>How the endless café works</h3>
             <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
               {[
@@ -1068,7 +1123,7 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
               ].map(([num, title, body]) => (
                 <div key={num} style={{ display: "grid", gridTemplateColumns: "30px minmax(0,1fr)", gap: 8 }}>
                   <div style={{ width: 30, height: 30, borderRadius: 9, display: "grid", placeItems: "center", border: "1px solid rgba(255,191,104,.2)", background: "rgba(255,173,66,.06)", color: "#ffc46d", fontSize: 9, fontWeight: 950 }}>{num}</div>
-                  <div><strong style={{ fontSize: 10 }}>{title}</strong><p style={{ margin: "2px 0 0", color: "rgba(255,255,255,.42)", fontSize: 9, lineHeight: 1.45 }}>{body}</p></div>
+                  <div><strong style={{ fontSize: 12 }}>{title}</strong><p style={{ margin: "2px 0 0", color: "rgba(255,255,255,.46)", fontSize: 10.5, lineHeight: 1.5 }}>{body}</p></div>
                 </div>
               ))}
             </div>
@@ -1078,18 +1133,19 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
       )}
 
       {showRecipeBook && (
-        <div onClick={() => setShowRecipeBook(false)} style={{ position: "absolute", inset: 0, zIndex: 50, display: "grid", placeItems: "center", padding: 14, background: "rgba(1,6,14,.84)", backdropFilter: "blur(8px)" }}>
+        <div onClick={() => { if (!preGameMenu) setShowRecipeBook(false); }} style={{ position: "absolute", inset: 0, zIndex: 50, display: "grid", placeItems: "center", padding: 14, background: "rgba(1,6,14,.84)", backdropFilter: "blur(8px)" }}>
           <div onClick={(event) => event.stopPropagation()} style={{ ...panel, width: "min(900px,100%)", maxHeight: "88%", overflow: "auto", borderRadius: 24, padding: mobile ? 16 : 22 }}>
-            <p style={{ margin: 0, color: "#ffd08a", fontSize: 8, fontWeight: 950, letterSpacing: ".15em" }}>WESTERN CAFÉ MENU BOOK</p>
-            <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 26 : 32, fontWeight: 400 }}>Stage 1 recipes</h3>
+            <p style={{ margin: 0, color: "#ffd08a", fontSize: 10, fontWeight: 950, letterSpacing: ".15em" }}>WESTERN CAFÉ MENU BOOK</p>
+            <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 29 : 36, fontWeight: 400 }}>Stage 1 recipes</h3>
+            {preGameMenu && <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.52)", fontSize: mobile ? 10 : 12, lineHeight: 1.45 }}>Study the recipes below first. When you are ready, start the café and the 30-second customer orders will begin immediately.</p>}
             <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
               {(["burger", "sandwich", "fries", "salad"] as const).map((family) => {
                 const familyRecipes = RECIPES.filter((recipe) => recipe.family === family);
                 return (
                   <div key={family} style={{ borderRadius: 18, border: `1px solid ${familyTint(family)}25`, background: "rgba(255,255,255,.018)", padding: 12 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                      <strong style={{ color: familyTint(family), fontSize: 12 }}>{familyLabel(family)}</strong>
-                      <span style={{ color: "rgba(255,255,255,.35)", fontSize: 8 }}>{familyRecipes.length} tiers</span>
+                      <strong style={{ color: familyTint(family), fontSize: 14 }}>{familyLabel(family)}</strong>
+                      <span style={{ color: "rgba(255,255,255,.35)", fontSize: 10 }}>{familyRecipes.length} tiers</span>
                     </div>
                     <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: mobile ? "1fr" : "repeat(5,minmax(0,1fr))", gap: 8 }}>
                       {familyRecipes.map((recipe) => (
@@ -1097,13 +1153,13 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
                           <div style={{ display: "grid", placeItems: "center", minHeight: 68 }}>
                             <img src={recipe.image} alt="" style={{ width: 56, height: 56, objectFit: "contain" }} />
                           </div>
-                          <strong style={{ display: "block", marginTop: 4, fontSize: 9 }}>{recipe.label}</strong>
-                          <span style={{ display: "block", color: "rgba(255,255,255,.35)", fontSize: 7, marginTop: 2 }}>Tier {recipe.tier}</span>
+                          <strong style={{ display: "block", marginTop: 4, fontSize: 11 }}>{recipe.label}</strong>
+                          <span style={{ display: "block", color: "rgba(255,255,255,.35)", fontSize: 9, marginTop: 2 }}>Tier {recipe.tier}</span>
                           <div style={{ marginTop: 6, display: "flex", gap: 4, flexWrap: "wrap" }}>
                             {recipe.ingredients.map((ingredientKey) => {
                               const ingredient = INGREDIENTS.find((item) => item.key === ingredientKey)!;
                               return (
-                                <span key={ingredientKey} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 999, background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.06)", color: "rgba(255,255,255,.74)", fontSize: 6.5, fontWeight: 800 }}>
+                                <span key={ingredientKey} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 999, background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.06)", color: "rgba(255,255,255,.74)", fontSize: 8, fontWeight: 800 }}>
                                   <img src={ingredient.image} alt="" style={{ width: 12, height: 12, objectFit: "contain" }} />
                                   {ingredient.label}
                                 </span>
@@ -1117,7 +1173,27 @@ export default function MilosMixAndServe({ userId, mobile, dense, width, height,
                 );
               })}
             </div>
-            <button type="button" onClick={() => setShowRecipeBook(false)} style={{ width: "100%", minHeight: 42, marginTop: 16, borderRadius: 13, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontWeight: 900, cursor: "pointer" }}>Back to Kitchen</button>
+            <button
+              type="button"
+              onClick={() => {
+                if (preGameMenu) startKitchen();
+                else setShowRecipeBook(false);
+              }}
+              style={{
+                width: "100%",
+                minHeight: 48,
+                marginTop: 16,
+                borderRadius: 14,
+                border: preGameMenu ? "1px solid rgba(255,211,104,.38)" : "1px solid rgba(126,232,255,.2)",
+                background: preGameMenu ? "linear-gradient(135deg,#ffd16a,#f5a73f)" : "rgba(83,215,255,.07)",
+                color: preGameMenu ? "#221400" : "white",
+                fontSize: mobile ? 11 : 13,
+                fontWeight: 950,
+                cursor: "pointer",
+              }}
+            >
+              {preGameMenu ? "Start Game" : "Back to Kitchen"}
+            </button>
           </div>
         </div>
       )}
