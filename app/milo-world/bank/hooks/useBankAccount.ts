@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { BankAccountSnapshot, BankTransaction } from "../lib/bank-types";
+import { classifyBankTransaction } from "../lib/transaction-utils";
 
 const EMPTY_ACCOUNT: BankAccountSnapshot = {
   available: 0,
@@ -11,6 +12,7 @@ const EMPTY_ACCOUNT: BankAccountSnapshot = {
   interestEarned: 0,
   total: 0,
   monthEarned: 0,
+  monthPurchased: 0,
   monthSpent: 0,
   monthNet: 0,
   transactions: [],
@@ -54,10 +56,10 @@ export function useBankAccount() {
         .eq("user_id", user.id)
         .eq("token_kind", "virtual")
         .order("created_at", { ascending: false })
-        .limit(12),
+        .limit(100),
       supabase
         .from("dream_token_transactions")
-        .select("amount")
+        .select("amount,type,title")
         .eq("user_id", user.id)
         .eq("token_kind", "virtual")
         .gte("created_at", startOfCurrentMonthIso()),
@@ -70,30 +72,57 @@ export function useBankAccount() {
           0,
         );
 
-    const monthAmounts = monthResult.error
+    const monthTransactions = monthResult.error
       ? []
-      : (monthResult.data || []).map((row) => Number(row.amount || 0));
+      : (monthResult.data || []).map((row) => {
+          const amount = Number(row.amount || 0);
+          return {
+            amount,
+            category: classifyBankTransaction({
+              amount,
+              type: row.type ? String(row.type) : null,
+              title: row.title ? String(row.title) : null,
+            }),
+          };
+        });
 
-    const monthEarned = monthAmounts
-      .filter((amount) => amount > 0)
-      .reduce((sum, amount) => sum + amount, 0);
+    const monthEarned = monthTransactions
+      .filter((item) => item.category === "earned")
+      .reduce((sum, item) => sum + Math.max(item.amount, 0), 0);
+
+    const monthPurchased = monthTransactions
+      .filter((item) => item.category === "purchased")
+      .reduce((sum, item) => sum + Math.max(item.amount, 0), 0);
+
     const monthSpent = Math.abs(
-      monthAmounts
-        .filter((amount) => amount < 0)
-        .reduce((sum, amount) => sum + amount, 0),
+      monthTransactions
+        .filter((item) => item.category === "spent")
+        .reduce((sum, item) => sum + Math.min(item.amount, 0), 0),
+    );
+
+    const monthNet = monthTransactions.reduce(
+      (sum, item) => sum + item.amount,
+      0,
     );
 
     const transactions: BankTransaction[] = transactionsResult.error
       ? []
-      : (transactionsResult.data || []).map((row) => ({
-          id: String(row.id),
-          amount: Number(row.amount || 0),
-          type: row.type ? String(row.type) : null,
-          title: row.title ? String(row.title) : null,
-          createdAt: row.created_at ? String(row.created_at) : null,
-        }));
+      : (transactionsResult.data || []).map((row) => {
+          const amount = Number(row.amount || 0);
+          const type = row.type ? String(row.type) : null;
+          const title = row.title ? String(row.title) : null;
 
-    // Savings and bond balances intentionally remain zero in Phase 1B.
+          return {
+            id: String(row.id),
+            amount,
+            type,
+            title,
+            createdAt: row.created_at ? String(row.created_at) : null,
+            category: classifyBankTransaction({ amount, type, title }),
+          };
+        });
+
+    // Savings and bond balances intentionally remain zero in Phase 1C.
     // Their tables and transfer logic are introduced in Phases 2 and 3.
     const savings = 0;
     const bonds = 0;
@@ -106,8 +135,9 @@ export function useBankAccount() {
       interestEarned,
       total: available + savings + bonds,
       monthEarned,
+      monthPurchased,
       monthSpent,
-      monthNet: monthEarned - monthSpent,
+      monthNet,
       transactions,
     });
     setLoading(false);

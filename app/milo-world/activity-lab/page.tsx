@@ -830,10 +830,12 @@ export default function ActivityLabPage() {
             />
           ) : (
             <MilosMixAndServe
+              userId={userId}
               mobile={mobile}
               dense={dense}
               width={width}
               height={height}
+              onTokenTransaction={addTokenTransaction}
             />
           )}
         </article>

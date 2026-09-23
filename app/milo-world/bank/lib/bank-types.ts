@@ -11,12 +11,19 @@ export type TokenPackage = {
   variantId: string;
 };
 
+export type BankTransactionCategory =
+  | "earned"
+  | "purchased"
+  | "spent"
+  | "other";
+
 export type BankTransaction = {
   id: string;
   amount: number;
   type: string | null;
   title: string | null;
   createdAt: string | null;
+  category: BankTransactionCategory;
 };
 
 export type BankAccountSnapshot = {
@@ -26,6 +33,7 @@ export type BankAccountSnapshot = {
   interestEarned: number;
   total: number;
   monthEarned: number;
+  monthPurchased: number;
   monthSpent: number;
   monthNet: number;
   transactions: BankTransaction[];

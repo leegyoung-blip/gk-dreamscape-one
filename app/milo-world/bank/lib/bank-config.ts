@@ -5,7 +5,6 @@ export const SHOPIFY_STORE_URL = "https://gurukidspro.com";
 export const DREAM_TOKEN_1000_VARIANT_ID = "52635551629595";
 export const DREAM_TOKEN_5000_VARIANT_ID = "52635551858971";
 
-// Keep this false until the Shopify payment + webhook crediting flow is ready.
 // Keep checkout gated until the Shopify payment + webhook crediting flow is ready.
 export const DREAM_TOKEN_PURCHASES_ENABLED = false;
 
