@@ -71,7 +71,7 @@ type Props = PropertyTabStyles & {
   isMobile: boolean;
   isCompact: boolean;
   onRefresh: () => void;
-  onBuyResale: (listing: PropertyResaleListing) => void;
+  onBuyResale: (listing: PropertyResaleListing) => Promise<void> | void;
   onOpenProperty: (property: PropertyOffering) => void;
   onTokensChanged: () => Promise<void> | void;
   initialAgentPropertyId?: string | null;
@@ -324,7 +324,9 @@ export default function PropertyMarketTab({
           isMobile={isMobile}
           isCompact={isCompact}
           onRefresh={onRefresh}
-          onBuy={onBuyResale}
+          onBuy={async (listing) => {
+            await onBuyResale(listing);
+          }}
           onOpenProperty={onOpenProperty}
         />
       )}
