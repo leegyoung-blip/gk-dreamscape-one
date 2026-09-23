@@ -33,6 +33,7 @@ type CoreTopic = {
 type CoreQuiz = {
   id: string;
   topic_id: string;
+  code: string;
   title: string;
   description: string | null;
   quiz_type: CoreQuizType;
@@ -52,6 +53,15 @@ type AttemptRow = {
   total_questions: number;
 };
 
+type QuizSection = {
+  key: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+  cardLabel: string;
+  quizzes: CoreQuiz[];
+};
+
 const QUIZ_TYPES: CoreQuizType[] = [
   "quick",
   "standard",
@@ -65,6 +75,22 @@ function normalizeRole(value: unknown) {
     .toLowerCase()
     .replace(/_/g, "-")
     .replace(/\s+/g, "-");
+}
+
+function isNovaClozeQuiz(
+  quiz: CoreQuiz,
+  subject: CoreSubject,
+  topicSlug: string,
+) {
+  const isClozeTopic =
+    subject === "english" &&
+    (topicSlug === "cloze-language-use" || topicSlug === "cloze");
+
+  return (
+    isClozeTopic &&
+    (quiz.code.includes("-CLOZE-NOVA-") ||
+      quiz.description?.trim().toLowerCase().startsWith("nova stories"))
+  );
 }
 
 export default function CoreTopicClient({
@@ -213,7 +239,7 @@ export default function CoreTopicClient({
       let quizQuery = supabase
         .from(tables.quizzes)
         .select(
-          "id,topic_id,title,description,quiz_type,difficulty,question_count,estimated_minutes,reward_tokens,reward_gems,quiz_order,student_visibility",
+          "id,topic_id,code,title,description,quiz_type,difficulty,question_count,estimated_minutes,reward_tokens,reward_gems,quiz_order,student_visibility",
         )
         .eq("topic_id", loadedTopic.id)
         .eq("is_published", true)
@@ -421,16 +447,58 @@ export default function CoreTopicClient({
     return map;
   }, [attempts]);
 
+  const isClozeTopic =
+    subject === "english" &&
+    (topicSlug === "cloze-language-use" || topicSlug === "cloze");
+
+  const novaStoryQuizzes = useMemo(
+    () =>
+      quizzes.filter((quiz) => isNovaClozeQuiz(quiz, subject, topicSlug)),
+    [quizzes, subject, topicSlug],
+  );
+
   const groupedQuizzes = useMemo(
     () =>
       new Map(
         QUIZ_TYPES.map((type) => [
           type,
-          quizzes.filter((quiz) => quiz.quiz_type === type),
+          quizzes.filter(
+            (quiz) =>
+              quiz.quiz_type === type &&
+              !isNovaClozeQuiz(quiz, subject, topicSlug),
+          ),
         ]),
       ),
-    [quizzes],
+    [quizzes, subject, topicSlug],
   );
+
+  const quizSections = useMemo<QuizSection[]>(() => {
+    const normalSections: QuizSection[] = QUIZ_TYPES.map((type) => ({
+      key: type,
+      eyebrow: CORE_QUIZ_TYPE_LABELS[type],
+      title: `${CORE_QUIZ_TYPE_LABELS[type]} Missions`,
+      description: CORE_QUIZ_TYPE_DESCRIPTIONS[type],
+      cardLabel: CORE_QUIZ_TYPE_LABELS[type],
+      quizzes: groupedQuizzes.get(type) || [],
+    })).filter((section) => section.quizzes.length > 0);
+
+    if (!isClozeTopic || novaStoryQuizzes.length === 0) {
+      return normalSections;
+    }
+
+    return [
+      {
+        key: "nova-stories",
+        eyebrow: "NOVA STORIES",
+        title: "NOVA Stories",
+        description:
+          "Standalone Dreamscape Cloze adventures. Use grammar, vocabulary and story clues to complete each passage.",
+        cardLabel: "NOVA Story",
+        quizzes: novaStoryQuizzes,
+      },
+      ...normalSections,
+    ];
+  }, [groupedQuizzes, isClozeTopic, novaStoryQuizzes]);
 
   const completedCount = quizzes.filter((quiz) =>
     bestAttemptByQuiz.has(quiz.id),
@@ -654,14 +722,12 @@ export default function CoreTopicClient({
         />
       ) : (
         <section className="mt-8 grid gap-5">
-          {QUIZ_TYPES.map((type) => {
-            const typeQuizzes = groupedQuizzes.get(type) || [];
-
-            if (typeQuizzes.length === 0) return null;
+          {quizSections.map((section) => {
+            const typeQuizzes = section.quizzes;
 
             return (
               <article
-                key={type}
+                key={section.key}
                 className="rounded-[1.9rem] border border-white/10 bg-white/[0.04] p-5 shadow-[0_22px_64px_rgba(0,0,0,0.22)] sm:p-7"
               >
                 <div className="flex flex-wrap items-end justify-between gap-4">
@@ -672,15 +738,15 @@ export default function CoreTopicClient({
                         theme.eyebrowClass,
                       ].join(" ")}
                     >
-                      {CORE_QUIZ_TYPE_LABELS[type]}
+                      {section.eyebrow}
                     </p>
 
                     <h2 className="mt-2 text-2xl font-black tracking-[-0.03em] sm:text-3xl">
-                      {CORE_QUIZ_TYPE_LABELS[type]} Missions
+                      {section.title}
                     </h2>
 
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-white/50">
-                      {CORE_QUIZ_TYPE_DESCRIPTIONS[type]}
+                      {section.description}
                     </p>
                   </div>
 
@@ -859,7 +925,7 @@ export default function CoreTopicClient({
                                     ].join(" "),
                               ].join(" ")}
                             >
-                              {CORE_QUIZ_TYPE_LABELS[type]}
+                              {section.cardLabel}
                             </span>
 
                             <span

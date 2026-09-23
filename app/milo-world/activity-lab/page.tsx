@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import MasteryCodeQuickPlay from "@/components/milo/activity-lab/MasteryCodeQuickPlay";
 import MasteryCodeSurvival from "@/components/milo/activity-lab/MasteryCodeSurvival";
 import CargoRush from "@/components/milo/activity-lab/CargoRush";
+import MilosMixAndServe from "@/components/milo/activity-lab/MilosMixAndServe";
 
 type ActivityMode = "mastery" | "cargo" | "merge";
 type MasteryMode = "quick" | "survival";
@@ -44,10 +45,9 @@ const ACTIVITY_ITEMS: Array<{
   {
     id: "merge",
     eyebrow: "New Activity",
-    title: "Milo Merge",
-    description: "A new DT-earning Activity Lab game is being prepared.",
+    title: "Milo’s Mix & Serve",
+    description: "Build Western Café dishes from ingredients and keep customer orders moving.",
     icon: "◇",
-    comingSoon: true,
   },
 ];
 
@@ -353,6 +353,7 @@ export default function ActivityLabPage() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeMode, setActiveMode] = useState<ActivityMode>("mastery");
+  const fixedGame = activeMode === "cargo" || activeMode === "merge";
   const [masteryMode, setMasteryMode] = useState<MasteryMode>("quick");
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -651,7 +652,7 @@ export default function ActivityLabPage() {
           zIndex: 4,
           minWidth: 0,
           minHeight: 0,
-          padding: activeMode === "cargo"
+          padding: fixedGame
             ? mobile
               ? "4px"
               : dense
@@ -672,10 +673,10 @@ export default function ActivityLabPage() {
               : "220px minmax(0, 1fr)",
           gap: dense ? "10px" : "14px",
           overflowX: "hidden",
-          overflowY: activeMode === "cargo" ? "hidden" : needsVerticalScroll ? "auto" : "hidden",
+          overflowY: fixedGame ? "hidden" : needsVerticalScroll ? "auto" : "hidden",
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch",
-          paddingBottom: activeMode === "cargo" ? undefined : needsVerticalScroll ? "18px" : undefined,
+          paddingBottom: fixedGame ? undefined : needsVerticalScroll ? "18px" : undefined,
         }}
       >
         {!mobile && (
@@ -693,15 +694,15 @@ export default function ActivityLabPage() {
           style={{
             minWidth: 0,
             minHeight: 0,
-            height: activeMode === "cargo" ? "100%" : needsVerticalScroll ? "max-content" : "100%",
-            overflow: activeMode === "cargo" ? "hidden" : needsVerticalScroll ? "visible" : "hidden",
+            height: fixedGame ? "100%" : needsVerticalScroll ? "max-content" : "100%",
+            overflow: fixedGame ? "hidden" : needsVerticalScroll ? "visible" : "hidden",
             borderRadius: mobile ? "17px" : "24px",
             border: "1px solid rgba(126,232,255,0.17)",
             background:
               "linear-gradient(145deg, rgba(5,22,43,0.88), rgba(3,9,24,0.95))",
             boxShadow:
               "0 30px 90px rgba(0,0,0,0.35), inset 0 0 50px rgba(83,215,255,0.025)",
-            padding: activeMode === "cargo"
+            padding: fixedGame
               ? mobile
                 ? "4px"
                 : dense
@@ -828,7 +829,12 @@ export default function ActivityLabPage() {
               onTokenTransaction={addTokenTransaction}
             />
           ) : (
-            <ComingSoonPanel mode="merge" mobile={mobile} />
+            <MilosMixAndServe
+              mobile={mobile}
+              dense={dense}
+              width={width}
+              height={height}
+            />
           )}
         </article>
       </section>

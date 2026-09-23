@@ -96,10 +96,10 @@ const ZONES: Zone[] = [
   {
     number: "4",
     icon: "◆",
-    title: "Dream Shop",
+    title: "Milo’s Bank",
     description:
-      "Where you decide what your hard-earned Tokens are worth spending on.",
-    href: "/milo-world/dream-shop",
+      "Save your Dream Tokens, grow them over time, and learn how money works.",
+    href: "/milo-world/bank",
   },
   {
     number: "5",
@@ -127,13 +127,13 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     eyebrow: "Welcome",
     title: "Want me to show you around?",
     text:
-      "Hey! I’m Milo. I’ll show you how to earn Dream Tokens, put them to work, build something of your own, test what you know and decide what’s worth spending on.",
+      "Hey! I’m Milo. I’ll show you how to earn Dream Tokens, save and grow them, put them to work, build something of your own and test what you know.",
   },
   {
     eyebrow: "Your Money",
     title: "Dream Tokens are your starting point.",
     text:
-      "Earn DT through activities, then choose what to do with them. Spend them, invest them, or use them as you build your way through Milo’s World.",
+      "Earn DT through activities, then choose what to do with them. Save them, invest them, spend them wisely, or use them as you build your way through Milo’s World.",
   },
   {
     eyebrow: "Stop 1 of 5",
@@ -158,9 +158,9 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   },
   {
     eyebrow: "Stop 4 of 5",
-    title: "Earning also means choosing how to spend.",
+    title: "What will you do with your Tokens?",
     text:
-      "The Dream Shop is where you decide what your hard-earned Tokens are worth spending on, from collectibles to special Dreamscape items.",
+      "Milo’s Bank is where you can manage your Dream Tokens, save towards goals, buy Bank Bonds, and learn how money can grow over time.",
     zoneNumber: "4",
   },
   {
@@ -1063,7 +1063,7 @@ function getMiloGuidePosition(
       // Business Builder: marker is lower-right.
       return { left: "26px", top: "92px" };
     case "4":
-      // Dream Shop: marker is upper-right.
+      // Milo’s Bank: marker is upper-right.
       return { left: "26px", bottom: "26px" };
     case "5":
       // Quiz Hall: marker is lower-centre.
@@ -1241,10 +1241,10 @@ function GuidedWalkthrough({
         <>
           <button
             type="button"
-            onClick={() => onNavigate("/milo-world/dream-shop")}
+            onClick={() => onNavigate("/milo-world/bank")}
             style={primaryActionStyle}
           >
-            Browse the Shop
+            Visit Milo’s Bank
           </button>
           <button type="button" onClick={() => onStepChange(6)} style={secondaryActionStyle}>
             Keep touring
@@ -1316,10 +1316,10 @@ function GuidedWalkthrough({
           </button>
           <button
             type="button"
-            onClick={() => onNavigate("/milo-world/dream-shop")}
+            onClick={() => onNavigate("/milo-world/bank")}
             style={choiceStyle}
           >
-            Visit the Shop
+            Milo’s Bank
           </button>
           <button
             type="button"
@@ -1743,7 +1743,7 @@ function MembershipPlans() {
               "Explore selected Milo zones",
               "Play selected Activity Lab games",
               "Earn Dreamscape Tokens through activities",
-              "View Dream Shop previews",
+              "Explore Milo’s Bank and money tools",
             ].map((feature) => (
               <li
                 key={feature}
