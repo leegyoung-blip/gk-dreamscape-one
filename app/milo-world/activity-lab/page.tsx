@@ -4,11 +4,328 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
-import ActivityMenu, {
-  type ActivityMode,
-} from "@/components/milo/activity-lab/ActivityMenu";
 import MasteryCodeQuickPlay from "@/components/milo/activity-lab/MasteryCodeQuickPlay";
 import MasteryCodeSurvival from "@/components/milo/activity-lab/MasteryCodeSurvival";
+import CargoRush from "@/components/milo/activity-lab/CargoRush";
+
+type ActivityMode = "mastery" | "cargo" | "merge";
+type MasteryMode = "quick" | "survival";
+
+type ActivityMenuProps = {
+  activeMode: ActivityMode;
+  drawer: boolean;
+  dense: boolean;
+  onSelectMode: (mode: ActivityMode) => void;
+  onNavigate?: () => void;
+};
+
+const ACTIVITY_ITEMS: Array<{
+  id: ActivityMode;
+  eyebrow: string;
+  title: string;
+  description: string;
+  icon: string;
+  comingSoon?: boolean;
+}> = [
+  {
+    id: "mastery",
+    eyebrow: "Word Challenge",
+    title: "Mastery Code",
+    description: "Quick Play and Survival now live together in one game tab.",
+    icon: "⌨",
+  },
+  {
+    id: "cargo",
+    eyebrow: "New Activity",
+    title: "Cargo Rush",
+    description: "Sort incoming cargo across Milo’s futuristic logistics network.",
+    icon: "▣",
+  },
+  {
+    id: "merge",
+    eyebrow: "New Activity",
+    title: "Milo Merge",
+    description: "A new DT-earning Activity Lab game is being prepared.",
+    icon: "◇",
+    comingSoon: true,
+  },
+];
+
+function ActivityMenu({
+  activeMode,
+  drawer,
+  dense,
+  onSelectMode,
+  onNavigate,
+}: ActivityMenuProps) {
+  return (
+    <div
+      style={{
+        height: drawer ? "auto" : "100%",
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
+        gap: dense ? "8px" : "10px",
+      }}
+    >
+      {!drawer && (
+        <div
+          style={{
+            padding: dense ? "12px 12px 8px" : "16px 14px 10px",
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              color: "#8ee8ff",
+              fontSize: "9px",
+              fontWeight: 900,
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+            }}
+          >
+            Choose a game
+          </p>
+          <p
+            style={{
+              margin: "6px 0 0",
+              color: "rgba(255,255,255,0.56)",
+              fontSize: dense ? "10px" : "11px",
+              lineHeight: 1.45,
+            }}
+          >
+            Play activities, build skills and earn Dream Tokens.
+          </p>
+        </div>
+      )}
+
+      {ACTIVITY_ITEMS.map((item) => {
+        const selected = activeMode === item.id;
+
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => {
+              onSelectMode(item.id);
+              onNavigate?.();
+            }}
+            style={{
+              width: "100%",
+              minHeight: drawer ? "86px" : dense ? "78px" : "92px",
+              padding: drawer
+                ? "13px 14px"
+                : dense
+                  ? "10px 11px"
+                  : "13px",
+              borderRadius: drawer ? "18px" : "20px",
+              border: selected
+                ? "1px solid rgba(126,232,255,0.56)"
+                : "1px solid rgba(126,232,255,0.12)",
+              background: selected
+                ? "linear-gradient(135deg, rgba(31,153,198,0.22), rgba(88,69,177,0.16))"
+                : "rgba(255,255,255,0.025)",
+              boxShadow: selected
+                ? "0 14px 34px rgba(0,0,0,0.18), inset 0 0 26px rgba(83,215,255,0.045)"
+                : "none",
+              color: "white",
+              textAlign: "left",
+              cursor: "pointer",
+              display: "grid",
+              gridTemplateColumns: "42px minmax(0, 1fr)",
+              alignItems: "center",
+              gap: "11px",
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: "42px",
+                height: "42px",
+                borderRadius: "14px",
+                border: selected
+                  ? "1px solid rgba(142,232,255,0.38)"
+                  : "1px solid rgba(255,255,255,0.09)",
+                background: selected
+                  ? "rgba(83,215,255,0.12)"
+                  : "rgba(255,255,255,0.045)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: selected ? "#8ee8ff" : "rgba(255,255,255,0.72)",
+                fontSize: "20px",
+                fontWeight: 900,
+              }}
+            >
+              {item.icon}
+            </span>
+
+            <span style={{ minWidth: 0, display: "block" }}>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "8px",
+                }}
+              >
+                <span
+                  style={{
+                    minWidth: 0,
+                    color: selected ? "#a7efff" : "rgba(255,255,255,0.52)",
+                    fontSize: "8px",
+                    fontWeight: 900,
+                    letterSpacing: "0.13em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {item.eyebrow}
+                </span>
+
+                {item.comingSoon && (
+                  <span
+                    style={{
+                      flex: "0 0 auto",
+                      padding: "3px 6px",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(255,214,112,0.2)",
+                      background: "rgba(255,192,72,0.07)",
+                      color: "#ffd978",
+                      fontSize: "7px",
+                      fontWeight: 900,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Soon
+                  </span>
+                )}
+              </span>
+
+              <span
+                style={{
+                  display: "block",
+                  marginTop: "3px",
+                  fontSize: drawer ? "17px" : dense ? "14px" : "16px",
+                  fontWeight: 900,
+                  lineHeight: 1.1,
+                }}
+              >
+                {item.title}
+              </span>
+
+              {!dense && (
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: "6px",
+                    color: "rgba(255,255,255,0.48)",
+                    fontSize: "9px",
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {item.description}
+                </span>
+              )}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ComingSoonPanel({
+  mode,
+  mobile,
+}: {
+  mode: Exclude<ActivityMode, "mastery">;
+  mobile: boolean;
+}) {
+  const isCargo = mode === "cargo";
+
+  return (
+    <div
+      style={{
+        minHeight: mobile ? "420px" : "100%",
+        height: mobile ? "auto" : "100%",
+        display: "grid",
+        placeItems: "center",
+        padding: mobile ? "24px 14px" : "32px",
+      }}
+    >
+      <div
+        style={{
+          width: "min(720px, 100%)",
+          padding: mobile ? "28px 20px" : "44px 48px",
+          borderRadius: mobile ? "22px" : "30px",
+          border: "1px solid rgba(126,232,255,0.16)",
+          background:
+            "radial-gradient(circle at 50% 0%, rgba(83,215,255,0.1), transparent 42%), linear-gradient(145deg, rgba(8,31,56,0.76), rgba(5,11,28,0.92))",
+          boxShadow: "0 30px 80px rgba(0,0,0,0.24)",
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            width: mobile ? "72px" : "88px",
+            height: mobile ? "72px" : "88px",
+            margin: "0 auto",
+            borderRadius: mobile ? "22px" : "26px",
+            border: "1px solid rgba(142,232,255,0.25)",
+            background: "rgba(83,215,255,0.08)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#8ee8ff",
+            fontSize: mobile ? "34px" : "42px",
+            fontWeight: 900,
+          }}
+        >
+          {isCargo ? "▣" : "◇"}
+        </div>
+
+        <p
+          style={{
+            margin: "22px 0 0",
+            color: "#8ee8ff",
+            fontSize: "9px",
+            fontWeight: 900,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+          }}
+        >
+          Activity Lab · Coming Soon
+        </p>
+
+        <h2
+          style={{
+            margin: "8px 0 0",
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontSize: mobile ? "32px" : "44px",
+            lineHeight: 1,
+            fontWeight: 400,
+          }}
+        >
+          {isCargo ? "Cargo Rush" : "Milo Merge"}
+        </h2>
+
+        <p
+          style={{
+            maxWidth: "500px",
+            margin: "16px auto 0",
+            color: "rgba(255,255,255,0.56)",
+            fontSize: mobile ? "12px" : "13px",
+            lineHeight: 1.65,
+          }}
+        >
+          The Activity Lab slot is ready, but the game itself has not been built yet.
+          This keeps the new navigation structure in place without adding gameplay early.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function useViewport() {
   const [viewport, setViewport] = useState({ width: 1440, height: 900 });
@@ -35,7 +352,8 @@ export default function ActivityLabPage() {
   const needsVerticalScroll = mobile || compact || height < 960;
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeMode, setActiveMode] = useState<ActivityMode>("quick");
+  const [activeMode, setActiveMode] = useState<ActivityMode>("mastery");
+  const [masteryMode, setMasteryMode] = useState<MasteryMode>("quick");
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [dreamTokens, setDreamTokens] = useState(0);
@@ -51,7 +369,22 @@ export default function ActivityLabPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const mode = params.get("mode");
-    if (mode === "survival") setActiveMode("survival");
+    const play = params.get("play");
+
+    // Backwards compatibility with the old ?mode=survival URL.
+    if (mode === "survival") {
+      setActiveMode("mastery");
+      setMasteryMode("survival");
+      return;
+    }
+
+    if (mode === "cargo" || mode === "merge" || mode === "mastery") {
+      setActiveMode(mode);
+    }
+
+    if (play === "survival" || play === "quick") {
+      setMasteryMode(play);
+    }
   }, []);
 
   async function refreshTokenBalance(activeUserId: string) {
@@ -120,13 +453,27 @@ export default function ActivityLabPage() {
     return true;
   }
 
+  function syncUrl(nextMode: ActivityMode, nextMasteryMode: MasteryMode = masteryMode) {
+    let next = "/milo-world/activity-lab";
+
+    if (nextMode === "mastery" && nextMasteryMode === "survival") {
+      next += "?mode=mastery&play=survival";
+    } else if (nextMode !== "mastery") {
+      next += `?mode=${nextMode}`;
+    }
+
+    window.history.replaceState({}, "", next);
+  }
+
   function selectMode(mode: ActivityMode) {
     setActiveMode(mode);
     setMenuOpen(false);
-    const next = mode === "survival"
-      ? "/milo-world/activity-lab?mode=survival"
-      : "/milo-world/activity-lab";
-    window.history.replaceState({}, "", next);
+    syncUrl(mode);
+  }
+
+  function selectMasteryMode(mode: MasteryMode) {
+    setMasteryMode(mode);
+    syncUrl("mastery", mode);
   }
 
   const navButtonStyle: CSSProperties = {
@@ -147,6 +494,23 @@ export default function ActivityLabPage() {
     WebkitBackdropFilter: "blur(16px)",
     whiteSpace: "nowrap",
   };
+
+  const masteryToggleStyle = (selected: boolean): CSSProperties => ({
+    minHeight: mobile ? "38px" : "42px",
+    padding: mobile ? "0 14px" : "0 18px",
+    borderRadius: "999px",
+    border: selected
+      ? "1px solid rgba(126,232,255,0.5)"
+      : "1px solid rgba(126,232,255,0.12)",
+    background: selected
+      ? "linear-gradient(135deg, rgba(37,159,204,0.24), rgba(97,75,186,0.18))"
+      : "rgba(255,255,255,0.035)",
+    color: selected ? "#b8f3ff" : "rgba(255,255,255,0.58)",
+    fontSize: mobile ? "10px" : "11px",
+    fontWeight: 900,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  });
 
   return (
     <main
@@ -177,10 +541,6 @@ export default function ActivityLabPage() {
         .activity-lab-scroll { scrollbar-width: thin; scrollbar-color: rgba(83,215,255,0.32) rgba(255,255,255,0.04); }
         .activity-lab-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
         .activity-lab-scroll::-webkit-scrollbar-thumb { background: rgba(83,215,255,0.3); border-radius: 999px; }
-        @keyframes labGlow {
-          0%, 100% { opacity: 0.34; transform: translate3d(0, 0, 0); }
-          50% { opacity: 0.52; transform: translate3d(0, -8px, 0); }
-        }
       `}</style>
 
       <div
@@ -237,23 +597,49 @@ export default function ActivityLabPage() {
 
         {!mobile && (
           <div style={{ minWidth: 0, textAlign: "center" }}>
-            <p style={{ margin: 0, color: "#8ee8ff", fontSize: "9px", fontWeight: 900, letterSpacing: "0.2em", textTransform: "uppercase" }}>
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "9px",
+                fontWeight: 900,
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+              }}
+            >
               Milo’s Token-Earning Games
             </p>
-            <h1 style={{ margin: "3px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: dense ? "23px" : "27px", lineHeight: 1, fontWeight: 400 }}>
+            <h1
+              style={{
+                margin: "3px 0 0",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: dense ? "23px" : "27px",
+                lineHeight: 1,
+                fontWeight: 400,
+              }}
+            >
               Activity Lab
             </h1>
           </div>
         )}
 
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <Link href={userId ? "/profile" : "/login"} style={{ ...navButtonStyle, border: "1px solid rgba(126,232,255,0.3)" }}>
+          <Link
+            href={userId ? "/profile" : "/login"}
+            style={{ ...navButtonStyle, border: "1px solid rgba(126,232,255,0.3)" }}
+          >
             <span style={{ color: "#8ee8ff" }}>✦</span>
             {userId ? `${dreamTokens} DT` : "Guest · 0 DT"}
           </Link>
 
           <Link href={userEmail ? "/profile" : "/login"} style={navButtonStyle}>
-            {mobile ? (userEmail ? "Account" : "Login") : userEmail ? "My Account" : "Log In"}
+            {mobile
+              ? userEmail
+                ? "Account"
+                : "Login"
+              : userEmail
+                ? "My Account"
+                : "Log In"}
           </Link>
         </div>
       </header>
@@ -306,27 +692,119 @@ export default function ActivityLabPage() {
             padding: mobile ? "6px" : dense ? "14px" : "18px",
           }}
         >
-          {activeMode === "quick" ? (
-            <MasteryCodeQuickPlay
-              userId={userId}
-              dreamTokens={dreamTokens}
+          {activeMode === "mastery" ? (
+            <div
+              style={{
+                minWidth: 0,
+                minHeight: 0,
+                height: needsVerticalScroll ? "auto" : "100%",
+                display: "grid",
+                gridTemplateRows: "auto minmax(0, 1fr)",
+                gap: mobile ? "7px" : "10px",
+              }}
+            >
+              <div
+                style={{
+                  minWidth: 0,
+                  display: "flex",
+                  alignItems: mobile ? "stretch" : "center",
+                  justifyContent: "space-between",
+                  flexDirection: mobile ? "column" : "row",
+                  gap: mobile ? "7px" : "12px",
+                  padding: mobile ? "5px 4px 2px" : "3px 2px 2px",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "#8ee8ff",
+                      fontSize: "8px",
+                      fontWeight: 900,
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Mastery Code
+                  </p>
+                  {!mobile && (
+                    <p
+                      style={{
+                        margin: "4px 0 0",
+                        color: "rgba(255,255,255,0.44)",
+                        fontSize: "10px",
+                      }}
+                    >
+                      Choose how you want to play.
+                    </p>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    overflowX: "auto",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => selectMasteryMode("quick")}
+                    style={masteryToggleStyle(masteryMode === "quick")}
+                  >
+                    Quick Play
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectMasteryMode("survival")}
+                    style={masteryToggleStyle(masteryMode === "survival")}
+                  >
+                    Survival
+                  </button>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  minWidth: 0,
+                  minHeight: 0,
+                  overflow: needsVerticalScroll ? "visible" : "hidden",
+                }}
+              >
+                {masteryMode === "quick" ? (
+                  <MasteryCodeQuickPlay
+                    userId={userId}
+                    dreamTokens={dreamTokens}
+                    mobile={mobile}
+                    wide={wide}
+                    compact={compact}
+                    dense={dense}
+                    width={width}
+                    onTokenTransaction={addTokenTransaction}
+                  />
+                ) : (
+                  <MasteryCodeSurvival
+                    userId={userId}
+                    mobile={mobile}
+                    wide={wide}
+                    dense={dense}
+                    width={width}
+                    height={height}
+                    onTokenTransaction={addTokenTransaction}
+                  />
+                )}
+              </div>
+            </div>
+          ) : activeMode === "cargo" ? (
+            <CargoRush
               mobile={mobile}
-              wide={wide}
-              compact={compact}
-              dense={dense}
-              width={width}
-              onTokenTransaction={addTokenTransaction}
-            />
-          ) : (
-            <MasteryCodeSurvival
-              userId={userId}
-              mobile={mobile}
-              wide={wide}
               dense={dense}
               width={width}
               height={height}
-              onTokenTransaction={addTokenTransaction}
             />
+          ) : (
+            <ComingSoonPanel mode="merge" mobile={mobile} />
           )}
         </article>
       </section>
@@ -360,17 +838,54 @@ export default function ActivityLabPage() {
             }}
             onClick={(event) => event.stopPropagation()}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "12px",
+              }}
+            >
               <div>
-                <p style={{ margin: 0, color: "#8ee8ff", fontSize: "9px", fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#8ee8ff",
+                    fontSize: "9px",
+                    fontWeight: 900,
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                  }}
+                >
                   Choose a game
                 </p>
-                <h2 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "30px", fontWeight: 400 }}>
+                <h2
+                  style={{
+                    margin: "5px 0 0",
+                    fontFamily: 'Georgia, "Times New Roman", serif',
+                    fontSize: "30px",
+                    fontWeight: 400,
+                  }}
+                >
                   Activity Lab
                 </h2>
               </div>
 
-              <button type="button" onClick={() => setMenuOpen(false)} aria-label="Close Activity Lab menu" style={{ width: "42px", height: "42px", borderRadius: "999px", border: "1px solid rgba(126,232,255,0.2)", background: "rgba(255,255,255,0.06)", color: "white", fontSize: "23px", cursor: "pointer" }}>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label="Close Activity Lab menu"
+                style={{
+                  width: "42px",
+                  height: "42px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(126,232,255,0.2)",
+                  background: "rgba(255,255,255,0.06)",
+                  color: "white",
+                  fontSize: "23px",
+                  cursor: "pointer",
+                }}
+              >
                 ×
               </button>
             </div>
@@ -385,7 +900,23 @@ export default function ActivityLabPage() {
               />
             </div>
 
-            <Link href="/milo-world" onClick={() => setMenuOpen(false)} style={{ minHeight: "48px", borderRadius: "14px", border: "1px solid rgba(126,232,255,0.18)", background: "rgba(83,215,255,0.06)", color: "white", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 850 }}>
+            <Link
+              href="/milo-world"
+              onClick={() => setMenuOpen(false)}
+              style={{
+                minHeight: "48px",
+                borderRadius: "14px",
+                border: "1px solid rgba(126,232,255,0.18)",
+                background: "rgba(83,215,255,0.06)",
+                color: "white",
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "12px",
+                fontWeight: 850,
+              }}
+            >
               ← Return to Milo’s World
             </Link>
           </aside>

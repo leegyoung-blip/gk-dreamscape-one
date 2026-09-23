@@ -1,0 +1,221 @@
+.card {
+  min-width: 0;
+  min-height: 250px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid;
+  border-radius: 19px;
+  overflow: hidden;
+}
+
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.subjectIcon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.statusPill {
+  max-width: 62%;
+  padding: 6px 9px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  line-height: 1.1;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.subjectHeading {
+  margin-top: 17px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.subjectHeading h4 {
+  min-width: 0;
+  margin: 0;
+  font-size: clamp(18px, 1.5vw, 22px);
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+
+.milestoneNumber {
+  flex: 0 0 auto;
+  color: rgba(235, 247, 255, .42);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.milestoneSummary {
+  margin-top: 13px;
+  min-height: 49px;
+}
+
+.milestoneSummary strong {
+  display: block;
+  font-size: clamp(22px, 2vw, 29px);
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+
+.milestoneSummary small {
+  display: block;
+  margin-top: 6px;
+  color: rgba(235, 247, 255, .48);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.pendingTitle {
+  color: #a9bbcf;
+}
+
+.trackWrap {
+  margin-top: auto;
+  padding-top: 19px;
+}
+
+.track {
+  position: relative;
+  height: 30px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  align-items: center;
+}
+
+.trackBase,
+.trackProgress {
+  position: absolute;
+  top: 50%;
+  left: calc(100% / 12);
+  height: 2px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+}
+
+.trackBase {
+  right: calc(100% / 12);
+  background: rgba(174, 208, 232, .16);
+}
+
+.trackProgress {
+  max-width: calc(100% - (100% / 6));
+  transform-origin: left center;
+}
+
+.node {
+  position: relative;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(174, 208, 232, .24);
+  border-radius: 999px;
+  background: rgba(4, 13, 29, .96);
+  color: rgba(235, 247, 255, .35);
+  font-size: 8px;
+  font-weight: 900;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.nodeReached {
+  color: rgba(255, 255, 255, .88);
+}
+
+.nodeCurrent {
+  transform: scale(1.12);
+  color: #06111e;
+}
+
+.trackEnds {
+  margin-top: 5px;
+  display: flex;
+  justify-content: space-between;
+  color: rgba(235, 247, 255, .34);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+
+.trackPending .node:first-of-type {
+  border-style: dashed;
+  border-color: rgba(174, 208, 232, .42);
+}
+
+.trackPending .trackBase {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(174, 208, 232, .14) 0 5px,
+    transparent 5px 9px
+  );
+}
+
+@media (max-width: 1180px) {
+  .card {
+    min-height: 238px;
+  }
+}
+
+@media (max-width: 760px) {
+  .card {
+    min-height: 226px;
+    padding: 16px;
+  }
+
+  .subjectHeading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .statusPill {
+    max-width: 72%;
+  }
+
+  .trackWrap {
+    padding-top: 15px;
+  }
+
+  .node {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+@media (max-width: 420px) {
+  .card {
+    min-height: 216px;
+  }
+
+  .node {
+    width: 20px;
+    height: 20px;
+    font-size: 7px;
+  }
+
+  .trackEnds {
+    font-size: 7px;
+  }
+}

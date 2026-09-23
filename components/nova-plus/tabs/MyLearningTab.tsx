@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import LearnerAvatarPicker from "@/components/nova-plus/LearnerAvatarPicker";
+import SubjectMilestoneCard from "@/components/nova-plus/my-learning/SubjectMilestoneCard";
 import type {
   NovaPlusProfilePayload,
   NovaSubjectKey,
@@ -172,8 +173,8 @@ export default function MyLearningTab({
         <div className={styles.subjectPanel}>
           <div className={styles.panelHeading}>
             <div>
-              <span className={styles.eyebrow}>ACADEMIC PICTURE</span>
-              <h3>English, Mathematics & Science</h3>
+              <span className={styles.eyebrow}>SUBJECT MILESTONES</span>
+              <h3>Where your subjects currently stand</h3>
             </div>
             <ScoreInfo />
           </div>
@@ -182,63 +183,15 @@ export default function MyLearningTab({
             {CURRICULUM_SUBJECTS.map((subjectKey) => {
               const summary = summaryFor(profile, subjectKey);
               const state = subjectState(summary);
-              const stateMeta = STATE_META[state];
-              const subjectMeta = SUBJECT_META[subjectKey];
-              const hasEvidence = Boolean(summary && summary.questions_attempted >= 5);
 
               return (
-                <article
+                <SubjectMilestoneCard
                   key={subjectKey}
-                  className={styles.subjectCard}
-                  style={{
-                    borderColor: stateMeta.border,
-                    background: `linear-gradient(145deg, ${stateMeta.soft}, rgba(4, 13, 29, 0.88))`,
-                    boxShadow: `inset 0 0 36px ${stateMeta.soft}`,
-                  }}
-                >
-                  <div className={styles.subjectTop}>
-                    <span
-                      className={styles.subjectIcon}
-                      style={{
-                        color: stateMeta.colour,
-                        borderColor: stateMeta.border,
-                        background: stateMeta.soft,
-                      }}
-                    >
-                      {subjectMeta.icon}
-                    </span>
-                    <span
-                      className={styles.statusPill}
-                      style={{
-                        color: stateMeta.colour,
-                        borderColor: stateMeta.border,
-                        background: stateMeta.soft,
-                      }}
-                    >
-                      {subjectStateLabel(state)}
-                    </span>
-                  </div>
-
-                  <h4>{subjectMeta.label}</h4>
-
-                  <div className={styles.masteryLine}>
-                    <strong style={{ color: stateMeta.colour }}>
-                      {hasEvidence ? `${Math.round(safeNumber(summary?.mastery_score))}%` : "—"}
-                    </strong>
-                    <span>{hasEvidence ? "mastery" : "building picture"}</span>
-                  </div>
-
-                  <div className={styles.statusBar}>
-                    <div
-                      style={{
-                        width: hasEvidence
-                          ? `${Math.max(0, Math.min(100, safeNumber(summary?.mastery_score)))}%`
-                          : "18%",
-                        background: stateMeta.colour,
-                      }}
-                    />
-                  </div>
-                </article>
+                  subjectKey={subjectKey}
+                  summary={summary}
+                  statusLabel={subjectStateLabel(state)}
+                  statusMeta={STATE_META[state]}
+                />
               );
             })}
           </div>
