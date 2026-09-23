@@ -7,11 +7,9 @@ import { supabase } from "@/lib/supabase";
 import MiloExchangeGuide from "../components/MiloExchangeGuide";
 import MyPropertiesTab from "./components/MyPropertiesTab";
 import PropertyMapTab from "./components/PropertyMapTab";
-import PropertyResaleTab from "./components/PropertyResaleTab";
+import PropertyMarketTab from "./components/PropertyMarketTab";
 import PropertyPhone from "./components/PropertyPhone";
-import DistrictEconomyDrivers, {
-  type MiloCityDistrictEconomyDashboard,
-} from "./components/DistrictEconomyDrivers";
+import type { MiloCityDistrictEconomyDashboard } from "./components/DistrictEconomyDrivers";
 import {
   PROPERTY_TYPE_LABELS,
   formatNumber,
@@ -61,7 +59,7 @@ import {
 } from "./components/propertyExchangeShared";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
-type PropertyTab = "map" | "properties" | "resale";
+type PropertyTab = "map" | "market" | "properties";
 
 function useResponsiveMode() {
   const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
@@ -346,6 +344,7 @@ export default function PropertyExchangeClient() {
   const [phoneOpenRequest, setPhoneOpenRequest] = useState(0);
 
   const [previewProperty, setPreviewProperty] = useState<PropertyOffering | null>(null);
+  const [agentPropertyId, setAgentPropertyId] = useState<string | null>(null);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   const [purchaseMode, setPurchaseMode] = useState<"cash" | "finance">("cash");
   const [financeOptions, setFinanceOptions] = useState<PropertyFinanceOption[]>([]);
@@ -1979,9 +1978,9 @@ export default function PropertyExchangeClient() {
   }
 
   const tabs: Array<{ id: PropertyTab; label: string; description: string; icon: string }> = [
-    { id: "map", label: "Property Map", description: "Explore Dreamscape and buy properties", icon: "⌖" },
-    { id: "properties", label: "My Properties", description: "Manage homes, tenants and upgrades", icon: "⌂" },
-    { id: "resale", label: "Resale Market", description: "Buy properties from other owners", icon: "⇄" },
+    { id: "map", label: "Property Map", description: "Explore Dreamscape and find a property", icon: "⌖" },
+    { id: "market", label: "Market", description: "Overview, resale and Property Agent", icon: "↗" },
+    { id: "properties", label: "My Properties", description: "Manage the properties you own", icon: "⌂" },
   ];
 
   const tabStyles = { glassPanel, primaryButton, secondaryButton };
@@ -2055,6 +2054,25 @@ export default function PropertyExchangeClient() {
                     <strong style={{ display: "block", marginTop: "7px", fontSize: "16px" }}>{value}</strong>
                   </div>
                 ))}
+              </div>
+
+              <div style={{ marginTop: "16px", borderRadius: "16px", border: "1px solid rgba(142,232,255,0.14)", background: "rgba(142,232,255,0.05)", padding: "13px 14px", display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between", gap: "10px" }}>
+                <div>
+                  <strong style={{ display: "block", fontSize: "13px" }}>Want the full market picture?</strong>
+                  <span style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,0.5)", fontSize: "11px" }}>Hire the Property Agent for a detailed valuation, rental and district report.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAgentPropertyId(previewProperty.id);
+                    setPreviewProperty(null);
+                    setActiveTab("market");
+                    window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 60);
+                  }}
+                  style={{ ...secondaryButton, whiteSpace: "nowrap" }}
+                >
+                  Ask Property Agent →
+                </button>
               </div>
 
               <div style={{ marginTop: "22px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px" }}>
@@ -2227,26 +2245,42 @@ export default function PropertyExchangeClient() {
 
         <div style={{ marginTop: "18px" }}>
           {activeTab === "map" && (
-            <div style={{ display: "grid", gap: "18px" }}>
-              <DistrictEconomyDrivers
-                dashboard={districtEconomyDashboard}
-                isMobile={isMobile}
-                panelStyle={glassPanel}
-              />
-              <PropertyMapTab
-                {...tabStyles}
-                properties={properties}
-                holdings={holdings}
-                marketLoading={marketLoading}
-                isMobile={isMobile}
-                isCompact={isCompact}
-                isDesktop={isDesktop}
-                onOpenProperty={openPreview}
-                districtMarkets={districtMarkets}
-                marketSegments={marketSegments}
-                marketHistory={marketHistory}
-              />
-            </div>
+            <PropertyMapTab
+              {...tabStyles}
+              properties={properties}
+              holdings={holdings}
+              marketLoading={marketLoading}
+              isMobile={isMobile}
+              isCompact={isCompact}
+              isDesktop={isDesktop}
+              onOpenProperty={openPreview}
+              districtMarkets={districtMarkets}
+              marketSegments={marketSegments}
+              marketHistory={marketHistory}
+            />
+          )}
+
+          {activeTab === "market" && (
+            <PropertyMarketTab
+              {...tabStyles}
+              properties={properties}
+              marketSegments={marketSegments}
+              marketHistory={marketHistory}
+              districtEconomyDashboard={districtEconomyDashboard}
+              resaleListings={resaleListings}
+              recentSales={recentSales}
+              dreamTokens={dreamTokens}
+              actionLoading={actionLoading}
+              marketLoading={marketLoading}
+              message={tradeMessage}
+              isMobile={isMobile}
+              isCompact={isCompact}
+              onRefresh={() => void refreshMarket()}
+              onBuyResale={buyResaleProperty}
+              onOpenProperty={openPreview}
+              onTokensChanged={loadDreamTokens}
+              initialAgentPropertyId={agentPropertyId}
+            />
           )}
 
           {activeTab === "properties" && (
@@ -2328,23 +2362,6 @@ export default function PropertyExchangeClient() {
             />
           )}
 
-          {activeTab === "resale" && (
-            <PropertyResaleTab
-              {...tabStyles}
-              properties={properties}
-              resaleListings={resaleListings}
-              recentSales={recentSales}
-              dreamTokens={dreamTokens}
-              actionLoading={actionLoading}
-              marketLoading={marketLoading}
-              message={tradeMessage}
-              isMobile={isMobile}
-              isCompact={isCompact}
-              onRefresh={() => void refreshMarket()}
-              onBuy={buyResaleProperty}
-              onOpenProperty={openPreview}
-            />
-          )}
         </div>
       </div>
 

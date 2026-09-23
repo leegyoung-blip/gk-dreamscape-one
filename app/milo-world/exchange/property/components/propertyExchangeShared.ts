@@ -786,11 +786,6 @@ export type PropertyBusinessSpaceBusiness = {
   district: string | null;
   current_value: number | null;
   rental_potential: number | null;
-  economy_health?: number | null;
-  growth_state?: string | null;
-  hiring_status?: string | null;
-  named_staff_count?: number | null;
-  space_pressure?: boolean | null;
 };
 
 export type PropertyBusinessSpaceUnit = {
@@ -876,79 +871,12 @@ export type PropertyBusinessSpaceOccupancy = {
   area_sqm: number;
 };
 
-
-export type PropertyNpcBusinessSpaceApplication = {
-  id: string;
-  listing_id: string;
-  unit_id: string;
-  landlord_user_id: string;
-  business_resident_id: string;
-  business_name: string;
-  business_type_id: string;
-  proposed_weekly_rent: number;
-  lease_weeks: number;
-  fit_score: number;
-  status: string;
-  created_at: string;
-  responded_at: string | null;
-  property_name: string;
-  district: string;
-  property_type: string;
-  area_sqm: number;
-  asking_weekly_rent: number;
-  avatar_key: string | null;
-  growth_state: string | null;
-  health_score: number | null;
-};
-
-export type PropertyNpcBusinessSpaceOccupancy = {
-  id: string;
-  unit_id: string;
-  landlord_user_id: string;
-  business_resident_id: string;
-  business_name: string;
-  business_type_id: string;
-  weekly_space_cost: number;
-  lease_weeks: number;
-  start_date: string;
-  end_date: string;
-  next_cost_due_on: string;
-  paid_weeks: number;
-  fit_score: number;
-  capacity_staff: number;
-  status: string;
-  arrears_count: number;
-  property_name: string;
-  district: string;
-  property_type: string;
-  area_sqm: number;
-  avatar_key: string | null;
-  health_score: number | null;
-  growth_state: string | null;
-};
-
-export type PropertyNpcBusinessSummary = {
-  resident_id: string;
-  business_name: string;
-  business_type_id: string;
-  required_property_type: string;
-  health_score: number;
-  growth_state: string;
-  hiring_status: string;
-  staff_count: number;
-  named_staff_count: number;
-  avatar_key: string | null;
-  has_space: boolean;
-  space_pressure: boolean;
-};
-
 export type PropertyBusinessSpaceStats = {
   running_businesses: number;
   businesses_with_space: number;
   commercial_units_owned: number;
   spaces_listed: number;
   incoming_applications: number;
-  dreamscape_business_applications?: number;
 };
 
 export type PropertyBusinessSpaceDashboard = {
@@ -956,10 +884,7 @@ export type PropertyBusinessSpaceDashboard = {
   owned_commercial_units: PropertyBusinessSpaceUnit[];
   market_listings: PropertyBusinessSpaceListing[];
   applications: PropertyBusinessSpaceApplication[];
-  npc_applications: PropertyNpcBusinessSpaceApplication[];
   occupancies: PropertyBusinessSpaceOccupancy[];
-  npc_occupancies: PropertyNpcBusinessSpaceOccupancy[];
-  npc_businesses: PropertyNpcBusinessSummary[];
   stats: PropertyBusinessSpaceStats;
 };
 

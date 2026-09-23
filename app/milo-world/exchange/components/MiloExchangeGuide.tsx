@@ -12,7 +12,7 @@ export type MiloExchangeGuideStep = {
   tip?: string;
   target?: string;
   section?: "portfolio" | "market" | "trade";
-  propertyTab?: "map" | "properties" | "resale";
+  propertyTab?: "map" | "market" | "properties";
 };
 
 type Props = {
@@ -22,9 +22,9 @@ type Props = {
 };
 
 const GUIDE_VERSIONS: Record<MiloExchangeGuidePage, string> = {
-  home: "v3",
+  home: "v2",
   stocks: "v3",
-  property: "v14",
+  property: "v15",
 };
 
 const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
@@ -43,14 +43,6 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
         "These cards separate available Dream Tokens, stock value and the equity you actually own in property after finance debt. Total Net Worth combines them.",
       target: "home-portfolio-summary",
       tip: "Cash is what you can spend immediately. Property equity is property value minus unpaid finance debt.",
-    },
-    {
-      eyebrow: "Step 2 · City Pulse",
-      title: "See the whole Dreamscape economy",
-      description:
-        "City Pulse brings jobs, resident demand, business confidence, property conditions and the fictional stock market into one simple overview.",
-      target: "home-city-pulse",
-      tip: "The public Pulse reads a stored daily snapshot. Opening the page does not advance or recalculate the economy.",
     },
     {
       eyebrow: "Step 3 · Stocks",
@@ -163,168 +155,70 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
   property: [
     {
       eyebrow: "Milo Guide",
-      title: "Welcome to your Dreamscape property journey",
+      title: "Start with the map",
       description:
-        "Buy properties, improve them, meet residents, agree on rent, look after tenants and sell when the time is right.",
+        "Property Exchange is now organised into three simple areas: explore the map, study the market, then manage what you own.",
       target: "property-tabs",
       propertyTab: "map",
-      tip: "Owning a property does not automatically create income. You need a tenant and an agreement.",
+      tip: "You do not need to understand every market number before buying your first property.",
     },
     {
-      eyebrow: "Step 1 · City Drivers",
-      title: "See why a district is changing",
+      eyebrow: "Step 1 · Property Map",
+      title: "Choose where you want to buy",
       description:
-        "Jobs, residents looking for homes, business growth, available supply and occasional city developments now feed into each district before prices and rent potential move.",
-      target: "property-city-drivers",
-      propertyTab: "map",
-      tip: "The Living City adds only small daily pressure. A single job, tenant or business cannot suddenly swing the whole district.",
-    },
-    {
-      eyebrow: "Step 2 · Market Pulse",
-      title: "Watch the districts change",
-      description:
-        "Demand, available supply, occupancy and recent deals now shape each district. Stronger demand can gradually lift property values and rent potential.",
-      target: "property-market-pulse",
-      propertyTab: "map",
-      tip: "The market moves slowly. One busy day should not suddenly double a property price.",
-    },
-    {
-      eyebrow: "Step 3 · Property Map",
-      title: "Choose your first property",
-      description:
-        "Explore Residential Hub or Commercial Hub, compare the Dreamscape sale price with the live market value and rent potential, then choose a property to buy.",
+        "Tap Residential Hub or Commercial Hub, choose a property type, then open any property that interests you.",
       target: "property-world-map",
       propertyTab: "map",
     },
     {
-      eyebrow: "Step 4 · Your Property",
-      title: "Every property becomes unique",
+      eyebrow: "Step 2 · Property Details",
+      title: "Compare the essentials",
       description:
-        "Your upgrades, condition, tenants and maintenance choices stay with that property over time.",
+        "Property cards now focus on price, approximate market value and availability. Open a property only when you want the full details.",
       target: "property-primary-market",
       propertyTab: "map",
-      tip: "Rent potential is an estimate, not automatic income.",
+      tip: "For deeper market analysis, use the Property Agent inside Market.",
     },
     {
-      eyebrow: "Step 5 · Portfolio",
-      title: "See how your portfolio is doing",
+      eyebrow: "Step 3 · Market",
+      title: "Get the market picture for free",
       description:
-        "My Properties shows what your portfolio is worth, how much rent is coming in, which homes are occupied and which residents need your attention.",
+        "The Market tab shows simple demand and price direction, city stories and market activity without charging Dream Tokens.",
+      target: "property-tabs",
+      propertyTab: "market",
+    },
+    {
+      eyebrow: "Step 4 · Property Agent",
+      title: "Pay only when you want deeper analysis",
+      description:
+        "Hire the Property Agent for 25 DT to analyse one property or market segment. A report stays available free until the next daily market settlement.",
+      target: "property-tabs",
+      propertyTab: "market",
+      tip: "The report is based on Dreamscape market data, not a random opinion.",
+    },
+    {
+      eyebrow: "Step 5 · Resale",
+      title: "Resale now lives inside Market",
+      description:
+        "Use the Resale section inside Market when you want to compare player-owned properties and completed sales.",
+      target: "property-tabs",
+      propertyTab: "market",
+    },
+    {
+      eyebrow: "Step 6 · My Properties",
+      title: "Manage only what you own",
+      description:
+        "My Properties contains your portfolio, tenants, upgrades, finance, business spaces and property management tools.",
       target: "property-portfolio-summary",
       propertyTab: "properties",
     },
     {
-      eyebrow: "Step 6 · Property Finance",
-      title: "Debt can help you grow — but it must be repaid",
+      eyebrow: "Step 7 · Keep learning as you grow",
+      title: "The Living City keeps running in the background",
       description:
-        "Property Finance lets you use a deposit and repay the rest over time. Watch your debt, equity, weekly repayments and Finance Health before taking on another plan.",
-      target: "property-finance",
-      propertyTab: "properties",
-      tip: "A smaller deposit creates more leverage, but also more debt and interest.",
-    },
-    {
-      eyebrow: "Step 7 · Finding Tenants",
-      title: "Set the rent and see who applies",
-      description:
-        "Choose a weekly rent and list a vacant property. Dreamscape residents decide whether it suits their budget, lifestyle and needs.",
-      target: "property-resident-overview",
-      propertyTab: "properties",
-      tip: "Higher rent may earn more if accepted, but it narrows the applicant pool.",
-    },
-    {
-      eyebrow: "Step 8 · Property Messages",
-      title: "Negotiations happen like real conversations",
-      description:
-        "Applications, purchase offers, lease agreements, renewal negotiations, move-out notices and maintenance messages arrive on your Property Phone. Open it from the bottom-right corner.",
-      target: "property-phone-launcher",
-      propertyTab: "properties",
-      tip: "Accept, decline or counter renewal terms directly inside the conversation.",
-    },
-    {
-      eyebrow: "Step 9 · Reputation",
-      title: "Build a reputation residents trust",
-      description:
-        "Fair rent, good maintenance and happy tenants build your reputation. Poor treatment makes future relationships harder.",
-      target: "property-reputation",
-      propertyTab: "properties",
-    },
-    {
-      eyebrow: "Step 10 · Resident Stories",
-      title: "Residents have lives of their own",
-      description:
-        "Careers, families, savings and businesses can change over time. Those changes may affect what a resident can afford or whether they need a different property.",
-      target: "property-resident-life",
-      propertyTab: "properties",
-      tip: "The same resident can return later with a different income, budget and housing need.",
-    },
-    {
-      eyebrow: "Step 11 · Jobs & Income",
-      title: "A resident's job can change their housing choices",
-      description:
-        "Some residents work for Stock Exchange companies while others have private, community or self-employed careers. Raises, promotions and job losses can change what they can afford.",
-      target: "property-employment-economy",
-      propertyTab: "properties",
-      tip: "A company doing well does not guarantee every employee will be promoted, and a weak period does not mean everyone loses a job.",
-    },
-    {
-      eyebrow: "Step 12 · Business Spaces",
-      title: "Businesses now compete for real space",
-      description:
-        "Your Business Builder businesses and Dreamscape businesses use the same office and retail market. Growing teams may hire residents, outgrow a space or apply to rent one of your commercial units.",
-      target: "property-business-spaces",
-      propertyTab: "properties",
-      tip: "Business growth creates jobs and demand for commercial property — but rent and cramped premises can also hold a business back.",
-    },
-    {
-      eyebrow: "Step 13 · Lease Renewal",
-      title: "Talk things through before a lease ends",
-      description:
-        "Before a lease ends, your tenant may message you about staying. You can accept, decline or suggest different rent and lease terms.",
-      target: "property-managed-units",
-      propertyTab: "properties",
-      tip: "If no renewal is agreed, the tenant moves out and the property becomes vacant again.",
-    },
-    {
-      eyebrow: "Step 14 · Property Care",
-      title: "Take care of your property",
-      description:
-        "Wear and repair problems can lower value and upset tenants. Regular servicing helps keep the property in good shape.",
-      target: "property-maintenance-overview",
-      propertyTab: "properties",
-    },
-    {
-      eyebrow: "Step 15 · Upgrades",
-      title: "Improve it, then look after it",
-      description:
-        "Upgrades can make a property more attractive and valuable. Maintenance protects what you have already built.",
-      target: "property-upgrade-overview",
-      propertyTab: "properties",
-      tip: "A premium property can still lose tenants if it is poorly managed.",
-    },
-    {
-      eyebrow: "Step 16 · Selling",
-      title: "Sell when the time feels right",
-      description:
-        "When you sell, the property keeps its upgrades and condition. Choose an asking price and list it for other players.",
-      target: "property-my-listings",
-      propertyTab: "properties",
-    },
-    {
-      eyebrow: "Step 17 · Resale Market",
-      title: "Compare real player-owned properties",
-      description:
-        "Every resale listing reflects how that owner developed and cared for the property, so two homes of the same type can be very different.",
-      target: "property-resale-market",
-      propertyTab: "resale",
-    },
-    {
-      eyebrow: "Step 18 · The Full Loop",
-      title: "Build your own property story",
-      description:
-        "Your choices matter, but so does the wider city. Resident demand, available supply, rent agreements and completed sales now help shape each district over time.",
-      target: "property-virtual-notice",
+        "Residents, jobs, businesses, property demand and city events continue to shape the market, while the interface keeps the important choices simple.",
       propertyTab: "map",
-      tip: "This remains a fictional Dreamscape learning market using virtual Dream Tokens.",
+      tip: "All property and Dream Token activity remains fictional and exists only inside Dreamscape.",
     },
   ],
 };
