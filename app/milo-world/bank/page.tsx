@@ -6,6 +6,7 @@ import BankHeader from "./components/BankHeader";
 import BankNavigation from "./components/BankNavigation";
 import BankOverview from "./components/BankOverview";
 import WalletPanel from "./components/WalletPanel";
+import SavingsGoalsPanel from "./components/SavingsGoalsPanel";
 import { useBankAccount } from "./hooks/useBankAccount";
 import { useBankResponsive } from "./hooks/useBankResponsive";
 import type { BankTab } from "./lib/bank-types";
@@ -117,7 +118,11 @@ export default function MiloBankPage() {
         )}
 
         {activeTab === "savings" && (
-          <BankFeaturePlaceholder feature="savings" screenMode={screenMode} />
+          <SavingsGoalsPanel
+            screenMode={screenMode}
+            isLoggedIn={isLoggedIn}
+            availableDt={account.available}
+          />
         )}
 
         {activeTab === "bonds" && (
