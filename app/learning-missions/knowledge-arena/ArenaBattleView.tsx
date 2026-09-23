@@ -65,48 +65,6 @@ const monsterPoseSprites: Record<string, Record<MonsterPose, string>> = {
     hit: "/activities/learning-missions/knowledge-arena/monsters/verdant-sabertooth/hit.png",
     defeated: "/activities/learning-missions/knowledge-arena/monsters/verdant-sabertooth/defeated.png",
   },
-  "ironhide-rambeast": {
-    idle: "/activities/learning-missions/knowledge-arena/monsters/ironhide-rambeast/idle.png",
-    defense: "/activities/learning-missions/knowledge-arena/monsters/ironhide-rambeast/defense.png",
-    attack: "/activities/learning-missions/knowledge-arena/monsters/ironhide-rambeast/attack.png",
-    hit: "/activities/learning-missions/knowledge-arena/monsters/ironhide-rambeast/hit.png",
-    defeated: "/activities/learning-missions/knowledge-arena/monsters/ironhide-rambeast/defeated.png",
-  },
-  "stormfang-wyvern": {
-    idle: "/activities/learning-missions/knowledge-arena/monsters/stormfang-wyvern/idle.png",
-    defense: "/activities/learning-missions/knowledge-arena/monsters/stormfang-wyvern/defense.png",
-    attack: "/activities/learning-missions/knowledge-arena/monsters/stormfang-wyvern/attack.png",
-    hit: "/activities/learning-missions/knowledge-arena/monsters/stormfang-wyvern/hit.png",
-    defeated: "/activities/learning-missions/knowledge-arena/monsters/stormfang-wyvern/defeated.png",
-  },
-  "frostclaw-prowler": {
-    idle: "/activities/learning-missions/knowledge-arena/monsters/frostclaw-prowler/idle.png",
-    defense: "/activities/learning-missions/knowledge-arena/monsters/frostclaw-prowler/defense.png",
-    attack: "/activities/learning-missions/knowledge-arena/monsters/frostclaw-prowler/attack.png",
-    hit: "/activities/learning-missions/knowledge-arena/monsters/frostclaw-prowler/hit.png",
-    defeated: "/activities/learning-missions/knowledge-arena/monsters/frostclaw-prowler/defeated.png",
-  },
-  "brambleback-tortoise": {
-    idle: "/activities/learning-missions/knowledge-arena/monsters/brambleback-tortoise/idle.png",
-    defense: "/activities/learning-missions/knowledge-arena/monsters/brambleback-tortoise/defense.png",
-    attack: "/activities/learning-missions/knowledge-arena/monsters/brambleback-tortoise/attack.png",
-    hit: "/activities/learning-missions/knowledge-arena/monsters/brambleback-tortoise/hit.png",
-    defeated: "/activities/learning-missions/knowledge-arena/monsters/brambleback-tortoise/defeated.png",
-  },
-  "dunebreaker-scorpion": {
-    idle: "/activities/learning-missions/knowledge-arena/monsters/dunebreaker-scorpion/idle.png",
-    defense: "/activities/learning-missions/knowledge-arena/monsters/dunebreaker-scorpion/defense.png",
-    attack: "/activities/learning-missions/knowledge-arena/monsters/dunebreaker-scorpion/attack.png",
-    hit: "/activities/learning-missions/knowledge-arena/monsters/dunebreaker-scorpion/hit.png",
-    defeated: "/activities/learning-missions/knowledge-arena/monsters/dunebreaker-scorpion/defeated.png",
-  },
-  "prismhorn-stag": {
-    idle: "/activities/learning-missions/knowledge-arena/monsters/prismhorn-stag/idle.png",
-    defense: "/activities/learning-missions/knowledge-arena/monsters/prismhorn-stag/defense.png",
-    attack: "/activities/learning-missions/knowledge-arena/monsters/prismhorn-stag/attack.png",
-    hit: "/activities/learning-missions/knowledge-arena/monsters/prismhorn-stag/hit.png",
-    defeated: "/activities/learning-missions/knowledge-arena/monsters/prismhorn-stag/defeated.png",
-  },
 };
 
 function rarityLabel(value: string) {
@@ -365,39 +323,6 @@ export function ArenaEncounterLoader({
         }
         .kab-rng-stats strong { color: white; }
         @keyframes kabOrbit { to { transform: rotate(360deg); } }
-
-        /* Hardware-level mobile fallback. This does not depend on screenMode. */
-        @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
-          .kab-stage-v3 .kab-top-strip {
-            display: none;
-          }
-
-          .kab-stage-v3 .kab-battle-center {
-            overflow: visible;
-            padding-bottom: 26px;
-          }
-
-          .kab-stage-v3 .kab-fighter,
-          .kab-stage-v3 .kab-fighter-left,
-          .kab-stage-v3 .kab-fighter-right {
-            transform: translateY(38px);
-          }
-
-          .kab-stage-v3 .kab-bottom-hud {
-            position: absolute;
-            left: 6px;
-            right: 6px;
-            bottom: max(6px, env(safe-area-inset-bottom));
-            z-index: 12;
-            padding: 0;
-            align-items: end;
-          }
-
-          .kab-stage-v3 .kab-monster-stats {
-            display: none !important;
-          }
-        }
-
       `}</style>
     </div>
   );
@@ -420,12 +345,6 @@ const MONSTER_IMPACT_HOTSPOTS: Record<string, { x: number; y: number }> = {
   "tempest-roc": { x: 0.42, y: 0.46 },
   "worldbreaker-leviathan": { x: 0.30, y: 0.46 },
   "verdant-sabertooth": { x: 0.34, y: 0.46 },
-  "ironhide-rambeast": { x: 0.47, y: 0.49 },
-  "stormfang-wyvern": { x: 0.45, y: 0.48 },
-  "frostclaw-prowler": { x: 0.44, y: 0.47 },
-  "brambleback-tortoise": { x: 0.46, y: 0.50 },
-  "dunebreaker-scorpion": { x: 0.49, y: 0.51 },
-  "prismhorn-stag": { x: 0.43, y: 0.46 },
 };
 
 function imageHotspot(
@@ -744,7 +663,7 @@ export function ArenaBattleView({
           {damagePopups
             .filter((item) => item.target === "nova")
             .map((item) => (
-              <div key={item.id} className="kab-damage-float kab-damage-float--nova">-{Math.round(item.value)}</div>
+              <div key={item.id} className="kab-damage-float kab-damage-float--nova">-{item.value}</div>
             ))}
         </div>
 
@@ -774,7 +693,7 @@ export function ArenaBattleView({
           {damagePopups
             .filter((item) => item.target === "monster")
             .map((item) => (
-              <div key={item.id} className="kab-damage-float kab-damage-float--monster">-{Math.round(item.value)}</div>
+              <div key={item.id} className="kab-damage-float kab-damage-float--monster">-{item.value}</div>
             ))}
         </div>
 
@@ -804,7 +723,7 @@ export function ArenaBattleView({
         <div className="kab-hp-card kab-bottom-card">
           <div className="kab-hp-title">
             <strong>NOVA</strong>
-            <span>{Math.max(0, Math.ceil(novaHp))} / 1000 HP</span>
+            <span>{novaHp} / 1000 HP</span>
           </div>
           <div className="kab-hp-track">
             <i style={{ width: `${hpPercent(novaHp, 1000)}%` }} />
@@ -828,7 +747,7 @@ export function ArenaBattleView({
         <div className="kab-hp-card kab-bottom-card kab-monster-card">
           <div className="kab-hp-title">
             <strong>{monster.name}</strong>
-            <span>{Math.max(0, Math.ceil(monsterHp))} / {monster.hp} HP</span>
+            <span>{monsterHp} / {monster.hp} HP</span>
           </div>
           <div className="kab-hp-track kab-monster-hp">
             <i style={{ width: `${hpPercent(monsterHp, monster.hp)}%` }} />
@@ -1129,12 +1048,6 @@ export function ArenaBattleView({
         .kab-impact-anchor--tempest-roc { left: 38%; top: 36%; }
         .kab-impact-anchor--worldbreaker-leviathan { left: 26%; top: 44%; }
         .kab-impact-anchor--verdant-sabertooth { left: 31%; top: 45%; }
-        .kab-impact-anchor--ironhide-rambeast { left: 45%; top: 48%; }
-        .kab-impact-anchor--stormfang-wyvern { left: 43%; top: 47%; }
-        .kab-impact-anchor--frostclaw-prowler { left: 42%; top: 46%; }
-        .kab-impact-anchor--brambleback-tortoise { left: 45%; top: 49%; }
-        .kab-impact-anchor--dunebreaker-scorpion { left: 47%; top: 50%; }
-        .kab-impact-anchor--prismhorn-stag { left: 41%; top: 45%; }
         .kab-shot-layer {
           position: absolute;
           inset: 0;
@@ -1412,27 +1325,32 @@ export function ArenaBattleView({
           z-index: 1;
           box-sizing: border-box;
           min-height: 0;
-          overflow: visible;
+          overflow: hidden;
           align-items: flex-end;
           gap: clamp(28px, 10vw, 86px);
 
-          /* The HUD is pinned to the bottom independently. Reserve its height
-             here so both fighters always stand immediately above it. */
-          padding: 3px 10px 26px;
+          /* Keep the fighters sitting just above the bottom HUD instead of
+             floating too high in the arena. */
+          padding: 3px 10px 52px;
         }
         .kab-is-mobile .kab-fighter {
           width: min(15vw, 108px);
           height: min(26vh, 142px);
           max-height: 100%;
           flex: 0 1 auto;
-          transform: translateY(38px);
+          transform: none;
         }
         .kab-is-mobile .kab-fighter-right {
           width: min(27vw, 184px);
           height: min(29vh, 158px);
           max-height: 100%;
           align-self: flex-end;
-          transform: translateY(38px);
+        }
+        .kab-is-mobile .kab-fighter-left {
+          transform: translateY(18px);
+        }
+        .kab-is-mobile .kab-fighter-right {
+          transform: translateY(20px);
         }
         .kab-is-mobile .kab-character,
         .kab-is-mobile .kab-character img {
@@ -1447,6 +1365,7 @@ export function ArenaBattleView({
           position: absolute;
           left: 6px;
           right: 6px;
+          /* Bottom HUD stays pinned so fighters can anchor visually just above it. */
           bottom: max(6px, env(safe-area-inset-bottom));
           z-index: 12;
           grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
@@ -1535,8 +1454,8 @@ export function ArenaBattleView({
             width: min(14vw, 88px);
             height: min(16vh, 92px);
           }
-          .kab-fighter-left { transform: translateY(24px); }
-          .kab-fighter-right { transform: translateY(26px); }
+          .kab-fighter-left { transform: translateY(18px); }
+          .kab-fighter-right { transform: translateY(20px); }
           .kab-muzzle-anchor { left: 67.5%; top: 25%; }
           .kab-center-status { gap: 6px; margin-top: 0; }
           .kab-battle-message, .kab-fire-panel, .kab-target-eliminated { padding: 8px 10px; font-size: 11px; }
@@ -1563,13 +1482,13 @@ export function ArenaBattleView({
         .kab-is-mobile .kab-fighter,
         .kab-is-mobile .kab-fighter-left,
         .kab-is-mobile .kab-fighter-right {
-          transform:translateY(38px);
+          transform:none;
           max-height:100%;
         }
 
         .kab-is-mobile .kab-battle-center {
           box-sizing:border-box;
-          padding-bottom:26px;
+          padding-bottom:52px;
         }
 
         .kab-is-mobile .kab-bottom-hud {
@@ -1672,10 +1591,10 @@ export function ArenaBattleResultCard({
         </div>
 
         <div className="kab-result-stats">
-          <span>Nova HP <strong>{Math.max(0, Math.ceil(novaHp))}</strong></span>
-          <span>Monster HP <strong>{Math.max(0, Math.ceil(monsterHp))}</strong></span>
-          <span>Damage dealt <strong>{Math.round(damageDealt)}</strong></span>
-          <span>Damage received <strong>{Math.round(damageReceived)}</strong></span>
+          <span>Nova HP <strong>{novaHp}</strong></span>
+          <span>Monster HP <strong>{monsterHp}</strong></span>
+          <span>Damage dealt <strong>{damageDealt}</strong></span>
+          <span>Damage received <strong>{damageReceived}</strong></span>
           <span>Revives <strong>{revivesUsed}</strong></span>
         </div>
       </div>

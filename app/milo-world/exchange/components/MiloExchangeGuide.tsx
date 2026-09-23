@@ -24,7 +24,7 @@ type Props = {
 const GUIDE_VERSIONS: Record<MiloExchangeGuidePage, string> = {
   home: "v2",
   stocks: "v3",
-  property: "v15",
+  property: "v16",
 };
 
 const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
@@ -206,11 +206,12 @@ const GUIDE_STEPS: Record<MiloExchangeGuidePage, MiloExchangeGuideStep[]> = {
     },
     {
       eyebrow: "Step 6 · My Properties",
-      title: "Manage only what you own",
+      title: "Use one workspace instead of one long dashboard",
       description:
-        "My Properties contains your portfolio, tenants, upgrades, finance, business spaces and property management tools.",
-      target: "property-portfolio-summary",
+        "My Properties is split into Overview, Properties, People and Finance. Start with Overview to see portfolio health and anything that needs your attention.",
+      target: "property-my-properties-nav",
       propertyTab: "properties",
+      tip: "Open Properties when you want to manage or upgrade one unit. People keeps tenants, applicants and businesses together. Finance keeps equity, loans, protection and sale listings together.",
     },
     {
       eyebrow: "Step 7 · Keep learning as you grow",
