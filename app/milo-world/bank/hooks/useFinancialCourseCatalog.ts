@@ -12,7 +12,7 @@ import type {
   MiloFinanceModule,
 } from "../lib/financial-learning-content-types";
 
-export function useFinancialCourseCatalog(courseId?: string) {
+export function useFinancialCourseCatalog(courseId?: string, enabled = true) {
   const [courses, setCourses] = useState<MiloFinanceCourse[]>([]);
   const [modules, setModules] = useState<MiloFinanceModule[]>([]);
   const [lessons, setLessons] = useState<MiloFinanceLessonSummary[]>([]);
@@ -20,6 +20,15 @@ export function useFinancialCourseCatalog(courseId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    if (!enabled) {
+      setCourses([]);
+      setModules([]);
+      setLessons([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -42,7 +51,7 @@ export function useFinancialCourseCatalog(courseId?: string) {
     } finally {
       setLoading(false);
     }
-  }, [courseId]);
+  }, [courseId, enabled]);
 
   useEffect(() => {
     refresh();

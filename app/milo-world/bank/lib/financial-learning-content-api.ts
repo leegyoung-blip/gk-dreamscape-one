@@ -6,6 +6,7 @@ import type {
   MiloFinanceLessonCompletion,
   MiloFinanceLessonSummary,
   MiloFinanceLoadedLesson,
+  MiloFinanceLessonProgress,
   MiloFinanceModule,
 } from "./financial-learning-content-types";
 
@@ -70,6 +71,7 @@ function mapLesson(row: any): MiloFinanceLessonSummary {
     accessTier: row.access_tier,
     sortOrder: Number(row.sort_order ?? 0),
     concepts: row.concepts ?? [],
+    skillKeys: row.skill_keys ?? [],
     schemaVersion: Number(row.schema_version ?? 2) as 1 | 2,
     startBlockId: row.start_block_id ?? null,
     variableDefinitions: row.variable_definitions ?? [],
@@ -82,7 +84,7 @@ function mapLesson(row: any): MiloFinanceLessonSummary {
 export async function listMiloFinanceLessons(courseId: string): Promise<MiloFinanceLessonSummary[]> {
   const { data, error } = await supabase
     .from("milo_finance_lessons")
-    .select("id,lesson_key,course_id,module_id,legacy_lesson_key,title,short_title,description,duration_minutes,reward_dt,access_tier,sort_order,concepts,schema_version,start_block_id,variable_definitions,status,version,content_source")
+    .select("id,lesson_key,course_id,module_id,legacy_lesson_key,title,short_title,description,duration_minutes,reward_dt,access_tier,sort_order,concepts,skill_keys,schema_version,start_block_id,variable_definitions,status,version,content_source")
     .eq("course_id", courseId)
     .eq("status", "published")
     .order("sort_order", { ascending: true });
@@ -93,7 +95,7 @@ export async function listMiloFinanceLessons(courseId: string): Promise<MiloFina
 export async function loadMiloFinanceLesson(lessonKey: string): Promise<MiloFinanceLoadedLesson> {
   const { data: lessonData, error: lessonError } = await supabase
     .from("milo_finance_lessons")
-    .select("id,lesson_key,course_id,module_id,legacy_lesson_key,title,short_title,description,duration_minutes,reward_dt,access_tier,sort_order,concepts,schema_version,start_block_id,variable_definitions,status,version,content_source")
+    .select("id,lesson_key,course_id,module_id,legacy_lesson_key,title,short_title,description,duration_minutes,reward_dt,access_tier,sort_order,concepts,skill_keys,schema_version,start_block_id,variable_definitions,status,version,content_source")
     .eq("lesson_key", lessonKey)
     .eq("status", "published")
     .single();
@@ -176,4 +178,25 @@ export async function completeMiloFinanceLesson(args: {
     rewardAmount: Number(row.reward_amount ?? 0),
     newlyCompleted: Boolean(row.newly_completed),
   };
+}
+
+
+export async function listMiloFinanceLessonProgress(): Promise<MiloFinanceLessonProgress[]> {
+  const { data, error } = await supabase
+    .from("milo_finance_lesson_progress")
+    .select("lesson_id,status,selected_advisor,last_block_key,attempt_no,reward_issued,started_at,last_seen_at,completed_at");
+
+  if (error) throw contentError(error, "Could not load Milo Finance lesson progress.");
+
+  return ((data ?? []) as any[]).map((row) => ({
+    lessonId: row.lesson_id,
+    status: row.status,
+    selectedAdvisor: row.selected_advisor,
+    lastBlockKey: row.last_block_key ?? null,
+    attemptNo: Number(row.attempt_no ?? 1),
+    rewardIssued: Number(row.reward_issued ?? 0),
+    startedAt: row.started_at,
+    lastSeenAt: row.last_seen_at,
+    completedAt: row.completed_at ?? null,
+  }));
 }
