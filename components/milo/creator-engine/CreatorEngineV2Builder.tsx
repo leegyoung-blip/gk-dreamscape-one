@@ -20,10 +20,14 @@ type ModuleRow = {
   wallet_dt: number;
 };
 
-type StoredQuestion = CreatorEngineQuestion & {
+type StoredOption = CreatorEngineOption & {
+  is_correct: boolean;
+};
+
+type StoredQuestion = Omit<CreatorEngineQuestion, "options"> & {
   answer_config: Record<string, unknown>;
   migrated_from_legacy: boolean;
-  options: (CreatorEngineOption & { is_correct: boolean })[];
+  options: StoredOption[];
 };
 
 type EditableOption = {
@@ -874,11 +878,7 @@ export default function CreatorEngineV2Builder({
                   </button>
 
                   <span className="ml-auto text-[8px] text-white/26">
-                    {form.options.length}/
-                    {form.questionType === "classic_choice"
-                      ? 4
-                      : maxGridOptions}{" "}
-                    options
+                    {form.options.length}/{maxGridOptions} options
                   </span>
                 </div>
               )}
