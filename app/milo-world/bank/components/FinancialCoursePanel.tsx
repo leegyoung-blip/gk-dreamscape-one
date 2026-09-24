@@ -33,10 +33,16 @@ export default function FinancialCoursePanel({
   const [opening, setOpening] = useState(false);
 
   const selectedCourse = course.courses.find((item) => item.id === courseId);
+  const plannedLessons = useMemo(() => {
+    const raw = selectedCourse?.metadata?.planned_lessons;
+    const parsed = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? Math.max(parsed, course.lessons.length) : course.lessons.length;
+  }, [selectedCourse?.metadata, course.lessons.length]);
   const completionPercent = useMemo(
-    () => (course.lessons.length ? Math.round((course.completedCount / course.lessons.length) * 100) : 0),
-    [course.completedCount, course.lessons.length],
+    () => (plannedLessons ? Math.round((course.completedCount / plannedLessons) * 100) : 0),
+    [course.completedCount, plannedLessons],
   );
+  const partialRollout = plannedLessons > course.lessons.length;
 
   async function openLesson(summary: MiloFinanceLessonSummary) {
     if (summary.accessTier === "milo_finance" && !hasMiloFinanceAccess) {
@@ -73,11 +79,17 @@ export default function FinancialCoursePanel({
         <p style={{ margin: "10px 0 0", maxWidth: 820, color: "rgba(255,255,255,.52)", fontSize: 12, lineHeight: 1.6 }}>{selectedCourse?.description ?? "Interactive financial learning inside Dreamscape."}</p>
 
         <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.4fr repeat(2,minmax(0,.7fr))", gap: 9 }}>
-          <div style={summaryCard}><div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><div><div style={summaryLabel}>Course progress</div><div style={summaryValue}>{course.completedCount} / {course.lessons.length} lessons</div></div><strong style={{ color: "#8ee8ff", fontSize: 19 }}>{completionPercent}%</strong></div><div style={{ marginTop: 10, height: 6, borderRadius: 999, background: "rgba(255,255,255,.07)", overflow: "hidden" }}><div style={{ width: `${completionPercent}%`, height: "100%", background: "linear-gradient(90deg,#58d8ff,#8cf0ca)" }} /></div></div>
+          <div style={summaryCard}><div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><div><div style={summaryLabel}>Course progress</div><div style={summaryValue}>{course.completedCount} / {plannedLessons} lessons</div></div><strong style={{ color: "#8ee8ff", fontSize: 19 }}>{completionPercent}%</strong></div><div style={{ marginTop: 10, height: 6, borderRadius: 999, background: "rgba(255,255,255,.07)", overflow: "hidden" }}><div style={{ width: `${completionPercent}%`, height: "100%", background: "linear-gradient(90deg,#58d8ff,#8cf0ca)" }} /></div></div>
           <div style={summaryCard}><div style={summaryLabel}>DT earned</div><div style={{ ...summaryValue, color: "#9af3c3" }}>{course.rewardEarned.toLocaleString("en-SG")} DT</div></div>
-          <div style={summaryCard}><div style={summaryLabel}>Course rewards</div><div style={{ ...summaryValue, color: "#ffd18a" }}>{course.maxReward} DT max</div></div>
+          <div style={summaryCard}><div style={summaryLabel}>{partialRollout ? "Live lesson rewards" : "Course rewards"}</div><div style={{ ...summaryValue, color: "#ffd18a" }}>{course.maxReward} DT {partialRollout ? "available now" : "max"}</div></div>
         </div>
       </div>
+
+      {partialRollout ? (
+        <div style={{ marginTop: 10, borderRadius: 13, border: "1px solid rgba(255,209,138,.13)", background: "rgba(255,190,90,.045)", padding: "10px 12px", color: "rgba(255,255,255,.46)", fontSize: 10, lineHeight: 1.55 }}>
+          <strong style={{ color: "#ffd18a" }}>Course build in progress:</strong> {course.lessons.length} of {plannedLessons} planned lessons are currently live. Your progress and evidence are preserved as later lessons are added.
+        </div>
+      ) : null}
 
       <div style={{ marginTop: 12 }}><FinancialAdvisorSelector value={advisor.advisorId} onChange={advisor.setAdvisorId} saving={advisor.saving} compact={isMobile} /></div>
 
