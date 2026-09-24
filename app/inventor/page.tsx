@@ -7,10 +7,39 @@ import { supabase } from "@/lib/supabase";
 import ObjectivesPanel, {
   type CurrentObjectivesStatus,
 } from "@/components/objectives/ObjectivesPanel";
+import {
+  WorldZoneAdminBar,
+  ZoneUnderUpgradeModal,
+} from "@/components/world/WorldZoneAccess";
 
 const STUDENT_COVER_IMAGE = "/nova/membership/student-access-cover.png";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
+
+type NovaZoneKey =
+  | "think_lab"
+  | "nova_home"
+  | "missions_centre"
+  | "knowledge_arena"
+  | "skyforge_hangar";
+
+type NovaZoneAccessSettings = Record<NovaZoneKey, boolean>;
+
+const DEFAULT_NOVA_ZONE_ACCESS: NovaZoneAccessSettings = {
+  think_lab: true,
+  nova_home: true,
+  missions_centre: true,
+  knowledge_arena: true,
+  skyforge_hangar: true,
+};
+
+const NOVA_ZONE_KEYS: NovaZoneKey[] = [
+  "think_lab",
+  "nova_home",
+  "missions_centre",
+  "knowledge_arena",
+  "skyforge_hangar",
+];
 
 type DreamTokenTransaction = {
   id: string;
@@ -172,6 +201,7 @@ type Zone = {
   href: string;
   icon: string;
   accent: string;
+  accessKey: NovaZoneKey;
   adminOnly?: boolean;
   statusLabel?: string;
 };
@@ -206,6 +236,7 @@ const zones: Zone[] = [
     title: "Think Lab",
     description: "Where Nova sharpens her mind — and challenges yours.",
     href: "/nova/thinking-skills-lab",
+    accessKey: "think_lab",
     icon: "◇",
     accent: "#53d7ff",
   },
@@ -215,6 +246,7 @@ const zones: Zone[] = [
     title: "Nova’s Home",
     description: "Your space. Build it your way.",
     href: "/inventor/hub",
+    accessKey: "nova_home",
     icon: "⌂",
     accent: "#c58cff",
   },
@@ -224,6 +256,7 @@ const zones: Zone[] = [
     title: "Missions Centre",
     description: "Your launch point for English, Maths, Science, and bigger learning missions.",
     href: "/learning-missions",
+    accessKey: "missions_centre",
     icon: "✦",
     accent: "#8dfcff",
   },
@@ -233,6 +266,7 @@ const zones: Zone[] = [
     title: "Knowledge Arena",
     description: "Jump straight into fast-paced quiz challenges and test what you know.",
     href: "/learning-missions/knowledge-arena",
+    accessKey: "knowledge_arena",
     icon: "◎",
     accent: "#ffd27d",
   },
@@ -242,6 +276,7 @@ const zones: Zone[] = [
     title: "Skyforge Hangar",
     description: "Head straight to your rover, upgrades, and driving challenges.",
     href: ROVER_FROM_NOVA_HREF,
+    accessKey: "skyforge_hangar",
     icon: "⇧",
     accent: "#8effc1",
   },
@@ -325,6 +360,13 @@ export default function NovaWorldPage() {
   const [objectivesLoading, setObjectivesLoading] = useState(true);
   const [showMembershipPortal, setShowMembershipPortal] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [zoneAccessSettings, setZoneAccessSettings] =
+    useState<NovaZoneAccessSettings>(DEFAULT_NOVA_ZONE_ACCESS);
+  const [zoneAccessLoading, setZoneAccessLoading] = useState(true);
+  const [updatingZoneAccess, setUpdatingZoneAccess] =
+    useState<NovaZoneKey | null>(null);
+  const [maintenanceZone, setMaintenanceZone] = useState<Zone | null>(null);
+  const [zoneAccessMessage, setZoneAccessMessage] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -619,6 +661,57 @@ export default function NovaWorldPage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadWorldZoneAccess() {
+      const { data, error } = await supabase
+        .from("world_zone_settings")
+        .select("zone_key,public_access_enabled")
+        .eq("world_key", "nova")
+        .in("zone_key", NOVA_ZONE_KEYS);
+
+      if (cancelled) return;
+
+      if (error) {
+        console.warn("Could not load Nova zone access settings:", error.message);
+        setZoneAccessLoading(false);
+        return;
+      }
+
+      const nextSettings: NovaZoneAccessSettings = {
+        ...DEFAULT_NOVA_ZONE_ACCESS,
+      };
+
+      for (const row of data || []) {
+        const zoneKey = String(row.zone_key) as NovaZoneKey;
+        if (zoneKey in nextSettings) {
+          nextSettings[zoneKey] = Boolean(row.public_access_enabled);
+        }
+      }
+
+      setZoneAccessSettings(nextSettings);
+      setZoneAccessLoading(false);
+    }
+
+    function refreshWorldZoneAccess() {
+      void loadWorldZoneAccess();
+    }
+
+    void loadWorldZoneAccess();
+    window.addEventListener("world-zone-access-updated", refreshWorldZoneAccess);
+    window.addEventListener("focus", refreshWorldZoneAccess);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(
+        "world-zone-access-updated",
+        refreshWorldZoneAccess,
+      );
+      window.removeEventListener("focus", refreshWorldZoneAccess);
+    };
+  }, []);
+
+  useEffect(() => {
     try {
       const walkthroughCompleted = window.localStorage.getItem(
         WALKTHROUGH_STORAGE_KEY,
@@ -665,11 +758,20 @@ export default function NovaWorldPage() {
     return () => window.clearTimeout(timeout);
   }, [isDesktop, isMobile, walkthroughOpen, walkthroughStep]);
 
+  const worldZones: Zone[] = zones.map((zone) => {
+    const enabled = zoneAccessSettings[zone.accessKey];
+    return {
+      ...zone,
+      adminOnly: !isAdmin && !enabled,
+      statusLabel: !enabled ? "Upgrading" : undefined,
+    };
+  });
+
   const activeWalkthroughZoneNumber = walkthroughOpen
     ? (WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber ?? null)
     : null;
   const activeWalkthroughZone = activeWalkthroughZoneNumber
-    ? (zones.find((zone) => zone.number === activeWalkthroughZoneNumber) ?? null)
+    ? (worldZones.find((zone) => zone.number === activeWalkthroughZoneNumber) ?? null)
     : null;
   const displayedDesktopZone =
     activeWalkthroughZone ?? selectedZone ?? hoveredZone;
@@ -695,18 +797,91 @@ export default function NovaWorldPage() {
     setSelectedZone(null);
   }
 
+  function isZonePubliclyOpen(zone: Zone) {
+    return zoneAccessSettings[zone.accessKey];
+  }
+
+  function showUpgradeNotice(zone: Zone) {
+    setHoveredZone(null);
+    setSelectedZone(null);
+    setMaintenanceZone(zone);
+  }
+
   function selectZone(zone: Zone) {
     if (walkthroughOpen) return;
+
+    if (!isAdmin && !isZonePubliclyOpen(zone)) {
+      showUpgradeNotice(zone);
+      return;
+    }
+
     setHoveredZone(null);
     setSelectedZone(zone);
   }
 
   function enterZone(zone: Zone) {
+    if (!isAdmin && !isZonePubliclyOpen(zone)) {
+      showUpgradeNotice(zone);
+      return;
+    }
+
     if (zone.id === "skyforge-hangar") {
       rememberNovaRoverOrigin();
     }
 
     window.location.href = zone.href;
+  }
+
+  function navigateFromGuide(href: string) {
+    const targetZone = zones.find((zone) => zone.href === href);
+
+    if (targetZone && !isAdmin && !isZonePubliclyOpen(targetZone)) {
+      closeWalkthrough();
+      showUpgradeNotice(targetZone);
+      return;
+    }
+
+    if (targetZone?.id === "skyforge-hangar") {
+      rememberNovaRoverOrigin();
+    }
+
+    closeWalkthrough();
+    window.location.href = href;
+  }
+
+  async function toggleZoneAccess(zoneKey: NovaZoneKey) {
+    if (!isAdmin || updatingZoneAccess) return;
+
+    const nextEnabled = !zoneAccessSettings[zoneKey];
+    setUpdatingZoneAccess(zoneKey);
+    setZoneAccessMessage("");
+
+    const { error } = await supabase.rpc("admin_set_world_zone_access", {
+      p_world_key: "nova",
+      p_zone_key: zoneKey,
+      p_public_access_enabled: nextEnabled,
+    });
+
+    if (error) {
+      console.warn("Could not update Nova zone access:", error.message);
+      setZoneAccessMessage(`Could not update access. ${error.message}`);
+      setUpdatingZoneAccess(null);
+      return;
+    }
+
+    setZoneAccessSettings((current) => ({
+      ...current,
+      [zoneKey]: nextEnabled,
+    }));
+    setUpdatingZoneAccess(null);
+
+    const zoneTitle =
+      zones.find((zone) => zone.accessKey === zoneKey)?.title || zoneKey;
+    setZoneAccessMessage(
+      `${zoneTitle} public access is now ${nextEnabled ? "OPEN" : "BLOCKED"}.`,
+    );
+
+    window.dispatchEvent(new Event("world-zone-access-updated"));
   }
 
   return (
@@ -786,6 +961,44 @@ export default function NovaWorldPage() {
         screenMode={screenMode}
         scope="nova"
       />
+
+      {isAdmin && !walkthroughOpen && (
+        <WorldZoneAdminBar
+          worldLabel="Nova’s World"
+          items={worldZones.map((zone) => ({
+            key: zone.accessKey,
+            label: zone.title
+              .replace("Nova’s ", "")
+              .replace("Nova's ", ""),
+            enabled: zoneAccessSettings[zone.accessKey],
+          }))}
+          loading={zoneAccessLoading}
+          updatingKey={updatingZoneAccess}
+          onToggle={(zoneKey) => void toggleZoneAccess(zoneKey)}
+        />
+      )}
+
+      {isAdmin && zoneAccessMessage && !walkthroughOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: "124px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 95,
+            padding: "8px 12px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(3,10,25,0.84)",
+            color: "rgba(255,255,255,0.76)",
+            fontSize: "10px",
+            fontWeight: 800,
+            letterSpacing: "0.05em",
+          }}
+        >
+          {zoneAccessMessage}
+        </div>
+      )}
 
       <section
         style={{
@@ -886,7 +1099,7 @@ export default function NovaWorldPage() {
             pointerEvents: "none",
           }}
         >
-          {zones.map((zone) => (
+          {worldZones.map((zone) => (
             <NovaHotspot
               key={zone.id}
               zone={zone}
@@ -962,7 +1175,7 @@ export default function NovaWorldPage() {
             paddingBottom: "24px",
           }}
         >
-          {zones.map((zone) => (
+          {worldZones.map((zone) => (
             <ZoneCard
               key={zone.id}
               zone={zone}
@@ -1092,11 +1305,19 @@ export default function NovaWorldPage() {
         </>
       )}
 
+      {maintenanceZone && (
+        <ZoneUnderUpgradeModal
+          zoneTitle={maintenanceZone.title}
+          onClose={() => setMaintenanceZone(null)}
+        />
+      )}
+
       <GuidedWalkthrough
         open={walkthroughOpen}
         stepIndex={walkthroughStep}
         onStepChange={setWalkthroughStep}
         onClose={closeWalkthrough}
+        onNavigate={navigateFromGuide}
       />
     </main>
   );
@@ -3482,11 +3703,13 @@ function GuidedWalkthrough({
   stepIndex,
   onStepChange,
   onClose,
+  onNavigate,
 }: {
   open: boolean;
   stepIndex: number;
   onStepChange: (nextStep: number) => void;
   onClose: () => void;
+  onNavigate: (href: string) => void;
 }) {
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
@@ -3773,13 +3996,13 @@ function GuidedWalkthrough({
                 >
                   Keep touring
                 </button>
-                <Link
-                  href="/nova/thinking-skills-lab"
-                  onClick={onClose}
+                <button
+                  type="button"
+                  onClick={() => onNavigate("/nova/thinking-skills-lab")}
                   style={actionStyle}
                 >
                   Sure! Let’s play
-                </Link>
+                </button>
               </>
             ) : isHomeStep ? (
               <>
@@ -3790,9 +4013,13 @@ function GuidedWalkthrough({
                 >
                   Keep touring
                 </button>
-                <Link href="/inventor/hub" onClick={onClose} style={actionStyle}>
+                <button
+                  type="button"
+                  onClick={() => onNavigate("/inventor/hub")}
+                  style={actionStyle}
+                >
                   Visit Nova’s Home
-                </Link>
+                </button>
               </>
             ) : isMissionsStep ? (
               <>
@@ -3803,13 +4030,13 @@ function GuidedWalkthrough({
                 >
                   Keep touring
                 </button>
-                <Link
-                  href="/learning-missions"
-                  onClick={onClose}
+                <button
+                  type="button"
+                  onClick={() => onNavigate("/learning-missions")}
                   style={actionStyle}
                 >
                   Enter Missions Centre
-                </Link>
+                </button>
               </>
             ) : isKnowledgeStep ? (
               <>
@@ -3820,13 +4047,13 @@ function GuidedWalkthrough({
                 >
                   Keep touring
                 </button>
-                <Link
-                  href="/learning-missions/knowledge-arena"
-                  onClick={onClose}
+                <button
+                  type="button"
+                  onClick={() => onNavigate("/learning-missions/knowledge-arena")}
                   style={actionStyle}
                 >
                   Enter Knowledge Arena
-                </Link>
+                </button>
               </>
             ) : isHangarStep ? (
               <>
@@ -3837,57 +4064,51 @@ function GuidedWalkthrough({
                 >
                   Keep touring
                 </button>
-                <Link
-                  href={ROVER_FROM_NOVA_HREF}
-                  onClick={() => {
-                    rememberNovaRoverOrigin();
-                    onClose();
-                  }}
+                <button
+                  type="button"
+                  onClick={() => onNavigate(ROVER_FROM_NOVA_HREF)}
                   style={actionStyle}
                 >
                   Go to My Rover
-                </Link>
+                </button>
               </>
             ) : isLastStep ? (
               <>
-                <Link
-                  href="/nova/thinking-skills-lab"
-                  onClick={onClose}
+                <button
+                  type="button"
+                  onClick={() => onNavigate("/nova/thinking-skills-lab")}
                   style={secondaryStyle}
                 >
                   Think Lab
-                </Link>
-                <Link
-                  href="/inventor/hub"
-                  onClick={onClose}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate("/inventor/hub")}
                   style={secondaryStyle}
                 >
                   Nova’s Home
-                </Link>
-                <Link
-                  href="/learning-missions"
-                  onClick={onClose}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate("/learning-missions")}
                   style={secondaryStyle}
                 >
                   Missions Centre
-                </Link>
-                <Link
-                  href="/learning-missions/knowledge-arena"
-                  onClick={onClose}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate("/learning-missions/knowledge-arena")}
                   style={secondaryStyle}
                 >
                   Knowledge Arena
-                </Link>
-                <Link
-                  href={ROVER_FROM_NOVA_HREF}
-                  onClick={() => {
-                    rememberNovaRoverOrigin();
-                    onClose();
-                  }}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate(ROVER_FROM_NOVA_HREF)}
                   style={actionStyle}
                 >
                   Skyforge Hangar
-                </Link>
+                </button>
               </>
             ) : (
               <>

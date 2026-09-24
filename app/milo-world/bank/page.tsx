@@ -36,8 +36,7 @@ export default function MiloBankPage() {
         width: "100%",
         minHeight: "100dvh",
         overflowX: "hidden",
-        background:
-          "radial-gradient(circle at 50% -10%, rgba(61,171,211,0.18), transparent 34%), radial-gradient(circle at 88% 18%, rgba(121,84,220,0.13), transparent 30%), linear-gradient(180deg, #06101d 0%, #020813 52%, #030713 100%)",
+        background: "#020813",
         color: "white",
         fontFamily:
           'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -48,8 +47,27 @@ export default function MiloBankPage() {
         style={{
           position: "fixed",
           inset: 0,
+          zIndex: 0,
           pointerEvents: "none",
-          boxShadow: "inset 0 0 190px rgba(0,0,0,0.58)",
+          backgroundImage: 'url("/milo-world/bank/milos-bank-background.png")',
+          backgroundSize: "cover",
+          backgroundPosition: "center top",
+          backgroundRepeat: "no-repeat",
+          filter: "saturate(0.92) brightness(0.72)",
+          transform: "scale(1.01)",
+        }}
+      />
+
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 1,
+          pointerEvents: "none",
+          background:
+            "linear-gradient(180deg, rgba(1,8,18,0.34) 0%, rgba(2,8,19,0.58) 42%, rgba(2,8,19,0.82) 72%, rgba(2,7,18,0.94) 100%)",
+          boxShadow: "inset 0 0 210px rgba(0,0,0,0.62)",
         }}
       />
 

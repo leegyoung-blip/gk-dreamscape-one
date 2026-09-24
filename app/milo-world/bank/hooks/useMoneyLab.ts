@@ -12,7 +12,34 @@ import type {
 } from "../lib/money-lab-types";
 
 function messageFrom(error: unknown) {
-  return error instanceof Error ? error.message : "Money Lab could not be loaded.";
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    const message = (error as { message: string }).message;
+
+    if (
+      /milo_bank_money_lab_progress|milo_bank_money_lab_lessons|complete_milo_bank_money_lab_lesson/i.test(
+        message,
+      )
+    ) {
+      return "Money Lab setup is missing. Run PHASE-4A-MONEY-LAB.sql and refresh the page.";
+    }
+
+    if (/permission denied|row-level security|rls/i.test(message)) {
+      return "Money Lab could not access your progress. Check the Phase 4A Money Lab RLS policies and refresh the page.";
+    }
+
+    return message;
+  }
+
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+
+  return "Money Lab could not be loaded.";
 }
 
 export function useMoneyLab(isLoggedIn: boolean) {
@@ -61,10 +88,13 @@ export function useMoneyLab(isLoggedIn: boolean) {
       try {
         const result = await completeMoneyLabLesson(lessonKey);
         setProgress((current) => {
-          const without = current.filter((item) => item.lessonKey !== result.lessonKey);
+          const without = current.filter(
+            (item) => item.lessonKey !== result.lessonKey,
+          );
           return [...without, result].sort(
             (a, b) =>
-              new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime(),
+              new Date(a.completedAt).getTime() -
+              new Date(b.completedAt).getTime(),
           );
         });
 

@@ -7,8 +7,37 @@ import { supabase } from "@/lib/supabase";
 import ObjectivesPanel, {
   type CurrentObjectivesStatus,
 } from "@/components/objectives/ObjectivesPanel";
+import {
+  WorldZoneAdminBar,
+  ZoneUnderUpgradeModal,
+} from "@/components/world/WorldZoneAccess";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
+
+type MiloZoneKey =
+  | "activity_lab"
+  | "exchange"
+  | "business_builder"
+  | "bank"
+  | "quiz_hall";
+
+type MiloZoneAccessSettings = Record<MiloZoneKey, boolean>;
+
+const DEFAULT_MILO_ZONE_ACCESS: MiloZoneAccessSettings = {
+  activity_lab: true,
+  exchange: true,
+  business_builder: false,
+  bank: true,
+  quiz_hall: true,
+};
+
+const MILO_ZONE_KEYS: MiloZoneKey[] = [
+  "activity_lab",
+  "exchange",
+  "business_builder",
+  "bank",
+  "quiz_hall",
+];
 
 type DreamTokenTransaction = {
   id: string;
@@ -54,6 +83,7 @@ type Zone = {
   title: string;
   description: string;
   href: string;
+  accessKey: MiloZoneKey;
   adminOnly?: boolean;
   statusLabel?: string;
 };
@@ -75,6 +105,7 @@ const ZONES: Zone[] = [
     title: "Activity Lab",
     description: "Daily challenges and social games where you can earn Dream Tokens.",
     href: "/milo-world/activity-lab",
+    accessKey: "activity_lab",
   },
   {
     number: "2",
@@ -82,6 +113,7 @@ const ZONES: Zone[] = [
     title: "Milo’s Exchange",
     description: "Where you put your Dream Tokens to work.",
     href: "/milo-world/exchange",
+    accessKey: "exchange",
   },
   {
     number: "3",
@@ -90,8 +122,7 @@ const ZONES: Zone[] = [
     description:
       "Where ideas become businesses — and your decisions shape what happens next.",
     href: "/milo-world/club",
-    adminOnly: true,
-    statusLabel: "Coming Soon",
+    accessKey: "business_builder",
   },
   {
     number: "4",
@@ -100,6 +131,7 @@ const ZONES: Zone[] = [
     description:
       "Save your Dream Tokens, grow them over time, and learn how money works.",
     href: "/milo-world/bank",
+    accessKey: "bank",
   },
   {
     number: "5",
@@ -108,6 +140,7 @@ const ZONES: Zone[] = [
     description:
       "Enter creator clubs or test yourself in Dreamscape’s official Categories Hub.",
     href: "/milo-world/quiz-hall",
+    accessKey: "quiz_hall",
   },
 ];
 
@@ -150,10 +183,10 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     zoneNumber: "2",
   },
   {
-    eyebrow: "Stop 3 of 5 · Coming Soon",
+    eyebrow: "Stop 3 of 5",
     title: "What if you built the business yourself?",
     text:
-      "Business Builder is coming soon. You’ll make decisions about costs, staff, operations and growth, then see what happens to the business you create.",
+      "In Business Builder, you’ll make decisions about costs, staff, operations and growth, then see what happens to the business you create.",
     zoneNumber: "3",
   },
   {
@@ -1208,27 +1241,13 @@ function GuidedWalkthrough({
     if (stepIndex === 4) {
       return (
         <>
-          {isAdmin ? (
-            <button
-              type="button"
-              onClick={() => onNavigate("/milo-world/club")}
-              style={primaryActionStyle}
-            >
-              Admin Preview
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled
-              style={{
-                ...secondaryActionStyle,
-                cursor: "not-allowed",
-                color: "rgba(255,255,255,0.48)",
-              }}
-            >
-              Coming Soon
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => onNavigate("/milo-world/club")}
+            style={primaryActionStyle}
+          >
+            Visit Business Builder
+          </button>
           <button type="button" onClick={() => onStepChange(5)} style={secondaryActionStyle}>
             Keep touring
           </button>
@@ -1304,15 +1323,10 @@ function GuidedWalkthrough({
           </button>
           <button
             type="button"
-            disabled={!isAdmin}
-            onClick={() => isAdmin && onNavigate("/milo-world/club")}
-            style={{
-              ...choiceStyle,
-              cursor: isAdmin ? "pointer" : "not-allowed",
-              color: isAdmin ? "white" : "rgba(255,255,255,0.44)",
-            }}
+            onClick={() => onNavigate("/milo-world/club")}
+            style={choiceStyle}
           >
-            {isAdmin ? "Business Builder" : "Business · Coming Soon"}
+            Business Builder
           </button>
           <button
             type="button"
@@ -2164,6 +2178,13 @@ export default function MiloWorldPage() {
   const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [zoneAccessSettings, setZoneAccessSettings] =
+    useState<MiloZoneAccessSettings>(DEFAULT_MILO_ZONE_ACCESS);
+  const [zoneAccessLoading, setZoneAccessLoading] = useState(true);
+  const [updatingZoneAccess, setUpdatingZoneAccess] =
+    useState<MiloZoneKey | null>(null);
+  const [maintenanceZone, setMaintenanceZone] = useState<Zone | null>(null);
+  const [zoneAccessMessage, setZoneAccessMessage] = useState("");
   const [objectiveStatus, setObjectiveStatus] =
     useState<CurrentObjectivesStatus | null>(null);
   const [objectivesLoading, setObjectivesLoading] = useState(true);
@@ -2407,6 +2428,57 @@ export default function MiloWorldPage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadWorldZoneAccess() {
+      const { data, error } = await supabase
+        .from("world_zone_settings")
+        .select("zone_key,public_access_enabled")
+        .eq("world_key", "milo")
+        .in("zone_key", MILO_ZONE_KEYS);
+
+      if (cancelled) return;
+
+      if (error) {
+        console.warn("Could not load Milo zone access settings:", error.message);
+        setZoneAccessLoading(false);
+        return;
+      }
+
+      const nextSettings: MiloZoneAccessSettings = {
+        ...DEFAULT_MILO_ZONE_ACCESS,
+      };
+
+      for (const row of data || []) {
+        const zoneKey = String(row.zone_key) as MiloZoneKey;
+        if (zoneKey in nextSettings) {
+          nextSettings[zoneKey] = Boolean(row.public_access_enabled);
+        }
+      }
+
+      setZoneAccessSettings(nextSettings);
+      setZoneAccessLoading(false);
+    }
+
+    function refreshWorldZoneAccess() {
+      void loadWorldZoneAccess();
+    }
+
+    void loadWorldZoneAccess();
+    window.addEventListener("world-zone-access-updated", refreshWorldZoneAccess);
+    window.addEventListener("focus", refreshWorldZoneAccess);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(
+        "world-zone-access-updated",
+        refreshWorldZoneAccess,
+      );
+      window.removeEventListener("focus", refreshWorldZoneAccess);
+    };
+  }, []);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
     if (params.get("open") === "membership") {
@@ -2476,25 +2548,85 @@ export default function MiloWorldPage() {
     setSelectedZone(null);
   }
 
+  function isZonePubliclyOpen(zone: Zone) {
+    return zoneAccessSettings[zone.accessKey];
+  }
+
+  function showUpgradeNotice(zone: Zone) {
+    setHoveredDesktopZone(null);
+    setSelectedZone(null);
+    setMaintenanceZone(zone);
+  }
+
   function selectZone(zone: Zone) {
     if (walkthroughOpen) return;
+
+    if (!isAdmin && !isZonePubliclyOpen(zone)) {
+      showUpgradeNotice(zone);
+      return;
+    }
 
     setHoveredDesktopZone(null);
     setSelectedZone(zone);
   }
 
   function enterZone(zone: Zone) {
-    const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
-    if (isUnavailable) return;
+    if (!isAdmin && !isZonePubliclyOpen(zone)) {
+      showUpgradeNotice(zone);
+      return;
+    }
 
     window.location.href = zone.href;
   }
 
   function navigateFromWalkthrough(href: string) {
+    const targetZone = ZONES.find((zone) => zone.href === href);
+
     markWalkthroughComplete();
     setWalkthroughOpen(false);
     setWalkthroughStep(0);
+
+    if (targetZone && !isAdmin && !isZonePubliclyOpen(targetZone)) {
+      showUpgradeNotice(targetZone);
+      return;
+    }
+
     window.location.href = href;
+  }
+
+  async function toggleZoneAccess(zoneKey: MiloZoneKey) {
+    if (!isAdmin || updatingZoneAccess) return;
+
+    const nextEnabled = !zoneAccessSettings[zoneKey];
+    setUpdatingZoneAccess(zoneKey);
+    setZoneAccessMessage("");
+
+    const { error } = await supabase.rpc("admin_set_world_zone_access", {
+      p_world_key: "milo",
+      p_zone_key: zoneKey,
+      p_public_access_enabled: nextEnabled,
+    });
+
+    if (error) {
+      console.warn("Could not update Milo zone access:", error.message);
+      setZoneAccessMessage(`Could not update access. ${error.message}`);
+      setUpdatingZoneAccess(null);
+      return;
+    }
+
+    setZoneAccessSettings((current) => ({
+      ...current,
+      [zoneKey]: nextEnabled,
+    }));
+    setUpdatingZoneAccess(null);
+
+    const zoneTitle =
+      ZONES.find((zone) => zone.accessKey === zoneKey)?.title || zoneKey;
+    setZoneAccessMessage(
+      `${zoneTitle} public access is now ${nextEnabled ? "OPEN" : "BLOCKED"}.`,
+    );
+
+    window.dispatchEvent(new Event("world-zone-access-updated"));
   }
 
   useEffect(() => {
@@ -2512,12 +2644,21 @@ export default function MiloWorldPage() {
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [menuOpen, profileAssetsOpen]);
 
+  const worldZones: Zone[] = ZONES.map((zone) => {
+    const enabled = zoneAccessSettings[zone.accessKey];
+    return {
+      ...zone,
+      adminOnly: !isAdmin && !enabled,
+      statusLabel: !enabled ? "Upgrading" : undefined,
+    };
+  });
+
   const activeWalkthroughZoneNumber = walkthroughOpen
     ? WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber ?? null
     : null;
 
   const activeWalkthroughZone = activeWalkthroughZoneNumber
-    ? ZONES.find((zone) => zone.number === activeWalkthroughZoneNumber) ?? null
+    ? worldZones.find((zone) => zone.number === activeWalkthroughZoneNumber) ?? null
     : null;
 
   const displayedDesktopZone =
@@ -3116,6 +3257,44 @@ export default function MiloWorldPage() {
         scope="milo"
       />
 
+      {isAdmin && !walkthroughOpen && (
+        <WorldZoneAdminBar
+          worldLabel="Milo’s World"
+          items={worldZones.map((zone) => ({
+            key: zone.accessKey,
+            label: zone.title
+              .replace("Milo’s ", "")
+              .replace("Milo's ", ""),
+            enabled: zoneAccessSettings[zone.accessKey],
+          }))}
+          loading={zoneAccessLoading}
+          updatingKey={updatingZoneAccess}
+          onToggle={(zoneKey) => void toggleZoneAccess(zoneKey)}
+        />
+      )}
+
+      {isAdmin && zoneAccessMessage && !walkthroughOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: "124px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 95,
+            padding: "8px 12px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(3,10,25,0.84)",
+            color: "rgba(255,255,255,0.76)",
+            fontSize: "10px",
+            fontWeight: 800,
+            letterSpacing: "0.05em",
+          }}
+        >
+          {zoneAccessMessage}
+        </div>
+      )}
+
       <section
         style={{
           position: isDesktop ? "absolute" : "relative",
@@ -3224,7 +3403,7 @@ export default function MiloWorldPage() {
       >
         {isDesktop ? (
           <>
-            {ZONES.map((zone) => (
+            {worldZones.map((zone) => (
               <MiloZoneHotspot
                 key={zone.number}
                 zone={zone}
@@ -3265,7 +3444,7 @@ export default function MiloWorldPage() {
             )}
           </>
         ) : (
-          ZONES.map((zone) => (
+          worldZones.map((zone) => (
             <div key={zone.number}>
               <ZoneCard
                 zone={zone}
@@ -3390,6 +3569,13 @@ export default function MiloWorldPage() {
             </button>
           </div>
         </>
+      )}
+
+      {maintenanceZone && (
+        <ZoneUnderUpgradeModal
+          zoneTitle={maintenanceZone.title}
+          onClose={() => setMaintenanceZone(null)}
+        />
       )}
 
       <GuidedWalkthrough
