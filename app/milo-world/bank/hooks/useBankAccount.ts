@@ -87,7 +87,7 @@ export function useBankAccount() {
       interestEarned = Number(summary?.interest_earned || 0);
     } else {
       // Safe compatibility fallback if Phase 2C SQL has not been installed yet.
-      const [balanceResult, savingsResult] = await Promise.all([
+      const [balanceResult, savingsResult, bondsResult] = await Promise.all([
         supabase
           .from("dream_token_transactions")
           .select("amount")
@@ -98,6 +98,11 @@ export function useBankAccount() {
           .select("saved_amount,status")
           .eq("user_id", user.id)
           .in("status", ["active", "completed"]),
+        supabase
+          .from("milo_bank_bond_holdings")
+          .select("principal,status")
+          .eq("user_id", user.id)
+          .in("status", ["active", "matured"]),
       ]);
 
       totalDt = balanceResult.error
@@ -112,7 +117,13 @@ export function useBankAccount() {
             (sum, row) => sum + Number(row.saved_amount || 0),
             0,
           );
-      available = Math.max(totalDt - savings, 0);
+      bonds = bondsResult.error
+        ? 0
+        : (bondsResult.data || []).reduce(
+            (sum, row) => sum + Number(row.principal || 0),
+            0,
+          );
+      available = Math.max(totalDt - savings - bonds, 0);
     }
 
     const monthTransactions = monthResult.error
@@ -192,12 +203,14 @@ export function useBankAccount() {
     window.addEventListener("focus", loadAccount);
     window.addEventListener("dream-tokens-updated", loadAccount);
     window.addEventListener("milo-bank-savings-updated", loadAccount);
+    window.addEventListener("milo-bank-bonds-updated", loadAccount);
 
     return () => {
       subscription.unsubscribe();
       window.removeEventListener("focus", loadAccount);
       window.removeEventListener("dream-tokens-updated", loadAccount);
       window.removeEventListener("milo-bank-savings-updated", loadAccount);
+      window.removeEventListener("milo-bank-bonds-updated", loadAccount);
     };
   }, [loadAccount]);
 

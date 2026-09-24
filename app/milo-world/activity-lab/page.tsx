@@ -46,7 +46,7 @@ const ACTIVITY_ITEMS: Array<{
     id: "merge",
     eyebrow: "New Activity",
     title: "Milo’s Mix & Serve",
-    description: "Build Western Café dishes from ingredients and keep customer orders moving.",
+    description: "Progress through Burger Basics and Salad Shift, complete timed orders and earn DT after each stage.",
     icon: "◇",
   },
 ];
