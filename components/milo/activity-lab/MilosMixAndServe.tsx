@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, PointerEvent as ReactPointerEvent } from "react";
+import { supabase } from "@/lib/supabase";
 
 type ItemType = "ingredient" | "dish";
 type IngredientKey =
@@ -52,7 +53,14 @@ type WorkstationJob = {
   status: ProcessStatus;
   elapsedTicks: number;
 };
-type StageResult = { success: boolean; runId: number; stars: number };
+type StageResult = { success: boolean; runId: number; stars: number; elapsedSeconds: number };
+type LeaderboardRow = {
+  rank_position: number;
+  username: string;
+  score: number;
+  completion_seconds: number;
+  is_current_user: boolean;
+};
 
 type Props = {
   userId: string;
@@ -68,13 +76,13 @@ type Props = {
 
 const BOARD_SIZE = 20;
 const STAGE_ORDER_GOAL = 10;
-const MAX_FAILED_ORDERS = 3;
+const STAGE_DURATION_SECONDS = 5 * 60;
 const ORDER_DURATION_SECONDS = 60;
 const PROCESS_TICK_MS = 250;
 const PROCESS_DONE_TICKS = 20; // 5 seconds
 const CHOP_AUTO_RETURN_TICKS = 22; // show the green tick briefly before the chopped tomato returns
 const PAN_WARNING_TICKS = 28;
-const PAN_BURNT_TICKS = 36;
+const PAN_BURNT_TICKS = 48; // 5 full seconds of flashing warning before burning
 const DISCARD_PENALTY = 25;
 const ASSET_BASE = "/milo/activity-lab/mix-serve";
 
@@ -178,8 +186,10 @@ function tierBaseScore(tier: number) {
   return [0, 100, 150, 200, 250, 300][tier] ?? 100;
 }
 
-function scoreForOrder(recipe: RecipeDef, secondsLeft: number) {
-  return tierBaseScore(recipe.tier) + Math.max(0, secondsLeft) * 4;
+function scorePartsForOrder(recipe: RecipeDef, secondsLeft: number) {
+  const base = tierBaseScore(recipe.tier);
+  const speed = Math.max(0, secondsLeft) * 4;
+  return { base, speed, total: base + speed };
 }
 
 function tierCapForProgress(ordersServed: number) {
@@ -189,10 +199,10 @@ function tierCapForProgress(ordersServed: number) {
   return 5;
 }
 
-function starsForStage(success: boolean, failedOrders: number) {
+function starsForStage(success: boolean, elapsedSeconds: number) {
   if (!success) return 0;
-  if (failedOrders === 0) return 3;
-  if (failedOrders === 1) return 2;
+  if (elapsedSeconds <= 180) return 3;
+  if (elapsedSeconds <= 240) return 2;
   return 1;
 }
 
@@ -249,10 +259,17 @@ export default function MilosMixAndServe({
   const [orderTimersStarted, setOrderTimersStarted] = useState(false);
   const [ordersServed, setOrdersServed] = useState(0);
   const ordersServedRef = useRef(0);
-  const [failedOrders, setFailedOrders] = useState(0);
-  const failedOrdersRef = useRef(0);
-  const [score, setScore] = useState(0);
+  const [expiredOrders, setExpiredOrders] = useState(0);
+  const [basePointsEarned, setBasePointsEarned] = useState(0);
+  const [speedBonusEarned, setSpeedBonusEarned] = useState(0);
+  const [discardPenaltyTotal, setDiscardPenaltyTotal] = useState(0);
+  const score = Math.max(0, basePointsEarned + speedBonusEarned - discardPenaltyTotal);
   const [runSeconds, setRunSeconds] = useState(0);
+  const runSecondsRef = useRef(0);
+  const [ordersRevision, setOrdersRevision] = useState(0);
+  const [recentOrderIds, setRecentOrderIds] = useState<number[]>([]);
+  const [leavingOrderId, setLeavingOrderId] = useState<number | null>(null);
+  const leavingOrderIdRef = useRef<number | null>(null);
   const [status, setStatus] = useState("Milo will show you how to cook and build the burgers before Stage 1 starts.");
   const [stageResult, setStageResult] = useState<StageResult | null>(null);
   const [rewardState, setRewardState] = useState<"idle" | "awarding" | "awarded" | "guest" | "failed">("idle");
@@ -262,12 +279,17 @@ export default function MilosMixAndServe({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [guideSpotlight, setGuideSpotlight] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [guidePanelPosition, setGuidePanelPosition] = useState<{ top: number; left: number; width: number }>({ top: 20, left: 20, width: 360 });
+  const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardMessage, setLeaderboardMessage] = useState("");
 
   const nextItemId = useRef(1000);
   const nextOrderId = useRef(1);
   const nextJobId = useRef(1);
   const currentStageRunId = useRef(0);
+  const currentStageRunKey = useRef("");
   const awardedStageRuns = useRef<Set<string>>(new Set());
+  const recordedLeaderboardRuns = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     boardRef.current = board;
@@ -279,8 +301,8 @@ export default function MilosMixAndServe({
     ordersServedRef.current = ordersServed;
   }, [ordersServed]);
   useEffect(() => {
-    failedOrdersRef.current = failedOrders;
-  }, [failedOrders]);
+    runSecondsRef.current = runSeconds;
+  }, [runSeconds]);
 
   const panel: CSSProperties = {
     border: "1px solid rgba(128,226,255,.14)",
@@ -289,7 +311,8 @@ export default function MilosMixAndServe({
   };
 
   const occupied = useMemo(() => board.filter(Boolean).length, [board]);
-  const currentStarsPreview = starsForStage(true, failedOrders);
+  const timeLeft = Math.max(0, STAGE_DURATION_SECONDS - runSeconds);
+  const currentStarsPreview = starsForStage(true, runSeconds);
   const stageDtPreview = STAGE1_DT_BY_STARS[currentStarsPreview] ?? 0;
   const resultDt = stageResult?.success ? STAGE1_DT_BY_STARS[stageResult.stars] ?? 0 : 0;
 
@@ -306,10 +329,16 @@ export default function MilosMixAndServe({
     setOrderTimersStarted(false);
     setOrdersServed(0);
     ordersServedRef.current = 0;
-    setFailedOrders(0);
-    failedOrdersRef.current = 0;
-    setScore(0);
+    setExpiredOrders(0);
+    setBasePointsEarned(0);
+    setSpeedBonusEarned(0);
+    setDiscardPenaltyTotal(0);
     setRunSeconds(0);
+    runSecondsRef.current = 0;
+    setOrdersRevision(0);
+    setRecentOrderIds([]);
+    setLeavingOrderId(null);
+    leavingOrderIdRef.current = null;
     setStageResult(null);
     setRewardState("idle");
     setAwardedDt(0);
@@ -339,6 +368,8 @@ export default function MilosMixAndServe({
       initial.push(createOrder(0, initial.map((order) => order.recipeKey)));
     }
     ordersRef.current = initial;
+    setRecentOrderIds(initial.map((order) => order.id));
+    setOrdersRevision((value) => value + 1);
     setOrders(initial);
   }
 
@@ -358,16 +389,19 @@ export default function MilosMixAndServe({
 
     resetStageState();
     currentStageRunId.current += 1;
+    currentStageRunKey.current = typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${currentStageRunId.current}`;
     setShowGuide(false);
     setRunning(true);
     setPaused(false);
-    setStatus("Burger Basics started. Customer clocks will begin after you serve the first order.");
+    setStatus("Burger Basics started. You have 5:00 to complete 10 orders. Customer order clocks begin after your first successful serve.");
     window.setTimeout(fillInitialOrders, 0);
     return true;
   }
 
-  function completeStage(success: boolean, failuresOverride?: number) {
-    const finalFailures = failuresOverride ?? failedOrdersRef.current;
+  function completeStage(success: boolean) {
+    const elapsedSeconds = Math.min(STAGE_DURATION_SECONDS, runSecondsRef.current);
     setRunning(false);
     setPaused(false);
     setOrders([]);
@@ -378,15 +412,28 @@ export default function MilosMixAndServe({
     setStageResult({
       success,
       runId: currentStageRunId.current,
-      stars: starsForStage(success, finalFailures),
+      stars: starsForStage(success, elapsedSeconds),
+      elapsedSeconds,
     });
-    setStatus(success ? "Burger Basics complete! Replay Stage 1 to chase a higher score." : "Stage failed after three missed orders. Try Stage 1 again.");
+    setStatus(
+      success
+        ? "Burger Basics complete! Replay Stage 1 to chase a higher score."
+        : "Time is up. Complete all 10 orders within 5 minutes to clear Stage 1.",
+    );
   }
 
   useEffect(() => {
     if (!running || paused || stageResult) return;
     const timer = window.setInterval(() => {
-      setRunSeconds((value) => value + 1);
+      const nextRunSeconds = runSecondsRef.current + 1;
+      runSecondsRef.current = nextRunSeconds;
+      setRunSeconds(nextRunSeconds);
+
+      if (nextRunSeconds >= STAGE_DURATION_SECONDS) {
+        if (ordersServedRef.current < STAGE_ORDER_GOAL) completeStage(false);
+        return;
+      }
+
       if (!orderTimersStarted || ordersRef.current.length === 0) return;
 
       const decremented = ordersRef.current.map((order) => ({ ...order, secondsLeft: order.secondsLeft - 1 }));
@@ -397,22 +444,19 @@ export default function MilosMixAndServe({
         return;
       }
 
-      const nextFailures = Math.min(MAX_FAILED_ORDERS, failedOrdersRef.current + expired.length);
-      failedOrdersRef.current = nextFailures;
-      setFailedOrders(nextFailures);
-      if (nextFailures >= MAX_FAILED_ORDERS) {
-        completeStage(false, nextFailures);
-        return;
+      const remaining = decremented.filter((order) => order.secondsLeft > 0);
+      const additions: OrderSlot[] = [];
+      while (remaining.length + additions.length < 3) {
+        const avoid = [...remaining, ...additions].map((order) => order.recipeKey);
+        additions.push(createOrder(ordersServedRef.current, avoid));
       }
-
-      let nextOrders = decremented.filter((order) => order.secondsLeft > 0);
-      expired.forEach(() => {
-        nextOrders.push(createOrder(ordersServedRef.current, nextOrders.map((order) => order.recipeKey)));
-      });
-      nextOrders = nextOrders.slice(-3);
+      const nextOrders = [...additions, ...remaining].slice(0, 3);
       ordersRef.current = nextOrders;
+      setExpiredOrders((value) => value + expired.length);
+      setRecentOrderIds(additions.map((order) => order.id));
+      setOrdersRevision((value) => value + 1);
       setOrders(nextOrders);
-      setStatus(`${expired.length === 1 ? "One order expired" : `${expired.length} orders expired`}. ${nextFailures} / ${MAX_FAILED_ORDERS} missed.`);
+      setStatus(`${expired.length === 1 ? "An order expired" : `${expired.length} orders expired`}. Keep going — only the 5-minute stage clock can end the run.`);
     }, 1000);
     return () => window.clearInterval(timer);
   }, [running, paused, stageResult, orderTimersStarted]);
@@ -484,6 +528,62 @@ export default function MilosMixAndServe({
     });
   }, [stageResult, userId, onTokenTransaction]);
 
+  useEffect(() => {
+    if (!stageResult) return;
+
+    // Keep a non-null snapshot for the async function below. TypeScript does
+    // not preserve the stageResult narrowing across a nested async boundary.
+    const result = stageResult;
+    const runKey = currentStageRunKey.current || `local-${result.runId}`;
+    if (recordedLeaderboardRuns.current.has(runKey)) return;
+    recordedLeaderboardRuns.current.add(runKey);
+
+    let cancelled = false;
+    async function saveAndLoadLeaderboard() {
+      setLeaderboardLoading(true);
+      setLeaderboardMessage("");
+
+      if (userId) {
+        const { error: saveError } = await supabase.rpc("record_milo_mix_serve_run", {
+          p_run_key: runKey,
+          p_score: score,
+          p_orders_served: ordersServed,
+          p_elapsed_seconds: result.elapsedSeconds,
+          p_base_points: basePointsEarned,
+          p_speed_bonus: speedBonusEarned,
+          p_discard_penalty: discardPenaltyTotal,
+          p_expired_orders: expiredOrders,
+          p_success: result.success,
+        });
+        if (saveError) {
+          console.warn("Could not save Mix & Serve leaderboard run:", saveError.message);
+        }
+      }
+
+      const { data, error } = await supabase.rpc("get_milo_mix_serve_leaderboard", { p_limit: 10 });
+      if (cancelled) return;
+      if (error) {
+        console.warn("Could not load Mix & Serve leaderboard:", error.message);
+        setLeaderboardRows([]);
+        setLeaderboardMessage("Leaderboard unavailable until the Mix & Serve leaderboard SQL is installed.");
+        setLeaderboardLoading(false);
+        return;
+      }
+
+      setLeaderboardRows(((data || []) as Array<Record<string, unknown>>).map((row) => ({
+        rank_position: Number(row.rank_position || 0),
+        username: String(row.username || "Dreamscape Player"),
+        score: Number(row.score || 0),
+        completion_seconds: Number(row.completion_seconds || 0),
+        is_current_user: Boolean(row.is_current_user),
+      })));
+      setLeaderboardLoading(false);
+    }
+
+    void saveAndLoadLeaderboard();
+    return () => { cancelled = true; };
+  }, [stageResult, userId, score, ordersServed, basePointsEarned, speedBonusEarned, discardPenaltyTotal, expiredOrders]);
+
   function dispenseIngredient(key: IngredientKey) {
     if (!running || paused) return;
     const definition = ingredientDef(key);
@@ -504,7 +604,7 @@ export default function MilosMixAndServe({
   }
 
   function applyDiscardPenalty(label: string) {
-    setScore((value) => Math.max(0, value - DISCARD_PENALTY));
+    setDiscardPenaltyTotal((value) => value + DISCARD_PENALTY);
     setStatus(`${label} discarded · −${DISCARD_PENALTY} points.`);
   }
 
@@ -644,16 +744,18 @@ export default function MilosMixAndServe({
     setStatus("Tomato chopping · 5 seconds.");
   }
 
-  function replaceOrder(orderId: number, servedCount: number) {
-    const current = ordersRef.current;
-    const otherKeys = current.filter((order) => order.id !== orderId).map((order) => order.recipeKey);
-    const next = current.map((order) => order.id === orderId ? createOrder(servedCount, otherKeys) : order);
+  function shiftOrderQueue(orderId: number, servedCount: number) {
+    const remaining = ordersRef.current.filter((order) => order.id !== orderId);
+    const newOrder = createOrder(servedCount, remaining.map((order) => order.recipeKey));
+    const next = [newOrder, ...remaining].slice(0, 3);
     ordersRef.current = next;
+    setRecentOrderIds([newOrder.id]);
+    setOrdersRevision((value) => value + 1);
     setOrders(next);
   }
 
   function serveDishToOrder(fromIndex: number, orderId: number) {
-    if (!running || paused) return;
+    if (!running || paused || leavingOrderIdRef.current !== null) return;
     const dish = boardRef.current[fromIndex];
     const order = ordersRef.current.find((item) => item.id === orderId);
     if (!dish || !order) return;
@@ -675,11 +777,13 @@ export default function MilosMixAndServe({
     boardRef.current = current;
     setBoard(current);
 
-    const earned = scoreForOrder(recipe, order.secondsLeft);
+    const points = scorePartsForOrder(recipe, order.secondsLeft);
+    const earned = points.total;
     const nextServed = ordersServedRef.current + 1;
     ordersServedRef.current = nextServed;
     setOrdersServed(nextServed);
-    setScore((value) => value + earned);
+    setBasePointsEarned((value) => value + points.base);
+    setSpeedBonusEarned((value) => value + points.speed);
     setSelectedIndex(null);
 
     if (!orderTimersStarted) {
@@ -689,11 +793,23 @@ export default function MilosMixAndServe({
       setStatus(`${recipe.label} served with ${order.secondsLeft}s left · +${earned} points.`);
     }
 
+    leavingOrderIdRef.current = orderId;
+    setLeavingOrderId(orderId);
+
     if (nextServed >= STAGE_ORDER_GOAL) {
-      completeStage(true);
+      window.setTimeout(() => {
+        leavingOrderIdRef.current = null;
+        setLeavingOrderId(null);
+        completeStage(true);
+      }, 220);
       return;
     }
-    replaceOrder(orderId, nextServed);
+
+    window.setTimeout(() => {
+      shiftOrderQueue(orderId, nextServed);
+      leavingOrderIdRef.current = null;
+      setLeavingOrderId(null);
+    }, 220);
   }
 
   function beginPointerDrag(event: ReactPointerEvent<HTMLButtonElement>, index: number) {
@@ -798,7 +914,7 @@ export default function MilosMixAndServe({
     {
       target: "pans",
       title: "Cook patties in a pan",
-      body: "Drag a raw patty into any empty pan. It cooks for 5 seconds. When the green tick appears, drag the cooked patty yourself into an EMPTY prep-counter square. Do not leave it too long or it will burn.",
+      body: "Drag a raw patty into any empty pan. It cooks for 5 seconds. When the green tick appears, drag it back to an EMPTY prep-counter square. If the flashing ! appears, you have a full 5-second warning before it burns.",
     },
     {
       target: "chopping",
@@ -813,7 +929,7 @@ export default function MilosMixAndServe({
     {
       target: "orders",
       title: "Serve the customer orders",
-      body: "Match the finished burger to an order. The three 60-second clocks begin after your FIRST successful serve. At 15 seconds the order shakes to warn you.",
+      body: "Match the finished burger to an order. Customer clocks begin after your FIRST successful serve. A completed or expired order leaves; the remaining orders move right and a new order enters from the left.",
     },
     {
       target: "bin",
@@ -823,7 +939,7 @@ export default function MilosMixAndServe({
     {
       target: "game-controls",
       title: "Pause or restart anytime",
-      body: "Pause freezes the kitchen. Restart begins Stage 1 again from zero score and fresh orders. Complete 10 orders before three misses to clear the stage.",
+      body: "Pause freezes the kitchen and the 5-minute stage clock. Restart begins from zero. Your only goal is 10 completed orders before 5:00 runs out — expired orders never end the game by themselves.",
     },
   ] as const;
 
@@ -833,6 +949,15 @@ export default function MilosMixAndServe({
       return;
     }
     startStage();
+  }
+
+  function skipGuide() {
+    if (!running && !stageResult) {
+      startStage();
+      return;
+    }
+    setShowGuide(false);
+    if (running) setPaused(false);
   }
 
   useEffect(() => {
@@ -860,7 +985,7 @@ export default function MilosMixAndServe({
       setGuideSpotlight(spotlight);
 
       const panelWidth = Math.min(mobile ? 330 : 380, rootRect.width - 24);
-      const estimatedHeight = mobile ? 230 : 205;
+      const estimatedHeight = mobile ? 278 : 250;
       const gap = 14;
       const rightSpace = rootRect.width - (spotlight.left + spotlight.width);
       const leftSpace = spotlight.left;
@@ -899,8 +1024,8 @@ export default function MilosMixAndServe({
       return (
         <div
           style={{
-            width: 82,
-            height: 76,
+            width: mobile ? 88 : 100,
+            height: mobile ? 82 : 92,
             borderRadius: 16,
             border: `1px solid ${job ? statusBorder : "rgba(255,255,255,.08)"}`,
             background: "rgba(255,255,255,.018)",
@@ -915,8 +1040,8 @@ export default function MilosMixAndServe({
             alt=""
             draggable={false}
             style={{
-              width: 76,
-              height: 70,
+              width: mobile ? 84 : 96,
+              height: mobile ? 78 : 88,
               objectFit: "contain",
               pointerEvents: "none",
               animation: job?.status === "warning" ? "mixServeEquipmentShake .5s linear infinite" : undefined,
@@ -945,7 +1070,7 @@ export default function MilosMixAndServe({
             </span>
           )}
           {job?.status === "burnt" && (
-            <span style={{ position: "absolute", right: -3, top: -5, width: 23, height: 23, borderRadius: 999, display: "grid", placeItems: "center", background: "#ff6b78", color: "white", fontSize: 12, fontWeight: 950, boxShadow: "0 3px 10px rgba(0,0,0,.35)" }}>×</span>
+            <span style={{ position: "absolute", right: -3, top: -5, width: 23, height: 23, borderRadius: 999, display: "grid", placeItems: "center", background: "#ff6b78", color: "white", fontSize: 14, fontWeight: 950, boxShadow: "0 3px 10px rgba(0,0,0,.35)" }}>×</span>
           )}
         </div>
       );
@@ -954,8 +1079,8 @@ export default function MilosMixAndServe({
     return (
       <div
         style={{
-          width: 82,
-          height: 70,
+          width: mobile ? 90 : 102,
+          height: mobile ? 80 : 92,
           borderRadius: 15,
           border: `1px solid ${job ? statusBorder : "rgba(255,255,255,.08)"}`,
           background: "rgba(255,255,255,.018)",
@@ -964,7 +1089,7 @@ export default function MilosMixAndServe({
           position: "relative",
         }}
       >
-        <img src={WORKSTATION_ASSETS.choppingBoard} alt="" draggable={false} style={{ width: 78, height: 66, objectFit: "contain", pointerEvents: "none" }} />
+        <img src={WORKSTATION_ASSETS.choppingBoard} alt="" draggable={false} style={{ width: mobile ? 86 : 98, height: mobile ? 76 : 88, objectFit: "contain", pointerEvents: "none" }} />
         {job && (
           <img
             src={ingredientDef("whole-tomato").image}
@@ -1007,6 +1132,18 @@ export default function MilosMixAndServe({
       }}
     >
       <style>{`
+        @keyframes mixServeOrderLeave {
+          from { opacity: 1; transform: scale(1); }
+          to { opacity: 0; transform: scale(.94) translateY(-6px); }
+        }
+        @keyframes mixServeOrderEnter {
+          from { opacity: 0; transform: translateX(-32px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes mixServeOrderShiftRight {
+          from { transform: translateX(-18px); }
+          to { transform: translateX(0); }
+        }
         @keyframes mixServeOrderShake {
           0%,100% { transform: translateX(0); }
           20% { transform: translateX(-5px); }
@@ -1031,13 +1168,13 @@ export default function MilosMixAndServe({
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, minWidth: 0 }}>
         <div style={{ minWidth: 0 }}>
-          <p style={{ margin: 0, color: "#ffbf68", fontSize: mobile ? 9 : 11, fontWeight: 950, letterSpacing: ".14em", textTransform: "uppercase" }}>Stage 1 · Milo’s Burger Lesson</p>
-          <h2 style={{ margin: "3px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : compact ? 30 : 36, lineHeight: 1, fontWeight: 400 }}>Milo’s Mix & Serve</h2>
+          <p style={{ margin: 0, color: "#ffbf68", fontSize: mobile ? 11 : 13, fontWeight: 950, letterSpacing: ".14em", textTransform: "uppercase" }}>Stage 1 · Milo’s Burger Lesson</p>
+          <h2 style={{ margin: "3px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 27 : compact ? 32 : 38, lineHeight: 1, fontWeight: 400 }}>Milo’s Mix & Serve</h2>
         </div>
         <div data-guide-target="game-controls" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button type="button" disabled style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.025)", color: "rgba(255,255,255,.3)", fontSize: 10, fontWeight: 900 }}>Stage 2 · Coming Soon</button>
-          <button type="button" onClick={() => { if (running) setPaused(true); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,191,104,.22)", background: "rgba(255,173,66,.06)", color: "#ffd08a", fontSize: 10, fontWeight: 900, cursor: "pointer" }}>Milo Guide</button>
-          <button type="button" onClick={() => setShowHelp(true)} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.06)", color: "#dffaff", fontSize: 10, fontWeight: 900, cursor: "pointer" }}>? How to Play</button>
+          <button type="button" disabled style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.025)", color: "rgba(255,255,255,.3)", fontSize: 14, fontWeight: 900 }}>Stage 2 · Coming Soon</button>
+          <button type="button" onClick={() => { if (running) setPaused(true); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,191,104,.22)", background: "rgba(255,173,66,.06)", color: "#ffd08a", fontSize: 14, fontWeight: 900, cursor: "pointer" }}>Milo Guide</button>
+          <button type="button" onClick={() => setShowHelp(true)} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.06)", color: "#dffaff", fontSize: 14, fontWeight: 900, cursor: "pointer" }}>? How to Play</button>
           <button type="button" onClick={restartStage} disabled={!running} aria-label="Restart Stage 1" title="Restart Stage 1" style={{ width: 36, height: 36, borderRadius: 999, border: "1px solid rgba(255,191,104,.2)", background: "rgba(255,173,66,.06)", color: running ? "#ffd08a" : "rgba(255,255,255,.3)", fontSize: 17, fontWeight: 900, cursor: running ? "pointer" : "not-allowed" }}>↻</button>
           <button type="button" onClick={() => running && setPaused((value) => !value)} disabled={!running} aria-label={paused ? "Resume Stage 1" : "Pause Stage 1"} style={{ width: 36, height: 36, borderRadius: 999, border: "1px solid rgba(126,232,255,.18)", background: "rgba(83,215,255,.06)", color: running ? "white" : "rgba(255,255,255,.3)", cursor: running ? "pointer" : "not-allowed" }}>{paused ? "▶" : "Ⅱ"}</button>
         </div>
@@ -1045,16 +1182,16 @@ export default function MilosMixAndServe({
 
       <div style={{ display: "grid", gridTemplateColumns: mobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap: 6 }}>
         {[
-          ["SCORE", score.toLocaleString(), "Tier points + speed bonus"],
+          ["SCORE", score.toLocaleString(), "Base + speed − waste"],
           ["ORDERS", `${ordersServed} / ${STAGE_ORDER_GOAL}`, "Complete 10 to clear Stage 1"],
-          ["MISSED", `${failedOrders} / ${MAX_FAILED_ORDERS}`, "Third miss fails the stage"],
-          ["STAGE DT", `Up to +${STAGE1_DT_BY_STARS[3]}`, `Current rating would earn +${stageDtPreview}`],
+          ["TIME LEFT", formatTime(timeLeft), "Finish before 00:00"],
+          ["STAGE DT", `Up to +${STAGE1_DT_BY_STARS[3]}`, `Current pace would earn +${stageDtPreview}`],
         ].map(([label, value, sub]) => (
           <div key={label} style={{ ...panel, borderRadius: 13, padding: "8px 10px", minWidth: 0 }}>
-            <p style={{ margin: 0, color: "rgba(166,235,255,.5)", fontSize: 8, fontWeight: 950, letterSpacing: ".11em" }}>{label}</p>
+            <p style={{ margin: 0, color: "rgba(166,235,255,.5)", fontSize: 10, fontWeight: 950, letterSpacing: ".11em" }}>{label}</p>
             <div style={{ marginTop: 3, display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 7 }}>
-              <strong style={{ fontSize: mobile ? 16 : 19, lineHeight: 1, color: label === "MISSED" ? "#ff9ca7" : label === "STAGE DT" ? "#ffd66f" : "white" }}>{value}</strong>
-              {!mobile && !compact && <span style={{ color: "rgba(255,255,255,.28)", fontSize: 7.5 }}>{sub}</span>}
+              <strong style={{ fontSize: mobile ? 18 : 21, lineHeight: 1, color: label === "TIME LEFT" && timeLeft <= 60 ? "#ff9ca7" : label === "STAGE DT" ? "#ffd66f" : "white" }}>{value}</strong>
+              {!mobile && !compact && <span style={{ color: "rgba(255,255,255,.28)", fontSize: 10.5 }}>{sub}</span>}
             </div>
           </div>
         ))}
@@ -1068,7 +1205,7 @@ export default function MilosMixAndServe({
           const progress = (order.secondsLeft / ORDER_DURATION_SECONDS) * 100;
           return (
             <div
-              key={order.id}
+              key={`${order.id}-${ordersRevision}`}
               data-order-id={order.id}
               onDragOver={(event) => { if (running && !paused) event.preventDefault(); }}
               onDrop={(event) => {
@@ -1077,14 +1214,14 @@ export default function MilosMixAndServe({
                 if (source?.type === "cell") serveDishToOrder(source.index, order.id);
               }}
               onClick={() => selectedIndex !== null && serveDishToOrder(selectedIndex, order.id)}
-              style={{ ...panel, minWidth: 0, borderRadius: 14, padding: 8, border: urgent ? "1px solid rgba(255,105,117,.42)" : "1px solid rgba(128,226,255,.14)", animation: shakeNow ? "mixServeOrderShake .65s ease-in-out 1" : undefined }}
+              style={{ ...panel, minWidth: 0, borderRadius: 14, padding: 9, border: urgent ? "1px solid rgba(255,105,117,.42)" : "1px solid rgba(128,226,255,.14)", animation: leavingOrderId === order.id ? "mixServeOrderLeave .22s ease-in forwards" : shakeNow ? "mixServeOrderShake .65s ease-in-out 1" : recentOrderIds.includes(order.id) ? "mixServeOrderEnter .34s ease-out" : ordersRevision > 1 ? "mixServeOrderShiftRight .28s ease-out" : undefined }}
             >
               <div style={{ display: "grid", gridTemplateColumns: mobile ? "42px minmax(0,1fr)" : "48px minmax(0,1fr) auto", gap: 8, alignItems: "center" }}>
                 <img src={recipe.image} alt="" style={{ width: mobile ? 40 : 46, height: mobile ? 40 : 46, objectFit: "contain" }} />
                 <div style={{ minWidth: 0 }}>
-                  <span style={{ display: "block", color: "#ffd08a", fontSize: 7, fontWeight: 950, letterSpacing: ".1em" }}>ORDER · TIER {recipe.tier}</span>
-                  <strong style={{ display: "block", marginTop: 2, fontSize: mobile ? 10 : 12, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{recipe.label}</strong>
-                  <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.34)", fontSize: 7 }}>Base {tierBaseScore(recipe.tier)} + speed</span>
+                  <span style={{ display: "block", color: "#ffd08a", fontSize: 11, fontWeight: 950, letterSpacing: ".1em" }}>ORDER · TIER {recipe.tier}</span>
+                  <strong style={{ display: "block", marginTop: 2, fontSize: mobile ? 12 : 14, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{recipe.label}</strong>
+                  <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.34)", fontSize: 10 }}>Base {tierBaseScore(recipe.tier)} + speed</span>
                 </div>
                 {!mobile && (
                   <div style={{ display: "flex", gap: 3, justifyContent: "flex-end", flexWrap: "wrap", maxWidth: 150 }}>
@@ -1100,7 +1237,7 @@ export default function MilosMixAndServe({
                 <div style={{ height: 9, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
                   <div style={{ width: `${progress}%`, height: "100%", borderRadius: 999, background: !orderTimersStarted ? "#7fe7ff" : urgent ? "#ff6e79" : order.secondsLeft <= 30 ? "#ffd36d" : "#86efad", transition: "width .25s linear" }} />
                 </div>
-                <strong style={{ color: urgent ? "#ff8e98" : "rgba(255,255,255,.55)", fontSize: 9 }}>{orderTimersStarted ? `${order.secondsLeft}s` : "WAITING"}</strong>
+                <strong style={{ color: urgent ? "#ff8e98" : "rgba(255,255,255,.55)", fontSize: 11.5 }}>{orderTimersStarted ? `${order.secondsLeft}s` : "WAITING"}</strong>
               </div>
             </div>
           );
@@ -1116,10 +1253,10 @@ export default function MilosMixAndServe({
         >
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
             <div style={{ minWidth: 0 }}>
-              <p style={{ margin: 0, color: "#9feeff", fontSize: 9, fontWeight: 950, letterSpacing: ".12em" }}>PREP COUNTER</p>
-              <p style={{ margin: "3px 0 0", color: "rgba(255,255,255,.42)", fontSize: 8.5, lineHeight: 1.35 }}>{status}</p>
+              <p style={{ margin: 0, color: "#9feeff", fontSize: 11, fontWeight: 950, letterSpacing: ".12em" }}>PREP COUNTER</p>
+              <p style={{ margin: "3px 0 0", color: "rgba(255,255,255,.42)", fontSize: 10.5, lineHeight: 1.35 }}>{status}</p>
             </div>
-            <span style={{ color: "rgba(255,255,255,.38)", fontSize: 9, flexShrink: 0 }}>{occupied} / {BOARD_SIZE}</span>
+            <span style={{ color: "rgba(255,255,255,.38)", fontSize: 11, flexShrink: 0 }}>{occupied} / {BOARD_SIZE}</span>
           </div>
 
           <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "repeat(5,minmax(0,1fr))", gridTemplateRows: "repeat(4,minmax(0,1fr))", gap: mobile ? 5 : 6 }}>
@@ -1155,8 +1292,8 @@ export default function MilosMixAndServe({
 
           <div data-guide-target="ingredient-boxes" style={{ borderTop: "1px solid rgba(126,232,255,.09)", paddingTop: 7 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: 6 }}>
-              <span style={{ color: "#ffd08a", fontSize: 8, fontWeight: 950, letterSpacing: ".11em" }}>INGREDIENT BOXES</span>
-              <span style={{ color: "rgba(255,255,255,.3)", fontSize: 7.5 }}>Click exactly what you need</span>
+              <span style={{ color: "#ffd08a", fontSize: 10, fontWeight: 950, letterSpacing: ".11em" }}>INGREDIENT BOXES</span>
+              <span style={{ color: "rgba(255,255,255,.3)", fontSize: 10.5 }}>Click exactly what you need</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: 6 }}>
               {INGREDIENT_DISPENSERS.map((dispenser) => (
@@ -1176,7 +1313,7 @@ export default function MilosMixAndServe({
                       </button>
                     ))}
                   </div>
-                  <strong style={{ display: "block", textAlign: "center", color: "rgba(255,255,255,.68)", fontSize: mobile ? 6.5 : 7.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dispenser.label}</strong>
+                  <strong style={{ display: "block", textAlign: "center", color: "rgba(255,255,255,.68)", fontSize: mobile ? 10.5 : 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dispenser.label}</strong>
                 </div>
               ))}
             </div>
@@ -1187,8 +1324,8 @@ export default function MilosMixAndServe({
           <div data-guide-target="pans" style={{ ...panel, minHeight: 0, borderRadius: 16, padding: 10, display: "grid", gridTemplateRows: "auto minmax(0,1fr)", gap: 7 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
               <div>
-                <p style={{ margin: 0, color: "#ffb86b", fontSize: 9, fontWeight: 950, letterSpacing: ".12em" }}>COOKING LINE · 3 PANS</p>
-                <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.35)", fontSize: 8 }}>Raw patties · 5 seconds · drag cooked patties back yourself</span>
+                <p style={{ margin: 0, color: "#ffb86b", fontSize: 13, fontWeight: 950, letterSpacing: ".12em" }}>COOKING LINE · 3 PANS</p>
+                <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.35)", fontSize: 10.5 }}>Raw patties · 5 seconds · drag cooked patties back yourself</span>
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6, minHeight: 0 }}>
@@ -1213,18 +1350,18 @@ export default function MilosMixAndServe({
                     }}
                     style={{ minHeight: 0, borderRadius: 13, border: `1px dashed ${job?.status === "burnt" ? "rgba(255,97,110,.42)" : "rgba(255,184,107,.28)"}`, background: "rgba(255,255,255,.018)", padding: 8, display: "grid", gridTemplateRows: "auto 1fr auto", gap: 6, placeItems: "center", cursor: draggablePan && running && !paused ? "grab" : undefined, touchAction: mobile ? "none" : undefined }}
                   >
-                    <strong style={{ fontSize: 9, color: job?.status === "burnt" ? "#ff818d" : "#ffc17e" }}>PAN {panIndex + 1}</strong>
+                    <strong style={{ fontSize: 13, color: job?.status === "burnt" ? "#ff818d" : "#ffc17e" }}>PAN {panIndex + 1}</strong>
                     {renderEquipmentItem(job, "pan")}
                     {job ? (
                       <div style={{ width: "100%" }}>
                         <div style={{ height: 6, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
                           <div style={{ width: `${progress}%`, height: "100%", background: job.status === "burnt" ? "#ff6976" : job.status === "warning" ? "#ffbf45" : job.status === "ready" ? "#70e9a4" : "#ffb86b" }} />
                         </div>
-                        <span style={{ display: "block", marginTop: 4, textAlign: "center", color: job.status === "burnt" ? "#ff929d" : job.status === "warning" ? "#ffd06d" : "rgba(255,255,255,.44)", fontSize: 7.5, fontWeight: job.status === "processing" ? 700 : 900 }}>
-                          {job.status === "processing" ? `${Math.max(0, 5 - job.elapsedTicks * PROCESS_TICK_MS / 1000).toFixed(1)}s` : job.status === "ready" ? "DRAG TO COUNTER" : job.status === "warning" ? "REMOVE NOW!" : "DRAG TO BIN"}
+                        <span style={{ display: "block", marginTop: 4, textAlign: "center", color: job.status === "burnt" ? "#ff929d" : job.status === "warning" ? "#ffd06d" : "rgba(255,255,255,.44)", fontSize: 11.5, fontWeight: job.status === "processing" ? 700 : 900 }}>
+                          {job.status === "processing" ? `${Math.max(0, 5 - job.elapsedTicks * PROCESS_TICK_MS / 1000).toFixed(1)}s` : job.status === "ready" ? "DRAG TO COUNTER" : job.status === "warning" ? `BURNS IN ${Math.max(0, (PAN_BURNT_TICKS - job.elapsedTicks) * PROCESS_TICK_MS / 1000).toFixed(1)}s` : "DRAG TO BIN"}
                         </span>
                       </div>
-                    ) : <span style={{ color: "rgba(255,255,255,.26)", fontSize: 7.5 }}>Drop raw patty</span>}
+                    ) : <span style={{ color: "rgba(255,255,255,.26)", fontSize: 10.5 }}>Drop raw patty</span>}
                   </div>
                 );
               })}
@@ -1241,16 +1378,16 @@ export default function MilosMixAndServe({
                 const source = readDragSource(event);
                 if (source?.type === "cell") sendToChoppingBoard(source.index);
               }}
-              style={{ ...panel, minHeight: 0, borderRadius: 16, padding: 9, border: "1px dashed rgba(126,232,255,.3)", display: "grid", gridTemplateColumns: "74px minmax(0,1fr)", alignItems: "center", gap: 9 }}
+              style={{ ...panel, minHeight: 0, borderRadius: 16, padding: 10, border: "1px dashed rgba(126,232,255,.3)", display: "grid", gridTemplateColumns: mobile ? "96px minmax(0,1fr)" : "108px minmax(0,1fr)", alignItems: "center", gap: 10 }}
             >
               {renderEquipmentItem(choppingJob, "chopping")}
               <div style={{ minWidth: 0 }}>
-                <strong style={{ display: "block", color: "#8ee8ff", fontSize: 11 }}>Chopping Board</strong>
-                <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.42)", fontSize: 7.5 }}>Whole tomato · 5 sec</span>
+                <strong style={{ display: "block", color: "#8ee8ff", fontSize: 14 }}>Chopping Board</strong>
+                <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.42)", fontSize: 10.5 }}>Whole tomato · 5 sec</span>
                 <div style={{ marginTop: 7, height: 7, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
                   <div style={{ width: `${workstationProgress(choppingJob)}%`, height: "100%", background: choppingJob?.status === "ready" ? "#70e9a4" : "#8ee8ff" }} />
                 </div>
-                <span style={{ display: "block", marginTop: 4, color: "rgba(255,255,255,.3)", fontSize: 7 }}>{choppingJob ? choppingJob.status === "ready" ? "Returning…" : `${Math.max(0, 5 - choppingJob.elapsedTicks * PROCESS_TICK_MS / 1000).toFixed(1)}s` : "Drop tomato"}</span>
+                <span style={{ display: "block", marginTop: 4, color: "rgba(255,255,255,.3)", fontSize: 10 }}>{choppingJob ? choppingJob.status === "ready" ? "Returning…" : `${Math.max(0, 5 - choppingJob.elapsedTicks * PROCESS_TICK_MS / 1000).toFixed(1)}s` : "Drop tomato"}</span>
               </div>
             </div>
 
@@ -1267,11 +1404,11 @@ export default function MilosMixAndServe({
               }}
               style={{ ...panel, minHeight: 0, borderRadius: 16, padding: 9, border: "1px dashed rgba(255,129,143,.3)", display: "grid", gridTemplateColumns: "74px minmax(0,1fr)", alignItems: "center", gap: 9 }}
             >
-              <div style={{ width: 68, height: 68, borderRadius: "50%", border: "5px solid rgba(255,129,143,.32)", background: "radial-gradient(circle at 50% 44%, rgba(27,31,39,.96) 0 47%, rgba(255,129,143,.16) 49% 58%, rgba(7,13,23,.95) 60%)", boxShadow: "inset 0 0 0 5px rgba(255,255,255,.035), 0 8px 20px rgba(0,0,0,.28)", display: "grid", placeItems: "center", color: "#ff9da8", fontSize: 9, fontWeight: 950, letterSpacing: ".08em" }}>BIN</div>
+              <div style={{ width: 68, height: 68, borderRadius: "50%", border: "5px solid rgba(255,129,143,.32)", background: "radial-gradient(circle at 50% 44%, rgba(27,31,39,.96) 0 47%, rgba(255,129,143,.16) 49% 58%, rgba(7,13,23,.95) 60%)", boxShadow: "inset 0 0 0 5px rgba(255,255,255,.035), 0 8px 20px rgba(0,0,0,.28)", display: "grid", placeItems: "center", color: "#ff9da8", fontSize: 11, fontWeight: 950, letterSpacing: ".08em" }}>BIN</div>
               <div style={{ minWidth: 0 }}>
-                <strong style={{ display: "block", color: "#ff9da8", fontSize: 11 }}>Waste Bin</strong>
-                <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.42)", fontSize: 7.5, lineHeight: 1.35 }}>Drag unwanted food or burnt patties here.</span>
-                <strong style={{ display: "block", marginTop: 6, color: "#ff8996", fontSize: 8 }}>−{DISCARD_PENALTY} points each</strong>
+                <strong style={{ display: "block", color: "#ff9da8", fontSize: 14 }}>Waste Bin</strong>
+                <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.42)", fontSize: 11.5, lineHeight: 1.35 }}>Drag unwanted food or burnt patties here.</span>
+                <strong style={{ display: "block", marginTop: 6, color: "#ff8996", fontSize: 10.5 }}>−{DISCARD_PENALTY} points each</strong>
               </div>
             </div>
           </div>
@@ -1320,25 +1457,26 @@ export default function MilosMixAndServe({
           >
             <div style={{ display: "grid", gridTemplateColumns: "58px minmax(0,1fr)", gap: 11, alignItems: "center" }}>
               <div style={{ width: 54, height: 54, borderRadius: 17, display: "grid", placeItems: "center", border: "1px solid rgba(255,200,105,.32)", background: "radial-gradient(circle at 50% 35%, rgba(255,211,112,.18), rgba(83,215,255,.08))", color: "#ffd16a", animation: "miloGuidePulse 2.1s ease-in-out infinite" }}>
-                <div style={{ textAlign: "center" }}><div style={{ fontSize: 21, lineHeight: 1 }}>✦</div><strong style={{ display: "block", marginTop: 2, fontSize: 8, letterSpacing: ".1em" }}>MILO</strong></div>
+                <div style={{ textAlign: "center" }}><div style={{ fontSize: 21, lineHeight: 1 }}>✦</div><strong style={{ display: "block", marginTop: 2, fontSize: 10, letterSpacing: ".1em" }}>MILO</strong></div>
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={{ margin: 0, color: "#ffd08a", fontSize: 8, fontWeight: 950, letterSpacing: ".12em" }}>STEP {guideStep + 1} OF {guideSteps.length}</p>
-                <h3 style={{ margin: "4px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 20 : 23, fontWeight: 400 }}>{guideSteps[guideStep].title}</h3>
+                <p style={{ margin: 0, color: "#ffd08a", fontSize: 10, fontWeight: 950, letterSpacing: ".12em" }}>STEP {guideStep + 1} OF {guideSteps.length}</p>
+                <h3 style={{ margin: "4px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 22 : 26, fontWeight: 400 }}>{guideSteps[guideStep].title}</h3>
               </div>
             </div>
-            <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,.67)", fontSize: mobile ? 9.5 : 10.5, lineHeight: 1.5 }}>{guideSteps[guideStep].body}</p>
+            <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,.67)", fontSize: mobile ? 11.5 : 13, lineHeight: 1.5 }}>{guideSteps[guideStep].body}</p>
             <div style={{ marginTop: 11, display: "grid", gridTemplateColumns: `repeat(${guideSteps.length},minmax(0,1fr))`, gap: 4 }}>
               {guideSteps.map((_, step) => <span key={step} style={{ height: 5, borderRadius: 999, background: step <= guideStep ? "#ffd16a" : "rgba(255,255,255,.08)" }} />)}
             </div>
             <div style={{ marginTop: 11, display: "flex", justifyContent: "space-between", gap: 7 }}>
-              <button type="button" onClick={() => setGuideStep((value) => Math.max(0, value - 1))} disabled={guideStep === 0} style={{ minHeight: 36, padding: "0 13px", borderRadius: 10, border: "1px solid rgba(126,232,255,.18)", background: "rgba(83,215,255,.05)", color: guideStep === 0 ? "rgba(255,255,255,.25)" : "white", fontSize: 9, fontWeight: 900 }}>Back</button>
+              <button type="button" onClick={() => setGuideStep((value) => Math.max(0, value - 1))} disabled={guideStep === 0} style={{ minHeight: 39, padding: "0 14px", borderRadius: 10, border: "1px solid rgba(126,232,255,.18)", background: "rgba(83,215,255,.05)", color: guideStep === 0 ? "rgba(255,255,255,.25)" : "white", fontSize: 13, fontWeight: 900 }}>Back</button>
+              <button type="button" onClick={skipGuide} style={{ minHeight: 39, padding: "0 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,.14)", background: "rgba(255,255,255,.04)", color: "rgba(255,255,255,.72)", fontSize: 13, fontWeight: 900, cursor: "pointer" }}>Skip Guide</button>
               {guideStep < guideSteps.length - 1 ? (
-                <button type="button" onClick={() => setGuideStep((value) => Math.min(guideSteps.length - 1, value + 1))} style={{ minHeight: 36, padding: "0 16px", borderRadius: 10, border: "1px solid rgba(255,211,104,.34)", background: "rgba(255,190,65,.08)", color: "#ffd16a", fontSize: 9, fontWeight: 950, cursor: "pointer" }}>Next</button>
+                <button type="button" onClick={() => setGuideStep((value) => Math.min(guideSteps.length - 1, value + 1))} style={{ minHeight: 36, padding: "0 16px", borderRadius: 10, border: "1px solid rgba(255,211,104,.34)", background: "rgba(255,190,65,.08)", color: "#ffd16a", fontSize: 11, fontWeight: 950, cursor: "pointer" }}>Next</button>
               ) : !running && !stageResult ? (
-                <button type="button" onClick={startStage} style={{ minHeight: 38, padding: "0 18px", borderRadius: 11, border: "1px solid rgba(255,211,104,.4)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 10, fontWeight: 950, cursor: "pointer" }}>Start Stage 1</button>
+                <button type="button" onClick={startStage} style={{ minHeight: 38, padding: "0 18px", borderRadius: 11, border: "1px solid rgba(255,211,104,.4)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 14, fontWeight: 950, cursor: "pointer" }}>Start Stage 1</button>
               ) : (
-                <button type="button" onClick={() => setShowGuide(false)} style={{ minHeight: 36, padding: "0 16px", borderRadius: 10, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontSize: 9, fontWeight: 900, cursor: "pointer" }}>Back to Kitchen</button>
+                <button type="button" onClick={() => { setShowGuide(false); if (running) setPaused(false); }} style={{ minHeight: 36, padding: "0 16px", borderRadius: 10, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontSize: 11, fontWeight: 900, cursor: "pointer" }}>Back to Kitchen</button>
               )}
             </div>
           </aside>
@@ -1348,40 +1486,84 @@ export default function MilosMixAndServe({
       {showHelp && (
         <div onClick={() => setShowHelp(false)} style={{ position: "absolute", inset: 0, zIndex: 75, display: "grid", placeItems: "center", padding: 14, background: "rgba(1,6,14,.86)", backdropFilter: "blur(8px)" }}>
           <div onClick={(event) => event.stopPropagation()} style={{ ...panel, width: "min(620px,100%)", borderRadius: 23, padding: mobile ? 17 : 22 }}>
-            <p style={{ margin: 0, color: "#9feeff", fontSize: 10, fontWeight: 950, letterSpacing: ".13em" }}>HOW TO PLAY</p>
+            <p style={{ margin: 0, color: "#9feeff", fontSize: 14, fontWeight: 950, letterSpacing: ".13em" }}>HOW TO PLAY</p>
             <h3 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 29, fontWeight: 400 }}>Burger Basics</h3>
-            <div style={{ marginTop: 12, display: "grid", gap: 8, color: "rgba(255,255,255,.62)", fontSize: 11, lineHeight: 1.45 }}>
+            <div style={{ marginTop: 12, display: "grid", gap: 8, color: "rgba(255,255,255,.62)", fontSize: 13, lineHeight: 1.45 }}>
               <div><strong style={{ color: "white" }}>Choose:</strong> Use the ingredient boxes below the counter; there is no random supply.</div>
-              <div><strong style={{ color: "white" }}>Cook:</strong> Raw patties need 5 seconds in a pan, then you drag them back to an empty counter square. Burnt patties must go to the bin.</div>
+              <div><strong style={{ color: "white" }}>Cook:</strong> Raw patties need 5 seconds in a pan. After the flashing warning begins, you have 5 seconds to remove the patty before it burns.</div>
               <div><strong style={{ color: "white" }}>Chop:</strong> Whole tomatoes need 5 seconds on the chopping board.</div>
               <div><strong style={{ color: "white" }}>Build:</strong> Bun + cooked patty → lettuce → chopped tomato → cheese → bacon.</div>
               <div><strong style={{ color: "white" }}>Wrong order:</strong> Invalid ingredient combinations swap positions instead of disappearing.</div>
               <div><strong style={{ color: "white" }}>Waste:</strong> Every item dragged into the bin costs 25 points.</div>
-              <div><strong style={{ color: "white" }}>Timers:</strong> Customer clocks begin only after your first successful order, then each new order has 60 seconds.</div>
-              <div><strong style={{ color: "white" }}>Goal:</strong> Serve 10 orders. Three misses fail the stage. Stage 2 is coming soon.</div>
+              <div><strong style={{ color: "white" }}>Timers:</strong> The stage lasts 5 minutes. Customer clocks begin after your first successful order; expired orders are replaced and never end the stage by themselves.</div>
+              <div><strong style={{ color: "white" }}>Order flow:</strong> When an order leaves, remaining orders shift right and a new order enters from the left.</div>
+              <div><strong style={{ color: "white" }}>Goal:</strong> Serve 10 orders before the 5-minute stage clock reaches 00:00. Stage 2 is coming soon.</div>
             </div>
-            <button type="button" onClick={() => setShowHelp(false)} style={{ width: "100%", minHeight: 43, marginTop: 14, borderRadius: 13, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontSize: 12, fontWeight: 900, cursor: "pointer" }}>Back</button>
+            <button type="button" onClick={() => setShowHelp(false)} style={{ width: "100%", minHeight: 43, marginTop: 14, borderRadius: 13, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontSize: 14, fontWeight: 900, cursor: "pointer" }}>Back</button>
           </div>
         </div>
       )}
 
       {stageResult && (
         <div style={{ position: "absolute", inset: 0, zIndex: 80, display: "grid", placeItems: "center", padding: 14, background: "rgba(1,6,14,.9)", backdropFilter: "blur(9px)" }}>
-          <div style={{ ...panel, width: "min(650px,100%)", borderRadius: 25, padding: mobile ? 18 : 25, textAlign: "center" }}>
-            <p style={{ margin: 0, color: stageResult.success ? "#84efb2" : "#ff9ca7", fontSize: 10, fontWeight: 950, letterSpacing: ".14em" }}>STAGE 1 {stageResult.success ? "COMPLETE" : "FAILED"}</p>
+          <div style={{ ...panel, width: "min(720px,100%)", maxHeight: "calc(100% - 20px)", overflowY: "auto", borderRadius: 25, padding: mobile ? 18 : 25, textAlign: "center" }}>
+            <p style={{ margin: 0, color: stageResult.success ? "#84efb2" : "#ff9ca7", fontSize: 14, fontWeight: 950, letterSpacing: ".14em" }}>STAGE 1 {stageResult.success ? "COMPLETE" : "FAILED"}</p>
             <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 31 : 40, fontWeight: 400 }}>Burger Basics</h3>
             <div style={{ marginTop: 10, fontSize: mobile ? 33 : 42, letterSpacing: ".08em", color: "#ffd66f" }}>{[1,2,3].map((star) => <span key={star} style={{ opacity: star <= stageResult.stars ? 1 : .18 }}>★</span>)}</div>
-            <div style={{ marginTop: 15, display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 7 }}>
-              {[["Score", score.toLocaleString()], ["Orders", `${ordersServed}/${STAGE_ORDER_GOAL}`], ["Missed", `${failedOrders}/${MAX_FAILED_ORDERS}`], ["Time", formatTime(runSeconds)]].map(([label, value]) => <div key={label} style={{ borderRadius: 13, border: "1px solid rgba(255,255,255,.07)", background: "rgba(255,255,255,.02)", padding: 9 }}><span style={{ display: "block", color: "rgba(255,255,255,.38)", fontSize: 8, fontWeight: 900 }}>{label}</span><strong style={{ display: "block", marginTop: 4, fontSize: 15 }}>{value}</strong></div>)}
+            <div style={{ marginTop: 15, display: "grid", gridTemplateColumns: mobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap: 8 }}>
+              {[["Score", score.toLocaleString()], ["Orders", `${ordersServed}/${STAGE_ORDER_GOAL}`], ["Time Used", formatTime(stageResult.elapsedSeconds)], ["Time Left", formatTime(Math.max(0, STAGE_DURATION_SECONDS - stageResult.elapsedSeconds))]].map(([label, value]) => <div key={label} style={{ borderRadius: 13, border: "1px solid rgba(255,255,255,.07)", background: "rgba(255,255,255,.02)", padding: 10 }}><span style={{ display: "block", color: "rgba(255,255,255,.42)", fontSize: 14, fontWeight: 900 }}>{label}</span><strong style={{ display: "block", marginTop: 4, fontSize: 17 }}>{value}</strong></div>)}
+            </div>
+
+            <div style={{ marginTop: 12, display: "grid", gap: 8, textAlign: "left" }}>
+              <details style={{ borderRadius: 15, border: "1px solid rgba(126,232,255,.13)", background: "rgba(83,215,255,.025)", padding: "10px 12px" }}>
+                <summary style={{ cursor: "pointer", color: "#b8f4ff", fontSize: 14, fontWeight: 950 }}>Score Breakdown</summary>
+                <div style={{ marginTop: 10, display: "grid", gap: 7, fontSize: 11.5, color: "rgba(255,255,255,.68)" }}>
+                  {[
+                    ["Order base points", `+${basePointsEarned.toLocaleString()}`],
+                    ["Speed bonus", `+${speedBonusEarned.toLocaleString()}`],
+                    ["Waste-bin penalties", `−${discardPenaltyTotal.toLocaleString()}`],
+                    ["Expired orders", `${expiredOrders} · no direct point penalty`],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12, borderBottom: "1px solid rgba(255,255,255,.06)", paddingBottom: 6 }}>
+                      <span>{label}</span><strong style={{ color: "white" }}>{value}</strong>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, paddingTop: 2 }}>
+                    <strong>Final score</strong><strong style={{ color: "#ffd66f", fontSize: 15 }}>{score.toLocaleString()}</strong>
+                  </div>
+                </div>
+              </details>
+
+              <details style={{ borderRadius: 15, border: "1px solid rgba(255,211,104,.14)", background: "rgba(255,196,64,.025)", padding: "10px 12px" }}>
+                <summary style={{ cursor: "pointer", color: "#ffd98a", fontSize: 14, fontWeight: 950 }}>Stage 1 Leaderboard</summary>
+                <div style={{ marginTop: 10 }}>
+                  {leaderboardLoading ? (
+                    <p style={{ margin: 0, color: "rgba(255,255,255,.5)", fontSize: 11 }}>Loading leaderboard…</p>
+                  ) : leaderboardMessage ? (
+                    <p style={{ margin: 0, color: "rgba(255,255,255,.5)", fontSize: 11 }}>{leaderboardMessage}</p>
+                  ) : (
+                    <div style={{ display: "grid", gap: 5 }}>
+                      {leaderboardRows.map((row) => (
+                        <div key={`${row.rank_position}-${row.username}`} style={{ display: "grid", gridTemplateColumns: "38px minmax(0,1fr) auto auto", gap: 8, alignItems: "center", borderRadius: 10, padding: "7px 8px", background: row.is_current_user ? "rgba(255,210,100,.08)" : "rgba(255,255,255,.018)", border: row.is_current_user ? "1px solid rgba(255,210,100,.18)" : "1px solid rgba(255,255,255,.04)", fontSize: 10.5 }}>
+                          <strong style={{ color: row.rank_position <= 3 ? "#ffd66f" : "rgba(255,255,255,.5)" }}>#{row.rank_position}</strong>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: row.is_current_user ? "white" : "rgba(255,255,255,.72)", fontWeight: row.is_current_user ? 900 : 700 }}>{row.username}{row.is_current_user ? " · You" : ""}</span>
+                          <strong>{row.score.toLocaleString()}</strong>
+                          <span style={{ color: "rgba(255,255,255,.42)" }}>{formatTime(row.completion_seconds)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </details>
             </div>
             <div style={{ marginTop: 14, borderRadius: 15, border: "1px solid rgba(255,214,111,.17)", background: "rgba(255,196,64,.04)", padding: 11 }}>
-              <span style={{ color: "rgba(255,255,255,.44)", fontSize: 9, fontWeight: 900 }}>STAGE DREAM TOKENS</span>
+              <span style={{ color: "rgba(255,255,255,.44)", fontSize: 11, fontWeight: 900 }}>STAGE DREAM TOKENS</span>
               <strong style={{ display: "block", marginTop: 5, color: stageResult.success ? "#ffd66f" : "rgba(255,255,255,.3)", fontSize: 28 }}>+{stageResult.success ? (rewardState === "awarded" ? awardedDt : resultDt) : 0} DT</strong>
-              <span style={{ display: "block", marginTop: 4, color: "rgba(255,255,255,.38)", fontSize: 9 }}>{!stageResult.success ? "Complete Stage 1 to collect DT." : rewardState === "awarding" ? "Adding DT to your balance…" : rewardState === "guest" ? "Log in to collect stage DT." : rewardState === "failed" ? "DT payout failed." : `${stageResult.stars}★ Stage 1 reward`}</span>
+              <span style={{ display: "block", marginTop: 4, color: "rgba(255,255,255,.38)", fontSize: 11.5 }}>{!stageResult.success ? "Complete Stage 1 to collect DT." : rewardState === "awarding" ? "Adding DT to your balance…" : rewardState === "guest" ? "Log in to collect stage DT." : rewardState === "failed" ? "DT payout failed." : `${stageResult.stars}★ Stage 1 reward`}</span>
             </div>
             <div style={{ marginTop: 15, display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => { resetStageState(); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(255,211,104,.38)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 12, fontWeight: 950, cursor: "pointer" }}>{stageResult.success ? "Replay Stage 1 for Higher Score" : "Retry Stage 1"}</button>
-              {stageResult.success && <span style={{ alignSelf: "center", color: "rgba(255,255,255,.38)", fontSize: 10, fontWeight: 850 }}>Stage 2 · Coming Soon</span>}
+              <button type="button" onClick={() => { resetStageState(); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(255,211,104,.38)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 14, fontWeight: 950, cursor: "pointer" }}>{stageResult.success ? "Replay Stage 1 for Higher Score" : "Retry Stage 1"}</button>
+              {stageResult.success && <span style={{ alignSelf: "center", color: "rgba(255,255,255,.38)", fontSize: 14, fontWeight: 850 }}>Stage 2 · Coming Soon</span>}
             </div>
           </div>
         </div>

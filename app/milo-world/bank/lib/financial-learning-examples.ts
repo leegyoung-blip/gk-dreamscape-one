@@ -1,0 +1,168 @@
+import type { FinancialLessonDefinition } from "./financial-learning-engine-types";
+
+// Developer/reference lesson only. It is deliberately not added to the learner catalogue.
+// It exercises every Phase 2A/2B block shape so future authored lessons can follow one
+// stable schema before the content moves into Supabase in Phase 2D.
+export const INTERACTIVE_ENGINE_REFERENCE_LESSON: FinancialLessonDefinition = {
+  schemaVersion: 1,
+  id: "reference:rover-reserve-plan",
+  courseId: "financial-foundations",
+  moduleId: "planning",
+  order: 999,
+  title: "Nova & Milo: The Rover Reserve Plan",
+  shortTitle: "Rover Reserve",
+  description: "A non-production reference lesson demonstrating the full Phase 2A/2B engine.",
+  duration: "5–7 min",
+  rewardDt: 0,
+  accessTier: "free",
+  concepts: ["Saving", "Budgeting", "Trade-offs", "Liquidity"],
+  blocks: [
+    {
+      id: "ref-explain",
+      type: "explain",
+      eyebrow: "Nova & Milo briefing",
+      title: "Every DT can have a job.",
+      body: "Nova is preparing a rover expedition while Milo wants to keep enough DT available for unexpected costs. The challenge is to balance both goals.",
+      keyIdea: "Planning is about assigning limited resources deliberately.",
+      advisorMessage: {
+        nova: "We’ll use the numbers to test whether the plan stays resilient.",
+        milo: "We’ll make the DT work without leaving the team stuck later.",
+      },
+    },
+    {
+      id: "ref-scenario",
+      type: "scenario",
+      title: "The team has 3,000 DT.",
+      body: "The expedition upgrade costs 1,600 DT. Nova recommends keeping an emergency reserve because repairs can happen during expeditions.",
+      facts: [
+        { label: "Available", value: "3,000 DT", tone: "positive" },
+        { label: "Upgrade", value: "1,600 DT", tone: "neutral" },
+        { label: "Suggested reserve", value: "900 DT", tone: "warning" },
+      ],
+      questionToConsider: "How much should stay available after the upgrade?",
+    },
+    {
+      id: "ref-question",
+      type: "question",
+      prompt: "If Nova buys the 1,600 DT upgrade immediately, how much remains?",
+      options: [
+        { id: "a", label: "1,000 DT" },
+        { id: "b", label: "1,400 DT" },
+        { id: "c", label: "1,600 DT" },
+      ],
+      correctOptionId: "b",
+      explanation: "3,000 DT − 1,600 DT leaves 1,400 DT.",
+    },
+    {
+      id: "ref-slider",
+      type: "slider",
+      title: "Choose the reserve.",
+      prompt: "How much DT would you keep available after planning for the expedition?",
+      min: 0,
+      max: 2000,
+      step: 100,
+      defaultValue: 900,
+      unit: "DT",
+      feedbackRanges: [
+        { min: 0, max: 500, label: "Low reserve", explanation: "More DT can be used now, but there is less room for an unexpected repair.", tone: "warning" },
+        { min: 600, max: 1200, label: "Balanced reserve", explanation: "You retain flexibility while still making progress toward the upgrade.", tone: "positive" },
+        { min: 1300, max: 2000, label: "High reserve", explanation: "You keep more flexibility, but the upgrade may take longer to fund.", tone: "neutral" },
+      ],
+    },
+    {
+      id: "ref-allocation",
+      type: "allocation",
+      title: "Build the plan.",
+      prompt: "Allocate all 3,000 DT across the team’s priorities.",
+      total: 3000,
+      unit: "DT",
+      buckets: [
+        { id: "upgrade", label: "Rover upgrade", max: 1600, defaultValue: 1500 },
+        { id: "reserve", label: "Emergency reserve", max: 2000, defaultValue: 900 },
+        { id: "future", label: "Future expedition", max: 2000, defaultValue: 600 },
+      ],
+      completionMessage: "Every DT now has a purpose.",
+    },
+    {
+      id: "ref-sort",
+      type: "sort",
+      title: "Sort the priorities.",
+      prompt: "Drag each item into the category that best fits this expedition plan.",
+      groups: [
+        { id: "essential", label: "Essential now" },
+        { id: "goal", label: "Planned goal" },
+        { id: "optional", label: "Optional" },
+      ],
+      items: [
+        { id: "repair", label: "Critical wheel repair", correctGroupId: "essential" },
+        { id: "upgrade", label: "Expedition upgrade", correctGroupId: "goal" },
+        { id: "paint", label: "New rover paint", correctGroupId: "optional" },
+      ],
+      explanation: "Context matters: a required repair is different from a planned upgrade or cosmetic purchase.",
+    },
+    {
+      id: "ref-number",
+      type: "number_input",
+      title: "Check the arithmetic.",
+      prompt: "Nova keeps 900 DT in reserve from 3,000 DT. How much remains for other purposes?",
+      unit: "DT",
+      expectedValue: 2100,
+      min: 0,
+      max: 3000,
+      explanation: "3,000 − 900 = 2,100 DT.",
+    },
+    {
+      id: "ref-prediction",
+      type: "prediction",
+      title: "What happens next?",
+      prompt: "A surprise 700 DT repair appears. Which plan is most likely to absorb it without cancelling everything else?",
+      choices: [
+        { id: "none", label: "A plan with no reserve" },
+        { id: "reserve", label: "A plan with a 900 DT reserve" },
+      ],
+      bestChoiceId: "reserve",
+      revealTitle: "The reserve creates flexibility.",
+      revealBody: "The repair still costs 700 DT, but the reserved amount means Nova and Milo do not need to abandon the entire plan.",
+    },
+    {
+      id: "ref-decision",
+      type: "decision",
+      title: "Make the call.",
+      prompt: "The upgrade sale ends today. What would you do?",
+      choices: [
+        {
+          id: "buy",
+          label: "Buy the upgrade now",
+          summary: "Gain the upgrade immediately.",
+          strengths: ["Immediate expedition capability"],
+          tradeoffs: ["Lower liquidity afterward"],
+          advisorFeedback: {
+            nova: "This can be reasonable if the remaining reserve still covers the risks you identified.",
+            milo: "Fast progress is useful, but check what your Wallet looks like after the purchase.",
+          },
+        },
+        {
+          id: "wait",
+          label: "Keep the reserve and wait",
+          summary: "Protect flexibility and delay the upgrade.",
+          strengths: ["Higher available reserve"],
+          tradeoffs: ["The sale may be missed"],
+          advisorFeedback: {
+            nova: "You are prioritising resilience over immediate capability.",
+            milo: "You keep your options open, but you may pay more later.",
+          },
+        },
+      ],
+    },
+    {
+      id: "ref-comparison",
+      type: "comparison",
+      title: "Compare the two plans.",
+      columns: [
+        { id: "now", title: "Buy now", accent: "cyan", points: ["Immediate upgrade", "Lower cash reserve"] },
+        { id: "later", title: "Wait", accent: "gold", points: ["Higher liquidity", "Upgrade delayed"] },
+      ],
+      takeaway: "A strong financial decision matches the choice to the goal, timing and risks—not simply the biggest immediate reward.",
+    },
+  ],
+};

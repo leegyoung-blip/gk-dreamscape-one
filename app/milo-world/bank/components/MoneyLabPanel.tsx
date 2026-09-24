@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useMoneyLab } from "../hooks/useMoneyLab";
+import { useFinancialAdvisor } from "../hooks/useFinancialAdvisor";
 import type { BankScreenMode } from "../lib/bank-types";
 import { MONEY_LAB_LESSONS, MONEY_LAB_TOTAL_REWARD } from "../lib/money-lab-content";
 import type { MoneyLabLesson } from "../lib/money-lab-types";
 import MoneyLessonCard from "./MoneyLessonCard";
 import MoneyLessonModal from "./MoneyLessonModal";
+import FinancialAdvisorSelector from "./FinancialAdvisorSelector";
 
 export default function MoneyLabPanel({
   screenMode,
@@ -17,6 +19,7 @@ export default function MoneyLabPanel({
 }) {
   const isMobile = screenMode === "mobile";
   const lab = useMoneyLab(isLoggedIn);
+  const advisor = useFinancialAdvisor(isLoggedIn);
   const [selectedLesson, setSelectedLesson] = useState<MoneyLabLesson | null>(null);
 
   const completionPercent = useMemo(
@@ -55,6 +58,15 @@ export default function MoneyLabPanel({
           <div style={{ borderRadius: "18px", border: "1px solid rgba(113,236,176,0.13)", background: "rgba(18,61,53,0.31)", padding: "16px" }}><div style={{ color: "rgba(255,255,255,0.42)", fontSize: "9px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>DT earned</div><div style={{ marginTop: "6px", color: "#9af3c3", fontSize: "22px", fontWeight: 900 }}>{lab.totalRewardEarned.toLocaleString("en-SG")} DT</div></div>
           <div style={{ borderRadius: "18px", border: "1px solid rgba(255,209,138,0.13)", background: "rgba(84,58,22,0.24)", padding: "16px" }}><div style={{ color: "rgba(255,255,255,0.42)", fontSize: "9px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>Course rewards</div><div style={{ marginTop: "6px", color: "#ffd18a", fontSize: "22px", fontWeight: 900 }}>{MONEY_LAB_TOTAL_REWARD} DT max</div></div>
         </div>
+      </div>
+
+      <div style={{ marginTop: "14px" }}>
+        <FinancialAdvisorSelector
+          value={advisor.advisorId}
+          onChange={advisor.setAdvisorId}
+          saving={advisor.saving}
+          compact={isMobile}
+        />
       </div>
 
       {lab.error && (
@@ -125,7 +137,7 @@ export default function MoneyLabPanel({
         <strong style={{ color: "rgba(255,255,255,0.68)" }}>Learning note:</strong> Dream Tokens, Milo’s Bank Bonds and Milo’s Exchange are fictional learning systems. Real-world investments can gain or lose value and do not guarantee returns.
       </div>
 
-      <MoneyLessonModal lesson={selectedLesson} open={Boolean(selectedLesson)} alreadyCompleted={selectedLesson ? lab.completedKeys.has(selectedLesson.key) : false} loading={lab.actionLoading} onClose={() => setSelectedLesson(null)} onComplete={lab.completeLesson} />
+      <MoneyLessonModal lesson={selectedLesson} open={Boolean(selectedLesson)} advisorId={advisor.advisorId} alreadyCompleted={selectedLesson ? lab.completedKeys.has(selectedLesson.key) : false} loading={lab.actionLoading} onClose={() => setSelectedLesson(null)} onComplete={lab.completeLesson} />
     </section>
   );
 }

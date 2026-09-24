@@ -1,0 +1,9 @@
+"use client";
+import type { FinancialBlockResponse, SliderBlock } from "../../lib/financial-learning-engine-types";
+import LearningBlockShell from "./LearningBlockShell";
+export default function SliderLearningBlock({ block, response, onChange }: { block: SliderBlock; response?: FinancialBlockResponse; onChange: (r: FinancialBlockResponse) => void }) {
+  const value = typeof response?.value === "number" ? response.value : block.defaultValue;
+  const range = block.feedbackRanges?.find((item) => value >= item.min && value <= item.max);
+  const display = `${block.prefix ?? ""}${value.toLocaleString("en-SG")}${block.unit ? ` ${block.unit}` : ""}`;
+  return <LearningBlockShell eyebrow={block.eyebrow ?? "Explore"} title={block.title}><h4 style={{ margin: 0, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "28px", fontWeight: 500 }}>{block.prompt}</h4><div style={{ marginTop: "22px", textAlign: "center", color: "#8ee8ff", fontSize: "29px", fontWeight: 900 }}>{display}</div><input aria-label={block.prompt} type="range" min={block.min} max={block.max} step={block.step} value={value} onChange={(e: any) => onChange({ blockId: block.id, blockType: block.type, value: Number(e.target.value), answeredAt: new Date().toISOString() })} style={{ width: "100%", marginTop: "17px", accentColor: "#58d8ff" }} /><div style={{ display: "flex", justifyContent: "space-between", color: "rgba(255,255,255,0.32)", fontSize: "9px" }}><span>{block.min}</span><span>{block.max}</span></div>{range && <div style={{ marginTop: "15px", borderRadius: "14px", border: "1px solid rgba(126,232,255,0.13)", background: "rgba(83,215,255,0.05)", padding: "12px", color: "rgba(255,255,255,0.66)", fontSize: "11px", lineHeight: 1.55 }}><strong style={{ color: "#bceffc" }}>{range.label}: </strong>{range.explanation}</div>}</LearningBlockShell>;
+}
