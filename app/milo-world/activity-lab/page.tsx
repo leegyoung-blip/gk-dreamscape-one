@@ -21,6 +21,7 @@ type ActivityMenuProps = {
   activeMode: ActivityMode;
   drawer: boolean;
   dense: boolean;
+  collapsed?: boolean;
   onSelectMode: (mode: ActivityMode) => void;
   onNavigate?: () => void;
 };
@@ -51,7 +52,7 @@ const ACTIVITY_ITEMS: Array<{
     id: "merge",
     eyebrow: "New Activity",
     title: "Milo’s Mix & Serve",
-    description: "Progress through Burger Basics and Salad Shift, complete timed orders and earn DT after each stage.",
+    description: "Cook, assemble and serve Burger Basics orders. Stage 2 is coming soon.",
     icon: "◇",
   },
 ];
@@ -60,6 +61,7 @@ function ActivityMenu({
   activeMode,
   drawer,
   dense,
+  collapsed = false,
   onSelectMode,
   onNavigate,
 }: ActivityMenuProps) {
@@ -73,7 +75,7 @@ function ActivityMenu({
         gap: dense ? "8px" : "10px",
       }}
     >
-      {!drawer && (
+      {!drawer && !collapsed && (
         <div
           style={{
             padding: dense ? "12px 12px 8px" : "16px 14px 10px",
@@ -111,18 +113,22 @@ function ActivityMenu({
           <button
             key={item.id}
             type="button"
+            title={collapsed ? item.title : undefined}
+            aria-label={collapsed ? item.title : undefined}
             onClick={() => {
               onSelectMode(item.id);
               onNavigate?.();
             }}
             style={{
               width: "100%",
-              minHeight: drawer ? "86px" : dense ? "78px" : "92px",
-              padding: drawer
-                ? "13px 14px"
-                : dense
-                  ? "10px 11px"
-                  : "13px",
+              minHeight: collapsed ? "58px" : drawer ? "86px" : dense ? "78px" : "92px",
+              padding: collapsed
+                ? "7px"
+                : drawer
+                  ? "13px 14px"
+                  : dense
+                    ? "10px 11px"
+                    : "13px",
               borderRadius: drawer ? "18px" : "20px",
               border: selected
                 ? "1px solid rgba(126,232,255,0.56)"
@@ -137,16 +143,17 @@ function ActivityMenu({
               textAlign: "left",
               cursor: "pointer",
               display: "grid",
-              gridTemplateColumns: "42px minmax(0, 1fr)",
+              gridTemplateColumns: collapsed ? "1fr" : "42px minmax(0, 1fr)",
               alignItems: "center",
-              gap: "11px",
+              justifyItems: collapsed ? "center" : undefined,
+              gap: collapsed ? 0 : "11px",
             }}
           >
             <span
               aria-hidden="true"
               style={{
-                width: "42px",
-                height: "42px",
+                width: collapsed ? "46px" : "42px",
+                height: collapsed ? "46px" : "42px",
                 borderRadius: "14px",
                 border: selected
                   ? "1px solid rgba(142,232,255,0.38)"
@@ -165,7 +172,7 @@ function ActivityMenu({
               {item.icon}
             </span>
 
-            <span style={{ minWidth: 0, display: "block" }}>
+            {!collapsed && <span style={{ minWidth: 0, display: "block" }}>
               <span
                 style={{
                   display: "flex",
@@ -232,7 +239,7 @@ function ActivityMenu({
                   {item.description}
                 </span>
               )}
-            </span>
+            </span>}
           </button>
         );
       })}
@@ -764,10 +771,8 @@ export default function ActivityLabPage() {
           display: "grid",
           gridTemplateColumns: mobile
             ? "1fr"
-            : wide
-              ? "260px minmax(0, 1fr)"
-              : "220px minmax(0, 1fr)",
-          gap: dense ? "10px" : "14px",
+            : "72px minmax(0, 1fr)",
+          gap: fixedGame ? "8px" : dense ? "10px" : "12px",
           overflowX: "hidden",
           overflowY: fixedGame ? "hidden" : needsVerticalScroll ? "auto" : "hidden",
           overscrollBehavior: "contain",
@@ -781,6 +786,7 @@ export default function ActivityLabPage() {
               activeMode={activeMode}
               drawer={false}
               dense={dense}
+              collapsed
               onSelectMode={selectMode}
             />
           </aside>

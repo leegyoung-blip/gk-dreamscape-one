@@ -41,7 +41,10 @@ type PrepItem = {
 
 type BoardCell = PrepItem | null;
 type OrderSlot = { id: number; recipeKey: string; secondsLeft: number };
-type DragState = { fromIndex: number; x: number; y: number } | null;
+type DragSource =
+  | { type: "cell"; index: number }
+  | { type: "pan"; panIndex: number };
+type DragState = { source: DragSource; x: number; y: number } | null;
 type ProcessStatus = "processing" | "ready" | "warning" | "burnt";
 type WorkstationJob = {
   id: number;
@@ -69,9 +72,10 @@ const MAX_FAILED_ORDERS = 3;
 const ORDER_DURATION_SECONDS = 60;
 const PROCESS_TICK_MS = 250;
 const PROCESS_DONE_TICKS = 20; // 5 seconds
-const AUTO_RETURN_TICKS = 22; // show the green tick briefly before returning
+const CHOP_AUTO_RETURN_TICKS = 22; // show the green tick briefly before the chopped tomato returns
 const PAN_WARNING_TICKS = 28;
 const PAN_BURNT_TICKS = 36;
+const DISCARD_PENALTY = 25;
 const ASSET_BASE = "/milo/activity-lab/mix-serve";
 
 const WORKSTATION_ASSETS = {
@@ -91,7 +95,19 @@ const INGREDIENTS: IngredientDef[] = [
   { key: "bacon", label: "Bacon", image: `${ASSET_BASE}/ingredients/ingredient-bacon.png`, supply: true },
 ];
 
-const SUPPLY_KEYS = INGREDIENTS.filter((item) => item.supply).map((item) => item.key);
+// Five physical ingredient boxes. The final Toppings box is split into two
+// deterministic compartments so Cheese and Bacon remain individually selectable.
+const INGREDIENT_DISPENSERS: Array<{
+  id: string;
+  label: string;
+  keys: IngredientKey[];
+}> = [
+  { id: "bun", label: "Buns", keys: ["bun"] },
+  { id: "patty", label: "Raw Patties", keys: ["raw-beef-patty"] },
+  { id: "lettuce", label: "Lettuce", keys: ["lettuce"] },
+  { id: "tomato", label: "Tomatoes", keys: ["whole-tomato"] },
+  { id: "toppings", label: "Toppings", keys: ["cheese-slice", "bacon"] },
+];
 
 const BURGER_RECIPES: RecipeDef[] = [
   {
@@ -155,21 +171,7 @@ function createDish(id: number, recipe: RecipeDef): PrepItem {
 }
 
 function initialBoard(): BoardCell[] {
-  const board = Array<BoardCell>(BOARD_SIZE).fill(null);
-  const starters: IngredientKey[] = ["bun", "raw-beef-patty", "lettuce", "whole-tomato", "cheese-slice"];
-  starters.forEach((key, index) => {
-    board[index * 2] = createIngredient(index + 1, key);
-  });
-  return board;
-}
-
-function shuffledSupplyKeys() {
-  const keys = [...SUPPLY_KEYS];
-  for (let index = keys.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(Math.random() * (index + 1));
-    [keys[index], keys[swap]] = [keys[swap], keys[index]];
-  }
-  return keys;
+  return Array<BoardCell>(BOARD_SIZE).fill(null);
 }
 
 function tierBaseScore(tier: number) {
@@ -257,14 +259,15 @@ export default function MilosMixAndServe({
   const [awardedDt, setAwardedDt] = useState(0);
   const [panJobs, setPanJobs] = useState<Array<WorkstationJob | null>>([null, null, null]);
   const [choppingJob, setChoppingJob] = useState<WorkstationJob | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [guideSpotlight, setGuideSpotlight] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const [guidePanelPosition, setGuidePanelPosition] = useState<{ top: number; left: number; width: number }>({ top: 20, left: 20, width: 360 });
 
   const nextItemId = useRef(1000);
   const nextOrderId = useRef(1);
   const nextJobId = useRef(1);
   const currentStageRunId = useRef(0);
   const awardedStageRuns = useRef<Set<string>>(new Set());
-  const supplyOrderRef = useRef<IngredientKey[]>(shuffledSupplyKeys());
-  const supplyIndexRef = useRef(0);
 
   useEffect(() => {
     boardRef.current = board;
@@ -315,8 +318,6 @@ export default function MilosMixAndServe({
     nextItemId.current = 1000;
     nextOrderId.current = 1;
     nextJobId.current = 1;
-    supplyOrderRef.current = shuffledSupplyKeys();
-    supplyIndexRef.current = 0;
   }
 
   function eligibleRecipes(servedCount: number) {
@@ -417,14 +418,12 @@ export default function MilosMixAndServe({
   }, [running, paused, stageResult, orderTimersStarted]);
 
   // Workstation processing loop. Both raw patties and whole tomatoes take 5 seconds.
-  // Finished food auto-returns to the prep counter after a brief green-tick state.
+  // Patties remain in their pan until the player removes them; chopped tomatoes auto-return.
   useEffect(() => {
     if (!running || paused || stageResult) return;
 
     const timer = window.setInterval(() => {
       setPanJobs((currentJobs) => {
-        let boardCopy = [...boardRef.current];
-        let boardChanged = false;
         const nextJobs = currentJobs.map((job) => {
           if (!job || job.status === "burnt") return job;
           const nextTicks = job.elapsedTicks + 1;
@@ -433,22 +432,8 @@ export default function MilosMixAndServe({
           if (nextTicks >= PAN_WARNING_TICKS && status === "ready") status = "warning";
           if (nextTicks >= PAN_BURNT_TICKS) status = "burnt";
 
-          if (status !== "burnt" && nextTicks >= AUTO_RETURN_TICKS) {
-            const empty = boardCopy.findIndex((item) => item === null);
-            if (empty !== -1) {
-              boardCopy[empty] = createIngredient(++nextItemId.current, "cooked-beef-patty");
-              boardChanged = true;
-              setStatus("Cooked patty returned to the prep counter.");
-              return null;
-            }
-          }
-
           return { ...job, elapsedTicks: nextTicks, status };
         });
-        if (boardChanged) {
-          boardRef.current = boardCopy;
-          setBoard(boardCopy);
-        }
         return nextJobs;
       });
 
@@ -456,7 +441,7 @@ export default function MilosMixAndServe({
         if (!job) return null;
         const nextTicks = job.elapsedTicks + 1;
         const status: ProcessStatus = nextTicks >= PROCESS_DONE_TICKS ? "ready" : "processing";
-        if (nextTicks >= AUTO_RETURN_TICKS) {
+        if (nextTicks >= CHOP_AUTO_RETURN_TICKS) {
           const boardCopy = [...boardRef.current];
           const empty = boardCopy.findIndex((item) => item === null);
           if (empty !== -1) {
@@ -499,25 +484,28 @@ export default function MilosMixAndServe({
     });
   }, [stageResult, userId, onTokenTransaction]);
 
-  function spawnIngredient() {
+  function dispenseIngredient(key: IngredientKey) {
     if (!running || paused) return;
+    const definition = ingredientDef(key);
+    if (!definition.supply) return;
+
     const current = [...boardRef.current];
     const empty = current.findIndex((item) => item === null);
     if (empty === -1) {
-      setStatus("The prep counter is full. Combine, cook, chop or discard an item first.");
+      setStatus("The prep counter is full. Use ingredients or move unwanted food to the bin first.");
       return;
     }
 
-    // Fair supply rotation: the six Stage 1 supply ingredients cycle in a randomised
-    // order. That guarantees no ingredient can disappear for more than five other clicks.
-    const supplyOrder = supplyOrderRef.current;
-    const key = supplyOrder[supplyIndexRef.current % supplyOrder.length];
-    supplyIndexRef.current += 1;
     const item = createIngredient(++nextItemId.current, key);
     current[empty] = item;
     boardRef.current = current;
     setBoard(current);
-    setStatus(`${item.label} added to the prep counter.`);
+    setStatus(`${item.label} dispensed into the prep counter.`);
+  }
+
+  function applyDiscardPenalty(label: string) {
+    setScore((value) => Math.max(0, value - DISCARD_PENALTY));
+    setStatus(`${label} discarded · −${DISCARD_PENALTY} points.`);
   }
 
   function discardItem(index: number) {
@@ -529,7 +517,42 @@ export default function MilosMixAndServe({
     boardRef.current = current;
     setBoard(current);
     setSelectedIndex(null);
-    setStatus(`${item.label} discarded.`);
+    applyDiscardPenalty(item.label);
+  }
+
+  function discardPanJob(panIndex: number) {
+    if (!running || paused) return;
+    const job = panJobs[panIndex];
+    if (!job || job.status === "processing") {
+      setStatus("Wait for the patty to finish cooking before moving it.");
+      return;
+    }
+    setPanJobs((jobs) => jobs.map((entry, index) => index === panIndex ? null : entry));
+    applyDiscardPenalty(job.status === "burnt" ? "Burnt patty" : "Cooked patty");
+  }
+
+  function returnPanToCounter(panIndex: number, toIndex: number) {
+    if (!running || paused) return;
+    const job = panJobs[panIndex];
+    if (!job) return;
+    if (job.status === "processing") {
+      setStatus("That patty is still cooking.");
+      return;
+    }
+    if (job.status === "burnt") {
+      setStatus("Burnt patties cannot return to the prep counter. Drag it to the bin.");
+      return;
+    }
+    const current = [...boardRef.current];
+    if (current[toIndex]) {
+      setStatus("Choose an empty prep-counter square for the cooked patty.");
+      return;
+    }
+    current[toIndex] = createIngredient(++nextItemId.current, "cooked-beef-patty");
+    boardRef.current = current;
+    setBoard(current);
+    setPanJobs((jobs) => jobs.map((entry, index) => index === panIndex ? null : entry));
+    setStatus(`Cooked patty moved from Pan ${panIndex + 1} to the prep counter.`);
   }
 
   function moveOrCombine(fromIndex: number, toIndex: number) {
@@ -621,11 +644,6 @@ export default function MilosMixAndServe({
     setStatus("Tomato chopping · 5 seconds.");
   }
 
-  function clearBurntPan(panIndex: number) {
-    setPanJobs((jobs) => jobs.map((job, index) => index === panIndex ? null : job));
-    setStatus(`Burnt patty cleared from Pan ${panIndex + 1}.`);
-  }
-
   function replaceOrder(orderId: number, servedCount: number) {
     const current = ordersRef.current;
     const otherKeys = current.filter((order) => order.id !== orderId).map((order) => order.recipeKey);
@@ -682,10 +700,17 @@ export default function MilosMixAndServe({
     if (!mobile || !running || paused || !boardRef.current[index]) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setSelectedIndex(index);
-    setDragState({ fromIndex: index, x: event.clientX, y: event.clientY });
+    setDragState({ source: { type: "cell", index }, x: event.clientX, y: event.clientY });
   }
 
-  function movePointerDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+  function beginPanPointerDrag(event: ReactPointerEvent<HTMLDivElement>, panIndex: number) {
+    const job = panJobs[panIndex];
+    if (!mobile || !running || paused || !job || job.status === "processing") return;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setDragState({ source: { type: "pan", panIndex }, x: event.clientX, y: event.clientY });
+  }
+
+  function movePointerDrag(event: ReactPointerEvent<HTMLElement>) {
     if (!dragState) return;
     setDragState((current) => current ? { ...current, x: event.clientX, y: event.clientY } : null);
   }
@@ -702,14 +727,26 @@ export default function MilosMixAndServe({
     return null;
   }
 
-  function endPointerDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+  function completePointerDrop(source: DragSource, target: ReturnType<typeof resolveDropTarget>) {
+    if (!target) return;
+    if (source.type === "pan") {
+      if (target.type === "cell") returnPanToCounter(source.panIndex, target.index);
+      else if (target.type === "discard") discardPanJob(source.panIndex);
+      return;
+    }
+
+    const fromIndex = source.index;
+    if (target.type === "order") serveDishToOrder(fromIndex, target.orderId);
+    else if (target.type === "pan") sendToPan(fromIndex, target.panIndex);
+    else if (target.type === "chopping") sendToChoppingBoard(fromIndex);
+    else if (target.type === "discard") discardItem(fromIndex);
+    else if (target.type === "cell") moveOrCombine(fromIndex, target.index);
+  }
+
+  function endPointerDrag(event: ReactPointerEvent<HTMLElement>) {
     if (!dragState) return;
     const target = resolveDropTarget(document.elementFromPoint(event.clientX, event.clientY));
-    if (target?.type === "order") serveDishToOrder(dragState.fromIndex, target.orderId);
-    else if (target?.type === "pan") sendToPan(dragState.fromIndex, target.panIndex);
-    else if (target?.type === "chopping") sendToChoppingBoard(dragState.fromIndex);
-    else if (target?.type === "discard") discardItem(dragState.fromIndex);
-    else if (target?.type === "cell") moveOrCombine(dragState.fromIndex, target.index);
+    completePointerDrop(dragState.source, target);
     setDragState(null);
   }
 
@@ -720,18 +757,130 @@ export default function MilosMixAndServe({
     }
     setSelectedIndex(index);
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/milo-prep-cell", String(index));
+    event.dataTransfer.setData("text/milo-source-cell", String(index));
   }
 
-  function readDragIndex(event: DragEvent<HTMLElement>) {
-    const value = Number(event.dataTransfer.getData("text/milo-prep-cell"));
-    return Number.isFinite(value) ? value : null;
+  function onPanDragStart(event: DragEvent<HTMLDivElement>, panIndex: number) {
+    const job = panJobs[panIndex];
+    if (!running || paused || !job || job.status === "processing") {
+      event.preventDefault();
+      return;
+    }
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/milo-source-pan", String(panIndex));
+  }
+
+  function readDragSource(event: DragEvent<HTMLElement>): DragSource | null {
+    const panValue = event.dataTransfer.getData("text/milo-source-pan");
+    if (panValue !== "") {
+      const panIndex = Number(panValue);
+      if (Number.isFinite(panIndex)) return { type: "pan", panIndex };
+    }
+    const cellValue = event.dataTransfer.getData("text/milo-source-cell");
+    if (cellValue !== "") {
+      const index = Number(cellValue);
+      if (Number.isFinite(index)) return { type: "cell", index };
+    }
+    return null;
   }
 
   function workstationProgress(job: WorkstationJob | null) {
     if (!job) return 0;
     return Math.min(100, (Math.min(job.elapsedTicks, PROCESS_DONE_TICKS) / PROCESS_DONE_TICKS) * 100);
   }
+
+  const guideSteps = [
+    {
+      target: "ingredient-boxes",
+      title: "Choose exactly what you need",
+      body: "Use the five ingredient boxes below the prep counter. Nothing is random: click Bun, Patty, Lettuce or Tomato directly. The Toppings box has separate Cheese and Bacon compartments.",
+    },
+    {
+      target: "pans",
+      title: "Cook patties in a pan",
+      body: "Drag a raw patty into any empty pan. It cooks for 5 seconds. When the green tick appears, drag the cooked patty yourself into an EMPTY prep-counter square. Do not leave it too long or it will burn.",
+    },
+    {
+      target: "chopping",
+      title: "Chop every tomato",
+      body: "Drag a whole tomato onto the chopping board. It takes 5 seconds. Chopped tomato returns to the prep counter when it is ready.",
+    },
+    {
+      target: "prep-counter",
+      title: "Build burgers in order",
+      body: "Combine in this exact order: Bun + Cooked Patty → Lettuce → Chopped Tomato → Cheese → Bacon. A wrong combination swaps the two items instead of deleting them.",
+    },
+    {
+      target: "orders",
+      title: "Serve the customer orders",
+      body: "Match the finished burger to an order. The three 60-second clocks begin after your FIRST successful serve. At 15 seconds the order shakes to warn you.",
+    },
+    {
+      target: "bin",
+      title: "The bin costs points",
+      body: `Drag unwanted counter items or burnt patties into the bin. Every discard costs ${DISCARD_PENALTY} points, so plan before throwing food away.`,
+    },
+    {
+      target: "game-controls",
+      title: "Pause or restart anytime",
+      body: "Pause freezes the kitchen. Restart begins Stage 1 again from zero score and fresh orders. Complete 10 orders before three misses to clear the stage.",
+    },
+  ] as const;
+
+  function restartStage() {
+    if (!batteryCanStart) {
+      onBatteryBlocked?.();
+      return;
+    }
+    startStage();
+  }
+
+  useEffect(() => {
+    if (!showGuide) {
+      setGuideSpotlight(null);
+      return;
+    }
+
+    const positionGuide = () => {
+      const root = rootRef.current;
+      const targetName = guideSteps[guideStep]?.target;
+      const target = targetName
+        ? root?.querySelector(`[data-guide-target="${targetName}"]`) as HTMLElement | null
+        : null;
+      if (!root || !target) return;
+
+      const rootRect = root.getBoundingClientRect();
+      const rect = target.getBoundingClientRect();
+      const spotlight = {
+        top: Math.max(4, rect.top - rootRect.top - 7),
+        left: Math.max(4, rect.left - rootRect.left - 7),
+        width: Math.min(rootRect.width - 8, rect.width + 14),
+        height: Math.min(rootRect.height - 8, rect.height + 14),
+      };
+      setGuideSpotlight(spotlight);
+
+      const panelWidth = Math.min(mobile ? 330 : 380, rootRect.width - 24);
+      const estimatedHeight = mobile ? 230 : 205;
+      const gap = 14;
+      const rightSpace = rootRect.width - (spotlight.left + spotlight.width);
+      const leftSpace = spotlight.left;
+      let left: number;
+      if (rightSpace >= panelWidth + gap) left = spotlight.left + spotlight.width + gap;
+      else if (leftSpace >= panelWidth + gap) left = spotlight.left - panelWidth - gap;
+      else left = Math.max(12, Math.min(rootRect.width - panelWidth - 12, spotlight.left + spotlight.width / 2 - panelWidth / 2));
+
+      let top = spotlight.top + spotlight.height / 2 - estimatedHeight / 2;
+      top = Math.max(12, Math.min(rootRect.height - estimatedHeight - 12, top));
+      setGuidePanelPosition({ top, left, width: panelWidth });
+    };
+
+    const frame = window.requestAnimationFrame(positionGuide);
+    window.addEventListener("resize", positionGuide);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", positionGuide);
+    };
+  }, [guideStep, mobile, showGuide, running]);
 
   function renderEquipmentItem(job: WorkstationJob | null, kind: "pan" | "chopping") {
     const statusBorder = job?.status === "burnt"
@@ -842,6 +991,7 @@ export default function MilosMixAndServe({
 
   return (
     <div
+      ref={rootRef}
       style={{
         position: "relative",
         width: "100%",
@@ -852,7 +1002,7 @@ export default function MilosMixAndServe({
         background: "radial-gradient(circle at 50% 0%, rgba(255,174,70,.08), transparent 28%), linear-gradient(155deg,#061524,#040b18 58%,#080815)",
         padding: mobile ? 7 : dense ? 8 : 10,
         display: "grid",
-        gridTemplateRows: "auto auto auto auto minmax(0,1fr)",
+        gridTemplateRows: "auto auto auto minmax(0,1fr)",
         gap: mobile ? 6 : 8,
       }}
     >
@@ -884,11 +1034,12 @@ export default function MilosMixAndServe({
           <p style={{ margin: 0, color: "#ffbf68", fontSize: mobile ? 9 : 11, fontWeight: 950, letterSpacing: ".14em", textTransform: "uppercase" }}>Stage 1 · Milo’s Burger Lesson</p>
           <h2 style={{ margin: "3px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : compact ? 30 : 36, lineHeight: 1, fontWeight: 400 }}>Milo’s Mix & Serve</h2>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div data-guide-target="game-controls" style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button type="button" disabled style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.025)", color: "rgba(255,255,255,.3)", fontSize: 10, fontWeight: 900 }}>Stage 2 · Coming Soon</button>
-          <button type="button" onClick={() => { setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,191,104,.22)", background: "rgba(255,173,66,.06)", color: "#ffd08a", fontSize: 10, fontWeight: 900, cursor: "pointer" }}>Milo Guide</button>
+          <button type="button" onClick={() => { if (running) setPaused(true); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,191,104,.22)", background: "rgba(255,173,66,.06)", color: "#ffd08a", fontSize: 10, fontWeight: 900, cursor: "pointer" }}>Milo Guide</button>
           <button type="button" onClick={() => setShowHelp(true)} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.06)", color: "#dffaff", fontSize: 10, fontWeight: 900, cursor: "pointer" }}>? How to Play</button>
-          <button type="button" onClick={() => running && setPaused((value) => !value)} disabled={!running} style={{ width: 36, height: 36, borderRadius: 999, border: "1px solid rgba(126,232,255,.18)", background: "rgba(83,215,255,.06)", color: running ? "white" : "rgba(255,255,255,.3)" }}>{paused ? "▶" : "Ⅱ"}</button>
+          <button type="button" onClick={restartStage} disabled={!running} aria-label="Restart Stage 1" title="Restart Stage 1" style={{ width: 36, height: 36, borderRadius: 999, border: "1px solid rgba(255,191,104,.2)", background: "rgba(255,173,66,.06)", color: running ? "#ffd08a" : "rgba(255,255,255,.3)", fontSize: 17, fontWeight: 900, cursor: running ? "pointer" : "not-allowed" }}>↻</button>
+          <button type="button" onClick={() => running && setPaused((value) => !value)} disabled={!running} aria-label={paused ? "Resume Stage 1" : "Pause Stage 1"} style={{ width: 36, height: 36, borderRadius: 999, border: "1px solid rgba(126,232,255,.18)", background: "rgba(83,215,255,.06)", color: running ? "white" : "rgba(255,255,255,.3)", cursor: running ? "pointer" : "not-allowed" }}>{paused ? "▶" : "Ⅱ"}</button>
         </div>
       </div>
 
@@ -909,7 +1060,7 @@ export default function MilosMixAndServe({
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6 }}>
+      <div data-guide-target="orders" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6 }}>
         {orders.map((order) => {
           const recipe = BURGER_RECIPES.find((item) => item.key === order.recipeKey)!;
           const urgent = orderTimersStarted && order.secondsLeft <= 15;
@@ -922,8 +1073,8 @@ export default function MilosMixAndServe({
               onDragOver={(event) => { if (running && !paused) event.preventDefault(); }}
               onDrop={(event) => {
                 event.preventDefault();
-                const fromIndex = readDragIndex(event);
-                if (fromIndex !== null) serveDishToOrder(fromIndex, order.id);
+                const source = readDragSource(event);
+                if (source?.type === "cell") serveDishToOrder(source.index, order.id);
               }}
               onClick={() => selectedIndex !== null && serveDishToOrder(selectedIndex, order.id)}
               style={{ ...panel, minWidth: 0, borderRadius: 14, padding: 8, border: urgent ? "1px solid rgba(255,105,117,.42)" : "1px solid rgba(128,226,255,.14)", animation: shakeNow ? "mixServeOrderShake .65s ease-in-out 1" : undefined }}
@@ -956,27 +1107,21 @@ export default function MilosMixAndServe({
         })}
       </div>
 
-      <div style={{ ...panel, borderRadius: 14, padding: "8px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <div style={{ minWidth: 0 }}>
-          <strong style={{ display: "block", fontSize: 10 }}>{running ? paused ? "Kitchen paused" : orderTimersStarted ? "Customer clocks running" : "Build and serve the first order to start the clocks" : "Burger Basics ready"}</strong>
-          <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.36)", fontSize: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{status}</span>
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button type="button" onClick={spawnIngredient} disabled={!running || paused} style={{ minHeight: 38, padding: "0 16px", borderRadius: 12, border: "1px solid rgba(126,232,255,.22)", background: "rgba(83,215,255,.08)", color: "white", fontSize: 11, fontWeight: 950, cursor: running && !paused ? "pointer" : "not-allowed" }}>Supply +</button>
-          <button type="button" onClick={() => selectedIndex !== null && discardItem(selectedIndex)} disabled={!running || paused || selectedIndex === null} style={{ minHeight: 38, padding: "0 16px", borderRadius: 12, border: "1px solid rgba(255,129,143,.2)", background: "rgba(255,100,120,.07)", color: "white", fontSize: 11, fontWeight: 900, cursor: running && !paused && selectedIndex !== null ? "pointer" : "not-allowed" }}>Discard</button>
-          {!running && !stageResult && <button type="button" onClick={() => { setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 38, padding: "0 16px", borderRadius: 12, border: "1px solid rgba(255,211,104,.36)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 11, fontWeight: 950, cursor: "pointer" }}>Milo Guide & Start</button>}
-        </div>
-      </div>
 
-      <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: mobile ? "1fr" : "minmax(0,1.18fr) minmax(350px,.82fr)", gap: 7 }}>
-        <div style={{ ...panel, minHeight: 0, borderRadius: 16, padding: 9, display: "grid", gridTemplateRows: "auto minmax(0,1fr)", gap: 6, overflow: "hidden" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-            <div>
+
+      <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: mobile ? "1fr" : "minmax(0,1.24fr) minmax(330px,.76fr)", gap: 7 }}>
+        <div
+          data-guide-target="prep-counter"
+          style={{ ...panel, minHeight: 0, borderRadius: 16, padding: 9, display: "grid", gridTemplateRows: "auto minmax(0,1fr) auto", gap: 7, overflow: "hidden" }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+            <div style={{ minWidth: 0 }}>
               <p style={{ margin: 0, color: "#9feeff", fontSize: 9, fontWeight: 950, letterSpacing: ".12em" }}>PREP COUNTER</p>
-              {!mobile && <p style={{ margin: "2px 0 0", color: "rgba(255,255,255,.32)", fontSize: 8.5 }}>Cook patties, chop tomatoes, then build burgers in the exact Milo Guide order.</p>}
+              <p style={{ margin: "3px 0 0", color: "rgba(255,255,255,.42)", fontSize: 8.5, lineHeight: 1.35 }}>{status}</p>
             </div>
-            <span style={{ color: "rgba(255,255,255,.38)", fontSize: 9 }}>{occupied} / {BOARD_SIZE}</span>
+            <span style={{ color: "rgba(255,255,255,.38)", fontSize: 9, flexShrink: 0 }}>{occupied} / {BOARD_SIZE}</span>
           </div>
+
           <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "repeat(5,minmax(0,1fr))", gridTemplateRows: "repeat(4,minmax(0,1fr))", gap: mobile ? 5 : 6 }}>
             {board.map((item, index) => {
               const selected = selectedIndex === index;
@@ -989,7 +1134,13 @@ export default function MilosMixAndServe({
                   onClick={() => handleCellClick(index)}
                   onDragStart={(event) => onDragStart(event, index)}
                   onDragOver={(event) => { if (running && !paused) event.preventDefault(); }}
-                  onDrop={(event) => { event.preventDefault(); const from = readDragIndex(event); if (from !== null) moveOrCombine(from, index); }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const source = readDragSource(event);
+                    if (!source) return;
+                    if (source.type === "cell") moveOrCombine(source.index, index);
+                    else returnPanToCounter(source.panIndex, index);
+                  }}
                   onPointerDown={(event) => beginPointerDrag(event, index)}
                   onPointerMove={movePointerDrag}
                   onPointerUp={endPointerDrag}
@@ -1001,27 +1152,66 @@ export default function MilosMixAndServe({
               );
             })}
           </div>
+
+          <div data-guide-target="ingredient-boxes" style={{ borderTop: "1px solid rgba(126,232,255,.09)", paddingTop: 7 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: 6 }}>
+              <span style={{ color: "#ffd08a", fontSize: 8, fontWeight: 950, letterSpacing: ".11em" }}>INGREDIENT BOXES</span>
+              <span style={{ color: "rgba(255,255,255,.3)", fontSize: 7.5 }}>Click exactly what you need</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: 6 }}>
+              {INGREDIENT_DISPENSERS.map((dispenser) => (
+                <div key={dispenser.id} style={{ minWidth: 0, minHeight: mobile ? 62 : 72, borderRadius: 13, border: "1px solid rgba(255,196,100,.14)", background: "linear-gradient(145deg,rgba(36,27,23,.56),rgba(10,17,29,.82))", padding: 5, display: "grid", gridTemplateRows: "1fr auto", gap: 3 }}>
+                  <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: dispenser.keys.length > 1 ? "repeat(2,minmax(0,1fr))" : "1fr", gap: 3 }}>
+                    {dispenser.keys.map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        disabled={!running || paused}
+                        onClick={() => dispenseIngredient(key)}
+                        title={`Dispense ${ingredientDef(key).label}`}
+                        aria-label={`Dispense ${ingredientDef(key).label}`}
+                        style={{ minWidth: 0, minHeight: 0, border: 0, borderRadius: 9, background: "rgba(255,255,255,.025)", display: "grid", placeItems: "center", cursor: running && !paused ? "pointer" : "not-allowed", opacity: running && !paused ? 1 : .45, padding: 2 }}
+                      >
+                        <img src={ingredientDef(key).image} alt="" style={{ width: dispenser.keys.length > 1 ? "82%" : "72%", height: dispenser.keys.length > 1 ? "82%" : "72%", maxWidth: 54, maxHeight: 54, objectFit: "contain", pointerEvents: "none" }} />
+                      </button>
+                    ))}
+                  </div>
+                  <strong style={{ display: "block", textAlign: "center", color: "rgba(255,255,255,.68)", fontSize: mobile ? 6.5 : 7.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dispenser.label}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div style={{ minHeight: 0, display: "grid", gridTemplateRows: "minmax(0,1.35fr) minmax(0,.9fr) minmax(0,.55fr)", gap: 7 }}>
-          <div style={{ ...panel, minHeight: 0, borderRadius: 16, padding: 10, display: "grid", gridTemplateRows: "auto minmax(0,1fr)", gap: 7 }}>
+        <div style={{ minHeight: 0, display: "grid", gridTemplateRows: "minmax(0,1.35fr) minmax(0,.65fr)", gap: 7 }}>
+          <div data-guide-target="pans" style={{ ...panel, minHeight: 0, borderRadius: 16, padding: 10, display: "grid", gridTemplateRows: "auto minmax(0,1fr)", gap: 7 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
               <div>
                 <p style={{ margin: 0, color: "#ffb86b", fontSize: 9, fontWeight: 950, letterSpacing: ".12em" }}>COOKING LINE · 3 PANS</p>
-                <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.35)", fontSize: 8 }}>Raw beef patties only · cook for 5 seconds</span>
+                <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.35)", fontSize: 8 }}>Raw patties · 5 seconds · drag cooked patties back yourself</span>
               </div>
-              <span style={{ color: "rgba(255,255,255,.28)", fontSize: 8 }}>Auto-returns when ready</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6, minHeight: 0 }}>
               {panJobs.map((job, panIndex) => {
                 const progress = workstationProgress(job);
+                const draggablePan = Boolean(job && job.status !== "processing");
                 return (
                   <div
                     key={panIndex}
                     data-pan-index={panIndex}
-                    onDragOver={(event) => { if (running && !paused) event.preventDefault(); }}
-                    onDrop={(event) => { event.preventDefault(); const from = readDragIndex(event); if (from !== null) sendToPan(from, panIndex); }}
-                    style={{ minHeight: 0, borderRadius: 13, border: `1px dashed ${job?.status === "burnt" ? "rgba(255,97,110,.42)" : "rgba(255,184,107,.28)"}`, background: "rgba(255,255,255,.018)", padding: 8, display: "grid", gridTemplateRows: "auto 1fr auto", gap: 6, placeItems: "center" }}
+                    draggable={!mobile && draggablePan && running && !paused}
+                    onDragStart={(event) => onPanDragStart(event, panIndex)}
+                    onPointerDown={(event) => beginPanPointerDrag(event, panIndex)}
+                    onPointerMove={movePointerDrag}
+                    onPointerUp={endPointerDrag}
+                    onPointerCancel={() => setDragState(null)}
+                    onDragOver={(event) => { if (running && !paused && !job) event.preventDefault(); }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      const source = readDragSource(event);
+                      if (source?.type === "cell") sendToPan(source.index, panIndex);
+                    }}
+                    style={{ minHeight: 0, borderRadius: 13, border: `1px dashed ${job?.status === "burnt" ? "rgba(255,97,110,.42)" : "rgba(255,184,107,.28)"}`, background: "rgba(255,255,255,.018)", padding: 8, display: "grid", gridTemplateRows: "auto 1fr auto", gap: 6, placeItems: "center", cursor: draggablePan && running && !paused ? "grab" : undefined, touchAction: mobile ? "none" : undefined }}
                   >
                     <strong style={{ fontSize: 9, color: job?.status === "burnt" ? "#ff818d" : "#ffc17e" }}>PAN {panIndex + 1}</strong>
                     {renderEquipmentItem(job, "pan")}
@@ -1030,10 +1220,9 @@ export default function MilosMixAndServe({
                         <div style={{ height: 6, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
                           <div style={{ width: `${progress}%`, height: "100%", background: job.status === "burnt" ? "#ff6976" : job.status === "warning" ? "#ffbf45" : job.status === "ready" ? "#70e9a4" : "#ffb86b" }} />
                         </div>
-                        <span style={{ display: "block", marginTop: 4, textAlign: "center", color: "rgba(255,255,255,.42)", fontSize: 7.5 }}>
-                          {job.status === "processing" ? `${Math.max(0, 5 - job.elapsedTicks * PROCESS_TICK_MS / 1000).toFixed(1)}s` : job.status === "ready" ? "DONE" : job.status === "warning" ? "REMOVE!" : "BURNT"}
+                        <span style={{ display: "block", marginTop: 4, textAlign: "center", color: job.status === "burnt" ? "#ff929d" : job.status === "warning" ? "#ffd06d" : "rgba(255,255,255,.44)", fontSize: 7.5, fontWeight: job.status === "processing" ? 700 : 900 }}>
+                          {job.status === "processing" ? `${Math.max(0, 5 - job.elapsedTicks * PROCESS_TICK_MS / 1000).toFixed(1)}s` : job.status === "ready" ? "DRAG TO COUNTER" : job.status === "warning" ? "REMOVE NOW!" : "DRAG TO BIN"}
                         </span>
-                        {job.status === "burnt" && <button type="button" onClick={() => clearBurntPan(panIndex)} style={{ width: "100%", marginTop: 4, minHeight: 24, borderRadius: 8, border: "1px solid rgba(255,106,118,.25)", background: "rgba(255,106,118,.08)", color: "#ff9ca5", fontSize: 7.5, fontWeight: 900, cursor: "pointer" }}>Clear Pan</button>}
                       </div>
                     ) : <span style={{ color: "rgba(255,255,255,.26)", fontSize: 7.5 }}>Drop raw patty</span>}
                   </div>
@@ -1042,103 +1231,117 @@ export default function MilosMixAndServe({
             </div>
           </div>
 
-          <div
-            data-prep-zone="chopping"
-            onDragOver={(event) => { if (running && !paused) event.preventDefault(); }}
-            onDrop={(event) => { event.preventDefault(); const from = readDragIndex(event); if (from !== null) sendToChoppingBoard(from); }}
-            style={{ ...panel, minHeight: 0, borderRadius: 16, padding: 11, border: "1px dashed rgba(126,232,255,.3)", display: "grid", gridTemplateColumns: "78px minmax(0,1fr)", alignItems: "center", gap: 12 }}
-          >
-            {renderEquipmentItem(choppingJob, "chopping")}
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                <div>
-                  <strong style={{ display: "block", color: "#8ee8ff", fontSize: 13 }}>Chopping Board</strong>
-                  <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.42)", fontSize: 8.5 }}>Whole tomatoes only · 5 seconds</span>
+          <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+            <div
+              data-guide-target="chopping"
+              data-prep-zone="chopping"
+              onDragOver={(event) => { if (running && !paused) event.preventDefault(); }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const source = readDragSource(event);
+                if (source?.type === "cell") sendToChoppingBoard(source.index);
+              }}
+              style={{ ...panel, minHeight: 0, borderRadius: 16, padding: 9, border: "1px dashed rgba(126,232,255,.3)", display: "grid", gridTemplateColumns: "74px minmax(0,1fr)", alignItems: "center", gap: 9 }}
+            >
+              {renderEquipmentItem(choppingJob, "chopping")}
+              <div style={{ minWidth: 0 }}>
+                <strong style={{ display: "block", color: "#8ee8ff", fontSize: 11 }}>Chopping Board</strong>
+                <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.42)", fontSize: 7.5 }}>Whole tomato · 5 sec</span>
+                <div style={{ marginTop: 7, height: 7, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
+                  <div style={{ width: `${workstationProgress(choppingJob)}%`, height: "100%", background: choppingJob?.status === "ready" ? "#70e9a4" : "#8ee8ff" }} />
                 </div>
-                {choppingJob?.status === "ready" && <span style={{ color: "#70e9a4", fontSize: 10, fontWeight: 950 }}>✓ DONE</span>}
+                <span style={{ display: "block", marginTop: 4, color: "rgba(255,255,255,.3)", fontSize: 7 }}>{choppingJob ? choppingJob.status === "ready" ? "Returning…" : `${Math.max(0, 5 - choppingJob.elapsedTicks * PROCESS_TICK_MS / 1000).toFixed(1)}s` : "Drop tomato"}</span>
               </div>
-              <div style={{ marginTop: 9, height: 7, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
-                <div style={{ width: `${workstationProgress(choppingJob)}%`, height: "100%", background: choppingJob?.status === "ready" ? "#70e9a4" : "#8ee8ff" }} />
-              </div>
-              <span style={{ display: "block", marginTop: 5, color: "rgba(255,255,255,.3)", fontSize: 7.5 }}>{choppingJob ? choppingJob.status === "ready" ? "Returning chopped tomato…" : `${Math.max(0, 5 - choppingJob.elapsedTicks * PROCESS_TICK_MS / 1000).toFixed(1)}s remaining` : "Drop a whole tomato here."}</span>
             </div>
-          </div>
 
-          <div
-            data-prep-zone="discard"
-            onDragOver={(event) => { if (running && !paused) event.preventDefault(); }}
-            onDrop={(event) => { event.preventDefault(); const from = readDragIndex(event); if (from !== null) discardItem(from); }}
-            style={{ ...panel, minHeight: 0, borderRadius: 16, padding: 10, border: "1px dashed rgba(255,129,143,.3)", display: "grid", gridTemplateColumns: "48px minmax(0,1fr)", alignItems: "center", gap: 10 }}
-          >
-            <div style={{ width: 44, height: 44, borderRadius: 14, display: "grid", placeItems: "center", background: "rgba(255,100,120,.08)", color: "#ff9da8", fontSize: 22, fontWeight: 950 }}>↺</div>
-            <div><strong style={{ display: "block", color: "#ff9da8", fontSize: 12 }}>Discard Tray</strong><span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.38)", fontSize: 8 }}>Clear unwanted ingredients or failed prep from the counter.</span></div>
+            <div
+              data-guide-target="bin"
+              data-prep-zone="discard"
+              onDragOver={(event) => { if (running && !paused) event.preventDefault(); }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const source = readDragSource(event);
+                if (!source) return;
+                if (source.type === "cell") discardItem(source.index);
+                else discardPanJob(source.panIndex);
+              }}
+              style={{ ...panel, minHeight: 0, borderRadius: 16, padding: 9, border: "1px dashed rgba(255,129,143,.3)", display: "grid", gridTemplateColumns: "74px minmax(0,1fr)", alignItems: "center", gap: 9 }}
+            >
+              <div style={{ width: 68, height: 68, borderRadius: "50%", border: "5px solid rgba(255,129,143,.32)", background: "radial-gradient(circle at 50% 44%, rgba(27,31,39,.96) 0 47%, rgba(255,129,143,.16) 49% 58%, rgba(7,13,23,.95) 60%)", boxShadow: "inset 0 0 0 5px rgba(255,255,255,.035), 0 8px 20px rgba(0,0,0,.28)", display: "grid", placeItems: "center", color: "#ff9da8", fontSize: 9, fontWeight: 950, letterSpacing: ".08em" }}>BIN</div>
+              <div style={{ minWidth: 0 }}>
+                <strong style={{ display: "block", color: "#ff9da8", fontSize: 11 }}>Waste Bin</strong>
+                <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.42)", fontSize: 7.5, lineHeight: 1.35 }}>Drag unwanted food or burnt patties here.</span>
+                <strong style={{ display: "block", marginTop: 6, color: "#ff8996", fontSize: 8 }}>−{DISCARD_PENALTY} points each</strong>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {dragState && mobile && board[dragState.fromIndex] && (
+      {dragState && mobile && (
         <div style={{ position: "fixed", left: dragState.x, top: dragState.y, transform: "translate(-50%,-50%)", zIndex: 1000, width: 58, height: 58, borderRadius: 14, border: "1px solid rgba(255,213,104,.72)", background: "rgba(11,17,27,.96)", display: "grid", placeItems: "center", pointerEvents: "none", boxShadow: "0 12px 30px rgba(0,0,0,.42)" }}>
-          <img src={board[dragState.fromIndex]?.image} alt="" style={{ width: 48, height: 48, objectFit: "contain" }} />
+          <img src={dragState.source.type === "cell" ? board[dragState.source.index]?.image : dragState.source.type === "pan" && panJobs[dragState.source.panIndex]?.status === "burnt" ? WORKSTATION_ASSETS.burntPan : ingredientDef("cooked-beef-patty").image} alt="" style={{ width: 48, height: 48, objectFit: "contain" }} />
         </div>
       )}
 
       {showGuide && (
-        <div style={{ position: "absolute", inset: 0, zIndex: 70, display: "grid", placeItems: "center", padding: 14, background: "rgba(1,6,14,.9)", backdropFilter: "blur(9px)" }}>
-          <div style={{ ...panel, width: "min(820px,100%)", maxHeight: "92%", overflow: "auto", borderRadius: 24, padding: mobile ? 16 : 22 }}>
-            <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "94px minmax(0,1fr)", gap: 14, alignItems: "center" }}>
-              <div style={{ width: 82, height: 82, borderRadius: 24, display: "grid", placeItems: "center", margin: mobile ? "0 auto" : 0, border: "1px solid rgba(255,200,105,.32)", background: "radial-gradient(circle at 50% 35%, rgba(255,211,112,.18), rgba(83,215,255,.08))", color: "#ffd16a", animation: "miloGuidePulse 2.1s ease-in-out infinite" }}>
-                <div style={{ textAlign: "center" }}><div style={{ fontSize: 30, lineHeight: 1 }}>✦</div><strong style={{ display: "block", marginTop: 3, fontSize: 10, letterSpacing: ".12em" }}>MILO</strong></div>
+        <div style={{ position: "absolute", inset: 0, zIndex: 70, pointerEvents: "auto" }}>
+          {guideSpotlight && (
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                top: guideSpotlight.top,
+                left: guideSpotlight.left,
+                width: guideSpotlight.width,
+                height: guideSpotlight.height,
+                borderRadius: 18,
+                border: "2px solid rgba(255,208,112,.82)",
+                boxShadow: "0 0 0 9999px rgba(1,6,14,.78), 0 0 28px rgba(255,195,82,.28)",
+                pointerEvents: "none",
+                transition: "all .24s ease",
+              }}
+            />
+          )}
+
+          <aside
+            style={{
+              ...panel,
+              position: "absolute",
+              zIndex: 3,
+              top: guidePanelPosition.top,
+              left: guidePanelPosition.left,
+              width: guidePanelPosition.width,
+              borderRadius: 20,
+              padding: mobile ? 14 : 16,
+              border: "1px solid rgba(255,208,112,.28)",
+              transition: "top .24s ease,left .24s ease",
+            }}
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "58px minmax(0,1fr)", gap: 11, alignItems: "center" }}>
+              <div style={{ width: 54, height: 54, borderRadius: 17, display: "grid", placeItems: "center", border: "1px solid rgba(255,200,105,.32)", background: "radial-gradient(circle at 50% 35%, rgba(255,211,112,.18), rgba(83,215,255,.08))", color: "#ffd16a", animation: "miloGuidePulse 2.1s ease-in-out infinite" }}>
+                <div style={{ textAlign: "center" }}><div style={{ fontSize: 21, lineHeight: 1 }}>✦</div><strong style={{ display: "block", marginTop: 2, fontSize: 8, letterSpacing: ".1em" }}>MILO</strong></div>
               </div>
-              <div>
-                <p style={{ margin: 0, color: "#ffd08a", fontSize: 10, fontWeight: 950, letterSpacing: ".14em" }}>MILO GUIDE · STEP {guideStep + 1} OF 5</p>
-                <h3 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : 31, fontWeight: 400 }}>
-                  {["Welcome to Burger Basics", "Cook every patty", "Chop every tomato", "Build in the exact order", "Serve 10 customers"][guideStep]}
-                </h3>
-                <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.68)", fontSize: 11, lineHeight: 1.55 }}>
-                  {[
-                    "Stage 1 is burger-only. Supply gives you Bun, raw Beef Patty, Lettuce, whole Tomato, Cheese and Bacon. Complete 10 orders to clear the stage.",
-                    "A raw patty cannot go into a burger. Drag it into any of the three pans. It cooks for 5 seconds, shows a green tick when ready, then returns to the prep counter as a cooked patty. If the counter is full, rescue it before it burns.",
-                    "Whole tomatoes cannot go into a burger either. Drag a tomato to the Chopping Board. After 5 seconds the chopped tomato automatically returns to the prep counter. Bun, Lettuce, Cheese and Bacon need no prep.",
-                    "Burgers MUST be built in order: Bun + Cooked Patty → Lettuce → Chopped Tomato → Cheese → Bacon. If you combine the wrong next item, nothing is lost — the two items simply swap positions.",
-                    "The three customer timers wait at 60 seconds until you serve your FIRST order. Then all customer clocks begin. At 15 seconds an order shakes as a warning. Three missed orders fail the stage. Stage 2 is coming soon, so replay Stage 1 for a higher score.",
-                  ][guideStep]}
-                </p>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: 0, color: "#ffd08a", fontSize: 8, fontWeight: 950, letterSpacing: ".12em" }}>STEP {guideStep + 1} OF {guideSteps.length}</p>
+                <h3 style={{ margin: "4px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 20 : 23, fontWeight: 400 }}>{guideSteps[guideStep].title}</h3>
               </div>
             </div>
-
-            {guideStep === 0 && (
-              <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(6,minmax(0,1fr))", gap: 7 }}>
-                {SUPPLY_KEYS.map((key) => (
-                  <div key={key} style={{ borderRadius: 13, border: "1px solid rgba(255,255,255,.07)", background: "rgba(255,255,255,.02)", padding: 8, textAlign: "center" }}>
-                    <img src={ingredientDef(key).image} alt="" style={{ width: 44, height: 44, objectFit: "contain" }} />
-                    <strong style={{ display: "block", marginTop: 4, fontSize: 8 }}>{ingredientDef(key).label}</strong>
-                  </div>
-                ))}
-              </div>
-            )}
-            {guideStep === 3 && (
-              <div style={{ marginTop: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexWrap: "wrap" }}>
-                {["bun", "cooked-beef-patty", "lettuce", "chopped-tomato", "cheese-slice", "bacon"].map((raw, index) => {
-                  const key = raw as IngredientKey;
-                  return <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 50, height: 50, borderRadius: 13, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.025)", display: "grid", placeItems: "center" }}><img src={ingredientDef(key).image} alt="" style={{ width: 42, height: 42, objectFit: "contain" }} /></div>{index < 5 && <span style={{ color: "#ffd16a", fontWeight: 950 }}>→</span>}</div>;
-                })}
-              </div>
-            )}
-
-            <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: 6 }}>
-              {[0, 1, 2, 3, 4].map((step) => <button key={step} type="button" onClick={() => setGuideStep(step)} style={{ height: 7, border: 0, borderRadius: 999, background: step <= guideStep ? "#ffd16a" : "rgba(255,255,255,.08)", cursor: "pointer" }} />)}
+            <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,.67)", fontSize: mobile ? 9.5 : 10.5, lineHeight: 1.5 }}>{guideSteps[guideStep].body}</p>
+            <div style={{ marginTop: 11, display: "grid", gridTemplateColumns: `repeat(${guideSteps.length},minmax(0,1fr))`, gap: 4 }}>
+              {guideSteps.map((_, step) => <span key={step} style={{ height: 5, borderRadius: 999, background: step <= guideStep ? "#ffd16a" : "rgba(255,255,255,.08)" }} />)}
             </div>
-            <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", gap: 8 }}>
-              <button type="button" onClick={() => setGuideStep((value) => Math.max(0, value - 1))} disabled={guideStep === 0} style={{ minHeight: 42, padding: "0 18px", borderRadius: 12, border: "1px solid rgba(126,232,255,.18)", background: "rgba(83,215,255,.05)", color: guideStep === 0 ? "rgba(255,255,255,.25)" : "white", fontWeight: 900 }}>Back</button>
-              {guideStep < 4 ? (
-                <button type="button" onClick={() => setGuideStep((value) => Math.min(4, value + 1))} style={{ minHeight: 42, padding: "0 22px", borderRadius: 12, border: "1px solid rgba(255,211,104,.34)", background: "rgba(255,190,65,.08)", color: "#ffd16a", fontWeight: 950, cursor: "pointer" }}>Next</button>
+            <div style={{ marginTop: 11, display: "flex", justifyContent: "space-between", gap: 7 }}>
+              <button type="button" onClick={() => setGuideStep((value) => Math.max(0, value - 1))} disabled={guideStep === 0} style={{ minHeight: 36, padding: "0 13px", borderRadius: 10, border: "1px solid rgba(126,232,255,.18)", background: "rgba(83,215,255,.05)", color: guideStep === 0 ? "rgba(255,255,255,.25)" : "white", fontSize: 9, fontWeight: 900 }}>Back</button>
+              {guideStep < guideSteps.length - 1 ? (
+                <button type="button" onClick={() => setGuideStep((value) => Math.min(guideSteps.length - 1, value + 1))} style={{ minHeight: 36, padding: "0 16px", borderRadius: 10, border: "1px solid rgba(255,211,104,.34)", background: "rgba(255,190,65,.08)", color: "#ffd16a", fontSize: 9, fontWeight: 950, cursor: "pointer" }}>Next</button>
               ) : !running && !stageResult ? (
-                <button type="button" onClick={startStage} style={{ minHeight: 44, padding: "0 24px", borderRadius: 13, border: "1px solid rgba(255,211,104,.4)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 12, fontWeight: 950, cursor: "pointer" }}>Start Stage 1</button>
+                <button type="button" onClick={startStage} style={{ minHeight: 38, padding: "0 18px", borderRadius: 11, border: "1px solid rgba(255,211,104,.4)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 10, fontWeight: 950, cursor: "pointer" }}>Start Stage 1</button>
               ) : (
-                <button type="button" onClick={() => setShowGuide(false)} style={{ minHeight: 42, padding: "0 22px", borderRadius: 12, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontWeight: 900, cursor: "pointer" }}>Back to Kitchen</button>
+                <button type="button" onClick={() => setShowGuide(false)} style={{ minHeight: 36, padding: "0 16px", borderRadius: 10, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontSize: 9, fontWeight: 900, cursor: "pointer" }}>Back to Kitchen</button>
               )}
             </div>
-          </div>
+          </aside>
         </div>
       )}
 
@@ -1148,10 +1351,12 @@ export default function MilosMixAndServe({
             <p style={{ margin: 0, color: "#9feeff", fontSize: 10, fontWeight: 950, letterSpacing: ".13em" }}>HOW TO PLAY</p>
             <h3 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 29, fontWeight: 400 }}>Burger Basics</h3>
             <div style={{ marginTop: 12, display: "grid", gap: 8, color: "rgba(255,255,255,.62)", fontSize: 11, lineHeight: 1.45 }}>
-              <div><strong style={{ color: "white" }}>Cook:</strong> Raw patties need 5 seconds in one of three pans.</div>
+              <div><strong style={{ color: "white" }}>Choose:</strong> Use the ingredient boxes below the counter; there is no random supply.</div>
+              <div><strong style={{ color: "white" }}>Cook:</strong> Raw patties need 5 seconds in a pan, then you drag them back to an empty counter square. Burnt patties must go to the bin.</div>
               <div><strong style={{ color: "white" }}>Chop:</strong> Whole tomatoes need 5 seconds on the chopping board.</div>
               <div><strong style={{ color: "white" }}>Build:</strong> Bun + cooked patty → lettuce → chopped tomato → cheese → bacon.</div>
               <div><strong style={{ color: "white" }}>Wrong order:</strong> Invalid ingredient combinations swap positions instead of disappearing.</div>
+              <div><strong style={{ color: "white" }}>Waste:</strong> Every item dragged into the bin costs 25 points.</div>
               <div><strong style={{ color: "white" }}>Timers:</strong> Customer clocks begin only after your first successful order, then each new order has 60 seconds.</div>
               <div><strong style={{ color: "white" }}>Goal:</strong> Serve 10 orders. Three misses fail the stage. Stage 2 is coming soon.</div>
             </div>
