@@ -8,26 +8,30 @@ export default function BankHeader({
   screenMode,
   available,
   loading,
+  onOpenGuide,
+  onOpenAchievements,
 }: {
   screenMode: BankScreenMode;
   available: number;
   loading: boolean;
+  onOpenGuide: () => void;
+  onOpenAchievements: () => void;
 }) {
   const isMobile = screenMode === "mobile";
 
   const buttonStyle: CSSProperties = {
     minHeight: isMobile ? "40px" : "44px",
-    padding: isMobile ? "0 13px" : "0 18px",
+    padding: isMobile ? "0 12px" : "0 17px",
     borderRadius: "999px",
     border: "1px solid rgba(126,232,255,0.24)",
-    background: "rgba(3,12,29,0.74)",
+    background: "rgba(3,12,29,0.78)",
     color: "white",
     textDecoration: "none",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: "9px",
-    fontSize: isMobile ? "11px" : "12px",
+    gap: "8px",
+    fontSize: isMobile ? "10px" : "12px",
     fontWeight: 850,
     backdropFilter: "blur(16px)",
     WebkitBackdropFilter: "blur(16px)",
@@ -35,58 +39,112 @@ export default function BankHeader({
     whiteSpace: "nowrap",
   };
 
+  const iconButtonStyle: CSSProperties = {
+    ...buttonStyle,
+    width: isMobile ? "40px" : "auto",
+    padding: isMobile ? 0 : "0 14px",
+    cursor: "pointer",
+    fontFamily: "inherit",
+  };
+
   return (
     <header
       style={{
-        position: "relative",
-        zIndex: 20,
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
         width: "100%",
-        maxWidth: "1440px",
-        margin: "0 auto",
-        padding: isMobile ? "12px 14px" : "18px 28px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: "10px",
+        borderBottom: "1px solid rgba(126,232,255,0.055)",
+        background:
+          "linear-gradient(180deg, rgba(2,8,19,0.93), rgba(2,8,19,0.76))",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
       }}
     >
-      <Link href="/milo-world" style={buttonStyle}>
-        <span>←</span>
-        {isMobile ? "Milo’s World" : "Back to Milo’s World"}
-      </Link>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "1440px",
+          margin: "0 auto",
+          padding: isMobile ? "10px" : "14px 28px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "8px",
+        }}
+      >
+        <Link href="/milo-world" style={buttonStyle}>
+          <span>←</span>
+          {isMobile ? "Milo’s World" : "Back to Milo’s World"}
+        </Link>
 
-      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
         <div
           style={{
-            ...buttonStyle,
-            border: "1px solid rgba(83,215,255,0.34)",
-            color: "#bdf6ff",
+            display: "flex",
+            gap: isMobile ? "5px" : "8px",
+            alignItems: "center",
           }}
         >
-          <span
-            aria-hidden="true"
+          <div
             style={{
-              width: "20px",
-              height: "20px",
-              borderRadius: "999px",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "rgba(83,215,255,0.12)",
-              fontSize: "10px",
-              fontWeight: 950,
+              ...buttonStyle,
+              padding: isMobile ? "0 10px" : "0 16px",
+              border: "1px solid rgba(83,215,255,0.34)",
+              color: "#bdf6ff",
             }}
           >
-            DT
-          </span>
-          <strong>{loading ? "..." : Math.round(available).toLocaleString("en-SG")}</strong>
-        </div>
+            {!isMobile && (
+              <span
+                aria-hidden="true"
+                style={{
+                  width: "20px",
+                  height: "20px",
+                  borderRadius: "999px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(83,215,255,0.12)",
+                  fontSize: "10px",
+                  fontWeight: 950,
+                }}
+              >
+                DT
+              </span>
+            )}
+            <strong>
+              {loading ? "..." : Math.round(available).toLocaleString("en-SG")}
+              {isMobile ? " DT" : ""}
+            </strong>
+          </div>
 
-        {!isMobile && (
-          <Link href="/profile" style={buttonStyle}>
-            My Account
-          </Link>
-        )}
+          <button
+            type="button"
+            onClick={onOpenGuide}
+            style={iconButtonStyle}
+            title="Bank guide"
+            aria-label="Open Bank guide"
+          >
+            <span aria-hidden="true">?</span>
+            {!isMobile && <span>Guide</span>}
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenAchievements}
+            style={iconButtonStyle}
+            title="Bank milestones"
+            aria-label="Open Bank milestones"
+          >
+            <span aria-hidden="true">★</span>
+            {!isMobile && <span>Milestones</span>}
+          </button>
+
+          {!isMobile && (
+            <Link href="/profile" style={buttonStyle}>
+              My Account
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );

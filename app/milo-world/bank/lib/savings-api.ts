@@ -65,6 +65,13 @@ function toSavingsMovement(row: SavingsMovementRow): SavingsMovement {
   };
 }
 
+function makeRequestId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
+}
+
 export async function listSavingsGoals() {
   const { data, error } = await supabase
     .from("milo_bank_savings_goals")
@@ -106,11 +113,13 @@ export async function createSavingsGoal(input: CreateSavingsGoalInput) {
 }
 
 export async function updateSavingsGoal(input: UpdateSavingsGoalInput) {
-  const { data, error } = await supabase.rpc("update_milo_bank_savings_goal", {
+  const { data, error } = await supabase.rpc("update_milo_bank_savings_goal_v2", {
     p_goal_id: input.goalId,
     p_name: input.name,
     p_target_amount: Math.round(input.targetAmount),
     p_icon: input.icon || "✦",
+    p_linked_type: input.linkedType || "custom",
+    p_linked_id: input.linkedId || null,
   });
 
   if (error) throw error;
@@ -118,9 +127,10 @@ export async function updateSavingsGoal(input: UpdateSavingsGoalInput) {
 }
 
 export async function depositToSavings(goalId: string, amount: number) {
-  const { data, error } = await supabase.rpc("deposit_milo_bank_savings", {
+  const { data, error } = await supabase.rpc("deposit_milo_bank_savings_v2", {
     p_goal_id: goalId,
     p_amount: Math.round(amount),
+    p_request_id: makeRequestId(),
   });
 
   if (error) throw error;
@@ -128,9 +138,10 @@ export async function depositToSavings(goalId: string, amount: number) {
 }
 
 export async function withdrawFromSavings(goalId: string, amount: number) {
-  const { data, error } = await supabase.rpc("withdraw_milo_bank_savings", {
+  const { data, error } = await supabase.rpc("withdraw_milo_bank_savings_v2", {
     p_goal_id: goalId,
     p_amount: Math.round(amount),
+    p_request_id: makeRequestId(),
   });
 
   if (error) throw error;

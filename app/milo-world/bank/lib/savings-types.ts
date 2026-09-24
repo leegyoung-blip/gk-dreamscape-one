@@ -48,4 +48,6 @@ export type UpdateSavingsGoalInput = {
   name: string;
   targetAmount: number;
   icon?: string;
+  linkedType?: SavingsGoalLinkedType;
+  linkedId?: string | null;
 };

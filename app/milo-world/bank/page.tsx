@@ -1,14 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import BankFeaturePlaceholder from "./components/BankFeaturePlaceholder";
-import BondsPanel from "./components/BondsPanel";
+import { useEffect, useState } from "react";
+import BankAchievementsModal from "./components/BankAchievementsModal";
+import BankGuide, { hasSeenBankGuide } from "./components/BankGuide";
 import BankHeader from "./components/BankHeader";
+import BankJourneyBar from "./components/BankJourneyBar";
 import BankNavigation from "./components/BankNavigation";
 import BankOverview from "./components/BankOverview";
-import WalletPanel from "./components/WalletPanel";
+import BondsPanel from "./components/BondsPanel";
+import MoneyLabPanel from "./components/MoneyLabPanel";
 import SavingsGoalsPanel from "./components/SavingsGoalsPanel";
+import WalletPanel from "./components/WalletPanel";
 import { useBankAccount } from "./hooks/useBankAccount";
+import { useBankAchievements } from "./hooks/useBankAchievements";
 import { useBankResponsive } from "./hooks/useBankResponsive";
 import type { BankTab } from "./lib/bank-types";
 
@@ -16,7 +20,14 @@ export default function MiloBankPage() {
   const screenMode = useBankResponsive();
   const isMobile = screenMode === "mobile";
   const [activeTab, setActiveTab] = useState<BankTab>("wallet");
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [achievementsOpen, setAchievementsOpen] = useState(false);
   const { account, loading, isLoggedIn } = useBankAccount();
+  const achievements = useBankAchievements(isLoggedIn);
+
+  useEffect(() => {
+    if (!hasSeenBankGuide()) setGuideOpen(true);
+  }, []);
 
   return (
     <main
@@ -46,18 +57,27 @@ export default function MiloBankPage() {
         screenMode={screenMode}
         available={account.available}
         loading={loading}
+        onOpenGuide={() => setGuideOpen(true)}
+        onOpenAchievements={() => setAchievementsOpen(true)}
       />
 
       <section
         style={{
           position: "relative",
           zIndex: 2,
-          width: "min(1180px, calc(100% - 28px))",
+          width: isMobile
+            ? "min(1180px, calc(100% - 20px))"
+            : "min(1180px, calc(100% - 28px))",
           margin: "0 auto",
-          padding: isMobile ? "26px 0 70px" : "42px 0 90px",
+          padding: isMobile ? "24px 0 70px" : "42px 0 90px",
         }}
       >
-        <div style={{ textAlign: "center", marginBottom: isMobile ? "28px" : "34px" }}>
+        <div
+          style={{
+            textAlign: "center",
+            marginBottom: isMobile ? "26px" : "34px",
+          }}
+        >
           <p
             style={{
               margin: 0,
@@ -75,7 +95,9 @@ export default function MiloBankPage() {
             style={{
               margin: "11px 0 0",
               fontFamily: 'Georgia, "Times New Roman", serif',
-              fontSize: isMobile ? "clamp(48px, 15vw, 66px)" : "clamp(66px, 7vw, 92px)",
+              fontSize: isMobile
+                ? "clamp(46px, 14vw, 64px)"
+                : "clamp(66px, 7vw, 92px)",
               lineHeight: 0.92,
               fontWeight: 400,
               letterSpacing: "-0.055em",
@@ -109,6 +131,16 @@ export default function MiloBankPage() {
           screenMode={screenMode}
         />
 
+        <BankJourneyBar
+          screenMode={screenMode}
+          unlockedCount={achievements.unlockedCount}
+          totalCount={achievements.totalCount}
+          progressPercent={achievements.progressPercent}
+          loading={achievements.loading}
+          onOpenAchievements={() => setAchievementsOpen(true)}
+          onOpenGuide={() => setGuideOpen(true)}
+        />
+
         {activeTab === "wallet" && (
           <WalletPanel
             account={account}
@@ -131,9 +163,29 @@ export default function MiloBankPage() {
         )}
 
         {activeTab === "learn" && (
-          <BankFeaturePlaceholder feature="learn" screenMode={screenMode} />
+          <MoneyLabPanel screenMode={screenMode} isLoggedIn={isLoggedIn} />
         )}
       </section>
+
+      <BankGuide
+        open={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        onChangeTab={setActiveTab}
+        screenMode={screenMode}
+      />
+
+      <BankAchievementsModal
+        open={achievementsOpen}
+        onClose={() => setAchievementsOpen(false)}
+        screenMode={screenMode}
+        achievements={achievements.achievements}
+        unlockedCount={achievements.unlockedCount}
+        totalCount={achievements.totalCount}
+        loading={achievements.loading}
+        error={achievements.error}
+        isLoggedIn={isLoggedIn}
+        onRetry={achievements.refresh}
+      />
     </main>
   );
 }

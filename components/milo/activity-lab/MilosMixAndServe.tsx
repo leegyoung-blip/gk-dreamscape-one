@@ -216,11 +216,37 @@ function matchRecipe(stageId: StageId, ingredients: IngredientKey[]) {
 }
 
 function canCombine(stageId: StageId, a: PrepItem, b: PrepItem) {
-  if (a.type === "dish" && b.type === "dish") return null;
-  const combined = [...a.ingredients, ...b.ingredients];
-  const unique = Array.from(new Set(combined)) as IngredientKey[];
-  if (unique.length !== combined.length) return null;
-  return matchRecipe(stageId, unique);
+  const recipes = STAGES[stageId].recipes;
+
+  // A finished dish can only advance one tier at a time by adding the exact
+  // next ingredient in that recipe family. This enforces Milo's build order.
+  const dish = a.type === "dish" ? a : b.type === "dish" ? b : null;
+  const ingredient = a.type === "ingredient" ? a : b.type === "ingredient" ? b : null;
+
+  if (dish && ingredient) {
+    const current = recipes.find((recipe) => recipe.key === dish.key);
+    if (!current) return null;
+    const next = recipes.find(
+      (recipe) => recipe.family === current.family && recipe.tier === current.tier + 1,
+    );
+    if (!next) return null;
+
+    const addedIngredients = next.ingredients.filter((key) => !current.ingredients.includes(key));
+    return addedIngredients.length === 1 && ingredient.ingredients[0] === addedIngredients[0]
+      ? next
+      : null;
+  }
+
+  // Raw ingredients may only create the first multi-ingredient dish in a chain.
+  if (a.type === "ingredient" && b.type === "ingredient") {
+    const combined = Array.from(new Set([...a.ingredients, ...b.ingredients])) as IngredientKey[];
+    if (combined.length !== 2) return null;
+    return recipes.find(
+      (recipe) => recipe.tier === 1 && recipe.ingredients.length === 2 && sortKey(recipe.ingredients) === sortKey(combined),
+    ) ?? null;
+  }
+
+  return null;
 }
 
 function findSinglePrep(stageId: StageId, item: PrepItem) {
@@ -284,6 +310,7 @@ export default function MilosMixAndServe({
   const [paused, setPaused] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showRecipeBook, setShowRecipeBook] = useState(true);
+  const [guideStep, setGuideStep] = useState(0);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [board, setBoard] = useState<BoardCell[]>(() => initialBoard("stage1"));
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -307,6 +334,7 @@ export default function MilosMixAndServe({
   const ordersServedRef = useRef(0);
   const failedOrdersRef = useRef(0);
   const awardedStageRuns = useRef<Set<string>>(new Set());
+  const supplyMissesRef = useRef<Partial<Record<IngredientKey, number>>>({});
 
   useEffect(() => {
     ordersRef.current = orders;
@@ -354,6 +382,7 @@ export default function MilosMixAndServe({
     setAwardedDt(0);
     nextItemId.current = 1000;
     nextOrderId.current = 1;
+    supplyMissesRef.current = {};
   }
 
   function selectStage(nextStage: StageId) {
@@ -361,6 +390,7 @@ export default function MilosMixAndServe({
     if (nextStage === "stage2" && !stage2Unlocked && stage !== "stage2") return;
     setStage(nextStage);
     resetStageState(nextStage);
+    setGuideStep(0);
     setShowRecipeBook(true);
     setStatus(
       nextStage === "stage1"
@@ -528,7 +558,25 @@ export default function MilosMixAndServe({
         setStatus("The prep counter is full. Combine or discard an item first.");
         return current;
       }
-      const key = stageConfig.ingredients[Math.floor(Math.random() * stageConfig.ingredients.length)];
+
+      // Supply drought protection: once an ingredient has missed four supply
+      // draws, it is forced into the next available draw. If several are due,
+      // the most overdue one is served first.
+      const pool = stageConfig.ingredients;
+      const misses = supplyMissesRef.current;
+      const overdue = pool
+        .map((key) => ({ key, misses: misses[key] ?? 0 }))
+        .filter((entry) => entry.misses >= 4)
+        .sort((a, b) => b.misses - a.misses);
+
+      const key = overdue.length
+        ? overdue[0].key
+        : pool[Math.floor(Math.random() * pool.length)];
+
+      pool.forEach((ingredientKey) => {
+        misses[ingredientKey] = ingredientKey === key ? 0 : (misses[ingredientKey] ?? 0) + 1;
+      });
+
       const next = [...current];
       const item = createIngredient(++nextItemId.current, key);
       next[empty] = item;
@@ -721,6 +769,29 @@ export default function MilosMixAndServe({
     return Number.isFinite(value) ? value : null;
   }
 
+  function workstationCards() {
+    const cards = [
+      {
+        id: "pan",
+        title: "Pan",
+        icon: "◉",
+        detail: stage === "stage1" ? "Beef Patty · Bacon" : "Beef Patty · Bacon · Ham",
+        accent: "#ffb86b",
+      },
+      {
+        id: "chopping",
+        title: "Chopping Board",
+        icon: "▱",
+        detail: stage === "stage1" ? "Lettuce · Tomato" : "Lettuce · Tomato · Ham",
+        accent: "#8ee8ff",
+      },
+      ...(stage === "stage2"
+        ? [{ id: "salad", title: "Salad Bowl", icon: "◡", detail: "Lettuce → Tomato → Ham", accent: "#84efb2" }]
+        : []),
+    ];
+    return cards;
+  }
+
   const panel: CSSProperties = {
     border: "1px solid rgba(128,226,255,.14)",
     background: "linear-gradient(145deg, rgba(8,27,46,.9), rgba(4,13,27,.96))",
@@ -749,6 +820,19 @@ export default function MilosMixAndServe({
         gap: mobile ? 6 : 8,
       }}
     >
+      <style>{`
+        @keyframes mixServeOrderShake {
+          0%,100% { transform: translateX(0); }
+          20% { transform: translateX(-5px); }
+          40% { transform: translateX(5px); }
+          60% { transform: translateX(-4px); }
+          80% { transform: translateX(4px); }
+        }
+        @keyframes miloGuidePulse {
+          0%,100% { box-shadow: 0 0 0 rgba(255,190,92,0); }
+          50% { box-shadow: 0 0 24px rgba(255,190,92,.18); }
+        }
+      `}</style>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, minWidth: 0 }}>
         <div style={{ minWidth: 0 }}>
           <p style={{ margin: 0, color: stage === "stage1" ? "#ffbf68" : "#84efb2", fontSize: mobile ? 9 : 11, fontWeight: 950, letterSpacing: ".14em", textTransform: "uppercase" }}>
@@ -808,9 +892,10 @@ export default function MilosMixAndServe({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6 }}>
         {orders.map((order) => {
           const recipe = stageConfig.recipes.find((item) => item.key === order.recipeKey)!;
+          const warning = order.secondsLeft <= 15;
           const urgent = order.secondsLeft <= 10;
+          const shakeNow = order.secondsLeft === 15;
           const ready = selectedItem?.type === "dish" && selectedItem.key === order.recipeKey;
-          const expanded = expandedOrderId === order.id;
           return (
             <div
               key={order.id}
@@ -822,43 +907,56 @@ export default function MilosMixAndServe({
                 if (fromIndex !== null) serveDishToOrder(fromIndex, order.id);
               }}
               onClick={() => serveSelectedToOrder(order.id)}
-              style={{ ...panel, borderRadius: 14, padding: mobile ? 7 : 9, position: "relative", minWidth: 0, cursor: running && !paused ? "pointer" : "default", border: ready ? "1px solid rgba(132,239,178,.62)" : urgent ? "1px solid rgba(255,128,143,.38)" : "1px solid rgba(128,226,255,.14)" }}
+              style={{
+                ...panel,
+                borderRadius: 14,
+                padding: mobile ? 7 : 9,
+                position: "relative",
+                minWidth: 0,
+                cursor: running && !paused ? "pointer" : "default",
+                border: ready
+                  ? "1px solid rgba(132,239,178,.62)"
+                  : warning
+                    ? "1px solid rgba(255,128,143,.42)"
+                    : "1px solid rgba(128,226,255,.14)",
+                animation: shakeNow ? "mixServeOrderShake .5s ease-in-out" : undefined,
+              }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setExpandedOrderId((current) => current === order.id ? null : order.id);
-                  }}
-                  style={{ width: mobile ? 42 : 50, height: mobile ? 42 : 50, border: "none", padding: 0, background: "transparent", cursor: "pointer", flex: "0 0 auto" }}
-                  aria-label={`Show ingredients for ${recipe.label}`}
-                >
-                  <img src={recipe.image} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                </button>
-                <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: "grid", gridTemplateColumns: mobile ? "42px minmax(0,1fr)" : "50px minmax(0,1fr) auto", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <img src={recipe.image} alt="" style={{ width: mobile ? 42 : 50, height: mobile ? 42 : 50, objectFit: "contain" }} />
+                <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, color: familyTint(recipe.family), fontSize: 8, fontWeight: 950, letterSpacing: ".08em" }}>ORDER · TIER {recipe.tier}</p>
                   <strong style={{ display: "block", marginTop: 2, fontSize: mobile ? 10 : 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recipe.label}</strong>
                   <span style={{ color: "rgba(255,255,255,.42)", fontSize: 9 }}>Base {tierBaseScore(recipe.tier)} + speed</span>
                 </div>
-                <span style={{ color: ready ? "#84efb2" : "rgba(255,255,255,.38)", fontSize: 8, fontWeight: 950 }}>{ready ? "READY" : "SERVE"}</span>
+                {!mobile && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, paddingLeft: 6 }}>
+                    <span style={{ color: "rgba(255,255,255,.36)", fontSize: 7, fontWeight: 950, marginRight: 2 }}>RECIPE</span>
+                    {recipe.ingredients.map((key) => (
+                      <div key={key} title={ingredientDef(key).label} style={{ width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", border: "1px solid rgba(255,255,255,.07)", background: "rgba(255,255,255,.035)" }}>
+                        <img src={ingredientDef(key).image} alt="" style={{ width: 25, height: 25, objectFit: "contain" }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {expanded && (
-                <div onClick={(event) => event.stopPropagation()} style={{ marginTop: 6, display: "flex", gap: 5, flexWrap: "wrap", padding: 6, borderRadius: 10, border: "1px solid rgba(255,255,255,.07)", background: "rgba(1,8,16,.72)" }}>
+              {mobile && (
+                <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                  <span style={{ color: "rgba(255,255,255,.36)", fontSize: 7, fontWeight: 950 }}>RECIPE</span>
                   {recipe.ingredients.map((key) => (
-                    <div key={key} style={{ width: 34, height: 34, borderRadius: 9, display: "grid", placeItems: "center", background: "rgba(255,255,255,.035)" }}>
-                      <img src={ingredientDef(key).image} alt="" style={{ width: 28, height: 28, objectFit: "contain" }} />
+                    <div key={key} style={{ width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center", background: "rgba(255,255,255,.035)" }}>
+                      <img src={ingredientDef(key).image} alt="" style={{ width: 23, height: 23, objectFit: "contain" }} />
                     </div>
                   ))}
                 </div>
               )}
 
               <div style={{ marginTop: 7, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 7, alignItems: "center" }}>
-                <div style={{ height: 12, borderRadius: 999, background: "rgba(255,255,255,.055)", overflow: "hidden", boxShadow: urgent ? "0 0 12px rgba(255,108,128,.18)" : "none" }}>
-                  <div style={{ width: `${Math.max(0, Math.min(100, order.secondsLeft / ORDER_DURATION_SECONDS * 100))}%`, height: "100%", borderRadius: 999, background: urgent ? "linear-gradient(90deg,#ffbd65,#ff6577)" : "linear-gradient(90deg,#78efad,#d3ef86)" }} />
+                <div style={{ height: 12, borderRadius: 999, background: "rgba(255,255,255,.055)", overflow: "hidden", boxShadow: warning ? "0 0 12px rgba(255,108,128,.18)" : "none" }}>
+                  <div style={{ width: `${Math.max(0, Math.min(100, order.secondsLeft / ORDER_DURATION_SECONDS * 100))}%`, height: "100%", borderRadius: 999, background: urgent ? "linear-gradient(90deg,#ffbd65,#ff6577)" : warning ? "linear-gradient(90deg,#ffe17a,#ff9b67)" : "linear-gradient(90deg,#78efad,#d3ef86)" }} />
                 </div>
-                <strong style={{ color: urgent ? "#ff9ca7" : "rgba(255,255,255,.64)", fontSize: 10 }}>{order.secondsLeft}s</strong>
+                <strong style={{ color: warning ? "#ffb47a" : "rgba(255,255,255,.64)", fontSize: 10 }}>{order.secondsLeft}s</strong>
               </div>
             </div>
           );
@@ -877,7 +975,6 @@ export default function MilosMixAndServe({
         </div>
         <div style={{ display: "flex", gap: 6, flex: "0 0 auto" }}>
           <button type="button" onClick={spawnIngredient} disabled={!running || paused} style={{ minHeight: 38, padding: "0 16px", borderRadius: 12, border: "1px solid rgba(126,232,255,.22)", background: "rgba(83,215,255,.08)", color: "white", fontSize: 11, fontWeight: 900, cursor: running && !paused ? "pointer" : "not-allowed" }}>Supply +</button>
-          <button type="button" onClick={() => selectedIndex !== null && prepareItemAt(selectedIndex)} disabled={!running || paused || selectedIndex === null} style={{ minHeight: 38, padding: "0 14px", borderRadius: 12, border: "1px solid rgba(255,196,100,.2)", background: "rgba(255,173,66,.08)", color: "white", fontSize: 11, fontWeight: 900, cursor: running && !paused && selectedIndex !== null ? "pointer" : "not-allowed" }}>Prep Selected</button>
           <button type="button" onClick={() => selectedIndex !== null && discardItem(selectedIndex)} disabled={!running || paused || selectedIndex === null} style={{ minHeight: 38, padding: "0 14px", borderRadius: 12, border: "1px solid rgba(255,129,143,.2)", background: "rgba(255,100,120,.07)", color: "white", fontSize: 11, fontWeight: 900, cursor: running && !paused && selectedIndex !== null ? "pointer" : "not-allowed" }}>Discard</button>
           {!running && !stageResult && (
             <button type="button" onClick={() => setShowRecipeBook(true)} style={{ minHeight: 38, padding: "0 16px", borderRadius: 12, border: "1px solid rgba(255,211,104,.36)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 11, fontWeight: 950, cursor: "pointer" }}>View Menu & Start</button>
@@ -928,78 +1025,69 @@ export default function MilosMixAndServe({
           </div>
         </div>
 
-        <div style={{ minHeight: 0, display: "grid", gridTemplateRows: "auto auto minmax(0,1fr)", gap: 7 }}>
-          <div style={{ ...panel, borderRadius: 16, padding: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <div>
-                <p style={{ margin: 0, color: stage === "stage1" ? "#ffd08a" : "#84efb2", fontSize: 9, fontWeight: 950, letterSpacing: ".12em" }}>{stageConfig.title.toUpperCase()}</p>
-                <strong style={{ display: "block", marginTop: 3, fontSize: 12 }}>{ordersServed} of {STAGE_ORDER_GOAL} orders complete</strong>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <span style={{ display: "block", color: "rgba(255,255,255,.42)", fontSize: 9 }}>Stage time</span>
-                <strong style={{ fontSize: 14 }}>{formatTime(runSeconds)}</strong>
-              </div>
-            </div>
-            <div style={{ marginTop: 8, height: 9, borderRadius: 999, background: "rgba(255,255,255,.05)", overflow: "hidden" }}>
-              <div style={{ width: `${ordersServed / STAGE_ORDER_GOAL * 100}%`, height: "100%", background: stage === "stage1" ? "linear-gradient(90deg,#ffbb67,#ffd970)" : "linear-gradient(90deg,#6ce4a2,#a3ef83)" }} />
-            </div>
-            <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {stageConfig.ingredients.map((key) => (
-                <div key={key} style={{ width: 38, height: 38, borderRadius: 10, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.025)", display: "grid", placeItems: "center" }}>
-                  <img src={ingredientDef(key).image} alt="" style={{ width: 31, height: 31, objectFit: "contain" }} />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+        <div style={{ minHeight: 0, display: "grid", gridTemplateRows: `repeat(${workstationCards().length + 1}, minmax(0,1fr))`, gap: 7 }}>
+          {workstationCards().map((station) => (
             <div
-              data-prep-zone="prep"
-              onDragOver={(event) => { if (running && !paused) event.preventDefault(); }}
+              key={station.id}
+              data-prep-zone={station.id === "salad" ? "prep" : undefined}
+              onDragOver={(event) => {
+                if (station.id === "salad" && running && !paused) event.preventDefault();
+              }}
               onDrop={(event) => {
+                if (station.id !== "salad") return;
                 event.preventDefault();
                 const fromIndex = readDragIndex(event);
                 if (fromIndex !== null) prepareItemAt(fromIndex);
               }}
-              style={{ ...panel, minHeight: 92, borderRadius: 16, border: "1px dashed rgba(255,173,66,.28)", display: "grid", placeItems: "center", textAlign: "center", padding: 10 }}
-            >
-              <div>
-                <strong style={{ fontSize: 11 }}>Prep Station</strong>
-                <p style={{ margin: "3px 0 0", color: "rgba(255,255,255,.34)", fontSize: 8 }}>Needed for the one-ingredient Side Salad.</p>
-              </div>
-            </div>
-            <div
-              data-prep-zone="discard"
-              onDragOver={(event) => { if (running && !paused) event.preventDefault(); }}
-              onDrop={(event) => {
-                event.preventDefault();
-                const fromIndex = readDragIndex(event);
-                if (fromIndex !== null) discardItem(fromIndex);
+              style={{
+                ...panel,
+                minHeight: 0,
+                borderRadius: 16,
+                border: `1px dashed ${station.accent}44`,
+                display: "grid",
+                gridTemplateColumns: "64px minmax(0,1fr)",
+                alignItems: "center",
+                gap: 12,
+                padding: 14,
               }}
-              style={{ ...panel, minHeight: 92, borderRadius: 16, border: "1px dashed rgba(255,129,143,.25)", display: "grid", placeItems: "center", textAlign: "center", padding: 10 }}
             >
-              <div>
-                <strong style={{ fontSize: 11 }}>Discard Tray</strong>
-                <p style={{ margin: "3px 0 0", color: "rgba(255,255,255,.34)", fontSize: 8 }}>Clear unwanted ingredients from the counter.</p>
+              <div style={{ width: 58, height: 58, borderRadius: 17, display: "grid", placeItems: "center", background: `${station.accent}12`, border: `1px solid ${station.accent}33`, color: station.accent, fontSize: 26, fontWeight: 950 }}>
+                {station.icon}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <strong style={{ display: "block", fontSize: 14, color: station.accent }}>{station.title}</strong>
+                <p style={{ margin: "5px 0 0", color: "rgba(255,255,255,.5)", fontSize: 10, lineHeight: 1.45 }}>{station.detail}</p>
+                <span style={{ display: "block", marginTop: 5, color: "rgba(255,255,255,.27)", fontSize: 8 }}>
+                  {station.id === "salad" ? "Drop Lettuce here to start Side Salad." : "Workstation for the ingredients shown above."}
+                </span>
               </div>
             </div>
-          </div>
+          ))}
 
-          <div style={{ ...panel, borderRadius: 16, padding: 10, minHeight: 0, overflow: "hidden" }}>
-            <p style={{ margin: 0, color: "#9feeff", fontSize: 9, fontWeight: 950, letterSpacing: ".12em" }}>CURRENT MENU</p>
-            <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: stage === "stage1" ? "1fr" : "1fr 1fr", gap: 7 }}>
-              {(["burger", "salad"] as Family[]).filter((family) => stageConfig.recipes.some((recipe) => recipe.family === family)).map((family) => (
-                <div key={family} style={{ borderRadius: 12, border: `1px solid ${familyTint(family)}26`, padding: 8, background: "rgba(255,255,255,.016)" }}>
-                  <strong style={{ color: familyTint(family), fontSize: 10 }}>{family === "burger" ? "Burgers" : "Salads"}</strong>
-                  <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 5 }}>
-                    {stageConfig.recipes.filter((recipe) => recipe.family === family).map((recipe) => (
-                      <div key={recipe.key} title={recipe.label} style={{ width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", border: "1px solid rgba(255,255,255,.07)", background: "rgba(255,255,255,.025)" }}>
-                        <img src={recipe.image} alt="" style={{ width: 31, height: 31, objectFit: "contain" }} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+          <div
+            data-prep-zone="discard"
+            onDragOver={(event) => { if (running && !paused) event.preventDefault(); }}
+            onDrop={(event) => {
+              event.preventDefault();
+              const fromIndex = readDragIndex(event);
+              if (fromIndex !== null) discardItem(fromIndex);
+            }}
+            style={{
+              ...panel,
+              minHeight: 0,
+              borderRadius: 16,
+              border: "1px dashed rgba(255,129,143,.32)",
+              display: "grid",
+              gridTemplateColumns: "64px minmax(0,1fr)",
+              alignItems: "center",
+              gap: 12,
+              padding: 14,
+            }}
+          >
+            <div style={{ width: 58, height: 58, borderRadius: 17, display: "grid", placeItems: "center", background: "rgba(255,100,120,.08)", border: "1px solid rgba(255,129,143,.22)", color: "#ff9da8", fontSize: 27, fontWeight: 950 }}>↺</div>
+            <div>
+              <strong style={{ display: "block", fontSize: 14, color: "#ff9da8" }}>Discard Tray</strong>
+              <p style={{ margin: "5px 0 0", color: "rgba(255,255,255,.5)", fontSize: 10, lineHeight: 1.45 }}>Drag unwanted ingredients here to clear prep-counter space.</p>
             </div>
           </div>
         </div>
@@ -1014,15 +1102,49 @@ export default function MilosMixAndServe({
       {showRecipeBook && (
         <div style={{ position: "absolute", inset: 0, zIndex: 60, display: "grid", placeItems: "center", padding: 14, background: "rgba(1,6,14,.88)", backdropFilter: "blur(9px)" }}>
           <div style={{ ...panel, width: "min(900px,100%)", maxHeight: "90%", overflow: "auto", borderRadius: 24, padding: mobile ? 16 : 22 }}>
-            <div style={{ borderRadius: 16, border: `1px solid ${stage === "stage1" ? "rgba(255,191,104,.22)" : "rgba(132,239,178,.2)"}`, background: stage === "stage1" ? "rgba(255,173,66,.055)" : "rgba(132,239,178,.045)", padding: 12 }}>
-              <p style={{ margin: 0, color: stage === "stage1" ? "#ffd08a" : "#84efb2", fontSize: 10, fontWeight: 950, letterSpacing: ".14em" }}>MILO SAYS</p>
-              <h3 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : 31, fontWeight: 400 }}>{stageConfig.title}</h3>
-              <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.62)", fontSize: 11, lineHeight: 1.55 }}>
-                {stage === "stage1"
-                  ? "Start with Bun + Beef Patty. Add the extra burger ingredients shown below to build higher-tier burgers. Only burger ingredients will come from Supply in this stage."
-                  : "You already know the burgers. Now salads join the menu: Lettuce makes Side Salad, add Tomato for Garden Salad, then add Ham for Ham Salad."}
-              </p>
-              <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.42)", fontSize: 10 }}>Each customer gives you 45 seconds. Complete 10 orders to clear the stage.</p>
+            <div style={{ borderRadius: 18, border: `1px solid ${stage === "stage1" ? "rgba(255,191,104,.28)" : "rgba(132,239,178,.24)"}`, background: stage === "stage1" ? "rgba(255,173,66,.055)" : "rgba(132,239,178,.045)", padding: mobile ? 12 : 15 }}>
+              <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "92px minmax(0,1fr)", gap: 14, alignItems: "center" }}>
+                <div style={{ width: mobile ? 70 : 82, height: mobile ? 70 : 82, borderRadius: 24, display: "grid", placeItems: "center", margin: mobile ? "0 auto" : 0, border: "1px solid rgba(255,200,105,.32)", background: "radial-gradient(circle at 50% 35%, rgba(255,211,112,.18), rgba(83,215,255,.08))", color: "#ffd16a", animation: "miloGuidePulse 2.1s ease-in-out infinite" }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 30, lineHeight: 1 }}>✦</div>
+                    <strong style={{ display: "block", marginTop: 3, fontSize: 10, letterSpacing: ".12em" }}>MILO</strong>
+                  </div>
+                </div>
+                <div>
+                  <p style={{ margin: 0, color: stage === "stage1" ? "#ffd08a" : "#84efb2", fontSize: 10, fontWeight: 950, letterSpacing: ".14em" }}>MILO GUIDE · STEP {guideStep + 1} OF {stage === "stage1" ? 4 : 3}</p>
+                  <h3 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : 31, fontWeight: 400 }}>
+                    {stage === "stage1"
+                      ? ["Welcome to Burger Basics", "Know your stations", "Build burgers in order", "Serve the customer"][guideStep] ?? "Burger Basics"
+                      : ["Salads join the café", "Use the Salad Bowl", "Build salads in order"][guideStep] ?? "Salad Shift"}
+                  </h3>
+                  <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.68)", fontSize: 11, lineHeight: 1.55 }}>
+                    {stage === "stage1"
+                      ? [
+                          "I’ll guide you through the café. Supply only gives Burger Basics ingredients in this stage. Complete 10 orders to clear it.",
+                          "Use the Pan for Beef Patty and Bacon, and the Chopping Board for Lettuce and Tomato. Keep your prep counter organised.",
+                          "Important: burgers must be built in order. Start with Bun + Beef Patty, then add Lettuce, then Tomato, then Cheese, then Bacon. You cannot skip ahead.",
+                          "Each order has 45 seconds. The order shakes when 15 seconds remain. Match the ingredient pictures beside the order, finish the burger, then serve it.",
+                        ][guideStep]
+                      : [
+                          "Stage 2 keeps the burger skills you learned and adds salads. Salad ingredients are Lettuce, Tomato and Ham.",
+                          "The Salad Bowl is now active. Drop Lettuce into it to make Side Salad, then continue building on the prep counter.",
+                          "Salads must also be built in order: Side Salad → add Tomato for Garden Salad → add Ham for Ham Salad. Complete 10 orders to clear Stage 2.",
+                        ][guideStep]}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {Array.from({ length: stage === "stage1" ? 4 : 3 }, (_, index) => (
+                    <button key={index} type="button" onClick={() => setGuideStep(index)} style={{ width: 30, height: 30, borderRadius: 999, border: guideStep === index ? "1px solid rgba(255,211,104,.54)" : "1px solid rgba(255,255,255,.1)", background: guideStep === index ? "rgba(255,191,82,.12)" : "rgba(255,255,255,.025)", color: guideStep === index ? "#ffd16a" : "rgba(255,255,255,.44)", fontSize: 10, fontWeight: 950, cursor: "pointer" }}>{index + 1}</button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {guideStep > 0 && <button type="button" onClick={() => setGuideStep((value) => Math.max(0, value - 1))} style={{ minHeight: 34, padding: "0 12px", borderRadius: 10, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.035)", color: "white", fontSize: 10, fontWeight: 900, cursor: "pointer" }}>Back</button>}
+                  {guideStep < (stage === "stage1" ? 3 : 2) && <button type="button" onClick={() => setGuideStep((value) => value + 1)} style={{ minHeight: 34, padding: "0 14px", borderRadius: 10, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.08)", color: "white", fontSize: 10, fontWeight: 900, cursor: "pointer" }}>Next</button>}
+                </div>
+              </div>
             </div>
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
@@ -1049,8 +1171,20 @@ export default function MilosMixAndServe({
             </div>
 
             {!running && !stageResult ? (
-              <button type="button" onClick={startStage} style={{ width: "100%", minHeight: 48, marginTop: 15, borderRadius: 14, border: "1px solid rgba(255,211,104,.45)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 13, fontWeight: 950, cursor: "pointer" }}>
-                Start Game · Stage {stageConfig.number}
+              <button
+                type="button"
+                onClick={startStage}
+                disabled={guideStep < (stage === "stage1" ? 3 : 2)}
+                style={{
+                  width: "100%", minHeight: 48, marginTop: 15, borderRadius: 14,
+                  border: "1px solid rgba(255,211,104,.45)",
+                  background: guideStep < (stage === "stage1" ? 3 : 2) ? "rgba(255,255,255,.05)" : "linear-gradient(135deg,#ffd16a,#f5a73f)",
+                  color: guideStep < (stage === "stage1" ? 3 : 2) ? "rgba(255,255,255,.34)" : "#221400",
+                  fontSize: 13, fontWeight: 950,
+                  cursor: guideStep < (stage === "stage1" ? 3 : 2) ? "not-allowed" : "pointer",
+                }}
+              >
+                {guideStep < (stage === "stage1" ? 3 : 2) ? "Finish Milo’s Guide to Start" : `Start Game · Stage ${stageConfig.number}`}
               </button>
             ) : (
               <button type="button" onClick={() => setShowRecipeBook(false)} style={{ width: "100%", minHeight: 44, marginTop: 15, borderRadius: 13, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontSize: 12, fontWeight: 900, cursor: "pointer" }}>
@@ -1128,20 +1262,20 @@ export default function MilosMixAndServe({
 
             <div style={{ marginTop: 15, display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
               {!stageResult.success ? (
-                <button type="button" onClick={() => { resetStageState(stageResult.stageId); setStage(stageResult.stageId); setShowRecipeBook(true); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(255,211,104,.38)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 12, fontWeight: 950, cursor: "pointer" }}>
+                <button type="button" onClick={() => { resetStageState(stageResult.stageId); setStage(stageResult.stageId); setGuideStep(0); setShowRecipeBook(true); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(255,211,104,.38)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 12, fontWeight: 950, cursor: "pointer" }}>
                   Retry Stage {STAGES[stageResult.stageId].number}
                 </button>
               ) : stageResult.stageId === "stage1" ? (
                 <>
-                  <button type="button" onClick={() => { setStage2Unlocked(true); setStage("stage2"); resetStageState("stage2"); setShowRecipeBook(true); setStatus("Stage 2 adds salads to the café. Review the new menu first."); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(132,239,178,.34)", background: "linear-gradient(135deg,#89efb5,#69cfa0)", color: "#092117", fontSize: 12, fontWeight: 950, cursor: "pointer" }}>
+                  <button type="button" onClick={() => { setStage2Unlocked(true); setStage("stage2"); resetStageState("stage2"); setGuideStep(0); setShowRecipeBook(true); setStatus("Stage 2 adds salads to the café. Review the new menu first."); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(132,239,178,.34)", background: "linear-gradient(135deg,#89efb5,#69cfa0)", color: "#092117", fontSize: 12, fontWeight: 950, cursor: "pointer" }}>
                     Continue to Stage 2
                   </button>
-                  <button type="button" onClick={() => { resetStageState("stage1"); setStage("stage1"); setShowRecipeBook(true); }} style={{ minHeight: 44, padding: "0 18px", borderRadius: 13, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontSize: 11, fontWeight: 900, cursor: "pointer" }}>
+                  <button type="button" onClick={() => { resetStageState("stage1"); setStage("stage1"); setGuideStep(0); setShowRecipeBook(true); }} style={{ minHeight: 44, padding: "0 18px", borderRadius: 13, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontSize: 11, fontWeight: 900, cursor: "pointer" }}>
                     Replay Stage 1
                   </button>
                 </>
               ) : (
-                <button type="button" onClick={() => { resetStageState("stage2"); setStage("stage2"); setShowRecipeBook(true); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(255,211,104,.38)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 12, fontWeight: 950, cursor: "pointer" }}>
+                <button type="button" onClick={() => { resetStageState("stage2"); setStage("stage2"); setGuideStep(0); setShowRecipeBook(true); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(255,211,104,.38)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 12, fontWeight: 950, cursor: "pointer" }}>
                   Play Stage 2 Again
                 </button>
               )}

@@ -319,9 +319,34 @@ export default function SavingsGoalsPanel({
             padding: "12px 14px",
             fontSize: "11px",
             lineHeight: 1.5,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
           }}
         >
-          {savings.error}
+          <span>{savings.error}</span>
+          <button
+            type="button"
+            onClick={() => savings.refresh()}
+            style={{
+              minHeight: "34px",
+              padding: "0 12px",
+              borderRadius: "10px",
+              border: "1px solid rgba(255,192,160,0.24)",
+              background: "rgba(255,255,255,0.04)",
+              color: "#ffd6c1",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: "9px",
+              fontWeight: 900,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
+            Try Again
+          </button>
         </div>
       )}
 

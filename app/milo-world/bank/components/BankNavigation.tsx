@@ -58,7 +58,7 @@ export default function BankNavigation({
               color: active ? "white" : "rgba(255,255,255,0.56)",
               cursor: "pointer",
               fontFamily: "inherit",
-              fontSize: isMobile ? "10px" : "12px",
+              fontSize: isMobile ? "11px" : "13px",
               fontWeight: 850,
               letterSpacing: isMobile ? "0.01em" : "0.04em",
               display: "flex",

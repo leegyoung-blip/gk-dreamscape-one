@@ -120,15 +120,6 @@ const PACKAGE_CATALOG: Array<{ label: string; category: CargoCategory; image: st
 ];
 
 
-const BELT_ASSETS = {
-  horizontal: "/milo/activity-lab/cargo-rush/belts/cargo-belt-horizontal-tile.png",
-  vertical: "/milo/activity-lab/cargo-rush/belts/cargo-belt-vertical-tile.png",
-  frame: "/milo/activity-lab/cargo-rush/belts/cargo-belt-lane-frame.png",
-  entry: "/milo/activity-lab/cargo-rush/belts/cargo-belt-entry-cap.png",
-  exit: "/milo/activity-lab/cargo-rush/belts/cargo-belt-exit-cap.png",
-} as const;
-
-
 export default function CargoRush({
   userId,
   mobile,
@@ -137,7 +128,8 @@ export default function CargoRush({
   height,
   onTokenTransaction,
 }: CargoRushProps) {
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(true);
+  const [startGuidePending, setStartGuidePending] = useState(true);
   const [showPreviewNotice, setShowPreviewNotice] = useState(false);
   const [running, setRunning] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -409,6 +401,12 @@ export default function CargoRush({
     lastFrameAt.current = null;
   }
 
+  function startRunFromGuide() {
+    setStartGuidePending(false);
+    setShowInstructions(false);
+    startRun();
+  }
+
   function togglePause() {
     if (!running) return;
     setPaused((current) => !current);
@@ -503,10 +501,6 @@ export default function CargoRush({
 
   function renderPackage(item: MovingPackage, lane: number, vertical: boolean) {
     const selected = selectedPackageId === item.id;
-    // Keep cargo inside the visible belt corridor so the fixed intake / exit machinery
-    // can sit at the ends without covering active packages.
-    const normalizedTravel = Math.max(0, Math.min(1, (item.x - 10) / 86));
-    const visualTravel = 12 + normalizedTravel * 76;
     return (
       <button
         key={item.id}
@@ -535,17 +529,17 @@ export default function CargoRush({
           ...(vertical
             ? {
                 left: "50%",
-                bottom: `${visualTravel}%`,
+                bottom: `${item.x}%`,
                 transform: selected ? "translate(-50%, 50%) scale(1.08)" : "translate(-50%, 50%)",
-                width: "60px",
-                height: "60px",
+                width: "76px",
+                height: "76px",
               }
             : {
-                left: `${visualTravel}%`,
+                left: `${item.x}%`,
                 top: "50%",
                 transform: selected ? "translate(-50%, -50%) scale(1.08)" : "translate(-50%, -50%)",
-                width: dense ? "54px" : "58px",
-                height: dense ? "54px" : "58px",
+                width: dense ? "70px" : "78px",
+                height: dense ? "70px" : "78px",
               }),
           border: "none",
           outline: "none",
@@ -558,7 +552,7 @@ export default function CargoRush({
           pointerEvents: running && !paused ? "auto" : "none",
           touchAction: mobile ? "none" : undefined,
           userSelect: "none",
-          zIndex: selected ? 14 : 10,
+          zIndex: selected ? 8 : 3,
           willChange: vertical ? "bottom, transform" : "left, transform",
           transition: "transform 110ms ease, box-shadow 110ms ease, filter 110ms ease",
           filter: selected ? "drop-shadow(0 8px 14px rgba(0,0,0,.34))" : "drop-shadow(0 6px 11px rgba(0,0,0,.32))",
@@ -569,8 +563,8 @@ export default function CargoRush({
           alt=""
           draggable={false}
           style={{
-            width: vertical ? "52px" : dense ? "46px" : "50px",
-            height: vertical ? "52px" : dense ? "46px" : "50px",
+            width: vertical ? "68px" : dense ? "62px" : "70px",
+            height: vertical ? "68px" : dense ? "62px" : "70px",
             objectFit: "contain",
             pointerEvents: "none",
           }}
@@ -607,11 +601,11 @@ export default function CargoRush({
         }
         @keyframes cargoBeltMove {
           from { background-position-x: 0; }
-          to { background-position-x: -180px; }
+          to { background-position-x: 36px; }
         }
         @keyframes cargoBeltMoveVertical {
           from { background-position-y: 0; }
-          to { background-position-y: -180px; }
+          to { background-position-y: -36px; }
         }
         @keyframes cargoRushFlash {
           0%, 100% { opacity: .18; }
@@ -628,24 +622,12 @@ export default function CargoRush({
         }
         .cargo-rush-shell button { font-family: inherit; }
         .cargo-belt-track {
-          background-image: url(${BELT_ASSETS.horizontal});
-          background-repeat: repeat-x;
-          background-position: 0 center;
-          background-size: auto 100%;
+          background-image: repeating-linear-gradient(90deg, rgba(149,227,255,.08) 0 14px, rgba(149,227,255,.015) 14px 28px);
           animation: cargoBeltMove 1.8s linear infinite;
         }
         .cargo-belt-track-vertical {
-          background-image: url(${BELT_ASSETS.vertical});
-          background-repeat: repeat-y;
-          background-position: center 0;
-          background-size: 100% auto;
+          background-image: repeating-linear-gradient(0deg, rgba(149,227,255,.08) 0 14px, rgba(149,227,255,.015) 14px 28px);
           animation: cargoBeltMoveVertical 1.8s linear infinite;
-        }
-        .cargo-belt-frame {
-          background-image: url(${BELT_ASSETS.frame});
-          background-repeat: repeat-x;
-          background-position: center;
-          background-size: auto 100%;
         }
         .cargo-floor-grid {
           background-image:
@@ -1123,35 +1105,20 @@ export default function CargoRush({
                         height: "100%",
                         overflow: "hidden",
                         borderRadius: "12px",
-                        border: "1px solid rgba(145,226,255,0.2)",
-                        backgroundColor: "#050d19",
-                        boxShadow: "0 10px 24px rgba(0,0,0,.34), inset 0 0 0 1px rgba(119,219,255,.06)",
+                        border: "1px solid rgba(145,226,255,0.13)",
+                        backgroundColor: "rgba(1,9,20,0.78)",
+                        boxShadow: "inset 0 8px 22px rgba(0,0,0,.38), inset 0 0 0 1px rgba(119,219,255,.025)",
                         animationPlayState: running && !paused ? "running" : "paused",
                         animationDuration: `${rushStage.beltDuration}s`,
                       }}
                     >
-                      <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none", boxShadow: "inset 0 0 18px rgba(0,0,0,.28)" }} />
-                      <img
-                        aria-hidden="true"
-                        src={BELT_ASSETS.exit}
-                        alt=""
-                        draggable={false}
-                        style={{ position: "absolute", zIndex: 2, width: "86px", height: "86px", left: "50%", top: "-24px", transform: "translateX(-50%) rotate(-90deg)", objectFit: "contain", pointerEvents: "none" }}
-                      />
-                      <img
-                        aria-hidden="true"
-                        src={BELT_ASSETS.entry}
-                        alt=""
-                        draggable={false}
-                        style={{ position: "absolute", zIndex: 2, width: "86px", height: "86px", left: "50%", bottom: "-24px", transform: "translateX(-50%) rotate(-90deg)", objectFit: "contain", pointerEvents: "none" }}
-                      />
                       <div
                         style={{
                           position: "absolute",
                           left: "50%",
-                          top: "7px",
+                          top: "5px",
                           transform: "translateX(-50%)",
-                          zIndex: 12,
+                          zIndex: 10,
                           padding: "3px 6px",
                           borderRadius: "999px",
                           background: "rgba(5,21,38,.9)",
@@ -1164,7 +1131,7 @@ export default function CargoRush({
                       </div>
                       {lanePackages.map((item) => renderPackage(item, lane, true))}
                       {!running && lanePackages.length === 0 && (
-                        <div style={{ position: "absolute", inset: 0, zIndex: 8, display: "grid", placeItems: "center", color: "rgba(190,239,255,.42)", fontSize: "7px", fontWeight: 900, writingMode: "vertical-rl", letterSpacing: ".08em" }}>
+                        <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "rgba(160,229,255,.22)", fontSize: "7px", fontWeight: 900, writingMode: "vertical-rl", letterSpacing: ".08em" }}>
                           AWAITING CARGO
                         </div>
                       )}
@@ -1189,58 +1156,26 @@ export default function CargoRush({
                       className="cargo-belt-track"
                       style={{
                         position: "relative",
-                        minHeight: dense ? "54px" : "60px",
+                        minHeight: dense ? "70px" : "78px",
                         overflow: "hidden",
                         borderRadius: "13px",
-                        border: "1px solid rgba(145,226,255,0.19)",
-                        backgroundColor: "#050d19",
-                        boxShadow: "0 10px 24px rgba(0,0,0,.28), inset 0 0 0 1px rgba(119,219,255,.05)",
+                        border: "1px solid rgba(145,226,255,0.12)",
+                        backgroundColor: "rgba(1,9,20,0.76)",
+                        boxShadow: "inset 0 8px 22px rgba(0,0,0,0.35), inset 0 -2px 0 rgba(119,219,255,0.06)",
                         animationPlayState: running && !paused ? "running" : "paused",
                         animationDuration: `${rushStage.beltDuration}s`,
                       }}
                     >
-                      <div aria-hidden="true" className="cargo-belt-frame" style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none", opacity: .96 }} />
-                      <div
-                        aria-hidden="true"
-                        style={{
-                          position: "absolute",
-                          left: 0,
-                          top: 0,
-                          bottom: 0,
-                          width: veryCompact ? "86px" : "104px",
-                          zIndex: 4,
-                          backgroundImage: `url(${BELT_ASSETS.entry})`,
-                          backgroundRepeat: "no-repeat",
-                          backgroundPosition: "left center",
-                          backgroundSize: "cover",
-                          pointerEvents: "none",
-                        }}
-                      />
-                      <div
-                        aria-hidden="true"
-                        style={{
-                          position: "absolute",
-                          right: 0,
-                          top: 0,
-                          bottom: 0,
-                          width: veryCompact ? "86px" : "104px",
-                          zIndex: 4,
-                          backgroundImage: `url(${BELT_ASSETS.exit})`,
-                          backgroundRepeat: "no-repeat",
-                          backgroundPosition: "right center",
-                          backgroundSize: "cover",
-                          pointerEvents: "none",
-                        }}
-                      />
-                      <div style={{ position: "absolute", left: veryCompact ? "8px" : "10px", top: "50%", transform: "translateY(-50%)", zIndex: 8, width: "24px", height: "24px", borderRadius: "8px", border: "1px solid rgba(126,232,255,.25)", background: "rgba(2,12,25,.84)", display: "grid", placeItems: "center", color: "#a9efff", fontSize: "7px", fontWeight: 950, boxShadow: "0 6px 16px rgba(0,0,0,.32)" }}>
+                      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "34px", zIndex: 5, borderRight: "1px solid rgba(146,231,255,0.1)", background: "rgba(6,22,40,0.92)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(180,239,255,0.4)", fontSize: "7px", fontWeight: 950 }}>
                         L{lane + 1}
                       </div>
                       {lanePackages.map((item) => renderPackage(item, lane, false))}
                       {!running && lanePackages.length === 0 && (
-                        <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 7, padding: "4px 8px", borderRadius: "999px", background: "rgba(2,12,25,.64)", color: "rgba(190,239,255,.52)", fontSize: "8px", fontWeight: 900, letterSpacing: ".08em" }}>
+                        <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", color: "rgba(160,229,255,.22)", fontSize: "8px", fontWeight: 900, letterSpacing: ".08em" }}>
                           AWAITING CARGO
                         </div>
                       )}
+                      <div aria-hidden="true" style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "rgba(137,232,255,.28)", fontSize: "19px", zIndex: 3 }}>→</div>
                     </div>
                   );
                 })}
@@ -1378,7 +1313,13 @@ export default function CargoRush({
 
           <button
             type="button"
-            onClick={startRun}
+            onClick={() => {
+              if (startGuidePending) {
+                setShowInstructions(true);
+                return;
+              }
+              startRun();
+            }}
             style={{
               flex: "0 0 auto",
               minHeight: mobile ? "42px" : "44px",
@@ -1481,13 +1422,13 @@ export default function CargoRush({
             overflowY: "auto",
           }}
           onClick={() => {
-            if (showPreviewNotice) return;
+            if (showPreviewNotice || startGuidePending) return;
             setShowInstructions(false);
           }}
         >
           <div
             style={{
-              width: showPreviewNotice ? "min(720px, 100%)" : "min(560px, 100%)",
+              width: showPreviewNotice ? "min(720px, 100%)" : "min(920px, 100%)",
               borderRadius: mobile ? "20px" : "26px",
               border: "1px solid rgba(137,231,255,0.22)",
               background:
@@ -1507,7 +1448,7 @@ export default function CargoRush({
                 textTransform: "uppercase",
               }}
             >
-              Cargo Rush
+              {showPreviewNotice ? "Cargo Rush" : "Milo Guide · Sorting Briefing"}
             </p>
             <h3
               style={{
@@ -1517,7 +1458,7 @@ export default function CargoRush({
                 fontWeight: 400,
               }}
             >
-              {showPreviewNotice ? "Cargo Delivered" : "How to Play"}
+              {showPreviewNotice ? "Cargo Delivered" : startGuidePending ? "Know Your Cargo" : "How to Play"}
             </h3>
 
             {showPreviewNotice ? (
@@ -1737,67 +1678,108 @@ export default function CargoRush({
               <>
                 <div
                   style={{
-                    marginTop: "16px",
+                    marginTop: mobile ? "14px" : "16px",
                     display: "grid",
-                    gap: "9px",
+                    gridTemplateColumns: mobile ? "1fr" : "150px minmax(0,1fr)",
+                    gap: mobile ? "10px" : "16px",
+                    alignItems: "start",
                   }}
                 >
-                  {[
-                    ["1", "Watch the lanes", mobile ? "Packages rise upward on three vertical conveyor belts." : "Packages enter automatically on three live conveyor lanes."],
-                    ["2", "Grab the cargo", mobile ? "Press and drag a moving package back toward the crates below." : "Drag a moving package directly toward its destination crate."],
-                    ["3", "Choose the crate", "Send each item to Food, Tech, Fashion or Energy. Wrong crates reject the package."],
-                    ["4", "Do not miss it", "Cargo that reaches the end counts as missed. The warehouse gets faster every 15 seconds, ending in Rush mode."],
-                  ].map(([num, title, body]) => (
+                  <div
+                    style={{
+                      borderRadius: "20px",
+                      border: "1px solid rgba(142,232,255,.2)",
+                      background: "linear-gradient(160deg,rgba(61,189,229,.11),rgba(255,255,255,.025))",
+                      padding: "14px 12px",
+                      textAlign: "center",
+                    }}
+                  >
                     <div
-                      key={num}
+                      aria-hidden="true"
                       style={{
+                        width: mobile ? "54px" : "72px",
+                        height: mobile ? "54px" : "72px",
+                        margin: "0 auto",
+                        borderRadius: "22px",
+                        border: "1px solid rgba(142,232,255,.3)",
+                        background: "radial-gradient(circle at 35% 28%,rgba(142,232,255,.24),rgba(52,130,179,.12) 42%,rgba(5,18,35,.92) 72%)",
                         display: "grid",
-                        gridTemplateColumns: "34px minmax(0,1fr)",
-                        gap: "10px",
-                        alignItems: "start",
+                        placeItems: "center",
+                        color: "#a9efff",
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: mobile ? "27px" : "36px",
+                        fontWeight: 800,
+                        boxShadow: "0 0 28px rgba(83,215,255,.1)",
                       }}
                     >
-                      <div
-                        style={{
-                          width: "34px",
-                          height: "34px",
-                          borderRadius: "10px",
-                          border: "1px solid rgba(137,231,255,0.2)",
-                          background: "rgba(92,218,255,0.065)",
-                          color: "#9aecff",
-                          display: "grid",
-                          placeItems: "center",
-                          fontSize: "11px",
-                          fontWeight: 950,
-                        }}
-                      >
-                        {num}
-                      </div>
-                      <div>
-                        <p style={{ margin: 0, fontSize: mobile ? "11px" : "12px", fontWeight: 900 }}>{title}</p>
-                        <p style={{ margin: "3px 0 0", color: "rgba(255,255,255,0.45)", fontSize: mobile ? "10px" : "11px", lineHeight: 1.45 }}>{body}</p>
-                      </div>
+                      M
                     </div>
-                  ))}
+                    <strong style={{ display: "block", marginTop: "9px", fontSize: mobile ? "11px" : "13px" }}>Milo</strong>
+                    <p style={{ margin: "5px 0 0", color: "rgba(255,255,255,.5)", fontSize: mobile ? "9px" : "10px", lineHeight: 1.45 }}>
+                      “Learn these four cargo groups first. Then sort each item before it reaches the end of the belt.”
+                    </p>
+                  </div>
+
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    {[
+                      ["1", "Watch the lanes", mobile ? "Packages rise upward on three vertical conveyor belts." : "Packages enter automatically on three conveyor lanes."],
+                      ["2", "Grab the cargo", mobile ? "Press and drag a moving item back toward the crates below." : "Drag a moving item directly toward its destination crate."],
+                      ["3", "Match its category", "Food, Tech, Fashion and Energy each have their own cargo crate."],
+                      ["4", "Beat the belt", "Cargo that reaches the end is missed. The warehouse becomes faster as the run progresses."],
+                    ].map(([num, title, body]) => (
+                      <div key={num} style={{ display: "grid", gridTemplateColumns: "32px minmax(0,1fr)", gap: "9px", alignItems: "start" }}>
+                        <div style={{ width: "32px", height: "32px", borderRadius: "10px", border: "1px solid rgba(137,231,255,.2)", background: "rgba(92,218,255,.065)", color: "#9aecff", display: "grid", placeItems: "center", fontSize: "11px", fontWeight: 950 }}>{num}</div>
+                        <div>
+                          <p style={{ margin: 0, fontSize: mobile ? "10px" : "12px", fontWeight: 900 }}>{title}</p>
+                          <p style={{ margin: "2px 0 0", color: "rgba(255,255,255,.46)", fontSize: mobile ? "9px" : "10px", lineHeight: 1.4 }}>{body}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: "14px", display: "grid", gridTemplateColumns: mobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap: "8px" }}>
+                  {CARGO_BAYS.map((bay) => {
+                    const categoryItems = PACKAGE_CATALOG.filter((item) => item.category === bay.id);
+                    return (
+                      <div key={bay.id} style={{ minWidth: 0, borderRadius: "16px", border: `1px solid ${bay.accent}38`, background: "rgba(255,255,255,.025)", padding: mobile ? "9px" : "10px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                          <img src={bay.image} alt="" draggable={false} style={{ width: mobile ? "34px" : "40px", height: mobile ? "34px" : "40px", objectFit: "contain" }} />
+                          <div>
+                            <strong style={{ display: "block", color: bay.accent, fontSize: mobile ? "10px" : "12px" }}>{bay.title}</strong>
+                            <span style={{ color: "rgba(255,255,255,.34)", fontSize: "7px", fontWeight: 850 }}>{bay.hint}</span>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: "8px", display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "5px" }}>
+                          {categoryItems.map((item) => (
+                            <div key={item.label} style={{ minWidth: 0, borderRadius: "10px", border: "1px solid rgba(255,255,255,.07)", background: "rgba(1,8,18,.42)", padding: "5px", display: "grid", gridTemplateColumns: "30px minmax(0,1fr)", gap: "5px", alignItems: "center" }}>
+                              <img src={item.image} alt="" draggable={false} style={{ width: "30px", height: "30px", objectFit: "contain" }} />
+                              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "rgba(255,255,255,.78)", fontSize: mobile ? "7px" : "8px", fontWeight: 850 }}>{item.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setShowInstructions(false)}
+                  onClick={startGuidePending ? startRunFromGuide : () => setShowInstructions(false)}
                   style={{
                     width: "100%",
-                    minHeight: "44px",
-                    marginTop: "20px",
+                    minHeight: "46px",
+                    marginTop: "16px",
                     borderRadius: "13px",
-                    border: "1px solid rgba(132,226,255,0.22)",
-                    background: "rgba(86,213,255,0.09)",
-                    color: "white",
+                    border: startGuidePending ? "1px solid rgba(255,215,111,.4)" : "1px solid rgba(132,226,255,.22)",
+                    background: startGuidePending ? "linear-gradient(135deg,#ffd16a,#f5a73f)" : "rgba(86,213,255,.09)",
+                    color: startGuidePending ? "#211300" : "white",
                     fontSize: "11px",
-                    fontWeight: 900,
+                    fontWeight: 950,
                     cursor: "pointer",
                   }}
                 >
-                  Back to Warehouse
+                  {startGuidePending ? "Start Cargo Rush" : "Back to Warehouse"}
                 </button>
               </>
             )}

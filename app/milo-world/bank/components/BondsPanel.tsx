@@ -252,9 +252,34 @@ export default function BondsPanel({
             padding: "12px 14px",
             fontSize: "11px",
             lineHeight: 1.5,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
           }}
         >
-          {bonds.error}
+          <span>{bonds.error}</span>
+          <button
+            type="button"
+            onClick={() => bonds.refresh()}
+            style={{
+              minHeight: "34px",
+              padding: "0 12px",
+              borderRadius: "10px",
+              border: "1px solid rgba(255,192,160,0.24)",
+              background: "rgba(255,255,255,0.04)",
+              color: "#ffd6c1",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: "9px",
+              fontWeight: 900,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
+            Try Again
+          </button>
         </div>
       )}
 
@@ -338,7 +363,7 @@ export default function BondsPanel({
             style={{
               marginTop: "13px",
               display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))",
+              gridTemplateColumns: screenMode === "desktop" ? "repeat(2,minmax(0,1fr))" : "1fr",
               gap: "12px",
             }}
           >

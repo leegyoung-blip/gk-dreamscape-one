@@ -21,6 +21,7 @@ export default function WalletPanel({
   screenMode: BankScreenMode;
 }) {
   const isMobile = screenMode === "mobile";
+  const isNarrow = screenMode !== "desktop";
   const [topUpOpen, setTopUpOpen] = useState(false);
 
   const monthStats = [
@@ -59,7 +60,7 @@ export default function WalletPanel({
       <section
         style={{
           display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "1.18fr 0.82fr",
+          gridTemplateColumns: isNarrow ? "1fr" : "1.18fr 0.82fr",
           gap: "14px",
         }}
       >
@@ -142,8 +143,8 @@ export default function WalletPanel({
               lineHeight: 1.55,
             }}
           >
-            DT available to use across Dreamscape. Savings and bond balances will
-            move into their own sections when those systems launch.
+            DT available to use across Dreamscape after Savings and active Bond
+            principal are set aside. Move between the Bank tabs to manage each part.
           </p>
 
           <div
