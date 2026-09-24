@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
 
 import CreatorChallengeCyclePanel from "@/components/milo/CreatorChallengeCyclePanel";
+import CreatorReputationPanel from "@/components/milo/CreatorReputationPanel";
 
 import {
 
@@ -1280,9 +1281,11 @@ export default function CreatorStudioPage() {
 
       <AccessMessage
 
-        title="Creator Studio unavailable"
+        title="Create your Creator identity first"
 
-        description="This Dreamscape account is not linked to a Creator Partner record."
+        description="Creator Studio is now self-service. Return to Creator Clubs and open Create to set up your public creator identity."
+
+        href="/milo-world/quiz-hall/communities?view=create"
 
       />
 
@@ -1398,6 +1401,8 @@ export default function CreatorStudioPage() {
 
           <CreatorChallengeCyclePanel />
 
+          <CreatorReputationPanel />
+
 
 
 
@@ -1415,11 +1420,16 @@ export default function CreatorStudioPage() {
 
                 <p className="mt-3 text-sm leading-6 text-white/48">
 
-                  Dreamscape Admin must create at least one club under your
-
-                  Creator Partner account before you can build club quizzes.
+                  Create your first draft club from Creator Clubs → Create, then return here to build its challenges.
 
                 </p>
+
+                <Link
+                  href="/milo-world/quiz-hall/communities?view=create"
+                  className="mt-6 inline-flex min-h-[44px] items-center rounded-full border border-amber-200/20 bg-amber-300/[0.08] px-5 text-[9px] font-black uppercase tracking-[0.09em] text-amber-100 no-underline"
+                >
+                  Create My Club →
+                </Link>
 
               </div>
 
@@ -2491,11 +2501,15 @@ function AccessMessage({
 
   description,
 
+  href = "/milo-world/quiz-hall/communities",
+
 }: {
 
   title: string;
 
   description: string;
+
+  href?: string;
 
 }) {
 
@@ -2511,7 +2525,7 @@ function AccessMessage({
 
         <Link
 
-          href="/milo-world/quiz-hall/communities"
+          href={href}
 
           className="mt-6 inline-flex min-h-[44px] items-center rounded-full border border-amber-200/22 bg-amber-300/[0.08] px-5 text-[10px] font-black uppercase tracking-[0.1em] text-amber-100 no-underline"
 

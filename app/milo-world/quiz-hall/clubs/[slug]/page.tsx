@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
+import CreatorReputationBadge from "@/components/milo/CreatorReputationBadge";
 import {
   getMiloQuizHallCreatorClubsAccess,
   type MiloQuizHallCreatorClubsAccess,
@@ -375,6 +376,27 @@ export default function CreatorClubPage() {
       is_member: Boolean(raw.is_member),
     };
 
+    const moderationResponse = await supabase.rpc(
+      "get_creator_public_moderation_v1",
+      { p_creator_slug: nextClub.creator_slug },
+    );
+
+    const moderationRow = Array.isArray(moderationResponse.data)
+      ? moderationResponse.data[0]
+      : moderationResponse.data;
+
+    if (
+      !moderationResponse.error &&
+      moderationRow &&
+      !Boolean(moderationRow.direct_access_allowed) &&
+      !accessResult.access.isAdmin
+    ) {
+      setClub(null);
+      setErrorMessage("This creator is currently paused.");
+      setIsLoading(false);
+      return;
+    }
+
     setClub(nextClub);
 
     const [
@@ -575,7 +597,7 @@ export default function CreatorClubPage() {
         <section className="w-full max-w-lg rounded-[28px] border border-white/10 bg-white/[0.045] p-7 text-center">
           <h1 className="text-3xl font-black">Club unavailable</h1>
           <p className="mt-3 text-sm text-white/48">
-            This Creator Club is not currently public.
+            {errorMessage || "This Creator Club is not currently public."}
           </p>
           <Link
             href="/milo-world/quiz-hall/communities"
@@ -647,11 +669,21 @@ export default function CreatorClubPage() {
                   <div className="min-w-0">
                     <p className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/64">
                       {club.topic || "Creator Club"} · by{" "}
-                      {club.creator_display_name}
+                      <Link
+                        href={`/milo-world/quiz-hall/creators/${encodeURIComponent(
+                          club.creator_slug,
+                        )}`}
+                        className="text-amber-100 underline decoration-amber-100/24 underline-offset-2"
+                      >
+                        {club.creator_display_name}
+                      </Link>
                     </p>
                     <h1 className="mt-2 font-serif text-[clamp(38px,5vw,64px)] font-normal leading-[0.94]">
                       {club.club_name}
                     </h1>
+                    <div className="mt-3">
+                      <CreatorReputationBadge creatorSlug={club.creator_slug} />
+                    </div>
                     {club.tagline && (
                       <p className="mt-3 max-w-3xl text-sm leading-6 text-white/56">
                         {club.tagline}
@@ -1260,19 +1292,35 @@ function AboutTab({ club }: { club: ClubDetail }) {
             )}
           </span>
           <div className="min-w-0">
-            <strong className="block truncate text-lg">
+            <Link
+              href={`/milo-world/quiz-hall/creators/${encodeURIComponent(
+                club.creator_slug,
+              )}`}
+              className="block truncate text-lg font-black text-white no-underline hover:text-amber-100"
+            >
               {club.creator_display_name}
-            </strong>
+            </Link>
             <span className="mt-1 block text-[9px] text-white/30">
               Club creator
             </span>
           </div>
+        </div>
+        <div className="mt-4">
+          <CreatorReputationBadge creatorSlug={club.creator_slug} />
         </div>
         {club.creator_bio && (
           <p className="mt-4 whitespace-pre-line text-xs leading-6 text-white/42">
             {club.creator_bio}
           </p>
         )}
+        <Link
+          href={`/milo-world/quiz-hall/creators/${encodeURIComponent(
+            club.creator_slug,
+          )}`}
+          className="mt-4 inline-flex min-h-9 items-center rounded-full border border-amber-200/15 bg-amber-300/[0.055] px-4 text-[8px] font-black uppercase tracking-[0.08em] text-amber-100 no-underline"
+        >
+          View Creator Profile →
+        </Link>
       </aside>
     </div>
   );

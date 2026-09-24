@@ -12,7 +12,7 @@ type CargoRushProps = {
   onTokenTransaction: (amount: number, description: string) => Promise<boolean>;
   batteryCanStart?: boolean;
   onBatteryBlocked?: () => void;
-  onGameplayActivityChange?: (active: boolean) => void;
+  onBatteryRunStart?: () => Promise<boolean>;
 };
 
 type CargoBay = {
@@ -132,7 +132,7 @@ export default function CargoRush({
   onTokenTransaction,
   batteryCanStart = true,
   onBatteryBlocked,
-  onGameplayActivityChange,
+  onBatteryRunStart,
 }: CargoRushProps) {
   const [showInstructions, setShowInstructions] = useState(true);
   const [startGuidePending, setStartGuidePending] = useState(true);
@@ -165,6 +165,7 @@ export default function CargoRush({
   const bayPulseTimer = useRef<number | null>(null);
   const currentRunId = useRef(0);
   const awardedRunIds = useRef<Set<number>>(new Set());
+  const batteryRunStartBusy = useRef(false);
 
   const veryCompact = width < 980 || height < 720;
   const phoneLandscape = mobile && width > height;
@@ -370,14 +371,6 @@ export default function CargoRush({
     }
   }, [phoneLandscape, running, paused]);
 
-  useEffect(() => {
-    onGameplayActivityChange?.(running && !paused);
-  }, [onGameplayActivityChange, paused, running]);
-
-  useEffect(() => {
-    return () => onGameplayActivityChange?.(false);
-  }, [onGameplayActivityChange]);
-
   function showRouteFeedback(
     tone: RouteFeedback["tone"],
     title: string,
@@ -394,10 +387,24 @@ export default function CargoRush({
     bayPulseTimer.current = window.setTimeout(() => setBayPulse(null), 620);
   }
 
-  function startRun() {
+  async function startRun() {
+    if (batteryRunStartBusy.current) return false;
     if (!batteryCanStart) {
       onBatteryBlocked?.();
       return false;
+    }
+
+    batteryRunStartBusy.current = true;
+    try {
+      if (userId && onBatteryRunStart) {
+        const accepted = await onBatteryRunStart();
+        if (!accepted) {
+          onBatteryBlocked?.();
+          return false;
+        }
+      }
+    } finally {
+      batteryRunStartBusy.current = false;
     }
 
     currentRunId.current += 1;
@@ -421,8 +428,8 @@ export default function CargoRush({
     return true;
   }
 
-  function startRunFromGuide() {
-    if (!startRun()) return;
+  async function startRunFromGuide() {
+    if (!(await startRun())) return;
     setStartGuidePending(false);
     setShowInstructions(false);
   }
@@ -1338,7 +1345,7 @@ export default function CargoRush({
                 setShowInstructions(true);
                 return;
               }
-              startRun();
+              void startRun();
             }}
             style={{
               flex: "0 0 auto",
@@ -1662,7 +1669,7 @@ export default function CargoRush({
                 >
                   <button
                     type="button"
-                    onClick={startRun}
+                    onClick={() => { void startRun(); }}
                     style={{
                       minHeight: "46px",
                       borderRadius: "14px",

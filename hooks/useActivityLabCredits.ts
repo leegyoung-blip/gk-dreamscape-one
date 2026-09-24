@@ -33,17 +33,12 @@ export function useActivityLabCredits(userId?: string | null) {
 
     setLoading(true);
     try {
-      const [nextWallet, nextPacks] = await Promise.all([
-        getActivityLabCredits(),
-        getActivityLabCreditPacks(),
-      ]);
+      const [nextWallet, nextPacks] = await Promise.all([getActivityLabCredits(), getActivityLabCreditPacks()]);
       setWallet(nextWallet);
       setPacks(nextPacks);
       setError(null);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Could not load Play Credits.",
-      );
+      setError(err instanceof Error ? err.message : "Could not load Play Credits.");
     } finally {
       setLoading(false);
     }
@@ -53,98 +48,55 @@ export function useActivityLabCredits(userId?: string | null) {
     void refresh();
   }, [refresh]);
 
-  const redeem = useCallback(
-    async (credits: number) => {
-      if (!userId || redeeming) return null;
+  const redeem = useCallback(async (credits: number) => {
+    if (!userId || redeeming) return null;
+    setRedeeming(true);
+    setError(null);
+    try {
+      const result = await redeemActivityLabCredits(credits, createCreditRedemptionId());
+      setWallet((current) => current ? {
+        ...current,
+        balanceCredits: result.creditBalance,
+        lifetimeRedeemedCredits: current.lifetimeRedeemedCredits + (result.accepted ? result.creditsSpent : 0),
+      } : current);
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add Activity Lab Bolts.");
+      return null;
+    } finally {
+      setRedeeming(false);
+    }
+  }, [redeeming, userId]);
 
-      setRedeeming(true);
-      setError(null);
-      try {
-        const result = await redeemActivityLabCredits(
-          credits,
-          createCreditRedemptionId(),
-        );
+  const buyPack = useCallback(async (packKey: string) => {
+    if (!userId || buyingPackKey) return;
+    setBuyingPackKey(packKey);
+    setError(null);
+    try {
+      const url = await createActivityLabCreditCheckout(packKey);
+      window.location.assign(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not open checkout.");
+      setBuyingPackKey(null);
+    }
+  }, [buyingPackKey, userId]);
 
-        setWallet((current) =>
-          current
-            ? {
-                ...current,
-                balanceCredits: result.creditBalance,
-                lifetimeRedeemedCredits:
-                  current.lifetimeRedeemedCredits +
-                  (result.accepted ? result.creditsSpent : 0),
-              }
-            : current,
-        );
+  const confirmCheckout = useCallback(async (sessionId: string): Promise<ActivityLabCheckoutConfirmation | null> => {
+    if (!userId || confirming) return null;
+    setConfirming(true);
+    setError(null);
+    try {
+      const result = await confirmActivityLabCreditCheckout(sessionId);
+      if (result.wallet) setWallet(result.wallet);
+      else if (!result.pending) await refresh();
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not confirm Stripe Checkout.");
+      return null;
+    } finally {
+      setConfirming(false);
+    }
+  }, [confirming, refresh, userId]);
 
-        return result;
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Could not add purchased playtime.",
-        );
-        return null;
-      } finally {
-        setRedeeming(false);
-      }
-    },
-    [redeeming, userId],
-  );
-
-  const buyPack = useCallback(
-    async (packKey: string) => {
-      if (!userId || buyingPackKey) return;
-
-      setBuyingPackKey(packKey);
-      setError(null);
-      try {
-        const url = await createActivityLabCreditCheckout(packKey);
-        window.location.assign(url);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not open checkout.");
-        setBuyingPackKey(null);
-      }
-    },
-    [buyingPackKey, userId],
-  );
-
-  const confirmCheckout = useCallback(
-    async (sessionId: string): Promise<ActivityLabCheckoutConfirmation | null> => {
-      if (!userId || confirming) return null;
-
-      setConfirming(true);
-      setError(null);
-      try {
-        const result = await confirmActivityLabCreditCheckout(sessionId);
-        if (result.wallet) setWallet(result.wallet);
-        else if (!result.pending) await refresh();
-        return result;
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Could not confirm Stripe Checkout.",
-        );
-        return null;
-      } finally {
-        setConfirming(false);
-      }
-    },
-    [confirming, refresh, userId],
-  );
-
-  return {
-    wallet,
-    packs,
-    loading,
-    redeeming,
-    confirming,
-    buyingPackKey,
-    error,
-    refresh,
-    redeem,
-    buyPack,
-    confirmCheckout,
-  };
+  return { wallet, packs, loading, redeeming, confirming, buyingPackKey, error, refresh, redeem, buyPack, confirmCheckout };
 }

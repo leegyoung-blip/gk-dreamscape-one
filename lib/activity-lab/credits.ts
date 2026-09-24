@@ -6,6 +6,7 @@ export type ActivityLabCreditPack = {
   description: string | null;
   credits: number;
   priceCents: number;
+  compareAtPriceCents: number | null;
   currency: string;
 };
 
@@ -18,10 +19,11 @@ export type ActivityLabCreditState = {
 export type ActivityLabCreditRedeemResult = {
   accepted: boolean;
   creditsSpent: number;
+  boltsAdded: number;
   creditBalance: number;
-  batterySeconds: number;
-  bonusSeconds: number;
-  totalPlayableSeconds: number;
+  batteryBolts: number;
+  bonusBolts: number;
+  totalBolts: number;
 };
 
 export type ActivityLabCheckoutConfirmation = {
@@ -42,10 +44,11 @@ type CreditStateRow = {
 type CreditRedeemRow = {
   accepted: boolean;
   credits_spent: number;
+  bolts_added: number;
   credit_balance: number;
-  battery_seconds: number;
-  bonus_seconds: number;
-  total_playable_seconds: number;
+  battery_bolts: number;
+  bonus_bolts: number;
+  total_bolts: number;
 };
 
 function firstRow<T>(data: T[] | T | null): T | null {
@@ -73,12 +76,10 @@ export async function getActivityLabCredits(): Promise<ActivityLabCreditState> {
   };
 }
 
-export async function getActivityLabCreditPacks(): Promise<
-  ActivityLabCreditPack[]
-> {
+export async function getActivityLabCreditPacks(): Promise<ActivityLabCreditPack[]> {
   const { data, error } = await supabase
     .from("activity_lab_credit_packs")
-    .select("pack_key,title,description,credits,price_cents,currency,sort_order")
+    .select("pack_key,title,description,credits,price_cents,compare_at_price_cents,currency,sort_order")
     .eq("enabled", true)
     .order("sort_order", { ascending: true });
 
@@ -90,6 +91,7 @@ export async function getActivityLabCreditPacks(): Promise<
     description: row.description ? String(row.description) : null,
     credits: Number(row.credits ?? 0),
     priceCents: Number(row.price_cents ?? 0),
+    compareAtPriceCents: row.compare_at_price_cents == null ? null : Number(row.compare_at_price_cents),
     currency: String(row.currency || "sgd"),
   }));
 }
@@ -111,71 +113,43 @@ export async function redeemActivityLabCredits(
   return {
     accepted: Boolean(row.accepted),
     creditsSpent: Number(row.credits_spent ?? 0),
+    boltsAdded: Number(row.bolts_added ?? 0),
     creditBalance: Number(row.credit_balance ?? 0),
-    batterySeconds: Number(row.battery_seconds ?? 0),
-    bonusSeconds: Number(row.bonus_seconds ?? 0),
-    totalPlayableSeconds: Number(row.total_playable_seconds ?? 0),
+    batteryBolts: Number(row.battery_bolts ?? 0),
+    bonusBolts: Number(row.bonus_bolts ?? 0),
+    totalBolts: Number(row.total_bolts ?? 0),
   };
 }
 
-export async function createActivityLabCreditCheckout(
-  packKey: string,
-): Promise<string> {
+export async function createActivityLabCreditCheckout(packKey: string): Promise<string> {
   const token = await accessToken();
-
   const response = await fetch("/api/activity-lab/credits/checkout", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({ packKey }),
   });
 
-  const body = (await response.json().catch(() => ({}))) as {
-    url?: string;
-    error?: string;
-  };
-
-  if (!response.ok || !body.url) {
-    throw new Error(body.error || "Could not start Play Credit checkout.");
-  }
-
+  const body = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
+  if (!response.ok || !body.url) throw new Error(body.error || "Could not start Play Credit checkout.");
   return body.url;
 }
 
-export async function confirmActivityLabCreditCheckout(
-  sessionId: string,
-): Promise<ActivityLabCheckoutConfirmation> {
+export async function confirmActivityLabCreditCheckout(sessionId: string): Promise<ActivityLabCheckoutConfirmation> {
   const token = await accessToken();
-
   const response = await fetch("/api/activity-lab/credits/confirm", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({ sessionId }),
   });
 
-  const body = (await response.json().catch(() => ({}))) as
-    | ActivityLabCheckoutConfirmation
-    | { error?: string };
-
+  const body = (await response.json().catch(() => ({}))) as ActivityLabCheckoutConfirmation | { error?: string };
   if (response.status !== 202 && !response.ok) {
-    throw new Error(
-      "error" in body && body.error
-        ? body.error
-        : "Could not confirm Play Credit checkout.",
-    );
+    throw new Error("error" in body && body.error ? body.error : "Could not confirm Play Credit checkout.");
   }
-
   return body as ActivityLabCheckoutConfirmation;
 }
 
 export function createCreditRedemptionId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }

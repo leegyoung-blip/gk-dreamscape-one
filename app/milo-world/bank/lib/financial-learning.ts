@@ -9,6 +9,7 @@ export type FinancialLearningPathway = {
   meta: string;
   accent: string;
   accessTier: MiloFinanceAccessTier;
+  includesPremium?: boolean;
 };
 
 export const FINANCIAL_FOUNDATIONS_TOTAL_LESSONS = 6;
@@ -21,7 +22,7 @@ export const FINANCIAL_LEARNING_PATHWAYS: FinancialLearningPathway[] = [
     description:
       "Build the core ideas behind saving, interest, bonds, priorities and risk before applying them elsewhere in Milo’s World.",
     status: "available",
-    meta: "6 lessons · 30 DT total rewards",
+    meta: "6 lessons · free",
     accent: "#8ee8ff",
     accessTier: "free",
   },
@@ -30,11 +31,12 @@ export const FINANCIAL_LEARNING_PATHWAYS: FinancialLearningPathway[] = [
     order: 2,
     title: "Banking & Growth",
     description:
-      "Go deeper into banks, liquidity, compound growth, time and opportunity cost.",
-    status: "planned",
-    meta: "Advanced pathway",
+      "Go deeper into banks, liquidity, interest, compound growth and bonds through applied Dreamscape decisions.",
+    status: "available",
+    meta: "5 lessons live · first 2 free",
     accent: "#9fffd2",
-    accessTier: "milo_finance",
+    accessTier: "free",
+    includesPremium: true,
   },
   {
     id: "markets-investing",

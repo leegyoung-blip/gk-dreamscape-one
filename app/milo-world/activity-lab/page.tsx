@@ -15,7 +15,6 @@ import { useActivityLabBattery } from "@/hooks/useActivityLabBattery";
 type ActivityMode = "mastery" | "cargo" | "merge";
 type MasteryMode = "quick" | "survival";
 
-const BATTERY_MINIMUM_START_SECONDS = 60;
 
 type ActivityMenuProps = {
   activeMode: ActivityMode;
@@ -372,63 +371,41 @@ export default function ActivityLabPage() {
   const [dreamTokens, setDreamTokens] = useState(0);
   const [batteryPanelOpen, setBatteryPanelOpen] = useState(false);
   const [topUpOpen, setTopUpOpen] = useState(false);
-  const [activeBatteryGame, setActiveBatteryGame] = useState<string | null>(null);
-  const [masterySessionActive, setMasterySessionActive] = useState(false);
-  const [batteryDepletedDuringRun, setBatteryDepletedDuringRun] = useState(false);
+  const [masteryRunActive, setMasteryRunActive] = useState(false);
 
-  const batteryGameKey = activeBatteryGame ?? (masterySessionActive ? "mastery_code" : undefined);
-  const battery = useActivityLabBattery({
-    userId,
-    gameKey: batteryGameKey,
-    shouldDrain: Boolean(userId && batteryGameKey),
-    onDepleted: () => {
-      setBatteryDepletedDuringRun(true);
-      setBatteryPanelOpen(true);
-    },
-  });
-
-  const batteryBusyElsewhere = Boolean(
-    userId && battery.state?.isDraining && !battery.ownsDrainSession,
-  );
+  const battery = useActivityLabBattery({ userId });
   const batteryReadyForNewRun = !userId || (
     battery.status !== "loading" &&
     battery.status !== "error" &&
-    !batteryBusyElsewhere &&
-    battery.remainingSeconds >= BATTERY_MINIMUM_START_SECONDS
-  );
-
-  const setGameplayState = useCallback((gameKey: string, active: boolean) => {
-    setActiveBatteryGame((current) => {
-      if (active) return gameKey;
-      return current === gameKey ? null : current;
-    });
-    if (active) setBatteryDepletedDuringRun(false);
-  }, []);
-
-  const handleCargoGameplay = useCallback(
-    (active: boolean) => setGameplayState("cargo_rush", active),
-    [setGameplayState],
-  );
-  const handleMixServeGameplay = useCallback(
-    (active: boolean) => setGameplayState("mix_and_serve", active),
-    [setGameplayState],
+    !battery.isChargingRun &&
+    battery.canStartRun
   );
 
   function openBatteryGate() {
     setBatteryPanelOpen(true);
   }
 
-  function startMasteryBatterySession() {
+  const consumeActivityRun = useCallback(async (gameKey: string) => {
+    if (!userId) return true;
+    const result = await battery.consumeRun(gameKey);
+    if (!result?.accepted) {
+      setBatteryPanelOpen(true);
+      return false;
+    }
+    return true;
+  }, [battery, userId]);
+
+  async function startMasteryBatteryRun() {
     if (!batteryReadyForNewRun) {
       setBatteryPanelOpen(true);
       return;
     }
-    setBatteryDepletedDuringRun(false);
-    setMasterySessionActive(true);
+    const accepted = await consumeActivityRun("mastery_code");
+    if (accepted) setMasteryRunActive(true);
   }
 
   useEffect(() => {
-    if (activeMode !== "mastery") setMasterySessionActive(false);
+    if (activeMode !== "mastery") setMasteryRunActive(false);
   }, [activeMode]);
 
   useEffect(() => {
@@ -548,7 +525,7 @@ export default function ActivityLabPage() {
   }
 
   function selectMode(mode: ActivityMode) {
-    if (mode !== "mastery") setMasterySessionActive(false);
+    if (mode !== "mastery") setMasteryRunActive(false);
     setActiveMode(mode);
     setMenuOpen(false);
     syncUrl(mode);
@@ -713,19 +690,17 @@ export default function ActivityLabPage() {
             open={batteryPanelOpen}
             onOpen={() => setBatteryPanelOpen(true)}
             onClose={() => setBatteryPanelOpen(false)}
-            onAddTime={() => { setBatteryPanelOpen(false); setTopUpOpen(true); }}
-            remainingSeconds={battery.remainingSeconds}
-            baseBatterySeconds={battery.baseBatterySeconds}
-            bonusSeconds={battery.bonusSeconds}
-            capacitySeconds={battery.capacitySeconds}
+            onAddBolts={() => { setBatteryPanelOpen(false); setTopUpOpen(true); }}
+            batteryBolts={battery.batteryBolts}
+            bonusBolts={battery.bonusBolts}
+            totalBolts={battery.totalBolts}
+            capacityBolts={battery.capacityBolts}
             percentage={battery.percentage}
             status={battery.status}
             error={battery.error}
             state={battery.state}
-            isDraining={battery.isDraining}
-            ownsDrainSession={battery.ownsDrainSession}
-            activeGameplay={Boolean(activeBatteryGame || masterySessionActive)}
-            minimumStartSeconds={BATTERY_MINIMUM_START_SECONDS}
+            nextRechargeInSeconds={battery.nextRechargeInSeconds}
+            fullRechargeInSeconds={battery.fullRechargeInSeconds}
           />
 
           <Link
@@ -818,11 +793,6 @@ export default function ActivityLabPage() {
                   : "18px",
           }}
         >
-          {userId && batteryDepletedDuringRun && (activeBatteryGame || masterySessionActive) && (
-            <div style={{ position: "absolute", top: 9, right: 9, zIndex: 45, maxWidth: mobile ? "calc(100% - 18px)" : 360, borderRadius: 12, border: "1px solid rgba(255,113,135,.25)", background: "rgba(40,9,18,.94)", boxShadow: "0 12px 34px rgba(0,0,0,.3)", padding: "8px 11px", color: "#ffdce2", fontSize: 9, lineHeight: 1.4 }}>
-              <strong style={{ color: "#ff9ca7" }}>Battery empty.</strong> Finish the current run; recharge begins when gameplay stops.
-            </div>
-          )}
           {activeMode === "mastery" ? (
             <div
               style={{
@@ -893,13 +863,13 @@ export default function ActivityLabPage() {
                   >
                     Survival
                   </button>
-                  {userId && masterySessionActive && (
+                  {userId && masteryRunActive && (
                     <button
                       type="button"
-                      onClick={() => setMasterySessionActive(false)}
+                      onClick={() => setMasteryRunActive(false)}
                       style={{ ...masteryToggleStyle(false), border: "1px solid rgba(255,214,111,.22)", color: "#ffd66f" }}
                     >
-                      End Session
+                      End Run
                     </button>
                   )}
                 </div>
@@ -912,17 +882,17 @@ export default function ActivityLabPage() {
                   overflow: needsVerticalScroll ? "visible" : "hidden",
                 }}
               >
-                {userId && !masterySessionActive ? (
+                {userId && !masteryRunActive ? (
                   <div style={{ height: "100%", minHeight: 320, display: "grid", placeItems: "center", padding: 16 }}>
                     <div style={{ width: "min(620px,100%)", borderRadius: 22, border: "1px solid rgba(126,232,255,.18)", background: "linear-gradient(145deg,rgba(8,27,46,.88),rgba(4,13,27,.94))", padding: mobile ? 18 : 24, textAlign: "center" }}>
                       <div style={{ width: 58, height: 58, margin: "0 auto", borderRadius: 18, display: "grid", placeItems: "center", border: "1px solid rgba(126,232,255,.22)", background: "rgba(83,215,255,.06)", color: "#8ee8ff", fontSize: 24 }}>⚡</div>
                       <p style={{ margin: "14px 0 0", color: "#8ee8ff", fontSize: 9, fontWeight: 950, letterSpacing: ".14em" }}>ACTIVITY BATTERY</p>
-                      <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 28 : 36, fontWeight: 400 }}>Start a Mastery Code session</h3>
+                      <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 28 : 36, fontWeight: 400 }}>Start a Mastery Code run</h3>
                       <p style={{ margin: "9px auto 0", maxWidth: 490, color: "rgba(255,255,255,.48)", fontSize: 11, lineHeight: 1.55 }}>
-                        Battery drains while the Mastery Code session is open. Use End Session when you are finished so recharge can begin immediately.
+                        Every Mastery Code run costs 5 Bolts. Bolts are charged once when you start; the battery does not drain while you play.
                       </p>
-                      <button type="button" onClick={startMasteryBatterySession} style={{ minHeight: 44, marginTop: 16, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(126,232,255,.3)", background: batteryReadyForNewRun ? "linear-gradient(135deg,#71e1ff,#56c9e8)" : "rgba(255,255,255,.05)", color: batteryReadyForNewRun ? "#03101a" : "rgba(255,255,255,.42)", fontSize: 11, fontWeight: 950, cursor: "pointer" }}>
-                        {batteryReadyForNewRun ? "Start Mastery Session" : "Battery Recharging"}
+                      <button type="button" onClick={startMasteryBatteryRun} style={{ minHeight: 44, marginTop: 16, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(126,232,255,.3)", background: batteryReadyForNewRun ? "linear-gradient(135deg,#71e1ff,#56c9e8)" : "rgba(255,255,255,.05)", color: batteryReadyForNewRun ? "#03101a" : "rgba(255,255,255,.42)", fontSize: 11, fontWeight: 950, cursor: "pointer" }}>
+                        {batteryReadyForNewRun ? `Start Mastery Run · ${battery.runCostBolts} Bolts` : "Need More Bolts"}
                       </button>
                     </div>
                   </div>
@@ -958,9 +928,9 @@ export default function ActivityLabPage() {
               width={width}
               height={height}
               onTokenTransaction={addTokenTransaction}
-              batteryCanStart={!userId || activeBatteryGame === "cargo_rush" || batteryReadyForNewRun}
+              batteryCanStart={batteryReadyForNewRun}
               onBatteryBlocked={openBatteryGate}
-              onGameplayActivityChange={handleCargoGameplay}
+              onBatteryRunStart={() => consumeActivityRun("cargo_rush")}
             />
           ) : (
             <MilosMixAndServe
@@ -970,9 +940,9 @@ export default function ActivityLabPage() {
               width={width}
               height={height}
               onTokenTransaction={addTokenTransaction}
-              batteryCanStart={!userId || activeBatteryGame === "mix_and_serve" || batteryReadyForNewRun}
+              batteryCanStart={batteryReadyForNewRun}
               onBatteryBlocked={openBatteryGate}
-              onGameplayActivityChange={handleMixServeGameplay}
+              onBatteryRunStart={() => consumeActivityRun("mix_and_serve")}
             />
           )}
         </article>

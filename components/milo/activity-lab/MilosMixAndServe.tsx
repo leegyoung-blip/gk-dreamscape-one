@@ -54,6 +54,7 @@ type WorkstationJob = {
   elapsedTicks: number;
 };
 type StageResult = { success: boolean; runId: number; stars: number; elapsedSeconds: number };
+type LandingPhase = "intro" | "choose" | "game";
 type LeaderboardRow = {
   rank_position: number;
   username: string;
@@ -71,7 +72,7 @@ type Props = {
   onTokenTransaction: (amount: number, description: string) => Promise<boolean>;
   batteryCanStart?: boolean;
   onBatteryBlocked?: () => void;
-  onGameplayActivityChange?: (active: boolean) => void;
+  onBatteryRunStart?: () => Promise<boolean>;
 };
 
 const BOARD_SIZE = 20;
@@ -156,6 +157,45 @@ const BURGER_RECIPES: RecipeDef[] = [
 ];
 
 const STAGE1_DT_BY_STARS: Record<number, number> = { 1: 6, 2: 9, 3: 12 };
+
+const DISH_CHOICES = [
+  {
+    id: "burger",
+    title: "Burger Station",
+    subtitle: "Burger Basics",
+    status: "Available Now",
+    image: `${ASSET_BASE}/dishes/dish-burger-tier-5-deluxe-burger.png`,
+    fallback: "🍔",
+    available: true,
+  },
+  {
+    id: "salad",
+    title: "Salad Station",
+    subtitle: "Fresh Builds",
+    status: "Coming Soon",
+    image: `${ASSET_BASE}/dishes/dish-salad-tier-5-supreme-chef-salad.png`,
+    fallback: "🥗",
+    available: false,
+  },
+  {
+    id: "sandwich",
+    title: "Sandwich Station",
+    subtitle: "Stack & Serve",
+    status: "Coming Soon",
+    image: `${ASSET_BASE}/dishes/dish-sandwich-tier-5-ultimate-club-sandwich.png`,
+    fallback: "🥪",
+    available: false,
+  },
+  {
+    id: "sides",
+    title: "Sides Station",
+    subtitle: "Fries & More",
+    status: "Coming Soon",
+    image: `${ASSET_BASE}/dishes/dish-fries-tier-5-supreme-loaded-fries.png`,
+    fallback: "🍟",
+    available: false,
+  },
+] as const;
 
 function ingredientDef(key: IngredientKey) {
   return INGREDIENTS.find((item) => item.key === key)!;
@@ -242,13 +282,14 @@ export default function MilosMixAndServe({
   onTokenTransaction,
   batteryCanStart = true,
   onBatteryBlocked,
-  onGameplayActivityChange,
+  onBatteryRunStart,
 }: Props) {
   const compact = height < 760 || width < 1100;
   const [running, setRunning] = useState(false);
   const [paused, setPaused] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  const [showGuide, setShowGuide] = useState(true);
+  const [landingPhase, setLandingPhase] = useState<LandingPhase>("intro");
+  const [showGuide, setShowGuide] = useState(false);
   const [guideStep, setGuideStep] = useState(0);
   const [board, setBoard] = useState<BoardCell[]>(() => initialBoard());
   const boardRef = useRef<BoardCell[]>(board);
@@ -290,6 +331,7 @@ export default function MilosMixAndServe({
   const currentStageRunKey = useRef("");
   const awardedStageRuns = useRef<Set<string>>(new Set());
   const recordedLeaderboardRuns = useRef<Set<string>>(new Set());
+  const batteryRunStartBusy = useRef(false);
 
   useEffect(() => {
     boardRef.current = board;
@@ -373,18 +415,24 @@ export default function MilosMixAndServe({
     setOrders(initial);
   }
 
-  useEffect(() => {
-    onGameplayActivityChange?.(running && !paused);
-  }, [onGameplayActivityChange, paused, running]);
-
-  useEffect(() => {
-    return () => onGameplayActivityChange?.(false);
-  }, [onGameplayActivityChange]);
-
-  function startStage() {
+  async function startStage() {
+    if (batteryRunStartBusy.current) return false;
     if (!batteryCanStart) {
       onBatteryBlocked?.();
       return false;
+    }
+
+    batteryRunStartBusy.current = true;
+    try {
+      if (userId && onBatteryRunStart) {
+        const accepted = await onBatteryRunStart();
+        if (!accepted) {
+          onBatteryBlocked?.();
+          return false;
+        }
+      }
+    } finally {
+      batteryRunStartBusy.current = false;
     }
 
     resetStageState();
@@ -944,16 +992,27 @@ export default function MilosMixAndServe({
   ] as const;
 
   function restartStage() {
-    if (!batteryCanStart) {
-      onBatteryBlocked?.();
-      return;
-    }
-    startStage();
+    void startStage();
+  }
+
+  function openBurgerKitchen() {
+    resetStageState();
+    setLandingPhase("game");
+    setGuideStep(0);
+    setShowGuide(true);
+    setStatus("Milo will show you how to cook and build the burgers before Stage 1 starts.");
+  }
+
+  function returnToDishMenu() {
+    resetStageState();
+    setShowGuide(false);
+    setShowHelp(false);
+    setLandingPhase("choose");
   }
 
   function skipGuide() {
     if (!running && !stageResult) {
-      startStage();
+      void startStage();
       return;
     }
     setShowGuide(false);
@@ -1114,6 +1173,164 @@ export default function MilosMixAndServe({
     );
   }
 
+  if (landingPhase !== "game") {
+    const introOpen = landingPhase === "intro";
+
+    return (
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          minHeight: 0,
+          overflow: "hidden",
+          borderRadius: mobile ? 14 : 18,
+          color: "white",
+          background:
+            "radial-gradient(circle at 18% 15%, rgba(255,185,94,.18), transparent 28%), linear-gradient(160deg,#17100d 0%,#0b1720 50%,#050914 100%)",
+          boxShadow: "inset 0 0 80px rgba(0,0,0,.32)",
+        }}
+      >
+        <style>{`
+          @keyframes mixServeLandingGlow {
+            0%,100% { opacity:.55; transform:scale(1); }
+            50% { opacity:.9; transform:scale(1.04); }
+          }
+          @keyframes mixServeDishRise {
+            from { opacity:0; transform:translateY(18px) scale(.97); }
+            to { opacity:1; transform:translateY(0) scale(1); }
+          }
+          @keyframes mixServeMiloFloat {
+            0%,100% { transform:translateY(0); }
+            50% { transform:translateY(-5px); }
+          }
+        `}</style>
+
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px)",
+            backgroundSize: "44px 44px",
+            maskImage: "linear-gradient(to bottom,black 0%,transparent 67%)",
+          }}
+        />
+
+        <div aria-hidden="true" style={{ position: "absolute", left: "4%", right: "4%", top: mobile ? 68 : 76, height: mobile ? 122 : 154, borderRadius: 24, border: "1px solid rgba(255,255,255,.07)", background: "linear-gradient(180deg,rgba(28,37,40,.92),rgba(12,18,22,.9))", boxShadow: "0 22px 60px rgba(0,0,0,.34), inset 0 -35px 60px rgba(0,0,0,.25)" }}>
+          <div style={{ position: "absolute", left: "6%", top: 18, width: "27%", height: "44%", borderRadius: 12, background: "linear-gradient(180deg,#1f2d35,#121b20)", border: "1px solid rgba(126,232,255,.08)" }} />
+          <div style={{ position: "absolute", left: "37%", top: 18, width: "27%", height: "44%", borderRadius: 12, background: "linear-gradient(180deg,#1f2d35,#121b20)", border: "1px solid rgba(126,232,255,.08)" }} />
+          <div style={{ position: "absolute", right: "6%", top: 18, width: "24%", height: "44%", borderRadius: 12, background: "linear-gradient(180deg,#1f2d35,#121b20)", border: "1px solid rgba(126,232,255,.08)" }} />
+          <div style={{ position: "absolute", left: "4%", right: "4%", bottom: 16, height: 18, borderRadius: 999, background: "linear-gradient(90deg,#596a70,#a7b4b6 45%,#5b696e)", opacity: .72 }} />
+        </div>
+
+        <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: mobile ? "31%" : "35%", background: "linear-gradient(180deg,#33251a,#1d140f 72%,#120c0a)", borderTop: "1px solid rgba(255,205,132,.12)", boxShadow: "0 -26px 70px rgba(0,0,0,.28)" }}>
+          <div style={{ position: "absolute", left: "7%", right: "7%", top: mobile ? 20 : 24, height: mobile ? 40 : 54, borderRadius: 12, background: "linear-gradient(180deg,#a38b73,#635446)", boxShadow: "0 18px 22px rgba(0,0,0,.28)" }} />
+          <div style={{ position: "absolute", left: "11%", top: mobile ? 70 : 88, width: "22%", height: mobile ? 56 : 74, borderRadius: 14, background: "linear-gradient(180deg,#252e31,#0d1417)", border: "1px solid rgba(255,255,255,.06)" }} />
+          <div style={{ position: "absolute", right: "10%", top: mobile ? 69 : 87, width: "27%", height: mobile ? 58 : 78, borderRadius: 14, background: "linear-gradient(180deg,#252e31,#0d1417)", border: "1px solid rgba(255,255,255,.06)" }} />
+        </div>
+
+        <div style={{ position: "relative", zIndex: 3, height: "100%", display: "grid", gridTemplateRows: "auto minmax(0,1fr)", padding: mobile ? 12 : 18 }}>
+          <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <div>
+              <p style={{ margin: 0, color: "#ffc36f", fontSize: mobile ? 11 : 13, fontWeight: 950, letterSpacing: ".16em", textTransform: "uppercase" }}>Milo’s Restaurant Kitchen</p>
+              <h2 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 30 : 42, fontWeight: 400, lineHeight: 1 }}>Milo’s Mix & Serve</h2>
+            </div>
+            {!introOpen && (
+              <button type="button" onClick={() => setLandingPhase("intro")} style={{ minHeight: 38, padding: "0 15px", borderRadius: 999, border: "1px solid rgba(255,205,125,.22)", background: "rgba(255,186,84,.07)", color: "#ffd58d", fontSize: mobile ? 11 : 13, fontWeight: 900, cursor: "pointer" }}>Hear Milo’s Intro</button>
+            )}
+          </header>
+
+          <section style={{ position: "relative", minHeight: 0 }}>
+            <img
+              src="/milo-world/milo-character.png"
+              alt="Milo"
+              style={{
+                position: "absolute",
+                left: mobile ? "-10px" : "3%",
+                bottom: mobile ? "-18px" : "-28px",
+                height: introOpen ? (mobile ? "56%" : "76%") : (mobile ? "43%" : "61%"),
+                maxHeight: introOpen ? 500 : 390,
+                width: "auto",
+                objectFit: "contain",
+                filter: "drop-shadow(0 28px 42px rgba(0,0,0,.56))",
+                animation: "mixServeMiloFloat 3.2s ease-in-out infinite",
+                transition: "height .3s ease",
+                zIndex: 3,
+              }}
+            />
+
+            {introOpen ? (
+              <div style={{ position: "absolute", zIndex: 4, top: mobile ? 18 : "12%", right: mobile ? 6 : "5%", width: mobile ? "min(72%,420px)" : "min(58%,650px)", borderRadius: mobile ? 22 : 30, padding: mobile ? 18 : 28, border: "1px solid rgba(255,211,142,.28)", background: "linear-gradient(145deg,rgba(50,31,19,.96),rgba(7,15,24,.97))", boxShadow: "0 30px 80px rgba(0,0,0,.46)" }}>
+                <button type="button" onClick={() => setLandingPhase("choose")} style={{ position: "absolute", top: 13, right: 13, minHeight: 34, padding: "0 13px", borderRadius: 999, border: "1px solid rgba(255,255,255,.12)", background: "rgba(255,255,255,.05)", color: "rgba(255,255,255,.72)", fontSize: mobile ? 11 : 12, fontWeight: 900, cursor: "pointer" }}>Skip</button>
+                <p style={{ margin: 0, color: "#ffc36f", fontSize: mobile ? 11 : 13, fontWeight: 950, letterSpacing: ".15em", textTransform: "uppercase" }}>Milo says</p>
+                <h3 style={{ margin: "9px 0 0", maxWidth: "90%", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 27 : 42, lineHeight: 1.04, fontWeight: 400 }}>Welcome to my kitchen!</h3>
+                <p style={{ margin: mobile ? "12px 0 0" : "17px 0 0", color: "rgba(255,255,255,.72)", fontSize: mobile ? 13 : 18, lineHeight: 1.55 }}>Pick a dish you want to cook and I’ll guide you through the kitchen step by step. Start with burgers today — more stations are opening soon.</p>
+                <button type="button" onClick={() => setLandingPhase("choose")} style={{ width: "100%", minHeight: mobile ? 44 : 52, marginTop: mobile ? 15 : 22, borderRadius: 14, border: "1px solid rgba(255,213,126,.46)", background: "linear-gradient(135deg,#ffd06b,#f1a340)", color: "#281700", fontSize: mobile ? 13 : 15, fontWeight: 950, cursor: "pointer", boxShadow: "0 14px 34px rgba(228,140,40,.18)" }}>Choose a Dish</button>
+              </div>
+            ) : (
+              <div style={{ position: "absolute", zIndex: 4, top: mobile ? 12 : "5%", left: mobile ? "29%" : "28%", right: mobile ? 2 : "3%", bottom: mobile ? 8 : "3%", display: "grid", alignContent: "start", animation: "mixServeDishRise .35s ease-out" }}>
+                <div style={{ textAlign: "center", marginBottom: mobile ? 10 : 18 }}>
+                  <p style={{ margin: 0, color: "#ffc36f", fontSize: mobile ? 10 : 12, fontWeight: 950, letterSpacing: ".16em", textTransform: "uppercase" }}>Today’s Kitchen</p>
+                  <h3 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : 37, fontWeight: 400 }}>What would you like to cook?</h3>
+                  {!mobile && <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.48)", fontSize: 13 }}>Choose a station. Each run costs 5 Bolts when you actually start cooking.</p>}
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: mobile ? 7 : 12, minHeight: 0 }}>
+                  {DISH_CHOICES.map((dish) => (
+                    <button
+                      key={dish.id}
+                      type="button"
+                      disabled={!dish.available}
+                      onClick={() => dish.available && openBurgerKitchen()}
+                      style={{
+                        minWidth: 0,
+                        minHeight: mobile ? 128 : 178,
+                        borderRadius: mobile ? 18 : 24,
+                        border: dish.available ? "1px solid rgba(255,207,119,.4)" : "1px solid rgba(255,255,255,.07)",
+                        background: dish.available ? "linear-gradient(145deg,rgba(75,45,24,.9),rgba(10,21,30,.95))" : "linear-gradient(145deg,rgba(17,22,27,.92),rgba(6,10,15,.98))",
+                        boxShadow: dish.available ? "0 18px 44px rgba(0,0,0,.32),inset 0 0 30px rgba(255,181,75,.04)" : "inset 0 0 30px rgba(0,0,0,.32)",
+                        color: "white",
+                        padding: mobile ? 9 : 14,
+                        display: "grid",
+                        gridTemplateColumns: mobile ? "82px minmax(0,1fr)" : "118px minmax(0,1fr)",
+                        gap: mobile ? 9 : 14,
+                        alignItems: "center",
+                        textAlign: "left",
+                        cursor: dish.available ? "pointer" : "not-allowed",
+                        opacity: dish.available ? 1 : .72,
+                        position: "relative",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {dish.available && <span aria-hidden="true" style={{ position: "absolute", inset: -40, borderRadius: 999, border: "1px solid rgba(255,195,95,.13)", animation: "mixServeLandingGlow 2.4s ease-in-out infinite" }} />}
+                      <span style={{ position: "relative", width: mobile ? 78 : 108, height: mobile ? 78 : 108, borderRadius: "50%", display: "grid", placeItems: "center", border: dish.available ? "2px solid rgba(255,211,119,.52)" : "2px solid rgba(255,255,255,.08)", background: dish.available ? "radial-gradient(circle,#4a2a18,#101820 72%)" : "radial-gradient(circle,#1c2429,#090d11 72%)", boxShadow: dish.available ? "0 0 28px rgba(255,183,75,.14)" : "none", overflow: "hidden" }}>
+                        <span aria-hidden="true" style={{ position: "absolute", fontSize: mobile ? 38 : 52, opacity: dish.available ? .2 : .12 }}>{dish.fallback}</span>
+                        <img
+                          src={dish.image}
+                          alt=""
+                          onError={(event) => { event.currentTarget.style.display = "none"; }}
+                          style={{ width: "82%", height: "82%", objectFit: "contain", filter: dish.available ? "none" : "grayscale(1) brightness(.42)", opacity: dish.available ? 1 : .62, position: "relative", zIndex: 2 }}
+                        />
+                      </span>
+                      <span style={{ position: "relative", minWidth: 0 }}>
+                        <span style={{ display: "block", color: dish.available ? "#ffd18a" : "rgba(255,255,255,.32)", fontSize: mobile ? 9 : 10, fontWeight: 950, letterSpacing: ".12em", textTransform: "uppercase" }}>{dish.status}</span>
+                        <strong style={{ display: "block", marginTop: 5, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 19 : 27, lineHeight: 1.05, fontWeight: 400 }}>{dish.title}</strong>
+                        <span style={{ display: "block", marginTop: 5, color: dish.available ? "rgba(255,255,255,.54)" : "rgba(255,255,255,.24)", fontSize: mobile ? 10.5 : 13 }}>{dish.subtitle}</span>
+                        <span style={{ display: "inline-flex", marginTop: mobile ? 8 : 12, minHeight: mobile ? 28 : 34, padding: "0 12px", alignItems: "center", borderRadius: 999, border: dish.available ? "1px solid rgba(255,204,111,.25)" : "1px solid rgba(255,255,255,.07)", background: dish.available ? "rgba(255,181,72,.09)" : "rgba(255,255,255,.025)", color: dish.available ? "#ffd18a" : "rgba(255,255,255,.28)", fontSize: mobile ? 10 : 11, fontWeight: 950 }}>{dish.available ? "Enter Kitchen →" : "Locked"}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={rootRef}
@@ -1172,7 +1389,7 @@ export default function MilosMixAndServe({
           <h2 style={{ margin: "3px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 27 : compact ? 32 : 38, lineHeight: 1, fontWeight: 400 }}>Milo’s Mix & Serve</h2>
         </div>
         <div data-guide-target="game-controls" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button type="button" disabled style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.025)", color: "rgba(255,255,255,.3)", fontSize: 14, fontWeight: 900 }}>Stage 2 · Coming Soon</button>
+          <button type="button" onClick={returnToDishMenu} disabled={running} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.035)", color: running ? "rgba(255,255,255,.28)" : "rgba(255,255,255,.72)", fontSize: 14, fontWeight: 900, cursor: running ? "not-allowed" : "pointer" }}>Dish Menu</button>
           <button type="button" onClick={() => { if (running) setPaused(true); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,191,104,.22)", background: "rgba(255,173,66,.06)", color: "#ffd08a", fontSize: 14, fontWeight: 900, cursor: "pointer" }}>Milo Guide</button>
           <button type="button" onClick={() => setShowHelp(true)} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.06)", color: "#dffaff", fontSize: 14, fontWeight: 900, cursor: "pointer" }}>? How to Play</button>
           <button type="button" onClick={restartStage} disabled={!running} aria-label="Restart Stage 1" title="Restart Stage 1" style={{ width: 36, height: 36, borderRadius: 999, border: "1px solid rgba(255,191,104,.2)", background: "rgba(255,173,66,.06)", color: running ? "#ffd08a" : "rgba(255,255,255,.3)", fontSize: 17, fontWeight: 900, cursor: running ? "pointer" : "not-allowed" }}>↻</button>
@@ -1474,7 +1691,7 @@ export default function MilosMixAndServe({
               {guideStep < guideSteps.length - 1 ? (
                 <button type="button" onClick={() => setGuideStep((value) => Math.min(guideSteps.length - 1, value + 1))} style={{ minHeight: 36, padding: "0 16px", borderRadius: 10, border: "1px solid rgba(255,211,104,.34)", background: "rgba(255,190,65,.08)", color: "#ffd16a", fontSize: 11, fontWeight: 950, cursor: "pointer" }}>Next</button>
               ) : !running && !stageResult ? (
-                <button type="button" onClick={startStage} style={{ minHeight: 38, padding: "0 18px", borderRadius: 11, border: "1px solid rgba(255,211,104,.4)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 14, fontWeight: 950, cursor: "pointer" }}>Start Stage 1</button>
+                <button type="button" onClick={() => { void startStage(); }} style={{ minHeight: 38, padding: "0 18px", borderRadius: 11, border: "1px solid rgba(255,211,104,.4)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 14, fontWeight: 950, cursor: "pointer" }}>Start Stage 1</button>
               ) : (
                 <button type="button" onClick={() => { setShowGuide(false); if (running) setPaused(false); }} style={{ minHeight: 36, padding: "0 16px", borderRadius: 10, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontSize: 11, fontWeight: 900, cursor: "pointer" }}>Back to Kitchen</button>
               )}
@@ -1562,8 +1779,8 @@ export default function MilosMixAndServe({
               <span style={{ display: "block", marginTop: 4, color: "rgba(255,255,255,.38)", fontSize: 11.5 }}>{!stageResult.success ? "Complete Stage 1 to collect DT." : rewardState === "awarding" ? "Adding DT to your balance…" : rewardState === "guest" ? "Log in to collect stage DT." : rewardState === "failed" ? "DT payout failed." : `${stageResult.stars}★ Stage 1 reward`}</span>
             </div>
             <div style={{ marginTop: 15, display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => { resetStageState(); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(255,211,104,.38)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 14, fontWeight: 950, cursor: "pointer" }}>{stageResult.success ? "Replay Stage 1 for Higher Score" : "Retry Stage 1"}</button>
-              {stageResult.success && <span style={{ alignSelf: "center", color: "rgba(255,255,255,.38)", fontSize: 14, fontWeight: 850 }}>Stage 2 · Coming Soon</span>}
+              <button type="button" onClick={() => { resetStageState(); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(255,211,104,.38)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 14, fontWeight: 950, cursor: "pointer" }}>{stageResult.success ? "Replay Burger Station" : "Retry Burger Station"}</button>
+              <button type="button" onClick={returnToDishMenu} style={{ minHeight: 44, padding: "0 20px", borderRadius: 13, border: "1px solid rgba(126,232,255,.18)", background: "rgba(83,215,255,.05)", color: "#dffaff", fontSize: 14, fontWeight: 900, cursor: "pointer" }}>Choose Another Dish</button>
             </div>
           </div>
         </div>

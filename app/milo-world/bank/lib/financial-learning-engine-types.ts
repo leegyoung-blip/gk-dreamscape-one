@@ -239,6 +239,32 @@ export type PredictionBlock = FinancialBlockBase & {
   bestChoiceId?: string;
 };
 
+
+export type GrowthSimulatorControl = {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  defaultValue: number;
+  unit?: string;
+  prefix?: string;
+  editable?: boolean;
+};
+
+export type GrowthSimulatorBlock = FinancialBlockBase & {
+  type: "growth_simulator";
+  prompt: string;
+  principal: GrowthSimulatorControl;
+  rate: GrowthSimulatorControl;
+  periods: GrowthSimulatorControl;
+  contribution?: GrowthSimulatorControl;
+  periodLabel?: string;
+  showSimple?: boolean;
+  showCompound?: boolean;
+  contextNote?: string;
+  takeaway?: string;
+};
+
 export type FinancialLearningBlock =
   | ExplainBlock
   | QuestionBlock
@@ -249,7 +275,8 @@ export type FinancialLearningBlock =
   | AllocationBlock
   | SortBlock
   | NumberInputBlock
-  | PredictionBlock;
+  | PredictionBlock
+  | GrowthSimulatorBlock;
 
 export type FinancialLessonDefinition = {
   schemaVersion: 1 | 2;

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
+import CreatorDiscoveryAdminPanel from "@/components/milo/CreatorDiscoveryAdminPanel";
 import {
   getMiloQuizHallCreatorClubsAccess,
   type MiloQuizHallCreatorClubsAccess,
@@ -36,6 +37,54 @@ type ClubDirectoryRow = {
   member_count: number;
   is_member: boolean;
   joined_at: string | null;
+};
+
+
+type DiscoveryRow = {
+  section_key:
+    | "dreamscape_picks"
+    | "trending"
+    | "rising_creators"
+    | "most_played"
+    | "high_retention"
+    | "new_promising";
+  section_rank: number;
+
+  club_id: string;
+  club_slug: string;
+  club_name: string;
+  topic: string | null;
+  tagline: string | null;
+  description: string | null;
+  cover_image_url: string | null;
+  logo_image_url: string | null;
+
+  creator_partner_id: string;
+  creator_slug: string;
+  creator_display_name: string;
+  creator_profile_image_url: string | null;
+
+  member_count: number;
+  is_member: boolean;
+  joined_at: string | null;
+
+  reputation_score: number;
+  level_name: string;
+  unique_players: number;
+  repeat_players: number;
+  total_plays: number;
+  published_challenges: number;
+  active_weeks: number;
+
+  recent_member_growth: number;
+  recent_unique_player_growth: number;
+  recent_play_growth: number;
+  recent_reputation_growth: number;
+  repeat_rate: number;
+
+  discovery_score: number;
+  dreamscape_pick: boolean;
+  reason_label: string;
 };
 
 type ViewMode = "discover" | "my" | "create";
@@ -73,7 +122,9 @@ export default function CreatorClubsPage() {
   const router = useRouter();
 
   const [clubs, setClubs] = useState<ClubDirectoryRow[]>([]);
+  const [discoverableClubs, setDiscoverableClubs] = useState<ClubDirectoryRow[]>([]);
   const [ownedClubs, setOwnedClubs] = useState<OwnedCreatorClub[]>([]);
+  const [discoveryRows, setDiscoveryRows] = useState<DiscoveryRow[]>([]);
   const [creator, setCreator] = useState<CreatorIdentity | null>(null);
   const [hallAccess, setHallAccess] =
     useState<MiloQuizHallCreatorClubsAccess | null>(null);
@@ -126,7 +177,9 @@ export default function CreatorClubsPage() {
 
     if (!accessResult.access.canAccess) {
       setClubs([]);
+      setDiscoverableClubs([]);
       setOwnedClubs([]);
+      setDiscoveryRows([]);
       setCreator(null);
       setIsLoading(false);
       return;
@@ -136,7 +189,12 @@ export default function CreatorClubsPage() {
     const user = userResponse.data.user;
     setIsAuthenticated(Boolean(user));
 
-    const clubsResponse = await supabase.rpc("get_creator_club_directory");
+    const [clubsResponse, discoverableResponse, discoveryResponse] =
+      await Promise.all([
+        supabase.rpc("get_creator_club_directory"),
+        supabase.rpc("get_creator_discovery_directory_v1"),
+        supabase.rpc("get_creator_discovery_sections_v1"),
+      ]);
 
     if (clubsResponse.error) {
       setClubs([]);
@@ -150,6 +208,61 @@ export default function CreatorClubsPage() {
           featured: Boolean(club.featured),
           member_count: Number(club.member_count || 0),
           is_member: Boolean(club.is_member),
+        })),
+      );
+    }
+
+    if (discoverableResponse.error) {
+      setDiscoverableClubs([]);
+      if (!clubsResponse.error) {
+        setErrorMessage(
+          discoverableResponse.error.message ||
+            "The public Creator Club directory could not be loaded.",
+        );
+      }
+    } else {
+      setDiscoverableClubs(
+        ((discoverableResponse.data || []) as ClubDirectoryRow[]).map((club) => ({
+          ...club,
+          featured: Boolean(club.featured),
+          member_count: Number(club.member_count || 0),
+          is_member: Boolean(club.is_member),
+        })),
+      );
+    }
+
+    if (discoveryResponse.error) {
+      setDiscoveryRows([]);
+      if (!clubsResponse.error) {
+        setErrorMessage(
+          discoveryResponse.error.message ||
+            "Smart discovery could not be loaded.",
+        );
+      }
+    } else {
+      setDiscoveryRows(
+        ((discoveryResponse.data || []) as DiscoveryRow[]).map((row) => ({
+          ...row,
+          section_rank: Number(row.section_rank || 0),
+          member_count: Number(row.member_count || 0),
+          is_member: Boolean(row.is_member),
+          reputation_score: Number(row.reputation_score || 0),
+          unique_players: Number(row.unique_players || 0),
+          repeat_players: Number(row.repeat_players || 0),
+          total_plays: Number(row.total_plays || 0),
+          published_challenges: Number(row.published_challenges || 0),
+          active_weeks: Number(row.active_weeks || 0),
+          recent_member_growth: Number(row.recent_member_growth || 0),
+          recent_unique_player_growth: Number(
+            row.recent_unique_player_growth || 0,
+          ),
+          recent_play_growth: Number(row.recent_play_growth || 0),
+          recent_reputation_growth: Number(
+            row.recent_reputation_growth || 0,
+          ),
+          repeat_rate: Number(row.repeat_rate || 0),
+          discovery_score: Number(row.discovery_score || 0),
+          dreamscape_pick: Boolean(row.dreamscape_pick),
         })),
       );
     }
@@ -177,7 +290,7 @@ export default function CreatorClubsPage() {
   const filteredClubs = useMemo(() => {
     const term = search.trim().toLowerCase();
 
-    return clubs.filter((club) => {
+    return discoverableClubs.filter((club) => {
       if (
         interest !== "All" &&
         String(club.topic || "").toLowerCase() !== interest.toLowerCase()
@@ -199,17 +312,7 @@ export default function CreatorClubsPage() {
         .toLowerCase()
         .includes(term);
     });
-  }, [clubs, interest, search]);
-
-  const featuredClub =
-    filteredClubs.find((club) => club.featured) ||
-    [...filteredClubs].sort((a, b) => b.member_count - a.member_count)[0] ||
-    null;
-
-  const trendingClubs = [...filteredClubs]
-    .filter((club) => club.club_id !== featuredClub?.club_id)
-    .sort((a, b) => b.member_count - a.member_count)
-    .slice(0, 6);
+  }, [discoverableClubs, interest, search]);
 
   const joinedClubs = clubs.filter((club) => club.is_member);
 
@@ -425,13 +528,18 @@ export default function CreatorClubsPage() {
         )}
 
         <section className="dream-club-scroll mx-auto min-h-0 w-full max-w-[1360px] flex-1 overflow-y-auto px-4 pb-8 pt-4 sm:px-6">
+          {hallAccess?.isAdmin && (
+            <div className="mb-4">
+              <CreatorDiscoveryAdminPanel onChanged={() => void loadPage()} />
+            </div>
+          )}
+
           {isLoading ? (
             <LoadingGrid />
           ) : view === "discover" ? (
             <DiscoverView
               clubs={filteredClubs}
-              featuredClub={featuredClub}
-              trendingClubs={trendingClubs}
+              discoveryRows={discoveryRows}
               search={search}
               interest={interest}
               onSearch={setSearch}
@@ -495,21 +603,43 @@ export default function CreatorClubsPage() {
 
 function DiscoverView({
   clubs,
-  featuredClub,
-  trendingClubs,
+  discoveryRows,
   search,
   interest,
   onSearch,
   onInterest,
 }: {
   clubs: ClubDirectoryRow[];
-  featuredClub: ClubDirectoryRow | null;
-  trendingClubs: ClubDirectoryRow[];
+  discoveryRows: DiscoveryRow[];
   search: string;
   interest: string;
   onSearch: (value: string) => void;
   onInterest: (value: string) => void;
 }) {
+  const isFiltering = Boolean(search.trim()) || interest !== "All";
+
+  const sections = {
+    dreamscape_picks: discoveryRows.filter(
+      (row) => row.section_key === "dreamscape_picks",
+    ),
+    trending: discoveryRows.filter((row) => row.section_key === "trending"),
+    rising_creators: discoveryRows.filter(
+      (row) => row.section_key === "rising_creators",
+    ),
+    most_played: discoveryRows.filter(
+      (row) => row.section_key === "most_played",
+    ),
+    high_retention: discoveryRows.filter(
+      (row) => row.section_key === "high_retention",
+    ),
+    new_promising: discoveryRows.filter(
+      (row) => row.section_key === "new_promising",
+    ),
+  };
+
+  const hero =
+    sections.dreamscape_picks[0] || sections.trending[0] || discoveryRows[0] || null;
+
   return (
     <div>
       <div className="flex flex-col gap-3 md:flex-row">
@@ -538,70 +668,327 @@ function DiscoverView({
         </div>
       </div>
 
-      {featuredClub && (
-        <section className="mt-4">
-          <SectionHeading eyebrow="Featured" title="Start with something worth exploring" />
-          <Link
-            href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(
-              featuredClub.club_slug,
-            )}`}
-            className="group relative mt-3 block min-h-[320px] overflow-hidden rounded-[30px] border border-amber-200/18 bg-[linear-gradient(135deg,rgba(73,45,13,0.54),rgba(3,12,29,0.94))] p-6 text-white no-underline shadow-[0_28px_90px_rgba(0,0,0,0.34)] sm:p-8"
-          >
-            {featuredClub.cover_image_url && (
-              <img
-                src={featuredClub.cover_image_url}
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover opacity-25 transition duration-500 group-hover:scale-[1.02]"
-              />
-            )}
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,7,17,0.96)_0%,rgba(2,7,17,0.78)_52%,rgba(2,7,17,0.40)_100%)]" />
+      {isFiltering ? (
+        <section className="mt-5">
+          <SectionHeading
+            eyebrow="Explore All"
+            title={`${clubs.length} club${clubs.length === 1 ? "" : "s"} found`}
+          />
+          {clubs.length === 0 ? (
+            <EmptyState
+              title="No Creator Clubs match that search."
+              text="Try another interest or a broader search."
+            />
+          ) : (
+            <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {clubs.map((club) => (
+                <ClubCard key={club.club_id} club={club} />
+              ))}
+            </div>
+          )}
+        </section>
+      ) : discoveryRows.length === 0 ? (
+        <section className="mt-5">
+          <EmptyState
+            title="Smart discovery is warming up."
+            text="Creator Clubs remain available below while reputation and engagement signals begin to build."
+          />
+          {clubs.length > 0 && (
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {clubs.slice(0, 9).map((club) => (
+                <ClubCard key={club.club_id} club={club} />
+              ))}
+            </div>
+          )}
+        </section>
+      ) : (
+        <>
+          {hero && <DiscoveryHero row={hero} />}
 
-            <div className="relative z-10 flex min-h-[268px] max-w-2xl flex-col justify-end">
-              <p className="text-[9px] font-black uppercase tracking-[0.17em] text-amber-100/70">
-                {featuredClub.topic || "Creator Club"} · by{" "}
-                {featuredClub.creator_display_name}
-              </p>
-              <h3 className="mt-3 font-serif text-[clamp(38px,5vw,68px)] font-normal leading-[0.94]">
-                {featuredClub.club_name}
-              </h3>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-white/58">
-                {featuredClub.tagline ||
-                  featuredClub.description ||
-                  "A creator-led community inside Milo’s Quiz Hall."}
-              </p>
-              <div className="mt-6 flex items-center gap-3">
-                <span className="rounded-full border border-amber-200/18 bg-amber-300/[0.08] px-4 py-2 text-[8px] font-black uppercase tracking-[0.09em] text-amber-100">
-                  Explore Club →
-                </span>
-                <span className="text-[10px] font-bold text-white/38">
-                  {featuredClub.member_count.toLocaleString()} members
-                </span>
+          <DiscoverySection
+            eyebrow="Trending Now"
+            title="Clubs gaining genuine momentum"
+            rows={sections.trending.filter((row) => row.club_id !== hero?.club_id)}
+          />
+
+          <CreatorDiscoverySection
+            eyebrow="Rising Creators"
+            title="Creators building an audience"
+            rows={sections.rising_creators}
+          />
+
+          <DiscoverySection
+            eyebrow="Most Played This Week"
+            title="Where the activity is"
+            rows={sections.most_played}
+          />
+
+          <DiscoverySection
+            eyebrow="High Retention"
+            title="Clubs people come back to"
+            rows={sections.high_retention}
+          />
+
+          <DiscoverySection
+            eyebrow="New & Promising"
+            title="Make room for newer creators"
+            rows={sections.new_promising}
+          />
+
+          {sections.dreamscape_picks.length > 1 && (
+            <DiscoverySection
+              eyebrow="Dreamscape Picks"
+              title="Selected by Dreamscape"
+              rows={sections.dreamscape_picks.filter(
+                (row) => row.club_id !== hero?.club_id,
+              )}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function DiscoveryHero({ row }: { row: DiscoveryRow }) {
+  return (
+    <section className="mt-5">
+      <SectionHeading
+        eyebrow={row.dreamscape_pick ? "Dreamscape Pick" : "Trending Now"}
+        title="A club worth exploring"
+      />
+
+      <Link
+        href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(row.club_slug)}`}
+        className="group relative mt-3 block min-h-[330px] overflow-hidden rounded-[30px] border border-amber-200/18 bg-[linear-gradient(135deg,rgba(73,45,13,0.54),rgba(3,12,29,0.94))] p-6 text-white no-underline shadow-[0_28px_90px_rgba(0,0,0,0.34)] sm:p-8"
+      >
+        {row.cover_image_url && (
+          <img
+            src={row.cover_image_url}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover opacity-27 transition duration-500 group-hover:scale-[1.02]"
+          />
+        )}
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,7,17,0.97)_0%,rgba(2,7,17,0.80)_54%,rgba(2,7,17,0.42)_100%)]" />
+
+        <div className="relative z-10 flex min-h-[278px] max-w-3xl flex-col justify-end">
+          <div className="flex flex-wrap gap-2">
+            <DiscoveryPill>{row.reason_label}</DiscoveryPill>
+            <DiscoveryPill>{row.level_name}</DiscoveryPill>
+            <DiscoveryPill>{row.reputation_score} REP</DiscoveryPill>
+          </div>
+
+          <p className="mt-5 text-[9px] font-black uppercase tracking-[0.17em] text-amber-100/70">
+            {row.topic || "Creator Club"} · by {row.creator_display_name}
+          </p>
+          <h3 className="mt-3 font-serif text-[clamp(40px,5vw,70px)] font-normal leading-[0.94]">
+            {row.club_name}
+          </h3>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-white/58">
+            {row.tagline ||
+              row.description ||
+              "A creator-led community inside Milo’s Quiz Hall."}
+          </p>
+
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <span className="rounded-full border border-amber-200/18 bg-amber-300/[0.08] px-4 py-2 text-[8px] font-black uppercase tracking-[0.09em] text-amber-100">
+              Explore Club →
+            </span>
+            <span className="text-[10px] font-bold text-white/38">
+              {row.member_count.toLocaleString()} members ·{" "}
+              {row.total_plays.toLocaleString()} plays
+            </span>
+          </div>
+        </div>
+      </Link>
+    </section>
+  );
+}
+
+function DiscoverySection({
+  eyebrow,
+  title,
+  rows,
+}: {
+  eyebrow: string;
+  title: string;
+  rows: DiscoveryRow[];
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <section className="mt-7">
+      <SectionHeading eyebrow={eyebrow} title={title} />
+      <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {rows.slice(0, 6).map((row) => (
+          <DiscoveryClubCard key={`${row.section_key}-${row.club_id}`} row={row} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CreatorDiscoverySection({
+  eyebrow,
+  title,
+  rows,
+}: {
+  eyebrow: string;
+  title: string;
+  rows: DiscoveryRow[];
+}) {
+  if (rows.length === 0) return null;
+
+  const unique = rows.filter(
+    (row, index, list) =>
+      list.findIndex(
+        (candidate) => candidate.creator_partner_id === row.creator_partner_id,
+      ) === index,
+  );
+
+  return (
+    <section className="mt-7">
+      <SectionHeading eyebrow={eyebrow} title={title} />
+      <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {unique.slice(0, 6).map((row) => (
+          <Link
+            key={row.creator_partner_id}
+            href={`/milo-world/quiz-hall/creators/${encodeURIComponent(
+              row.creator_slug,
+            )}`}
+            className="rounded-[24px] border border-violet-200/12 bg-[linear-gradient(145deg,rgba(61,37,98,0.18),rgba(4,15,31,0.87))] p-5 text-white no-underline transition hover:-translate-y-0.5 hover:border-violet-200/24"
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-violet-200/16 bg-violet-300/[0.07] text-xl font-black text-violet-100">
+                {row.creator_profile_image_url ? (
+                  <img
+                    src={row.creator_profile_image_url}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  row.creator_display_name.charAt(0).toUpperCase()
+                )}
+              </span>
+
+              <div className="min-w-0">
+                <p className="truncate text-[8px] font-black uppercase tracking-[0.12em] text-violet-100/58">
+                  {row.level_name}
+                </p>
+                <h3 className="mt-1 truncate text-xl font-black">
+                  {row.creator_display_name}
+                </h3>
+                <p className="mt-1 truncate text-[9px] text-white/28">
+                  @{row.creator_slug}
+                </p>
               </div>
             </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <MiniMetric label="REP" value={row.reputation_score} />
+              <MiniMetric label="Players" value={row.unique_players} />
+              <MiniMetric label="Return" value={`${Math.round(row.repeat_rate * 100)}%`} />
+            </div>
+
+            <p className="mt-4 text-[9px] font-bold text-violet-100/68">
+              {row.reason_label} →
+            </p>
           </Link>
-        </section>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function DiscoveryClubCard({ row }: { row: DiscoveryRow }) {
+  return (
+    <Link
+      href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(row.club_slug)}`}
+      className="group relative min-h-[270px] overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.025))] p-5 text-white no-underline shadow-[0_22px_60px_rgba(0,0,0,0.22)] transition hover:-translate-y-0.5 hover:border-cyan-200/26"
+    >
+      {row.cover_image_url && (
+        <>
+          <img
+            src={row.cover_image_url}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover opacity-17 transition duration-300 group-hover:scale-[1.02]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,10,24,0.43),rgba(3,10,24,0.97))]" />
+        </>
       )}
 
-      <section className="mt-6">
-        <SectionHeading eyebrow="Trending" title="Communities people are joining" />
+      <div className="relative z-10 flex h-full flex-col">
+        <div className="flex items-start justify-between gap-3">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-amber-200/18 bg-amber-300/[0.08] text-lg font-black text-amber-100">
+            {row.logo_image_url ? (
+              <img
+                src={row.logo_image_url}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              row.club_name.charAt(0).toUpperCase()
+            )}
+          </span>
 
-        {trendingClubs.length === 0 ? (
-          <EmptyState
-            title={clubs.length === 0 ? "Creator Clubs are being prepared." : "No more clubs in this view."}
-            text={
-              clubs.length === 0
-                ? "The first public creator communities will appear here as they are approved."
-                : "Try a different interest or search."
-            }
-          />
-        ) : (
-          <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {trendingClubs.map((club) => (
-              <ClubCard key={club.club_id} club={club} />
-            ))}
-          </div>
-        )}
-      </section>
+          <span className="rounded-full border border-cyan-200/14 bg-cyan-300/[0.06] px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.08em] text-cyan-100">
+            {row.level_name}
+          </span>
+        </div>
+
+        <p className="mt-4 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100/62">
+          {row.topic || "Creator Club"}
+        </p>
+        <h3 className="mt-1 line-clamp-2 text-xl font-black leading-6">
+          {row.club_name}
+        </h3>
+        <p className="mt-2 line-clamp-2 text-[10px] leading-5 text-white/42">
+          {row.tagline ||
+            row.description ||
+            "A creator-led community inside Milo’s Quiz Hall."}
+        </p>
+
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <DiscoveryPill>{row.reason_label}</DiscoveryPill>
+          <DiscoveryPill>{row.reputation_score} REP</DiscoveryPill>
+        </div>
+
+        <div className="mt-auto flex items-center justify-between gap-3 border-t border-white/8 pt-4">
+          <span className="truncate text-[9px] font-bold text-white/36">
+            by {row.creator_display_name}
+          </span>
+          <span className="shrink-0 text-[9px] font-bold text-cyan-100/58">
+            {row.member_count.toLocaleString()} members
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function DiscoveryPill({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full border border-white/10 bg-black/18 px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.07em] text-white/50">
+      {children}
+    </span>
+  );
+}
+
+function MiniMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-xl border border-white/8 bg-black/14 px-2 py-2 text-center">
+      <strong className="block text-sm text-violet-100">
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </strong>
+      <span className="mt-1 block text-[6px] font-black uppercase tracking-[0.08em] text-white/24">
+        {label}
+      </span>
     </div>
   );
 }
