@@ -67,11 +67,11 @@ function nextLevel(score: number) {
 }
 
 function currentLevelMinimum(score: number) {
-  let current = LEVELS[0];
-  for (const level of LEVELS) {
-    if (score >= level.min) current = level;
-  }
-  return current.min;
+  const current = [...LEVELS]
+    .reverse()
+    .find((level) => score >= level.min);
+
+  return current?.min ?? LEVELS[0].min;
 }
 
 function shortDate(value: string) {
