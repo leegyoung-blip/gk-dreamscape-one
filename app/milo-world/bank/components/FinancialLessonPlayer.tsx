@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { FINANCIAL_ADVISORS } from "../lib/financial-advisors";
-import { isResponseComplete } from "../lib/financial-learning-engine";
+import {
+  applyBlockEffects,
+  createLessonRuntime,
+  deriveVariablesForPath,
+  isResponseComplete,
+  resolveNextBlockId,
+} from "../lib/financial-learning-engine";
 import type {
   FinancialAdvisorId,
   FinancialBlockResponse,
@@ -13,12 +19,18 @@ import type { MoneyLabCompletionResult } from "../lib/money-lab-types";
 import FinancialAdvisorAvatar from "./FinancialAdvisorAvatar";
 import FinancialAdvisorNote from "./FinancialAdvisorNote";
 import FinancialBlockRenderer from "./FinancialBlockRenderer";
+import FinancialStatePanel from "./FinancialStatePanel";
 
 function errorMessage(error: unknown) {
-  if (error && typeof error === "object" && "message" in error && typeof (error as {message?:unknown}).message === "string") {
-    return (error as {message:string}).message;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
   }
-  return "Could not complete this lesson.";
+  return "Could not continue this lesson.";
 }
 
 export default function FinancialLessonPlayer({
@@ -36,33 +48,54 @@ export default function FinancialLessonPlayer({
   alreadyCompleted: boolean;
   loading: boolean;
   onClose: () => void;
-  onComplete: (lesson: FinancialLessonDefinition, responses: FinancialLessonResponseMap) => Promise<MoneyLabCompletionResult>;
+  onComplete: (
+    lesson: FinancialLessonDefinition,
+    responses: FinancialLessonResponseMap,
+  ) => Promise<MoneyLabCompletionResult>;
 }) {
-  const [blockIndex, setBlockIndex] = useState(0);
+  const [currentBlockId, setCurrentBlockId] = useState<string | null>(null);
+  const [path, setPath] = useState<string[]>([]);
   const [responses, setResponses] = useState<FinancialLessonResponseMap>({});
   const [completion, setCompletion] = useState<MoneyLabCompletionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) return;
-    setBlockIndex(0);
-    setResponses({});
-    setCompletion(null);
-    setError(null);
+    if (!open || !lesson) return;
+    try {
+      const runtime = createLessonRuntime(lesson);
+      setCurrentBlockId(runtime.currentBlockId);
+      setPath(runtime.path);
+      setResponses({});
+      setCompletion(null);
+      setError(null);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
   }, [open, lesson?.id]);
 
-  const block = lesson?.blocks[blockIndex] ?? null;
+  const block = useMemo(
+    () => lesson?.blocks.find((item) => item.id === currentBlockId) ?? null,
+    [lesson, currentBlockId],
+  );
   const response = block ? responses[block.id] : undefined;
   const canContinue = block ? isResponseComplete(block, response) : false;
+  const advisor = FINANCIAL_ADVISORS[advisorId];
+
+  const currentVariables = useMemo(() => {
+    if (!lesson) return {};
+    return deriveVariablesForPath(lesson, path, responses, false);
+  }, [lesson, path, responses]);
+
   const progress = useMemo(() => {
-    if (!lesson?.blocks.length) return 0;
-    return Math.round(((blockIndex + 1) / lesson.blocks.length) * 100);
-  }, [lesson, blockIndex]);
+    if (!lesson || !block) return 0;
+    const index = lesson.blocks.findIndex((item) => item.id === block.id);
+    if (index < 0) return 0;
+    return Math.max(1, Math.round(((index + 1) / lesson.blocks.length) * 100));
+  }, [lesson, block]);
 
   if (!open || !lesson || !block) return null;
   const currentLesson = lesson;
   const currentBlock = block;
-  const advisor = FINANCIAL_ADVISORS[advisorId];
 
   const recordResponse = (next: FinancialBlockResponse) => {
     setResponses((current) => ({ ...current, [next.blockId]: next }));
@@ -72,21 +105,54 @@ export default function FinancialLessonPlayer({
     if (!canContinue || loading) return;
     setError(null);
 
-    if (blockIndex < currentLesson.blocks.length - 1) {
-      setBlockIndex((value) => value + 1);
-      return;
-    }
-
-    if (alreadyCompleted) {
-      onClose();
-      return;
-    }
-
     try {
-      setCompletion(await onComplete(currentLesson, responses));
+      // Ignore responses from abandoned branches after a learner uses Back and
+      // chooses a different route. Only the currently active path can affect
+      // routing or be submitted as lesson evidence.
+      const activeResponses = Object.fromEntries(
+        Object.entries(responses).filter(([blockId]) => path.includes(blockId)),
+      ) as FinancialLessonResponseMap;
+      const variablesAfterCurrent = applyBlockEffects(
+        currentBlock,
+        activeResponses[currentBlock.id],
+        currentVariables,
+      );
+      const nextId = resolveNextBlockId(
+        currentLesson,
+        currentBlock,
+        activeResponses[currentBlock.id],
+        activeResponses,
+        variablesAfterCurrent,
+      );
+
+      if (nextId) {
+        // Keep authored loops bounded. Branching lessons may revisit a block, but
+        // a malformed content definition should never trap a learner forever.
+        if (path.length >= 100) {
+          throw new Error("This lesson route is too long. Please report this lesson to the Dreamscape team.");
+        }
+        setPath((current) => [...current, nextId]);
+        setCurrentBlockId(nextId);
+        return;
+      }
+
+      if (alreadyCompleted) {
+        onClose();
+        return;
+      }
+
+      setCompletion(await onComplete(currentLesson, activeResponses));
     } catch (caught) {
       setError(errorMessage(caught));
     }
+  }
+
+  function back() {
+    if (path.length <= 1 || loading) return;
+    const nextPath = path.slice(0, -1);
+    setPath(nextPath);
+    setCurrentBlockId(nextPath[nextPath.length - 1] ?? null);
+    setError(null);
   }
 
   return (
@@ -118,7 +184,7 @@ export default function FinancialLessonPlayer({
                 <FinancialAdvisorAvatar advisorId={advisorId} size={48} />
                 <div>
                   <div style={{ color: advisor.accent, fontSize: "8px", fontWeight: 900, letterSpacing: ".13em", textTransform: "uppercase" }}>{advisor.name} · Your advisor</div>
-                  <div style={{ marginTop: "3px", color: "rgba(255,255,255,.44)", fontSize: "9px" }}>Lesson {currentLesson.order} · Step {blockIndex + 1} of {currentLesson.blocks.length}</div>
+                  <div style={{ marginTop: "3px", color: "rgba(255,255,255,.44)", fontSize: "9px" }}>Lesson {currentLesson.order} · Step {path.length}</div>
                 </div>
               </div>
               <button type="button" onClick={onClose} disabled={loading} aria-label="Close lesson" style={{ width: "38px", height: "38px", borderRadius: "999px", border: "1px solid rgba(255,255,255,.12)", background: "rgba(255,255,255,.05)", color: "white", cursor: loading ? "wait" : "pointer", fontSize: "19px" }}>×</button>
@@ -132,15 +198,19 @@ export default function FinancialLessonPlayer({
               <div style={{ marginTop: "11px", height: "5px", borderRadius: "999px", background: "rgba(255,255,255,.07)", overflow: "hidden" }}><div style={{ width: `${progress}%`, height: "100%", borderRadius: "999px", background: `linear-gradient(90deg, ${advisor.accent}, #8cf0ca)`, transition: "width 220ms ease" }}/></div>
             </div>
 
+            {currentLesson.variables?.length ? (
+              <FinancialStatePanel definitions={currentLesson.variables} values={currentVariables} />
+            ) : null}
+
             <FinancialBlockRenderer block={currentBlock} response={response} advisorId={advisorId} onChange={recordResponse} />
             <FinancialAdvisorNote advisorId={advisorId} message={currentBlock.advisorMessage} />
 
             {error && <div role="alert" style={{ marginTop: "14px", borderRadius: "13px", border: "1px solid rgba(255,121,121,.24)", background: "rgba(244,91,91,.08)", padding: "12px 13px", color: "#ffc0c0", fontSize: "12px" }}>{error}</div>}
 
             <div style={{ marginTop: "20px", display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center" }}>
-              <button type="button" disabled={blockIndex === 0 || loading} onClick={() => { setBlockIndex((value) => Math.max(0, value - 1)); setError(null); }} style={{ minHeight: "44px", padding: "0 15px", borderRadius: "12px", border: "1px solid rgba(255,255,255,.10)", background: "rgba(255,255,255,.035)", color: "rgba(255,255,255,.60)", cursor: blockIndex === 0 || loading ? "not-allowed" : "pointer", opacity: blockIndex === 0 ? .35 : 1, fontFamily: "inherit", fontSize: "9px", fontWeight: 900, textTransform: "uppercase" }}>Back</button>
+              <button type="button" disabled={path.length <= 1 || loading} onClick={back} style={{ minHeight: "44px", padding: "0 15px", borderRadius: "12px", border: "1px solid rgba(255,255,255,.10)", background: "rgba(255,255,255,.035)", color: "rgba(255,255,255,.60)", cursor: path.length <= 1 || loading ? "not-allowed" : "pointer", opacity: path.length <= 1 ? .35 : 1, fontFamily: "inherit", fontSize: "9px", fontWeight: 900, textTransform: "uppercase" }}>Back</button>
               <button type="button" disabled={loading || !canContinue} onClick={next} style={{ minHeight: "46px", padding: "0 19px", borderRadius: "13px", border: `1px solid ${advisor.accent}55`, background: `linear-gradient(135deg, ${advisor.glow}, rgba(94,78,210,.14))`, color: "white", cursor: loading || !canContinue ? "not-allowed" : "pointer", opacity: !canContinue ? .45 : 1, fontFamily: "inherit", fontSize: "9px", fontWeight: 900, letterSpacing: ".07em", textTransform: "uppercase" }}>
-                {loading ? "Saving…" : blockIndex === currentLesson.blocks.length - 1 ? (alreadyCompleted ? "Finish Review" : `Complete · +${currentLesson.rewardDt} DT`) : "Continue"}
+                {loading ? "Saving…" : "Continue"}
               </button>
             </div>
           </>

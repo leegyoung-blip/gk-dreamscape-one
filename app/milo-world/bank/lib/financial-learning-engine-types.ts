@@ -17,12 +17,69 @@ export type FinancialSkillKey =
   | "financial_decisions"
   | "business";
 
+export type FinancialConditionOperator =
+  | "eq"
+  | "neq"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "in"
+  | "exists";
+
+export type FinancialCondition =
+  | {
+      source: "variable";
+      key: string;
+      operator: FinancialConditionOperator;
+      value?: string | number | boolean | Array<string | number | boolean>;
+    }
+  | {
+      source: "response";
+      blockId: string;
+      /** Dot path inside a structured response, e.g. `reserve` for an allocation. */
+      path?: string;
+      operator: FinancialConditionOperator;
+      value?: string | number | boolean | Array<string | number | boolean>;
+    };
+
+export type FinancialBranchRule = {
+  id: string;
+  match?: "all" | "any";
+  conditions: FinancialCondition[];
+  nextBlockId: string;
+};
+
+export type FinancialVariableEffect = {
+  key: string;
+  operation: "set" | "add" | "subtract" | "multiply";
+  value: number;
+};
+
+export type FinancialLessonVariableDefinition = {
+  key: string;
+  label: string;
+  initialValue: number;
+  unit?: string;
+  prefix?: string;
+  visible?: boolean;
+  decimals?: number;
+};
+
+export type FinancialLessonVariableMap = Record<string, number>;
+
 export type FinancialBlockBase = {
   id: string;
   eyebrow?: string;
   title?: string;
   advisorMessage?: FinancialAdvisorMessage;
   skills?: FinancialSkillKey[];
+  /** Effects are committed only when the learner continues past this block. */
+  effects?: FinancialVariableEffect[];
+  /** Explicit route used when no branch rule matches. */
+  nextBlockId?: string;
+  /** Evaluated after this block's effects have been applied. First match wins. */
+  branchRules?: FinancialBranchRule[];
 };
 
 export type ExplainBlock = FinancialBlockBase & {
@@ -66,6 +123,10 @@ export type DecisionChoice = {
   strengths?: string[];
   tradeoffs?: string[];
   advisorFeedback?: FinancialAdvisorMessage;
+  /** Choice-specific state changes. */
+  effects?: FinancialVariableEffect[];
+  /** Choice-specific route. Takes priority over block-level routing. */
+  nextBlockId?: string;
 };
 
 export type DecisionBlock = FinancialBlockBase & {
@@ -191,7 +252,7 @@ export type FinancialLearningBlock =
   | PredictionBlock;
 
 export type FinancialLessonDefinition = {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   id: string;
   legacyLessonKey?: MoneyLabLessonKey;
   courseId: string;
@@ -205,6 +266,10 @@ export type FinancialLessonDefinition = {
   accessTier: FinancialLessonAccessTier;
   concepts: string[];
   blocks: FinancialLearningBlock[];
+  /** Defaults to the first block for older Phase 2A/2B lessons. */
+  startBlockId?: string;
+  /** Optional state values used by branching/consequence lessons. */
+  variables?: FinancialLessonVariableDefinition[];
 };
 
 export type FinancialBlockResponseValue =
@@ -222,3 +287,10 @@ export type FinancialBlockResponse = {
 };
 
 export type FinancialLessonResponseMap = Record<string, FinancialBlockResponse>;
+
+export type FinancialLessonRuntime = {
+  currentBlockId: string;
+  /** Ordered route taken through the lesson, including the current block. */
+  path: string[];
+  variables: FinancialLessonVariableMap;
+};

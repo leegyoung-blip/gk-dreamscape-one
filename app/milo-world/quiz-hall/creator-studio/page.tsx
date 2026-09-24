@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
 
 import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
 
-import CreatorChallengeManager from "@/components/milo/CreatorChallengeManager";
+import CreatorChallengeCyclePanel from "@/components/milo/CreatorChallengeCyclePanel";
 
 import {
 
@@ -1396,7 +1396,7 @@ export default function CreatorStudioPage() {
 
 
 
-          <CreatorChallengeManager />
+          <CreatorChallengeCyclePanel />
 
 
 
