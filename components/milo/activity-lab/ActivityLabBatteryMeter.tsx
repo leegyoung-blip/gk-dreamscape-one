@@ -56,9 +56,9 @@ export default function ActivityLabBatteryMeter(props: Props) {
     fullRechargeInSeconds,
   } = props;
 
-  const colour = unlimited ? "#9fffd2" : accent(percentage);
   const runCost = state?.runCostBolts ?? 5;
   const unlimited = Boolean(userId && state && runCost === 0);
+  const colour = unlimited ? "#9fffd2" : accent(percentage);
   const rechargeAmount = state?.rechargeBoltsPerInterval ?? 10;
   const nextActualRecharge = Math.min(rechargeAmount, Math.max(0, capacityBolts - batteryBolts));
   const ready = totalBolts >= runCost;
