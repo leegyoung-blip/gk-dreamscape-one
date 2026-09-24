@@ -24,11 +24,15 @@ export default function BondSettlementModal({
 
   if (!open || !holding) return null;
 
+  // Snapshot the narrowed prop before the async callback. TypeScript does not
+  // keep nullable prop narrowing inside nested functions across renders.
+  const selectedHolding = holding;
+
   async function settle() {
     if (loading) return;
     setError(null);
     try {
-      await onSettle(holding.id);
+      await onSettle(selectedHolding.id);
       onClose();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not collect this Bond.");
@@ -143,7 +147,7 @@ export default function BondSettlementModal({
               Principal unlocked
             </span>
             <strong style={{ display: "block", marginTop: "6px", fontSize: "18px" }}>
-              {formatDt(holding.principal)}
+              {formatDt(selectedHolding.principal)}
             </strong>
           </div>
           <div
@@ -158,7 +162,7 @@ export default function BondSettlementModal({
               Interest earned
             </span>
             <strong style={{ display: "block", marginTop: "6px", color: "#9fffd2", fontSize: "18px" }}>
-              +{formatDt(holding.interestAmount)}
+              +{formatDt(selectedHolding.interestAmount)}
             </strong>
           </div>
         </div>

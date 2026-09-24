@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { BondProduct, BondHolding } from "../lib/bond-types";
 import { bondReturnPercent, calculateBondInterest } from "../lib/bond-api";
 
@@ -10,6 +10,18 @@ function formatDt(value: number) {
 
 function messageFrom(error: unknown) {
   return error instanceof Error ? error.message : "Could not purchase this Bond.";
+}
+
+function formatMaturityDate(termDays: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + termDays);
+
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 }
 
 export default function BondPurchaseModal({
@@ -32,8 +44,10 @@ export default function BondPurchaseModal({
   const [step, setStep] = useState<"amount" | "confirm">("amount");
 
   useEffect(() => {
-    if (!open || !product) return;
-    setAmount(String(product.minInvestment));
+    const currentProduct = product;
+    if (!open || !currentProduct) return;
+
+    setAmount(String(currentProduct.minInvestment));
     setError(null);
     setStep("amount");
   }, [open, product]);
@@ -52,22 +66,24 @@ export default function BondPurchaseModal({
       numericAmount <= maxAllowed,
   );
 
-  const maturityText = useMemo(() => {
-    if (!product) return "";
-    const date = new Date();
-    date.setDate(date.getDate() + product.termDays);
-    return new Intl.DateTimeFormat("en-SG", {
-      timeZone: "Asia/Singapore",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    }).format(date);
-  }, [product]);
+  const maturityText = product ? formatMaturityDate(product.termDays) : "";
 
   if (!open || !product) return null;
 
+  // Snapshot the narrowed value before defining callbacks. TypeScript does not
+  // preserve nullable prop narrowing inside nested functions because props can
+  // change on a later render.
+  const selectedProduct = product;
+
   function choosePreset(value: number) {
-    setAmount(String(Math.max(product.minInvestment, Math.min(maxAllowed, value))));
+    setAmount(
+      String(
+        Math.max(
+          selectedProduct.minInvestment,
+          Math.min(maxAllowed, value),
+        ),
+      ),
+    );
     setError(null);
   }
 
@@ -75,7 +91,7 @@ export default function BondPurchaseModal({
     if (!valid || loading) return;
     setError(null);
     try {
-      await onPurchase(product.id, numericAmount);
+      await onPurchase(selectedProduct.id, numericAmount);
       onClose();
     } catch (caught) {
       setError(messageFrom(caught));
@@ -103,7 +119,7 @@ export default function BondPurchaseModal({
       <section
         role="dialog"
         aria-modal="true"
-        aria-label={`Buy ${product.name}`}
+        aria-label={`Buy ${selectedProduct.name}`}
         onClick={(event) => event.stopPropagation()}
         style={{
           width: "min(560px, 100%)",
@@ -147,7 +163,7 @@ export default function BondPurchaseModal({
                 textTransform: "uppercase",
               }}
             >
-              {step === "confirm" ? "Confirm Investment" : `${product.termDays}-Day Bank Bond`}
+              {step === "confirm" ? "Confirm Investment" : `${selectedProduct.termDays}-Day Bank Bond`}
             </p>
             <h2
               style={{
@@ -159,7 +175,7 @@ export default function BondPurchaseModal({
                 letterSpacing: "-0.04em",
               }}
             >
-              {product.name}
+              {selectedProduct.name}
             </h2>
           </div>
           <button
@@ -192,8 +208,8 @@ export default function BondPurchaseModal({
           }}
         >
           {[
-            ["Term", `${product.termDays} days`],
-            ["Return", `${bondReturnPercent(product.returnRateBps)}%`],
+            ["Term", `${selectedProduct.termDays} days`],
+            ["Return", `${bondReturnPercent(selectedProduct.returnRateBps)}%`],
             ["Eligible DT", formatDt(eligibleDt)],
           ].map(([label, value]) => (
             <div
@@ -293,12 +309,12 @@ export default function BondPurchaseModal({
               }}
             >
               {[
-                product.minInvestment,
+                selectedProduct.minInvestment,
                 Math.floor(maxAllowed * 0.5),
                 Math.floor(maxAllowed * 0.75),
                 maxAllowed,
               ]
-                .filter((value, index, values) => value >= product.minInvestment && values.indexOf(value) === index)
+                .filter((value, index, values) => value >= selectedProduct.minInvestment && values.indexOf(value) === index)
                 .map((value) => (
                   <button
                     key={value}
@@ -330,7 +346,7 @@ export default function BondPurchaseModal({
                 lineHeight: 1.45,
               }}
             >
-              Investment range: {formatDt(product.minInvestment)}–{formatDt(product.maxInvestment)}. Only eligible earned/reward DT can be placed into Bank Bonds.
+              Investment range: {formatDt(selectedProduct.minInvestment)}–{formatDt(selectedProduct.maxInvestment)}. Only eligible earned/reward DT can be placed into Bank Bonds.
             </p>
 
             <div
@@ -386,7 +402,7 @@ export default function BondPurchaseModal({
                   lineHeight: 1.45,
                 }}
               >
-                Enter an amount between {formatDt(product.minInvestment)} and {formatDt(maxAllowed)}.
+                Enter an amount between {formatDt(selectedProduct.minInvestment)} and {formatDt(maxAllowed)}.
               </p>
             )}
           </>

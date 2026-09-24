@@ -1,4 +1,5 @@
 export type BondStatus = "active" | "matured" | "settled" | "cancelled";
+export type BondEventType = "purchased" | "matured" | "settled";
 
 export type BondProduct = {
   id: string;
@@ -29,8 +30,21 @@ export type BondHolding = {
   purchasedAt: string;
   maturesAt: string;
   settledAt: string | null;
+  settlementRequestId: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type BondEvent = {
+  id: string;
+  userId: string;
+  bondHoldingId: string;
+  eventType: BondEventType;
+  principal: number;
+  interestAmount: number;
+  title: string;
+  requestId: string | null;
+  createdAt: string;
 };
 
 export type BondEligibilitySnapshot = {

@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import type {
   BondEligibilitySnapshot,
+  BondEvent,
+  BondEventType,
   BondHolding,
   BondProduct,
   BondStatus,
@@ -35,8 +37,21 @@ type BondHoldingRow = {
   purchased_at: string;
   matures_at: string;
   settled_at: string | null;
+  settlement_request_id: string | null;
   created_at: string;
   updated_at: string;
+};
+
+type BondEventRow = {
+  id: string;
+  user_id: string;
+  bond_holding_id: string;
+  event_type: string;
+  principal: number | string;
+  interest_amount: number | string;
+  title: string;
+  request_id: string | null;
+  created_at: string;
 };
 
 type BondEligibilityRow = {
@@ -78,10 +93,41 @@ function toBondHolding(row: BondHoldingRow): BondHolding {
     purchasedAt: row.purchased_at,
     maturesAt: row.matures_at,
     settledAt: row.settled_at,
+    settlementRequestId: row.settlement_request_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
+
+function toBondEvent(row: BondEventRow): BondEvent {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    bondHoldingId: row.bond_holding_id,
+    eventType: row.event_type as BondEventType,
+    principal: Number(row.principal || 0),
+    interestAmount: Number(row.interest_amount || 0),
+    title: row.title,
+    requestId: row.request_id,
+    createdAt: row.created_at,
+  };
+}
+
+function createRequestId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  // Fallback UUID v4 shape for older test environments.
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (token) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = token === "x" ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+}
+
+const HOLDING_SELECT =
+  "id,user_id,bond_product_id,product_code,bond_name,term_days,return_rate_bps,principal,interest_amount,payout_amount,status,purchased_at,matures_at,settled_at,settlement_request_id,created_at,updated_at";
 
 export async function listBondProducts(includeInactive = false) {
   let query = supabase
@@ -105,14 +151,25 @@ export async function listBondProducts(includeInactive = false) {
 export async function listBondHoldings(limit = 100) {
   const { data, error } = await supabase
     .from("milo_bank_bond_holdings")
-    .select(
-      "id,user_id,bond_product_id,product_code,bond_name,term_days,return_rate_bps,principal,interest_amount,payout_amount,status,purchased_at,matures_at,settled_at,created_at,updated_at",
-    )
+    .select(HOLDING_SELECT)
     .order("purchased_at", { ascending: false })
     .limit(limit);
 
   if (error) throw error;
   return ((data || []) as BondHoldingRow[]).map(toBondHolding);
+}
+
+export async function listBondEvents(limit = 100) {
+  const { data, error } = await supabase
+    .from("milo_bank_bond_events")
+    .select(
+      "id,user_id,bond_holding_id,event_type,principal,interest_amount,title,request_id,created_at",
+    )
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return ((data || []) as BondEventRow[]).map(toBondEvent);
 }
 
 export async function getBondEligibility(): Promise<BondEligibilitySnapshot> {
@@ -128,6 +185,40 @@ export async function getBondEligibility(): Promise<BondEligibilitySnapshot> {
     pendingInterest: Number(row?.pending_interest || 0),
     settledInterest: Number(row?.settled_interest || 0),
   };
+}
+
+export async function purchaseBond(
+  bondProductId: string,
+  principal: number,
+  requestId = createRequestId(),
+) {
+  const { data, error } = await supabase.rpc("purchase_milo_bank_bond", {
+    p_bond_product_id: bondProductId,
+    p_principal: Math.floor(principal),
+    p_request_id: requestId,
+  });
+
+  if (error) throw error;
+  return toBondHolding(data as BondHoldingRow);
+}
+
+export async function refreshBondMaturities() {
+  const { data, error } = await supabase.rpc("refresh_milo_bank_bond_maturities");
+  if (error) throw error;
+  return Number(data || 0);
+}
+
+export async function settleBond(
+  bondHoldingId: string,
+  requestId = createRequestId(),
+) {
+  const { data, error } = await supabase.rpc("settle_milo_bank_bond", {
+    p_bond_holding_id: bondHoldingId,
+    p_request_id: requestId,
+  });
+
+  if (error) throw error;
+  return toBondHolding(data as BondHoldingRow);
 }
 
 export function bondReturnPercent(returnRateBps: number) {
