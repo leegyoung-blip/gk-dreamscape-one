@@ -14,7 +14,7 @@ export const MONEY_LAB_LESSONS: MoneyLabLesson[] = [
     steps: [
       {
         type: "info",
-        eyebrow: "Money Lab · Saving",
+        eyebrow: "Financial Foundations · Saving",
         title: "Saving means choosing later over now.",
         body: "When you save, you keep some of your Dream Tokens instead of spending all of them today. Those DT stay ready for something you care about later.",
         example: "You have 800 DT and set 200 DT aside for a rover upgrade. You still own all 800 DT, but 200 DT now has a job.",
@@ -60,7 +60,7 @@ export const MONEY_LAB_LESSONS: MoneyLabLesson[] = [
     steps: [
       {
         type: "info",
-        eyebrow: "Money Lab · Interest",
+        eyebrow: "Financial Foundations · Interest",
         title: "Interest is an extra amount.",
         body: "The amount you start with is called the principal. Interest is the extra amount added according to an agreed rate or rule.",
         example: "Principal: 1,000 DT. Interest: 40 DT. Final amount: 1,040 DT.",
@@ -101,7 +101,7 @@ export const MONEY_LAB_LESSONS: MoneyLabLesson[] = [
     steps: [
       {
         type: "info",
-        eyebrow: "Money Lab · Bonds",
+        eyebrow: "Financial Foundations · Bonds",
         title: "A bond has a term and a maturity date.",
         body: "In Milo’s Bank, you choose a Dreamscape Bond and lock eligible earned DT for a fixed period. While it is locked, that principal cannot be spent elsewhere.",
         example: "A 7-day Bond bought today reaches maturity seven days later.",
@@ -142,7 +142,7 @@ export const MONEY_LAB_LESSONS: MoneyLabLesson[] = [
     steps: [
       {
         type: "info",
-        eyebrow: "Money Lab · Choices",
+        eyebrow: "Financial Foundations · Choices",
         title: "Saving and investing are not the same thing.",
         body: "Saving usually focuses on keeping money available for a goal or future need. Investing means putting money into something that may change in value or produce a return.",
         example: "Saving for a near-term rover upgrade is a different job from buying a changing-value asset in Milo’s Exchange.",
@@ -183,7 +183,7 @@ export const MONEY_LAB_LESSONS: MoneyLabLesson[] = [
     steps: [
       {
         type: "info",
-        eyebrow: "Money Lab · Risk",
+        eyebrow: "Financial Foundations · Risk",
         title: "Return is what you gain. Risk is uncertainty about what happens.",
         body: "Some choices have predictable outcomes. Others can rise or fall. When the outcome is less certain, you should understand what could happen before committing resources.",
         example: "Milo’s Exchange prices can change. A Dreamscape Bank Bond instead shows its fixed game return before purchase.",
@@ -224,7 +224,7 @@ export const MONEY_LAB_LESSONS: MoneyLabLesson[] = [
     steps: [
       {
         type: "info",
-        eyebrow: "Money Lab · Priorities",
+        eyebrow: "Financial Foundations · Priorities",
         title: "A need and a want can both matter—but not in the same way.",
         body: "A need is something important for basic living or an essential purpose. A want is something you would like but can usually delay or choose not to buy.",
         example: "In everyday life, food needed for a meal is different from buying an extra collectible simply because you like it.",

@@ -18,9 +18,9 @@ const CONTENT = {
     chips: ["Fixed terms", "Clear maturity value", "Earned DT only"],
   },
   learn: {
-    eyebrow: "Money Lab",
+    eyebrow: "Financial Foundations",
     title: "Learn how money works by doing.",
-    text: "Short interactive lessons will explain saving, interest, bonds, needs versus wants, and risk versus return. Money Lab arrives in Phase 4.",
+    text: "Structured foundation lessons explain saving, interest, bonds, priorities and risk versus return.",
     icon: "▦",
     chips: ["1–2 minute lessons", "Interactive examples", "One-time DT rewards"],
   },

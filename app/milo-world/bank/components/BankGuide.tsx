@@ -1,49 +1,49 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { BankScreenMode, BankTab } from "../lib/bank-types";
+import type { BankScreenMode, BankSection } from "../lib/bank-types";
 
-const GUIDE_STORAGE_KEY = "milo-bank-guide-seen-v1";
+const GUIDE_STORAGE_KEY = "milo-bank-guide-seen-v3";
 
 const STEPS: Array<{
   eyebrow: string;
   title: string;
   body: string;
-  tab?: BankTab;
+  section?: BankSection;
 }> = [
   {
     eyebrow: "Welcome",
-    title: "This is Milo’s Bank.",
-    body: "Your Bank brings your Dream Tokens into one place. You can see what is available, set DT aside, learn how Bonds work and build money skills.",
+    title: "Milo’s Bank is now your financial learning centre.",
+    body: "The Bank is organised around four areas: Learn, Practise, My Money and My Progress. Use them together to understand money, make decisions and follow how your financial skills develop.",
   },
   {
-    eyebrow: "Wallet",
-    title: "Know what you can use now.",
-    body: "Wallet shows the DT currently available to spend, what moved this month and your recent Bank statement.",
-    tab: "wallet",
+    eyebrow: "Learn",
+    title: "Understand the ideas first.",
+    body: "Learn is where the financial curriculum lives. Financial Foundations is the first live course here, with future pathways for banking, markets, money decisions and business.",
+    section: "learn",
   },
   {
-    eyebrow: "Savings Goals",
-    title: "Set DT aside for a purpose.",
-    body: "Savings Goals reserve DT so they cannot be spent elsewhere until you move them back to your Wallet.",
-    tab: "savings",
+    eyebrow: "Practise",
+    title: "Use financial ideas in realistic situations.",
+    body: "Practise is being designed around budgets, simulations and cases. The aim is not just to find a correct answer, but to understand consequences and trade-offs.",
+    section: "practise",
   },
   {
-    eyebrow: "Bank Bonds",
-    title: "Learn about time and fixed returns.",
-    body: "Eligible earned DT can be locked into fictional Dreamscape Bonds. When a Bond matures, its principal unlocks and its fixed game return can be collected.",
-    tab: "bonds",
+    eyebrow: "My Money",
+    title: "Your real Dreamscape finance tools stay together.",
+    body: "Wallet, Savings Goals, Bank Bonds and your DT Statement now live inside My Money. The underlying balances and protections work exactly as before.",
+    section: "money",
   },
   {
-    eyebrow: "Money Lab",
-    title: "Learn the ideas behind the systems.",
-    body: "Money Lab has short interactive lessons on saving, interest, Bonds, risk, returns, needs and wants. Each lesson gives its DT reward once.",
-    tab: "learn",
+    eyebrow: "My Progress",
+    title: "Track development, not just scores.",
+    body: "Your milestones, Financial Foundations history and early skill evidence now live here. Future simulations and cases will make the profile deeper over time.",
+    section: "progress",
   },
   {
     eyebrow: "You’re ready",
-    title: "Earn. Save. Learn. Grow.",
-    body: "Use the four Bank sections in any order. Your milestones track progress automatically, and you can reopen this guide whenever you want.",
+    title: "Learn. Practise. Manage. Improve.",
+    body: "Return to the Bank overview whenever you want to choose a different direction. You can reopen this guide from the header at any time.",
   },
 ];
 
@@ -55,12 +55,12 @@ export function hasSeenBankGuide() {
 export default function BankGuide({
   open,
   onClose,
-  onChangeTab,
+  onChangeSection,
   screenMode,
 }: {
   open: boolean;
   onClose: () => void;
-  onChangeTab: (tab: BankTab) => void;
+  onChangeSection: (section: BankSection) => void;
   screenMode: BankScreenMode;
 }) {
   const [stepIndex, setStepIndex] = useState(0);
@@ -73,9 +73,9 @@ export default function BankGuide({
   }, [open]);
 
   useEffect(() => {
-    if (!open || !step.tab) return;
-    onChangeTab(step.tab);
-  }, [onChangeTab, open, step.tab]);
+    if (!open || !step.section) return;
+    onChangeSection(step.section);
+  }, [onChangeSection, open, step.section]);
 
   useEffect(() => {
     if (!open) return;
@@ -94,7 +94,6 @@ export default function BankGuide({
   }
 
   if (!open) return null;
-
   const isLast = stepIndex === STEPS.length - 1;
 
   return (
@@ -107,7 +106,7 @@ export default function BankGuide({
         right: isMobile ? "10px" : "22px",
         left: isMobile ? "10px" : "auto",
         bottom: isMobile ? "10px" : "22px",
-        width: isMobile ? "auto" : "min(390px, calc(100vw - 44px))",
+        width: isMobile ? "auto" : "min(410px, calc(100vw - 44px))",
         borderRadius: isMobile ? "22px" : "24px",
         border: "1px solid rgba(126,232,255,0.24)",
         background:
@@ -140,87 +139,30 @@ export default function BankGuide({
           M
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div
-            style={{
-              color: "#8ee8ff",
-              fontSize: "8px",
-              fontWeight: 900,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-            }}
-          >
+          <div style={{ color: "#8ee8ff", fontSize: "8px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>
             Milo’s Guide · {stepIndex + 1}/{STEPS.length}
           </div>
-          <strong style={{ display: "block", marginTop: "3px", fontSize: "13px" }}>
-            {step.eyebrow}
-          </strong>
+          <strong style={{ display: "block", marginTop: "3px", fontSize: "13px" }}>{step.eyebrow}</strong>
         </div>
-        <button type="button" onClick={finish} aria-label="Close guide" style={closeStyle}>
-          ×
-        </button>
+        <button type="button" onClick={finish} aria-label="Close guide" style={closeStyle}>×</button>
       </div>
 
-      <h3
-        style={{
-          margin: "15px 0 0",
-          fontFamily: 'Georgia, "Times New Roman", serif',
-          fontSize: isMobile ? "27px" : "30px",
-          lineHeight: 1.05,
-          fontWeight: 500,
-          letterSpacing: "-0.025em",
-        }}
-      >
+      <h3 style={{ margin: "15px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "27px" : "30px", lineHeight: 1.05, fontWeight: 500, letterSpacing: "-0.025em" }}>
         {step.title}
       </h3>
-      <p
-        style={{
-          margin: "10px 0 0",
-          color: "rgba(255,255,255,0.56)",
-          fontSize: "12px",
-          lineHeight: 1.58,
-        }}
-      >
+      <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,0.56)", fontSize: "12px", lineHeight: 1.58 }}>
         {step.body}
       </p>
 
-      <div
-        aria-hidden="true"
-        style={{
-          marginTop: "15px",
-          display: "grid",
-          gridTemplateColumns: `repeat(${STEPS.length}, minmax(0,1fr))`,
-          gap: "5px",
-        }}
-      >
+      <div aria-hidden="true" style={{ marginTop: "15px", display: "grid", gridTemplateColumns: `repeat(${STEPS.length}, minmax(0,1fr))`, gap: "5px" }}>
         {STEPS.map((_, index) => (
-          <span
-            key={index}
-            style={{
-              height: "4px",
-              borderRadius: "999px",
-              background:
-                index <= stepIndex ? "#8ee8ff" : "rgba(255,255,255,0.09)",
-            }}
-          />
+          <span key={index} style={{ height: "4px", borderRadius: "999px", background: index <= stepIndex ? "#8ee8ff" : "rgba(255,255,255,0.09)" }} />
         ))}
       </div>
 
-      <div
-        style={{
-          marginTop: "16px",
-          display: "grid",
-          gridTemplateColumns: stepIndex === 0 ? "1fr" : "0.8fr 1.2fr",
-          gap: "8px",
-        }}
-      >
+      <div style={{ marginTop: "16px", display: "grid", gridTemplateColumns: stepIndex === 0 ? "1fr" : "0.8fr 1.2fr", gap: "8px" }}>
         {stepIndex > 0 && (
-          <button
-            type="button"
-            onClick={() => setStepIndex((current) => Math.max(0, current - 1))}
-            style={secondaryStyle}
-          >
-            Back
-          </button>
+          <button type="button" onClick={() => setStepIndex((current) => Math.max(0, current - 1))} style={secondaryStyle}>Back</button>
         )}
         <button
           type="button"

@@ -25,11 +25,11 @@ function messageFrom(error: unknown) {
         message,
       )
     ) {
-      return "Money Lab setup is missing. Run PHASE-4A-MONEY-LAB.sql and refresh the page.";
+      return "Financial Foundations setup is missing. Run PHASE-4A-MONEY-LAB.sql and refresh the page.";
     }
 
     if (/permission denied|row-level security|rls/i.test(message)) {
-      return "Money Lab could not access your progress. Check the Phase 4A Money Lab RLS policies and refresh the page.";
+      return "Financial Foundations could not access your progress. Check the Phase 4A Financial Foundations RLS policies and refresh the page.";
     }
 
     return message;
@@ -39,7 +39,7 @@ function messageFrom(error: unknown) {
     return error;
   }
 
-  return "Money Lab could not be loaded.";
+  return "Financial Foundations could not be loaded.";
 }
 
 export function useMoneyLab(isLoggedIn: boolean) {

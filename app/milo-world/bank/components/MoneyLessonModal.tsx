@@ -89,13 +89,13 @@ export default function MoneyLessonModal({
             <h2 style={{ margin: "9px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "42px", lineHeight: 1, fontWeight: 500 }}>{lesson.shortTitle} unlocked.</h2>
             <p style={{ margin: "15px auto 0", maxWidth: "500px", color: "rgba(255,255,255,0.57)", fontSize: "13px", lineHeight: 1.65 }}>
               {completion.newlyCompleted
-                ? `${completion.rewardAmount} DT has been added to your Wallet. Each Money Lab lesson rewards DT once only.`
+                ? `${completion.rewardAmount} DT has been added to your Wallet. Each Financial Foundations lesson rewards DT once only.`
                 : "You already completed this lesson earlier, so no additional DT was awarded."}
             </p>
             {completion.newlyCompleted && (
               <div style={{ margin: "22px auto 0", width: "fit-content", borderRadius: "16px", border: "1px solid rgba(255,209,138,0.30)", background: "rgba(255,190,90,0.08)", padding: "13px 18px", color: "#ffd18a", fontSize: "20px", fontWeight: 900 }}>+{completion.rewardAmount} DT</div>
             )}
-            <button type="button" onClick={onClose} style={{ marginTop: "24px", minHeight: "48px", padding: "0 24px", borderRadius: "14px", border: "1px solid rgba(126,232,255,0.36)", background: "rgba(83,215,255,0.12)", color: "white", cursor: "pointer", fontFamily: "inherit", fontSize: "11px", fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase" }}>Back to Money Lab</button>
+            <button type="button" onClick={onClose} style={{ marginTop: "24px", minHeight: "48px", padding: "0 24px", borderRadius: "14px", border: "1px solid rgba(126,232,255,0.36)", background: "rgba(83,215,255,0.12)", color: "white", cursor: "pointer", fontFamily: "inherit", fontSize: "11px", fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase" }}>Back to Financial Foundations</button>
           </div>
         ) : (
           <>

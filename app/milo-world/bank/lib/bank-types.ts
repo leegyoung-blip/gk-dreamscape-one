@@ -1,6 +1,8 @@
 export type BankScreenMode = "desktop" | "compact" | "mobile";
 
-export type BankTab = "wallet" | "savings" | "bonds" | "learn";
+export type BankSection = "learn" | "practise" | "money" | "progress";
+
+export type MyMoneyTab = "wallet" | "savings" | "bonds" | "statement";
 
 export type TokenPackage = {
   name: string;

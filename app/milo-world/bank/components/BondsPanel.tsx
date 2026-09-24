@@ -18,9 +18,15 @@ function formatDt(value: number) {
 export default function BondsPanel({
   screenMode,
   isLoggedIn,
+  hasMiloFinanceAccess,
+  accessLoading,
+  onOpenUpgrade,
 }: {
   screenMode: BankScreenMode;
   isLoggedIn: boolean;
+  hasMiloFinanceAccess: boolean;
+  accessLoading: boolean;
+  onOpenUpgrade: () => void;
 }) {
   const isMobile = screenMode === "mobile";
   const bonds = useBankBonds();
@@ -312,7 +318,10 @@ export default function BondsPanel({
               product={product}
               eligibleDt={bonds.eligibility.eligibleDt}
               screenMode={screenMode}
+              hasMiloFinanceAccess={hasMiloFinanceAccess}
+              accessLoading={accessLoading}
               onSelect={setPurchaseProduct}
+              onOpenUpgrade={onOpenUpgrade}
             />
           ))}
         </div>

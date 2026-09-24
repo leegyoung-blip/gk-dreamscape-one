@@ -20,6 +20,7 @@ type BondProductRow = {
   badge: string | null;
   sort_order: number | string;
   is_active: boolean;
+  access_tier: "free" | "milo_finance";
 };
 
 type BondHoldingRow = {
@@ -74,6 +75,7 @@ function toBondProduct(row: BondProductRow): BondProduct {
     badge: row.badge,
     sortOrder: Number(row.sort_order || 0),
     isActive: Boolean(row.is_active),
+    accessTier: row.access_tier || "free",
   };
 }
 
@@ -133,7 +135,7 @@ export async function listBondProducts(includeInactive = false) {
   let query = supabase
     .from("milo_bank_bond_products")
     .select(
-      "id,code,name,description,term_days,return_rate_bps,min_investment,max_investment,badge,sort_order,is_active",
+      "id,code,name,description,term_days,return_rate_bps,min_investment,max_investment,badge,sort_order,is_active,access_tier",
     )
     .order("sort_order", { ascending: true })
     .order("term_days", { ascending: true });

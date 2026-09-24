@@ -13,6 +13,7 @@ export type BondProduct = {
   badge: string | null;
   sortOrder: number;
   isActive: boolean;
+  accessTier: "free" | "milo_finance";
 };
 
 export type BondHolding = {

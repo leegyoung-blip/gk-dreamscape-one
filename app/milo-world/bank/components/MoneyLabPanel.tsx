@@ -30,7 +30,7 @@ export default function MoneyLabPanel({
         <div style={{ maxWidth: "530px" }}>
           <div style={{ width: "66px", height: "66px", margin: "0 auto", borderRadius: "21px", border: "1px solid rgba(126,232,255,0.24)", background: "rgba(83,215,255,0.08)", color: "#8ee8ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "27px" }}>▦</div>
           <h2 style={{ margin: "18px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "34px" : "42px", lineHeight: 1, fontWeight: 500 }}>Learn money by doing.</h2>
-          <p style={{ margin: "14px auto 0", color: "rgba(255,255,255,0.54)", fontSize: "13px", lineHeight: 1.6 }}>Log in to complete Money Lab lessons, track your progress and earn each lesson’s DT reward once.</p>
+          <p style={{ margin: "14px auto 0", color: "rgba(255,255,255,0.54)", fontSize: "13px", lineHeight: 1.6 }}>Log in to complete Financial Foundations lessons, track your progress and earn each lesson’s DT reward once.</p>
           <a href="/login" style={{ marginTop: "20px", minHeight: "48px", padding: "0 20px", borderRadius: "13px", border: "1px solid rgba(126,232,255,0.38)", background: "rgba(83,215,255,0.12)", color: "white", textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 900, letterSpacing: "0.07em", textTransform: "uppercase" }}>Log In</a>
         </div>
       </section>
@@ -40,9 +40,9 @@ export default function MoneyLabPanel({
   return (
     <section style={{ marginTop: "18px" }}>
       <div style={{ borderRadius: isMobile ? "24px" : "28px", border: "1px solid rgba(126,232,255,0.16)", background: "radial-gradient(circle at 85% 0%, rgba(133,98,230,0.10), transparent 32%), radial-gradient(circle at 10% 10%, rgba(83,215,255,0.09), transparent 28%), linear-gradient(145deg, rgba(7,28,50,0.88), rgba(5,11,28,0.94))", padding: isMobile ? "20px" : "26px 28px", boxShadow: "0 24px 70px rgba(0,0,0,0.20)" }}>
-        <p style={{ margin: 0, color: "#8ee8ff", fontSize: "10px", fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase" }}>Money Lab</p>
-        <h2 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "36px" : "44px", lineHeight: 1, fontWeight: 500, letterSpacing: "-0.035em" }}>Learn it. Try it. Use it.</h2>
-        <p style={{ margin: "11px 0 0", maxWidth: "760px", color: "rgba(255,255,255,0.54)", fontSize: "13px", lineHeight: 1.6 }}>Six short lessons explain the money ideas used across Milo’s Bank and Exchange. Each lesson gives a one-time 5 DT completion reward.</p>
+        <p style={{ margin: 0, color: "#8ee8ff", fontSize: "10px", fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase" }}>Financial Foundations</p>
+        <h2 style={{ margin: "8px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "36px" : "44px", lineHeight: 1, fontWeight: 500, letterSpacing: "-0.035em" }}>Build the foundations.</h2>
+        <p style={{ margin: "11px 0 0", maxWidth: "760px", color: "rgba(255,255,255,0.54)", fontSize: "13px", lineHeight: 1.6 }}>Six focused lessons build the core ideas used across Milo’s Bank and Exchange. Each lesson gives a one-time 5 DT completion reward.</p>
 
         <div style={{ marginTop: "22px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.4fr repeat(2, minmax(0, 0.7fr))", gap: "10px" }}>
           <div style={{ borderRadius: "18px", border: "1px solid rgba(126,232,255,0.13)", background: "rgba(3,12,28,0.50)", padding: "16px" }}>
@@ -111,7 +111,7 @@ export default function MoneyLabPanel({
             fontSize: "10px",
           }}
         >
-          Loading your Money Lab progress…
+          Loading your Financial Foundations progress…
         </div>
       )}
 

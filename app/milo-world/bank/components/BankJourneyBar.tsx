@@ -56,7 +56,7 @@ export default function BankJourneyBar({
                 textTransform: "uppercase",
               }}
             >
-              Bank Journey
+              Financial Journey
             </div>
             <strong
               style={{

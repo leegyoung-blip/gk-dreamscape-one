@@ -58,6 +58,9 @@ type Props = {
   width: number;
   height: number;
   onTokenTransaction: (amount: number, description: string) => Promise<boolean>;
+  batteryCanStart?: boolean;
+  onBatteryBlocked?: () => void;
+  onGameplayActivityChange?: (active: boolean) => void;
 };
 
 const BOARD_SIZE = 20;
@@ -225,6 +228,9 @@ export default function MilosMixAndServe({
   width,
   height,
   onTokenTransaction,
+  batteryCanStart = true,
+  onBatteryBlocked,
+  onGameplayActivityChange,
 }: Props) {
   const compact = height < 760 || width < 1100;
   const [running, setRunning] = useState(false);
@@ -335,7 +341,20 @@ export default function MilosMixAndServe({
     setOrders(initial);
   }
 
+  useEffect(() => {
+    onGameplayActivityChange?.(running && !paused);
+  }, [onGameplayActivityChange, paused, running]);
+
+  useEffect(() => {
+    return () => onGameplayActivityChange?.(false);
+  }, [onGameplayActivityChange]);
+
   function startStage() {
+    if (!batteryCanStart) {
+      onBatteryBlocked?.();
+      return false;
+    }
+
     resetStageState();
     currentStageRunId.current += 1;
     setShowGuide(false);
@@ -343,6 +362,7 @@ export default function MilosMixAndServe({
     setPaused(false);
     setStatus("Burger Basics started. Customer clocks will begin after you serve the first order.");
     window.setTimeout(fillInitialOrders, 0);
+    return true;
   }
 
   function completeStage(success: boolean, failuresOverride?: number) {

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { BankAccountSnapshot, BankScreenMode } from "../lib/bank-types";
 import TokenPurchaseModal from "./TokenPurchaseModal";
-import TransactionHistory from "./TransactionHistory";
 
 function formatDt(value: number) {
   return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DT`;
@@ -144,7 +143,7 @@ export default function WalletPanel({
             }}
           >
             DT available to use across Dreamscape after Savings and active Bond
-            principal are set aside. Move between the Bank tabs to manage each part.
+            principal are set aside. Use the My Money tools to manage each part.
           </p>
 
           <div
@@ -261,12 +260,6 @@ export default function WalletPanel({
         </div>
       </section>
 
-      <TransactionHistory
-        transactions={account.transactions}
-        loading={loading}
-        isLoggedIn={isLoggedIn}
-        screenMode={screenMode}
-      />
 
       <TokenPurchaseModal
         open={topUpOpen}

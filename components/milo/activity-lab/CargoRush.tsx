@@ -10,6 +10,9 @@ type CargoRushProps = {
   width: number;
   height: number;
   onTokenTransaction: (amount: number, description: string) => Promise<boolean>;
+  batteryCanStart?: boolean;
+  onBatteryBlocked?: () => void;
+  onGameplayActivityChange?: (active: boolean) => void;
 };
 
 type CargoBay = {
@@ -127,6 +130,9 @@ export default function CargoRush({
   width,
   height,
   onTokenTransaction,
+  batteryCanStart = true,
+  onBatteryBlocked,
+  onGameplayActivityChange,
 }: CargoRushProps) {
   const [showInstructions, setShowInstructions] = useState(true);
   const [startGuidePending, setStartGuidePending] = useState(true);
@@ -364,6 +370,14 @@ export default function CargoRush({
     }
   }, [phoneLandscape, running, paused]);
 
+  useEffect(() => {
+    onGameplayActivityChange?.(running && !paused);
+  }, [onGameplayActivityChange, paused, running]);
+
+  useEffect(() => {
+    return () => onGameplayActivityChange?.(false);
+  }, [onGameplayActivityChange]);
+
   function showRouteFeedback(
     tone: RouteFeedback["tone"],
     title: string,
@@ -381,6 +395,11 @@ export default function CargoRush({
   }
 
   function startRun() {
+    if (!batteryCanStart) {
+      onBatteryBlocked?.();
+      return false;
+    }
+
     currentRunId.current += 1;
     setCompletedRunId(null);
     setRewardState("idle");
@@ -399,12 +418,13 @@ export default function CargoRush({
     setRunning(true);
     spawnAccumulator.current = 0;
     lastFrameAt.current = null;
+    return true;
   }
 
   function startRunFromGuide() {
+    if (!startRun()) return;
     setStartGuidePending(false);
     setShowInstructions(false);
-    startRun();
   }
 
   function togglePause() {

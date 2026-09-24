@@ -45,7 +45,7 @@ export async function completeMoneyLabLesson(
 
   const raw = Array.isArray(data) ? data[0] : data;
   const row = raw as CompletionRow | undefined;
-  if (!row) throw new Error("Money Lab completion did not return a result.");
+  if (!row) throw new Error("Financial Foundations completion did not return a result.");
 
   return {
     ...toProgress(row),

@@ -100,7 +100,7 @@ export default function BankAchievementsModal({
                 textTransform: "uppercase",
               }}
             >
-              Bank Journey
+              Financial Journey
             </p>
             <h2
               style={{
@@ -151,7 +151,7 @@ export default function BankAchievementsModal({
 
         {!isLoggedIn ? (
           <div style={messageBoxStyle}>
-            Log in to track your Bank milestones across Savings, Bonds and Money Lab.
+            Log in to track your Bank milestones across Savings, Bonds and Financial Foundations.
           </div>
         ) : error ? (
           <div style={messageBoxStyle}>

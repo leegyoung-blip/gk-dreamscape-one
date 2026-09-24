@@ -1,32 +1,47 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import BankAchievementsModal from "./components/BankAchievementsModal";
 import BankGuide, { hasSeenBankGuide } from "./components/BankGuide";
 import BankHeader from "./components/BankHeader";
-import BankJourneyBar from "./components/BankJourneyBar";
+import BankHomeDashboard from "./components/BankHomeDashboard";
 import BankNavigation from "./components/BankNavigation";
-import BankOverview from "./components/BankOverview";
-import BondsPanel from "./components/BondsPanel";
-import MoneyLabPanel from "./components/MoneyLabPanel";
-import SavingsGoalsPanel from "./components/SavingsGoalsPanel";
-import WalletPanel from "./components/WalletPanel";
+import LearnSection from "./components/LearnSection";
+import MyMoneyPanel from "./components/MyMoneyPanel";
+import PractiseSection from "./components/PractiseSection";
+import ProgressSection from "./components/ProgressSection";
 import { useBankAccount } from "./hooks/useBankAccount";
 import { useBankAchievements } from "./hooks/useBankAchievements";
 import { useBankResponsive } from "./hooks/useBankResponsive";
-import type { BankTab } from "./lib/bank-types";
+import { useFinancialProgress } from "./hooks/useFinancialProgress";
+import { useMiloFinanceAccess } from "./hooks/useMiloFinanceAccess";
+import MiloFinanceBadge from "./components/MiloFinanceBadge";
+import MiloFinanceUpgradeModal from "./components/MiloFinanceUpgradeModal";
+import type { BankSection } from "./lib/bank-types";
 
 export default function MiloBankPage() {
   const screenMode = useBankResponsive();
   const isMobile = screenMode === "mobile";
-  const [activeTab, setActiveTab] = useState<BankTab>("wallet");
+  const [activeSection, setActiveSection] = useState<BankSection | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
+  const [financeUpgradeOpen, setFinanceUpgradeOpen] = useState(false);
   const { account, loading, isLoggedIn } = useBankAccount();
   const achievements = useBankAchievements(isLoggedIn);
+  const financialProgress = useFinancialProgress(isLoggedIn);
+  const financeAccess = useMiloFinanceAccess(isLoggedIn);
 
   useEffect(() => {
     if (!hasSeenBankGuide()) setGuideOpen(true);
+  }, []);
+
+  const openSection = useCallback((section: BankSection) => {
+    setActiveSection(section);
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
   }, []);
 
   return (
@@ -93,7 +108,7 @@ export default function MiloBankPage() {
         <div
           style={{
             textAlign: "center",
-            marginBottom: isMobile ? "26px" : "34px",
+            marginBottom: isMobile ? "22px" : "28px",
           }}
         >
           <p
@@ -106,12 +121,21 @@ export default function MiloBankPage() {
               textTransform: "uppercase",
             }}
           >
-            Milo’s World · Financial Hub
+            Milo’s World · Financial Learning Centre
           </p>
 
-          <h1
+          <button
+            type="button"
+            onClick={() => setActiveSection(null)}
+            aria-label="Return to Milo’s Bank overview"
             style={{
-              margin: "11px 0 0",
+              display: "block",
+              margin: "11px auto 0",
+              padding: 0,
+              border: 0,
+              background: "transparent",
+              color: "white",
+              cursor: activeSection ? "pointer" : "default",
               fontFamily: 'Georgia, "Times New Roman", serif',
               fontSize: isMobile
                 ? "clamp(46px, 14vw, 64px)"
@@ -123,72 +147,148 @@ export default function MiloBankPage() {
             }}
           >
             Milo’s Bank
-          </h1>
+          </button>
 
           <p
             style={{
               margin: "15px auto 0",
+              maxWidth: "740px",
               color: "rgba(255,255,255,0.58)",
               fontSize: isMobile ? "13px" : "15px",
               lineHeight: 1.6,
             }}
           >
-            Save. Plan. Grow.
+            Learn how money works. Put it into practice. See how your decisions improve.
           </p>
+
+          {!financeAccess.loading && (
+            <div style={{ marginTop: "12px" }}>
+              {financeAccess.hasAccess ? (
+                <MiloFinanceBadge active />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setFinanceUpgradeOpen(true)}
+                  style={{
+                    border: 0,
+                    background: "transparent",
+                    padding: 0,
+                    cursor: "pointer",
+                  }}
+                >
+                  <MiloFinanceBadge />
+                </button>
+              )}
+            </div>
+          )}
+
+          {activeSection && (
+            <button
+              type="button"
+              onClick={() => setActiveSection(null)}
+              style={{
+                marginTop: "12px",
+                minHeight: "34px",
+                padding: "0 12px",
+                borderRadius: "999px",
+                border: "1px solid rgba(126,232,255,0.14)",
+                background: "rgba(3,12,29,0.42)",
+                color: "rgba(255,255,255,0.58)",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: "9px",
+                fontWeight: 850,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+              }}
+            >
+              ← Bank Overview
+            </button>
+          )}
         </div>
 
-        <BankOverview
-          account={account}
-          loading={loading}
-          screenMode={screenMode}
-        />
-
         <BankNavigation
-          activeTab={activeTab}
-          onChange={setActiveTab}
+          activeSection={activeSection}
+          onChange={openSection}
           screenMode={screenMode}
         />
 
-        <BankJourneyBar
-          screenMode={screenMode}
-          unlockedCount={achievements.unlockedCount}
-          totalCount={achievements.totalCount}
-          progressPercent={achievements.progressPercent}
-          loading={achievements.loading}
-          onOpenAchievements={() => setAchievementsOpen(true)}
-          onOpenGuide={() => setGuideOpen(true)}
-        />
+        {activeSection === null && (
+          <BankHomeDashboard
+            account={account}
+            loading={loading}
+            screenMode={screenMode}
+            unlockedCount={achievements.unlockedCount}
+            totalMilestones={achievements.totalCount}
+            milestoneProgress={achievements.progressPercent}
+            foundationCompleted={financialProgress.foundationCompleted}
+            foundationTotal={financialProgress.foundationTotal}
+            onOpenSection={openSection}
+          />
+        )}
 
-        {activeTab === "wallet" && (
-          <WalletPanel
+        {activeSection === "learn" && (
+          <LearnSection
+            screenMode={screenMode}
+            isLoggedIn={isLoggedIn}
+            hasMiloFinanceAccess={financeAccess.hasAccess}
+            accessLoading={financeAccess.loading}
+            onOpenUpgrade={() => setFinanceUpgradeOpen(true)}
+          />
+        )}
+
+        {activeSection === "practise" && (
+          <PractiseSection
+            screenMode={screenMode}
+            hasMiloFinanceAccess={financeAccess.hasAccess}
+            accessLoading={financeAccess.loading}
+            onOpenUpgrade={() => setFinanceUpgradeOpen(true)}
+          />
+        )}
+
+        {activeSection === "money" && (
+          <MyMoneyPanel
             account={account}
             loading={loading}
             isLoggedIn={isLoggedIn}
             screenMode={screenMode}
+            hasMiloFinanceAccess={financeAccess.hasAccess}
+            accessLoading={financeAccess.loading}
+            onOpenUpgrade={() => setFinanceUpgradeOpen(true)}
           />
         )}
 
-        {activeTab === "savings" && (
-          <SavingsGoalsPanel
+        {activeSection === "progress" && (
+          <ProgressSection
             screenMode={screenMode}
-            isLoggedIn={isLoggedIn}
-            availableDt={account.available}
+            unlockedCount={achievements.unlockedCount}
+            totalCount={achievements.totalCount}
+            progressPercent={achievements.progressPercent}
+            milestonesLoading={achievements.loading}
+            progress={financialProgress}
+            progressLoading={financialProgress.loading}
+            progressError={financialProgress.error}
+            onRetryProgress={financialProgress.refresh}
+            onOpenAchievements={() => setAchievementsOpen(true)}
+            onOpenGuide={() => setGuideOpen(true)}
+            hasMiloFinanceAccess={financeAccess.hasAccess}
+            accessLoading={financeAccess.loading}
+            onOpenUpgrade={() => setFinanceUpgradeOpen(true)}
           />
-        )}
-
-        {activeTab === "bonds" && (
-          <BondsPanel screenMode={screenMode} isLoggedIn={isLoggedIn} />
-        )}
-
-        {activeTab === "learn" && (
-          <MoneyLabPanel screenMode={screenMode} isLoggedIn={isLoggedIn} />
         )}
       </section>
 
       <BankGuide
         open={guideOpen}
         onClose={() => setGuideOpen(false)}
-        onChangeTab={setActiveTab}
+        onChangeSection={openSection}
+        screenMode={screenMode}
+      />
+
+
+      <MiloFinanceUpgradeModal
+        open={financeUpgradeOpen}
+        onClose={() => setFinanceUpgradeOpen(false)}
         screenMode={screenMode}
       />
 

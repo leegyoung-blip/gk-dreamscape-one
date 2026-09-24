@@ -1,16 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 import MasteryCodeQuickPlay from "@/components/milo/activity-lab/MasteryCodeQuickPlay";
 import MasteryCodeSurvival from "@/components/milo/activity-lab/MasteryCodeSurvival";
 import CargoRush from "@/components/milo/activity-lab/CargoRush";
 import MilosMixAndServe from "@/components/milo/activity-lab/MilosMixAndServe";
+import ActivityLabBatteryMeter from "@/components/milo/activity-lab/ActivityLabBatteryMeter";
+import ActivityLabTopUpModal from "@/components/milo/activity-lab/ActivityLabTopUpModal";
+import { useActivityLabBattery } from "@/hooks/useActivityLabBattery";
 
 type ActivityMode = "mastery" | "cargo" | "merge";
 type MasteryMode = "quick" | "survival";
+
+const BATTERY_MINIMUM_START_SECONDS = 60;
 
 type ActivityMenuProps = {
   activeMode: ActivityMode;
@@ -358,6 +363,66 @@ export default function ActivityLabPage() {
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [dreamTokens, setDreamTokens] = useState(0);
+  const [batteryPanelOpen, setBatteryPanelOpen] = useState(false);
+  const [topUpOpen, setTopUpOpen] = useState(false);
+  const [activeBatteryGame, setActiveBatteryGame] = useState<string | null>(null);
+  const [masterySessionActive, setMasterySessionActive] = useState(false);
+  const [batteryDepletedDuringRun, setBatteryDepletedDuringRun] = useState(false);
+
+  const batteryGameKey = activeBatteryGame ?? (masterySessionActive ? "mastery_code" : undefined);
+  const battery = useActivityLabBattery({
+    userId,
+    gameKey: batteryGameKey,
+    shouldDrain: Boolean(userId && batteryGameKey),
+    onDepleted: () => {
+      setBatteryDepletedDuringRun(true);
+      setBatteryPanelOpen(true);
+    },
+  });
+
+  const batteryBusyElsewhere = Boolean(
+    userId && battery.state?.isDraining && !battery.ownsDrainSession,
+  );
+  const batteryReadyForNewRun = !userId || (
+    battery.status !== "loading" &&
+    battery.status !== "error" &&
+    !batteryBusyElsewhere &&
+    battery.remainingSeconds >= BATTERY_MINIMUM_START_SECONDS
+  );
+
+  const setGameplayState = useCallback((gameKey: string, active: boolean) => {
+    setActiveBatteryGame((current) => {
+      if (active) return gameKey;
+      return current === gameKey ? null : current;
+    });
+    if (active) setBatteryDepletedDuringRun(false);
+  }, []);
+
+  const handleCargoGameplay = useCallback(
+    (active: boolean) => setGameplayState("cargo_rush", active),
+    [setGameplayState],
+  );
+  const handleMixServeGameplay = useCallback(
+    (active: boolean) => setGameplayState("mix_and_serve", active),
+    [setGameplayState],
+  );
+
+  function openBatteryGate() {
+    setBatteryPanelOpen(true);
+  }
+
+  function startMasteryBatterySession() {
+    if (!batteryReadyForNewRun) {
+      setBatteryPanelOpen(true);
+      return;
+    }
+    setBatteryDepletedDuringRun(false);
+    setMasterySessionActive(true);
+  }
+
+  useEffect(() => {
+    if (activeMode !== "mastery") setMasterySessionActive(false);
+  }, [activeMode]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -385,6 +450,15 @@ export default function ActivityLabPage() {
 
     if (play === "survival" || play === "quick") {
       setMasteryMode(play);
+    }
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const creditStatus = params.get("credits");
+    if (creditStatus === "success") {
+      setBatteryPanelOpen(false);
+      setTopUpOpen(true);
     }
   }, []);
 
@@ -467,6 +541,7 @@ export default function ActivityLabPage() {
   }
 
   function selectMode(mode: ActivityMode) {
+    if (mode !== "mastery") setMasterySessionActive(false);
     setActiveMode(mode);
     setMenuOpen(false);
     syncUrl(mode);
@@ -625,6 +700,27 @@ export default function ActivityLabPage() {
         )}
 
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <ActivityLabBatteryMeter
+            mobile={mobile}
+            userId={userId}
+            open={batteryPanelOpen}
+            onOpen={() => setBatteryPanelOpen(true)}
+            onClose={() => setBatteryPanelOpen(false)}
+            onAddTime={() => { setBatteryPanelOpen(false); setTopUpOpen(true); }}
+            remainingSeconds={battery.remainingSeconds}
+            baseBatterySeconds={battery.baseBatterySeconds}
+            bonusSeconds={battery.bonusSeconds}
+            capacitySeconds={battery.capacitySeconds}
+            percentage={battery.percentage}
+            status={battery.status}
+            error={battery.error}
+            state={battery.state}
+            isDraining={battery.isDraining}
+            ownsDrainSession={battery.ownsDrainSession}
+            activeGameplay={Boolean(activeBatteryGame || masterySessionActive)}
+            minimumStartSeconds={BATTERY_MINIMUM_START_SECONDS}
+          />
+
           <Link
             href={userId ? "/profile" : "/login"}
             style={{ ...navButtonStyle, border: "1px solid rgba(126,232,255,0.3)" }}
@@ -692,6 +788,7 @@ export default function ActivityLabPage() {
 
         <article
           style={{
+            position: "relative",
             minWidth: 0,
             minHeight: 0,
             height: fixedGame ? "100%" : needsVerticalScroll ? "max-content" : "100%",
@@ -715,6 +812,11 @@ export default function ActivityLabPage() {
                   : "18px",
           }}
         >
+          {userId && batteryDepletedDuringRun && (activeBatteryGame || masterySessionActive) && (
+            <div style={{ position: "absolute", top: 9, right: 9, zIndex: 45, maxWidth: mobile ? "calc(100% - 18px)" : 360, borderRadius: 12, border: "1px solid rgba(255,113,135,.25)", background: "rgba(40,9,18,.94)", boxShadow: "0 12px 34px rgba(0,0,0,.3)", padding: "8px 11px", color: "#ffdce2", fontSize: 9, lineHeight: 1.4 }}>
+              <strong style={{ color: "#ff9ca7" }}>Battery empty.</strong> Finish the current run; recharge begins when gameplay stops.
+            </div>
+          )}
           {activeMode === "mastery" ? (
             <div
               style={{
@@ -785,6 +887,15 @@ export default function ActivityLabPage() {
                   >
                     Survival
                   </button>
+                  {userId && masterySessionActive && (
+                    <button
+                      type="button"
+                      onClick={() => setMasterySessionActive(false)}
+                      style={{ ...masteryToggleStyle(false), border: "1px solid rgba(255,214,111,.22)", color: "#ffd66f" }}
+                    >
+                      End Session
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -795,7 +906,21 @@ export default function ActivityLabPage() {
                   overflow: needsVerticalScroll ? "visible" : "hidden",
                 }}
               >
-                {masteryMode === "quick" ? (
+                {userId && !masterySessionActive ? (
+                  <div style={{ height: "100%", minHeight: 320, display: "grid", placeItems: "center", padding: 16 }}>
+                    <div style={{ width: "min(620px,100%)", borderRadius: 22, border: "1px solid rgba(126,232,255,.18)", background: "linear-gradient(145deg,rgba(8,27,46,.88),rgba(4,13,27,.94))", padding: mobile ? 18 : 24, textAlign: "center" }}>
+                      <div style={{ width: 58, height: 58, margin: "0 auto", borderRadius: 18, display: "grid", placeItems: "center", border: "1px solid rgba(126,232,255,.22)", background: "rgba(83,215,255,.06)", color: "#8ee8ff", fontSize: 24 }}>⚡</div>
+                      <p style={{ margin: "14px 0 0", color: "#8ee8ff", fontSize: 9, fontWeight: 950, letterSpacing: ".14em" }}>ACTIVITY BATTERY</p>
+                      <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 28 : 36, fontWeight: 400 }}>Start a Mastery Code session</h3>
+                      <p style={{ margin: "9px auto 0", maxWidth: 490, color: "rgba(255,255,255,.48)", fontSize: 11, lineHeight: 1.55 }}>
+                        Battery drains while the Mastery Code session is open. Use End Session when you are finished so recharge can begin immediately.
+                      </p>
+                      <button type="button" onClick={startMasteryBatterySession} style={{ minHeight: 44, marginTop: 16, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(126,232,255,.3)", background: batteryReadyForNewRun ? "linear-gradient(135deg,#71e1ff,#56c9e8)" : "rgba(255,255,255,.05)", color: batteryReadyForNewRun ? "#03101a" : "rgba(255,255,255,.42)", fontSize: 11, fontWeight: 950, cursor: "pointer" }}>
+                        {batteryReadyForNewRun ? "Start Mastery Session" : "Battery Recharging"}
+                      </button>
+                    </div>
+                  </div>
+                ) : masteryMode === "quick" ? (
                   <MasteryCodeQuickPlay
                     userId={userId}
                     dreamTokens={dreamTokens}
@@ -827,6 +952,9 @@ export default function ActivityLabPage() {
               width={width}
               height={height}
               onTokenTransaction={addTokenTransaction}
+              batteryCanStart={!userId || activeBatteryGame === "cargo_rush" || batteryReadyForNewRun}
+              onBatteryBlocked={openBatteryGate}
+              onGameplayActivityChange={handleCargoGameplay}
             />
           ) : (
             <MilosMixAndServe
@@ -836,10 +964,21 @@ export default function ActivityLabPage() {
               width={width}
               height={height}
               onTokenTransaction={addTokenTransaction}
+              batteryCanStart={!userId || activeBatteryGame === "mix_and_serve" || batteryReadyForNewRun}
+              onBatteryBlocked={openBatteryGate}
+              onGameplayActivityChange={handleMixServeGameplay}
             />
           )}
         </article>
       </section>
+
+      <ActivityLabTopUpModal
+        mobile={mobile}
+        userId={userId}
+        open={topUpOpen}
+        onClose={() => setTopUpOpen(false)}
+        onBatteryRefresh={battery.refresh}
+      />
 
       {mobile && menuOpen && (
         <div
