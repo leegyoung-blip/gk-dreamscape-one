@@ -404,6 +404,9 @@ export default function CreatorClubPage() {
       leaderboardResponse,
       historyResponse,
       cycleResponse,
+      v2PlayCountsResponse,
+      v2LeaderboardResponse,
+      v2HistoryResponse,
     ] = await Promise.all([
       supabase.rpc("get_creator_club_quiz_catalog", { p_club_slug: slug }),
       supabase.rpc("get_creator_club_leaderboard", {
@@ -418,7 +421,68 @@ export default function CreatorClubPage() {
       supabase.rpc("get_creator_phase3_challenge_cycle", {
         p_club_id: nextClub.club_id,
       }),
+      supabase.rpc("get_creator_engine_play_counts_v2", {
+        p_club_id: nextClub.club_id,
+      }),
+      supabase.rpc("get_creator_engine_club_leaderboard_v2", {
+        p_club_id: nextClub.club_id,
+        p_limit: 100,
+      }),
+      currentUser
+        ? supabase.rpc("get_my_creator_engine_history_v2", {
+            p_club_id: nextClub.club_id,
+          })
+        : Promise.resolve({ data: [], error: null }),
     ]);
+
+    const v2HistoryRows = v2HistoryResponse.error
+      ? []
+      : ((v2HistoryResponse.data || []) as HistoryRow[]).map((row) => ({
+          ...row,
+          attempt_id: String(row.attempt_id),
+          quiz_id: String(row.quiz_id),
+          attempt_number: Number(row.attempt_number || 0),
+          correct_count: Number(row.correct_count || 0),
+          score_percent: Number(row.score_percent || 0),
+          total_points: Number(row.total_points || 0),
+          question_timer_seconds: Number(row.question_timer_seconds || 0),
+        }));
+
+    const v2Counts = new Map(
+      v2PlayCountsResponse.error
+        ? []
+        : ((v2PlayCountsResponse.data || []) as {
+            quiz_id: string;
+            completed_attempts: number;
+          }[]).map((row) => [
+            String(row.quiz_id),
+            Number(row.completed_attempts || 0),
+          ]),
+    );
+
+    const myV2ByQuiz = new Map<
+      string,
+      { attempts: number; bestPercent: number; bestPoints: number }
+    >();
+
+    for (const attempt of v2HistoryRows) {
+      const current = myV2ByQuiz.get(attempt.quiz_id) || {
+        attempts: 0,
+        bestPercent: 0,
+        bestPoints: 0,
+      };
+
+      current.attempts += 1;
+      current.bestPercent = Math.max(
+        current.bestPercent,
+        Number(attempt.score_percent || 0),
+      );
+      current.bestPoints = Math.max(
+        current.bestPoints,
+        Number(attempt.total_points || 0),
+      );
+      myV2ByQuiz.set(attempt.quiz_id, current);
+    }
 
     if (quizResponse.error) {
       setQuizzes([]);
@@ -427,42 +491,145 @@ export default function CreatorClubPage() {
       );
     } else {
       setQuizzes(
-        ((quizResponse.data || []) as QuizCatalogRow[]).map((quiz) => ({
-          ...quiz,
-          quiz_id: String(quiz.quiz_id),
-          total_completed_attempts: Number(quiz.total_completed_attempts || 0),
-          user_attempt_count: Number(quiz.user_attempt_count || 0),
-          user_best_percent: Number(quiz.user_best_percent || 0),
-          user_best_points: Number(quiz.user_best_points || 0),
-          is_current_challenge: false,
-        })),
+        ((quizResponse.data || []) as QuizCatalogRow[]).map((quiz) => {
+          const quizId = String(quiz.quiz_id);
+          const myV2 = myV2ByQuiz.get(quizId);
+
+          return {
+            ...quiz,
+            quiz_id: quizId,
+            total_completed_attempts:
+              Number(quiz.total_completed_attempts || 0) +
+              Number(v2Counts.get(quizId) || 0),
+            user_attempt_count:
+              Number(quiz.user_attempt_count || 0) +
+              Number(myV2?.attempts || 0),
+            user_best_percent: Math.max(
+              Number(quiz.user_best_percent || 0),
+              Number(myV2?.bestPercent || 0),
+            ),
+            user_best_points: Math.max(
+              Number(quiz.user_best_points || 0),
+              Number(myV2?.bestPoints || 0),
+            ),
+            is_current_challenge: false,
+          };
+        }),
       );
     }
 
-    setClubLeaderboard(
-      leaderboardResponse.error
-        ? []
-        : ((leaderboardResponse.data || []) as ClubLeaderboardRow[]).map((row) => ({
+    const oldLeaderboardRows = leaderboardResponse.error
+      ? []
+      : ((leaderboardResponse.data || []) as ClubLeaderboardRow[]).map(
+          (row) => ({
             ...row,
+            user_id: String(row.user_id),
             rank: Number(row.rank || 0),
             quizzes_completed: Number(row.quizzes_completed || 0),
             total_points: Number(row.total_points || 0),
             average_percent: Number(row.average_percent || 0),
-          })),
-    );
+          }),
+        );
+
+    const v2LeaderboardRows = v2LeaderboardResponse.error
+      ? []
+      : ((v2LeaderboardResponse.data || []) as ClubLeaderboardRow[]).map(
+          (row) => ({
+            ...row,
+            user_id: String(row.user_id),
+            rank: Number(row.rank || 0),
+            quizzes_completed: Number(row.quizzes_completed || 0),
+            total_points: Number(row.total_points || 0),
+            average_percent: Number(row.average_percent || 0),
+          }),
+        );
+
+    const combinedLeaderboard = new Map<string, ClubLeaderboardRow>();
+
+    for (const row of [...oldLeaderboardRows, ...v2LeaderboardRows]) {
+      const existing = combinedLeaderboard.get(row.user_id);
+
+      if (!existing) {
+        combinedLeaderboard.set(row.user_id, { ...row });
+        continue;
+      }
+
+      const oldQuizCount = Number(existing.quizzes_completed || 0);
+      const addedQuizCount = Number(row.quizzes_completed || 0);
+      const totalQuizCount = oldQuizCount + addedQuizCount;
+
+      combinedLeaderboard.set(row.user_id, {
+        ...existing,
+        display_name: row.display_name || existing.display_name,
+        quizzes_completed: totalQuizCount,
+        total_points:
+          Number(existing.total_points || 0) +
+          Number(row.total_points || 0),
+        average_percent:
+          totalQuizCount > 0
+            ? (
+                (Number(existing.average_percent || 0) * oldQuizCount +
+                  Number(row.average_percent || 0) * addedQuizCount) /
+                totalQuizCount
+              )
+            : 0,
+        last_completed_at:
+          !existing.last_completed_at
+            ? row.last_completed_at
+            : !row.last_completed_at
+              ? existing.last_completed_at
+              : new Date(existing.last_completed_at).getTime() >=
+                    new Date(row.last_completed_at).getTime()
+                ? existing.last_completed_at
+                : row.last_completed_at,
+      });
+    }
+
+    const rankedCombined = [...combinedLeaderboard.values()]
+      .sort((a, b) => {
+        const pointDelta =
+          Number(b.total_points || 0) - Number(a.total_points || 0);
+        if (pointDelta !== 0) return pointDelta;
+
+        const averageDelta =
+          Number(b.average_percent || 0) -
+          Number(a.average_percent || 0);
+        if (averageDelta !== 0) return averageDelta;
+
+        return (
+          new Date(a.last_completed_at || "9999-12-31").getTime() -
+          new Date(b.last_completed_at || "9999-12-31").getTime()
+        );
+      })
+      .slice(0, 100)
+      .map((row, index) => ({
+        ...row,
+        rank: index + 1,
+      }));
+
+    setClubLeaderboard(rankedCombined);
+
+    const oldHistoryRows = historyResponse.error
+      ? []
+      : ((historyResponse.data || []) as HistoryRow[]).map((row) => ({
+          ...row,
+          attempt_id: String(row.attempt_id),
+          quiz_id: String(row.quiz_id),
+          attempt_number: Number(row.attempt_number || 0),
+          correct_count: Number(row.correct_count || 0),
+          score_percent: Number(row.score_percent || 0),
+          total_points: Number(row.total_points || 0),
+          question_timer_seconds: Number(row.question_timer_seconds || 10),
+        }));
 
     setHistory(
-      historyResponse.error
-        ? []
-        : ((historyResponse.data || []) as HistoryRow[]).map((row) => ({
-            ...row,
-            quiz_id: String(row.quiz_id),
-            attempt_number: Number(row.attempt_number || 0),
-            correct_count: Number(row.correct_count || 0),
-            score_percent: Number(row.score_percent || 0),
-            total_points: Number(row.total_points || 0),
-            question_timer_seconds: Number(row.question_timer_seconds || 10),
-          })),
+      [...oldHistoryRows, ...v2HistoryRows]
+        .sort(
+          (a, b) =>
+            new Date(b.completed_at || 0).getTime() -
+            new Date(a.completed_at || 0).getTime(),
+        )
+        .slice(0, 100),
     );
 
     if (!cycleResponse.error) {
@@ -498,24 +665,69 @@ export default function CreatorClubPage() {
         return;
       }
 
-      const { data, error } = await supabase.rpc(
-        "get_creator_challenge_leaderboard",
-        {
+      const [legacyResponse, v2Response] = await Promise.all([
+        supabase.rpc("get_creator_challenge_leaderboard", {
           p_challenge_id: cycleQuiz.challenge_id,
           p_limit: 100,
-        },
-      );
+        }),
+        supabase.rpc("get_creator_engine_challenge_leaderboard_v2", {
+          p_challenge_id: cycleQuiz.challenge_id,
+          p_limit: 100,
+        }),
+      ]);
+
+      const candidates = [
+        ...(legacyResponse.error ? [] : (legacyResponse.data || [])),
+        ...(v2Response.error ? [] : (v2Response.data || [])),
+      ].map((row) => ({
+        ...(row as ChallengeLeaderboardRow),
+        user_id: String((row as ChallengeLeaderboardRow).user_id),
+        rank: Number((row as ChallengeLeaderboardRow).rank || 0),
+        score_percent: Number(
+          (row as ChallengeLeaderboardRow).score_percent || 0,
+        ),
+        total_points: Number(
+          (row as ChallengeLeaderboardRow).total_points || 0,
+        ),
+        total_response_time_ms: Number(
+          (row as ChallengeLeaderboardRow).total_response_time_ms || 0,
+        ),
+      }));
+
+      const bestByUser = new Map<string, ChallengeLeaderboardRow>();
+
+      for (const row of candidates) {
+        const existing = bestByUser.get(row.user_id);
+
+        if (
+          !existing ||
+          row.total_points > existing.total_points ||
+          (row.total_points === existing.total_points &&
+            row.score_percent > existing.score_percent) ||
+          (row.total_points === existing.total_points &&
+            row.score_percent === existing.score_percent &&
+            row.total_response_time_ms <
+              existing.total_response_time_ms)
+        ) {
+          bestByUser.set(row.user_id, row);
+        }
+      }
 
       setChallengeLeaderboard(
-        error
-          ? []
-          : ((data || []) as ChallengeLeaderboardRow[]).map((row) => ({
-              ...row,
-              rank: Number(row.rank || 0),
-              score_percent: Number(row.score_percent || 0),
-              total_points: Number(row.total_points || 0),
-              total_response_time_ms: Number(row.total_response_time_ms || 0),
-            })),
+        [...bestByUser.values()]
+          .sort((a, b) => {
+            if (b.total_points !== a.total_points) {
+              return b.total_points - a.total_points;
+            }
+            if (b.score_percent !== a.score_percent) {
+              return b.score_percent - a.score_percent;
+            }
+            return (
+              a.total_response_time_ms - b.total_response_time_ms
+            );
+          })
+          .slice(0, 100)
+          .map((row, index) => ({ ...row, rank: index + 1 })),
       );
     }
 

@@ -15,6 +15,7 @@ import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen
 import CreatorChallengeCyclePanel from "@/components/milo/CreatorChallengeCyclePanel";
 import CreatorReputationPanel from "@/components/milo/CreatorReputationPanel";
 import CreatorRewardsPanel from "@/components/milo/CreatorRewardsPanel";
+import CreatorEngineV2Builder from "@/components/milo/creator-engine/CreatorEngineV2Builder";
 
 import {
 
@@ -425,10 +426,6 @@ export default function CreatorStudioPage() {
       coverImageUrl: selectedQuiz.cover_image_url || "",
 
     });
-
-
-
-    void loadQuestions(selectedQuiz.quiz_id);
 
   }, [selectedQuizId]);
 
@@ -908,7 +905,7 @@ export default function CreatorStudioPage() {
 
     setCreateSlugTouched(false);
 
-    setMessage("Quiz created. Add all 10 questions before submitting.");
+    setMessage("Challenge created. Build its 10 questions with Creator Engine V2.");
 
     await loadStudio(createdId || undefined);
 
@@ -1362,11 +1359,20 @@ export default function CreatorStudioPage() {
 
 
 
-            <span className="hidden rounded-full border border-amber-200/18 bg-amber-300/[0.07] px-4 py-2 text-[8px] font-black uppercase tracking-[0.1em] text-amber-100 sm:inline-flex">
+            <div className="hidden items-center gap-2 sm:flex">
+              {hallAccess?.isAdmin && (
+                <Link
+                  href="/milo-world/quiz-hall/creator-studio/review"
+                  className="inline-flex min-h-[38px] items-center rounded-full border border-violet-200/16 bg-violet-300/[0.055] px-4 text-[8px] font-black uppercase tracking-[0.09em] text-violet-100 no-underline"
+                >
+                  Review Engine V2
+                </Link>
+              )}
 
-              10-question quizzes
-
-            </span>
+              <span className="inline-flex rounded-full border border-amber-200/18 bg-amber-300/[0.07] px-4 py-2 text-[8px] font-black uppercase tracking-[0.1em] text-amber-100">
+                Engine V2 · Mixed Formats
+              </span>
+            </div>
 
           </div>
 
@@ -1445,7 +1451,7 @@ export default function CreatorStudioPage() {
 
                   <p className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/62">
 
-                    New quiz
+                    New challenge
 
                   </p>
 
@@ -1491,7 +1497,7 @@ export default function CreatorStudioPage() {
 
                       }
 
-                      placeholder="Quiz title"
+                      placeholder="Challenge title"
 
                       className={inputClass}
 
@@ -1571,7 +1577,7 @@ export default function CreatorStudioPage() {
 
                     >
 
-                      Create Quiz
+                      Create Challenge
 
                     </button>
 
@@ -1653,7 +1659,7 @@ export default function CreatorStudioPage() {
 
                               <small className="mt-1 block text-[9px] text-amber-100/58">
 
-                                {quiz.question_count}/10 saved
+                                Engine V2
 
                               </small>
 
@@ -1701,13 +1707,13 @@ export default function CreatorStudioPage() {
 
                       <h2 className="text-3xl font-black">
 
-                        Build your first quiz.
+                        Build your first challenge.
 
                       </h2>
 
                       <p className="mt-3 text-sm text-white/46">
 
-                        Create a quiz from the panel on the left.
+                        Create a challenge from the panel on the left.
 
                       </p>
 
@@ -1737,7 +1743,7 @@ export default function CreatorStudioPage() {
 
                         <p className="mt-2 text-xs text-white/38">
 
-                          {selectedQuiz.question_count}/10 questions saved
+                          Mixed-format challenge
 
                         </p>
 
@@ -1831,7 +1837,7 @@ export default function CreatorStudioPage() {
 
                           disabled={!canEditSelected}
 
-                          placeholder="Quiz title"
+                          placeholder="Challenge title"
 
                           className={inputClass}
 
@@ -1897,7 +1903,7 @@ export default function CreatorStudioPage() {
 
                         maxLength={1500}
 
-                        placeholder="Quiz description"
+                        placeholder="Challenge description"
 
                         className={`${textareaClass} mt-3`}
 
@@ -1929,463 +1935,15 @@ export default function CreatorStudioPage() {
 
 
 
-                    <section className="mt-5">
-
-                      <div className="flex flex-wrap gap-2">
-
-                        {Array.from({ length: 10 }, (_, index) => index + 1).map(
-
-                          (order) => (
-
-                            <button
-
-                              key={order}
-
-                              type="button"
-
-                              onClick={() => setSelectedQuestionOrder(order)}
-
-                              className={`h-10 w-10 rounded-xl border text-[10px] font-black transition ${
-
-                                selectedQuestionOrder === order
-
-                                  ? "border-amber-200/38 bg-amber-300/12 text-amber-100"
-
-                                  : savedOrders.has(order)
-
-                                    ? "border-emerald-200/20 bg-emerald-400/[0.07] text-emerald-100"
-
-                                    : "border-white/9 bg-white/[0.025] text-white/34"
-
-                              }`}
-
-                            >
-
-                              {order}
-
-                            </button>
-
-                          ),
-
-                        )}
-
-                      </div>
-
-
-
-                      <div className="mt-4 rounded-[22px] border border-white/9 bg-black/14 p-4">
-
-                        <div className="flex items-center justify-between gap-3">
-
-                          <div>
-
-                            <p className="text-[8px] font-black uppercase tracking-[0.13em] text-amber-100/58">
-
-                              Question {selectedQuestionOrder}
-
-                            </p>
-
-                            <h3 className="mt-1 text-lg font-black">
-
-                              {savedOrders.has(selectedQuestionOrder)
-
-                                ? "Saved question"
-
-                                : "New question"}
-
-                            </h3>
-
-                          </div>
-
-
-
-                          {savedOrders.has(selectedQuestionOrder) && (
-
-                            <span className="rounded-full border border-emerald-200/18 bg-emerald-400/[0.07] px-3 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-100">
-
-                              Saved
-
-                            </span>
-
-                          )}
-
-                        </div>
-
-
-
-                        <textarea
-
-                          value={questionForm.question}
-
-                          onChange={(event) =>
-
-                            updateQuestion("question", event.target.value)
-
-                          }
-
-                          disabled={!canEditSelected}
-
-                          rows={3}
-
-                          maxLength={800}
-
-                          placeholder="Write the question..."
-
-                          className={`${textareaClass} mt-4`}
-
-                        />
-
-
-
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-
-                          <OptionInput
-
-                            label="A"
-
-                            value={questionForm.optionA}
-
-                            disabled={!canEditSelected}
-
-                            onChange={(value) =>
-
-                              updateQuestion("optionA", value)
-
-                            }
-
-                          />
-
-                          <OptionInput
-
-                            label="B"
-
-                            value={questionForm.optionB}
-
-                            disabled={!canEditSelected}
-
-                            onChange={(value) =>
-
-                              updateQuestion("optionB", value)
-
-                            }
-
-                          />
-
-                          <OptionInput
-
-                            label="C"
-
-                            value={questionForm.optionC}
-
-                            disabled={!canEditSelected}
-
-                            onChange={(value) =>
-
-                              updateQuestion("optionC", value)
-
-                            }
-
-                          />
-
-                          <OptionInput
-
-                            label="D"
-
-                            value={questionForm.optionD}
-
-                            disabled={!canEditSelected}
-
-                            onChange={(value) =>
-
-                              updateQuestion("optionD", value)
-
-                            }
-
-                          />
-
-                        </div>
-
-
-
-                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-
-                          <label>
-
-                            <span className={fieldLabel}>Correct answer</span>
-
-                            <select
-
-                              value={questionForm.correctOption}
-
-                              onChange={(event) =>
-
-                                updateQuestion(
-
-                                  "correctOption",
-
-                                  event.target.value as "A" | "B" | "C" | "D",
-
-                                )
-
-                              }
-
-                              disabled={!canEditSelected}
-
-                              className={inputClass}
-
-                            >
-
-                              <option value="A">A</option>
-
-                              <option value="B">B</option>
-
-                              <option value="C">C</option>
-
-                              <option value="D">D</option>
-
-                            </select>
-
-                          </label>
-
-
-
-                          <label>
-
-                            <span className={fieldLabel}>Topic</span>
-
-                            <input
-
-                              value={questionForm.topic}
-
-                              onChange={(event) =>
-
-                                updateQuestion("topic", event.target.value)
-
-                              }
-
-                              disabled={!canEditSelected}
-
-                              placeholder="Optional topic"
-
-                              className={inputClass}
-
-                            />
-
-                          </label>
-
-
-
-                          <label>
-
-                            <span className={fieldLabel}>Difficulty</span>
-
-                            <select
-
-                              value={questionForm.difficulty}
-
-                              onChange={(event) =>
-
-                                updateQuestion(
-
-                                  "difficulty",
-
-                                  Number(event.target.value),
-
-                                )
-
-                              }
-
-                              disabled={!canEditSelected}
-
-                              className={inputClass}
-
-                            >
-
-                              <option value={1}>1 · Easy</option>
-
-                              <option value={2}>2</option>
-
-                              <option value={3}>3 · Medium</option>
-
-                              <option value={4}>4</option>
-
-                              <option value={5}>5 · Hard</option>
-
-                            </select>
-
-                          </label>
-
-                        </div>
-
-
-
-                        <label className="mt-3 block">
-
-                          <span className={fieldLabel}>Explanation</span>
-
-                          <textarea
-
-                            value={questionForm.explanation}
-
-                            onChange={(event) =>
-
-                              updateQuestion(
-
-                                "explanation",
-
-                                event.target.value,
-
-                              )
-
-                            }
-
-                            disabled={!canEditSelected}
-
-                            rows={2}
-
-                            maxLength={1000}
-
-                            placeholder="Explain why the answer is correct."
-
-                            className={textareaClass}
-
-                          />
-
-                        </label>
-
-
-
-                        {canEditSelected && (
-
-                          <div className="mt-4 flex flex-wrap gap-2">
-
-                            <button
-
-                              type="button"
-
-                              disabled={isSaving}
-
-                              onClick={() => void saveQuestion()}
-
-                              className={primaryButton}
-
-                            >
-
-                              Save Question {selectedQuestionOrder}
-
-                            </button>
-
-
-
-                            <button
-
-                              type="button"
-
-                              disabled={isSaving}
-
-                              onClick={() => void clearQuestion()}
-
-                              className={secondaryButton}
-
-                            >
-
-                              Clear Question
-
-                            </button>
-
-                          </div>
-
-                        )}
-
-                      </div>
-
-                    </section>
-
-
-
-                    <section className="mt-5 rounded-[22px] border border-cyan-200/12 bg-cyan-300/[0.035] p-4">
-
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
-                        <div>
-
-                          <p className="text-[8px] font-black uppercase tracking-[0.13em] text-cyan-100/58">
-
-                            Review workflow
-
-                          </p>
-
-                          <p className="mt-2 text-xs leading-5 text-white/48">
-
-                            All 10 questions must be complete before you can
-
-                            submit. Submitted quizzes are locked while
-
-                            Dreamscape reviews them.
-
-                          </p>
-
-                        </div>
-
-
-
-                        <div className="flex shrink-0 flex-wrap gap-2">
-
-                          {canEditSelected &&
-
-                            selectedQuiz.status !== "archived" && (
-
-                              <>
-
-                                <button
-
-                                  type="button"
-
-                                  disabled={
-
-                                    isSaving ||
-
-                                    selectedQuiz.question_count !== 10
-
-                                  }
-
-                                  onClick={() => void submitQuiz()}
-
-                                  className="min-h-11 rounded-full border border-cyan-200/22 bg-cyan-400/10 px-5 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 disabled:cursor-not-allowed disabled:opacity-36"
-
-                                >
-
-                                  Submit for Review
-
-                                </button>
-
-
-
-                                <button
-
-                                  type="button"
-
-                                  disabled={isSaving}
-
-                                  onClick={() => void archiveQuiz()}
-
-                                  className="min-h-11 rounded-full border border-white/10 bg-white/[0.035] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-white/42 disabled:opacity-36"
-
-                                >
-
-                                  Archive
-
-                                </button>
-
-                              </>
-
-                            )}
-
-                        </div>
-
-                      </div>
-
-                    </section>
+                    <CreatorEngineV2Builder
+                      quizId={selectedQuiz.quiz_id}
+                      quizTitle={selectedQuiz.title}
+                      quizStatus={selectedQuiz.status}
+                      canEdit={canEditSelected}
+                      onQuizChanged={() =>
+                        void loadStudio(selectedQuiz.quiz_id)
+                      }
+                    />
 
                   </div>
 

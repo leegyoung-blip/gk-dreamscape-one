@@ -4,560 +4,599 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
-import {
-  getMiloQuizHallCreatorClubsAccess,
-  type MiloQuizHallCreatorClubsAccess,
-} from "@/lib/milo-quiz-hall-access";
+import CreatorQuestionRenderer, {
+  type CreatorEngineAnswerValue,
+  type CreatorEngineQuestion,
+} from "@/components/milo/creator-engine/CreatorQuestionRenderer";
 
-type PlayInfo = {
-  quiz_id: string;
+type QuizPayload = {
   club_id: string;
-  club_name: string;
   club_slug: string;
-  title: string;
+  club_name: string;
+  quiz_id: string;
   quiz_slug: string;
+  title: string;
   description: string | null;
   cover_image_url: string | null;
-  creator_display_name: string;
-  question_count: number;
-  is_admin: boolean;
-  is_member: boolean;
-  can_play: boolean;
-  play_reason: string;
-  user_best_percent: number;
-  user_best_points: number;
-  current_challenge_id: string | null;
+  challenge_id: string | null;
   challenge_ends_at: string | null;
-  is_premium: boolean;
-  has_pack_entitlement: boolean;
-  required_pack_id: string | null;
-  required_pack_slug: string | null;
-  required_pack_title: string | null;
-  required_pack_price_cents: number | null;
+  is_current_challenge: boolean;
+  questions: CreatorEngineQuestion[];
 };
 
-type LiveQuestion = {
-  question_order: number;
-  question: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  topic: string | null;
-  difficulty: number;
-  started_at: string;
-  deadline_at: string;
-};
-
-type AnswerFeedback = {
-  is_correct: boolean;
-  timed_out: boolean;
-  correct_option: string;
-  correct_answer: string;
-  explanation: string | null;
-  awarded_points: number;
+type SubmittedAnswer = {
+  question_id: string;
+  selected_keys: string[];
+  numeric_value: number | null;
   response_time_ms: number;
-  attempt_completed: boolean;
+};
+
+type AttemptAnswerResult = {
+  question_id: string;
+  question_order: number;
+  question_type: string;
+  selected_keys: string[];
+  numeric_value: number | string | null;
+  credit: number;
+  points: number;
+  explanation: string | null;
+};
+
+type AttemptResult = {
+  attempt_id: string;
+  attempt_number: number;
   correct_count: number;
+  partial_count: number;
+  total_questions: number;
   score_percent: number;
   total_points: number;
   total_response_time_ms: number;
+  answers: AttemptAnswerResult[];
 };
 
-type AttemptReviewRow = {
-  question_order: number;
-  question: string;
-  selected_option: string | null;
-  selected_answer: string | null;
-  correct_option: string;
-  correct_answer: string;
-  is_correct: boolean;
-  explanation: string | null;
-  awarded_points: number;
-  response_time_ms: number;
-};
+function initialValue(question: CreatorEngineQuestion): CreatorEngineAnswerValue {
+  if (question.question_type === "bar_estimate") {
+    const min = Number(question.config?.min ?? 0);
+    const max = Number(question.config?.max ?? 100);
+    return {
+      selectedKeys: [],
+      numericValue: min + (max - min) / 2,
+    };
+  }
 
-type LeaderboardRow = {
-  rank: number;
-  user_id: string;
-  display_name: string;
-  score_percent: number;
-  total_points: number;
-  total_response_time_ms: number;
-  completed_at: string | null;
-};
+  if (question.question_type === "pie_estimate") {
+    return { selectedKeys: [], numericValue: 50 };
+  }
 
-type ScreenState = "intro" | "playing" | "results";
-
-function formatChallengeEnd(value: string | null) {
-  if (!value) return "";
-  return new Intl.DateTimeFormat("en-SG", {
-    timeZone: "Asia/Singapore",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
+  return { selectedKeys: [], numericValue: null };
 }
 
-export default function CreatorQuizPlayerPage() {
+function canSubmitAnswer(
+  question: CreatorEngineQuestion,
+  value: CreatorEngineAnswerValue,
+) {
+  if (
+    question.question_type === "classic_choice" ||
+    question.question_type === "choice_grid"
+  ) {
+    return value.selectedKeys.length > 0;
+  }
+
+  return value.numericValue !== null && Number.isFinite(value.numericValue);
+}
+
+function formatTime(ms: number) {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+export default function CreatorQuizEngineV2PlayPage() {
   const params = useParams<{ slug: string; quizSlug: string }>();
   const router = useRouter();
+
   const clubSlug = decodeURIComponent(String(params?.slug || ""));
   const quizSlug = decodeURIComponent(String(params?.quizSlug || ""));
 
-  const [hallAccess, setHallAccess] = useState<MiloQuizHallCreatorClubsAccess | null>(null);
-  const [playInfo, setPlayInfo] = useState<PlayInfo | null>(null);
-  const [screen, setScreen] = useState<ScreenState>("intro");
-  const [timerSeconds, setTimerSeconds] = useState<10 | 20>(10);
-  const [attemptId, setAttemptId] = useState("");
-  const [attemptNumber, setAttemptNumber] = useState(0);
-  const [adminPreview, setAdminPreview] = useState(false);
-  const [question, setQuestion] = useState<LiveQuestion | null>(null);
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<AnswerFeedback | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const [review, setReview] = useState<AttemptReviewRow[]>([]);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [scorePercent, setScorePercent] = useState(0);
-  const [totalPoints, setTotalPoints] = useState(0);
+  const [quiz, setQuiz] = useState<QuizPayload | null>(null);
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [currentValue, setCurrentValue] =
+    useState<CreatorEngineAnswerValue>({
+      selectedKeys: [],
+      numericValue: null,
+    });
+  const [answers, setAnswers] = useState<SubmittedAnswer[]>([]);
+  const [result, setResult] = useState<AttemptResult | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const autoSubmittedRef = useRef(false);
+
+  const questionStartedAt = useRef(Date.now());
+
+  const currentQuestion =
+    quiz?.questions?.[questionIndex] || null;
+
+  const progress = quiz?.questions?.length
+    ? ((questionIndex + (result ? 1 : 0)) / quiz.questions.length) * 100
+    : 0;
+
+  const questionResultMap = useMemo(
+    () =>
+      new Map(
+        (result?.answers || []).map((answer) => [
+          answer.question_id,
+          answer,
+        ]),
+      ),
+    [result],
+  );
 
   useEffect(() => {
-    const oldBody = document.body.style.overflow;
-    const oldHtml = document.documentElement.style.overflow;
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-    void loadPlayInfo();
-    return () => {
-      document.body.style.overflow = oldBody;
-      document.documentElement.style.overflow = oldHtml;
-    };
+    void load();
   }, [clubSlug, quizSlug]);
 
-  async function loadPlayInfo() {
+  useEffect(() => {
+    if (!currentQuestion || result) return;
+    setCurrentValue(initialValue(currentQuestion));
+    questionStartedAt.current = Date.now();
+  }, [currentQuestion?.id, result]);
+
+  async function load() {
     setIsLoading(true);
     setErrorMessage("");
-    const accessResult = await getMiloQuizHallCreatorClubsAccess();
-    setHallAccess(accessResult.access);
-    if (!accessResult.access.canAccess) {
-      setIsLoading(false);
-      return;
-    }
 
-    const { data, error } = await supabase.rpc("get_creator_quiz_play_info", {
-      p_club_slug: clubSlug,
-      p_quiz_slug: quizSlug,
-    });
-    if (error) {
-      setErrorMessage(error.message || "Could not load creator quiz.");
-      setIsLoading(false);
-      return;
-    }
-    const row = Array.isArray(data) ? data[0] : data;
-    if (!row) {
-      setPlayInfo(null);
-      setIsLoading(false);
-      return;
-    }
-    setPlayInfo({
-      ...(row as PlayInfo),
-      question_count: Number(row.question_count || 0),
-      is_admin: Boolean(row.is_admin),
-      is_member: Boolean(row.is_member),
-      can_play: Boolean(row.can_play),
-      user_best_percent: Number(row.user_best_percent || 0),
-      user_best_points: Number(row.user_best_points || 0),
-      is_premium: Boolean(row.is_premium),
-      has_pack_entitlement: Boolean(row.has_pack_entitlement),
-      required_pack_price_cents:
-        row.required_pack_price_cents === null
-          ? null
-          : Number(row.required_pack_price_cents),
-    });
-    setIsLoading(false);
-  }
+    const userResponse = await supabase.auth.getUser();
 
-  useEffect(() => {
-    if (screen !== "playing" || !question || feedback) return;
-
-    const deadlineAt = question.deadline_at;
-    autoSubmittedRef.current = false;
-
-    function tick() {
-      const remainingMs = new Date(deadlineAt).getTime() - Date.now();
-      setSecondsLeft(Math.max(0, Math.ceil(remainingMs / 1000)));
-      if (remainingMs <= 0 && !autoSubmittedRef.current) {
-        autoSubmittedRef.current = true;
-        void submitAnswer(null);
-      }
-    }
-    tick();
-    const interval = window.setInterval(tick, 150);
-    return () => window.clearInterval(interval);
-  }, [screen, question?.deadline_at, feedback]);
-
-  async function startQuiz() {
-    if (!playInfo) return;
-    if (!playInfo.can_play) {
-      if (playInfo.play_reason === "login_required") {
-        const next = `/milo-world/quiz-hall/clubs/${encodeURIComponent(clubSlug)}/quiz/${encodeURIComponent(quizSlug)}`;
-        router.push(`/login?next=${encodeURIComponent(next)}`);
-        return;
-      }
-      if (playInfo.play_reason === "join_required") {
-        router.push(`/milo-world/quiz-hall/clubs/${encodeURIComponent(clubSlug)}`);
-        return;
-      }
-      if (
-        playInfo.play_reason === "pack_required" &&
-        playInfo.required_pack_slug
-      ) {
-        router.push(
-          `/milo-world/quiz-hall/clubs/${encodeURIComponent(
-            clubSlug,
-          )}/packs/${encodeURIComponent(playInfo.required_pack_slug)}`,
-        );
-        return;
-      }
-      setErrorMessage(
-        playInfo.play_reason === "profile_required"
-          ? "Complete your Dreamscape profile before playing Creator Club quizzes."
-          : playInfo.play_reason === "age_restricted"
-            ? "Creator Club quizzes are available to users aged 13 and above."
-            : playInfo.play_reason === "pack_unavailable"
-              ? "This premium quiz is no longer available for a new unlock."
-              : "This quiz is not currently available to this account.",
+    if (!userResponse.data.user) {
+      router.replace(
+        `/login?next=${encodeURIComponent(
+          `/milo-world/quiz-hall/clubs/${clubSlug}/quiz/${quizSlug}`,
+        )}`,
       );
       return;
     }
 
-    setIsSaving(true);
-    setErrorMessage("");
-    const { data, error } = await supabase.rpc("start_creator_quiz_attempt", {
-      p_quiz_id: playInfo.quiz_id,
-      p_question_timer_seconds: timerSeconds,
-    });
-    if (error) {
-      setErrorMessage(error.message || "Could not start quiz.");
-      setIsSaving(false);
-      return;
-    }
-    const row = Array.isArray(data) ? data[0] : data;
-    const nextAttemptId = String(row?.attempt_id || "");
-    setAttemptId(nextAttemptId);
-    setAttemptNumber(Number(row?.attempt_number || 1));
-    setAdminPreview(Boolean(row?.is_admin_preview));
-    setCorrectCount(0);
-    setScorePercent(0);
-    setTotalPoints(0);
-    setReview([]);
-    setLeaderboard([]);
-    setReviewOpen(false);
-    setScreen("playing");
-    await loadQuestion(nextAttemptId, 1);
-    setIsSaving(false);
-  }
-
-  async function loadQuestion(nextAttemptId: string, order: number) {
-    setQuestion(null);
-    setFeedback(null);
-    setSelectedOption(null);
-    autoSubmittedRef.current = false;
-    const { data, error } = await supabase.rpc("begin_creator_quiz_question", {
-      p_attempt_id: nextAttemptId,
-      p_question_order: order,
-    });
-    if (error) {
-      setErrorMessage(error.message || "Could not load question.");
-      return;
-    }
-    const row = Array.isArray(data) ? data[0] : data;
-    if (!row) {
-      setErrorMessage("Question could not be loaded.");
-      return;
-    }
-    const nextQuestion: LiveQuestion = {
-      ...(row as LiveQuestion),
-      question_order: Number(row.question_order || order),
-      difficulty: Number(row.difficulty || 1),
-    };
-    setQuestion(nextQuestion);
-    setSecondsLeft(
-      Math.max(0, Math.ceil((new Date(nextQuestion.deadline_at).getTime() - Date.now()) / 1000)),
+    const { data, error } = await supabase.rpc(
+      "get_creator_engine_quiz_for_play_v2",
+      {
+        p_club_slug: clubSlug,
+        p_quiz_slug: quizSlug,
+      },
     );
-  }
 
-  async function submitAnswer(option: string | null) {
-    if (!question || !attemptId || feedback || isSaving) return;
-    setIsSaving(true);
-    setSelectedOption(option);
-    const { data, error } = await supabase.rpc("submit_creator_quiz_answer", {
-      p_attempt_id: attemptId,
-      p_question_order: question.question_order,
-      p_selected_option: option,
-    });
     if (error) {
-      setErrorMessage(error.message || "Could not submit answer.");
-      setIsSaving(false);
+      setErrorMessage(error.message || "Challenge could not be opened.");
+      setQuiz(null);
+      setIsLoading(false);
       return;
     }
-    const row = Array.isArray(data) ? data[0] : data;
-    const next: AnswerFeedback = {
-      ...(row as AnswerFeedback),
-      is_correct: Boolean(row.is_correct),
-      timed_out: Boolean(row.timed_out),
-      awarded_points: Number(row.awarded_points || 0),
-      response_time_ms: Number(row.response_time_ms || 0),
-      attempt_completed: Boolean(row.attempt_completed),
-      correct_count: Number(row.correct_count || 0),
-      score_percent: Number(row.score_percent || 0),
-      total_points: Number(row.total_points || 0),
-      total_response_time_ms: Number(row.total_response_time_ms || 0),
+
+    if (!data) {
+      setQuiz(null);
+      setErrorMessage("Challenge could not be found.");
+      setIsLoading(false);
+      return;
+    }
+
+    const row = data as unknown as QuizPayload;
+    const normalized: QuizPayload = {
+      ...row,
+      club_id: String(row.club_id || ""),
+      club_slug: String(row.club_slug || clubSlug),
+      club_name: String(row.club_name || "Creator Club"),
+      quiz_id: String(row.quiz_id || ""),
+      quiz_slug: String(row.quiz_slug || quizSlug),
+      title: String(row.title || "Creator Challenge"),
+      description: row.description ? String(row.description) : null,
+      cover_image_url: row.cover_image_url
+        ? String(row.cover_image_url)
+        : null,
+      challenge_id: row.challenge_id
+        ? String(row.challenge_id)
+        : null,
+      challenge_ends_at: row.challenge_ends_at
+        ? String(row.challenge_ends_at)
+        : null,
+      is_current_challenge: Boolean(row.is_current_challenge),
+      questions: ((row.questions || []) as CreatorEngineQuestion[]).map(
+        (question) => ({
+          ...question,
+          id: String(question.id),
+          question_order: Number(question.question_order || 0),
+          difficulty: Number(question.difficulty || 2),
+          config: question.config || {},
+          options: (question.options || []).map((option) => ({
+            ...option,
+            option_key: String(option.option_key),
+            label: String(option.label || ""),
+            image_url: option.image_url ? String(option.image_url) : null,
+            sort_order: Number(option.sort_order || 0),
+          })),
+        }),
+      ),
     };
-    setFeedback(next);
-    setCorrectCount(next.correct_count);
-    setScorePercent(next.score_percent);
-    setTotalPoints(next.total_points);
-    setIsSaving(false);
-  }
 
-  async function nextQuestion() {
-    if (!question || !feedback) return;
-    if (feedback.attempt_completed || question.question_order >= 10) {
-      await finishQuiz();
+    if (normalized.questions.length === 0) {
+      setErrorMessage("This challenge does not contain playable questions.");
+      setQuiz(null);
+      setIsLoading(false);
       return;
     }
-    await loadQuestion(attemptId, question.question_order + 1);
-  }
 
-  async function finishQuiz() {
-    setIsLoading(true);
-    const [reviewResponse, leaderboardResponse] = await Promise.all([
-      supabase.rpc("get_creator_quiz_attempt_review", { p_attempt_id: attemptId }),
-      playInfo
-        ? supabase.rpc("get_creator_quiz_leaderboard", { p_quiz_id: playInfo.quiz_id, p_limit: 10 })
-        : Promise.resolve({ data: [], error: null }),
-    ]);
-    if (!reviewResponse.error) {
-      setReview(((reviewResponse.data || []) as AttemptReviewRow[]).map((r) => ({
-        ...r,
-        question_order: Number(r.question_order || 0),
-        is_correct: Boolean(r.is_correct),
-        awarded_points: Number(r.awarded_points || 0),
-        response_time_ms: Number(r.response_time_ms || 0),
-      })));
-    }
-    if (!leaderboardResponse.error) {
-      setLeaderboard(((leaderboardResponse.data || []) as LeaderboardRow[]).map((r) => ({
-        ...r,
-        rank: Number(r.rank || 0),
-        score_percent: Number(r.score_percent || 0),
-        total_points: Number(r.total_points || 0),
-        total_response_time_ms: Number(r.total_response_time_ms || 0),
-      })));
-    }
-    setScreen("results");
+    setQuiz(normalized);
+    setQuestionIndex(0);
+    setAnswers([]);
+    setResult(null);
+    setCurrentValue(initialValue(normalized.questions[0]));
+    questionStartedAt.current = Date.now();
     setIsLoading(false);
   }
 
-  function resetForReplay() {
-    setScreen("intro");
-    setAttemptId("");
-    setAttemptNumber(0);
-    setQuestion(null);
-    setFeedback(null);
-    setSelectedOption(null);
-    setCorrectCount(0);
-    setScorePercent(0);
-    setTotalPoints(0);
-    setReview([]);
-    setLeaderboard([]);
-    setReviewOpen(false);
+  async function lockAnswer() {
+    if (!quiz || !currentQuestion) return;
+    if (!canSubmitAnswer(currentQuestion, currentValue)) return;
+
+    const responseTime = Math.max(
+      0,
+      Date.now() - questionStartedAt.current,
+    );
+
+    const answer: SubmittedAnswer = {
+      question_id: currentQuestion.id,
+      selected_keys: currentValue.selectedKeys,
+      numeric_value: currentValue.numericValue,
+      response_time_ms: responseTime,
+    };
+
+    const nextAnswers = [
+      ...answers.filter(
+        (item) => item.question_id !== currentQuestion.id,
+      ),
+      answer,
+    ];
+
+    setAnswers(nextAnswers);
+
+    const isLast = questionIndex >= quiz.questions.length - 1;
+
+    if (!isLast) {
+      setQuestionIndex((index) => index + 1);
+      return;
+    }
+
+    await submitAttempt(nextAnswers);
+  }
+
+  async function submitAttempt(nextAnswers: SubmittedAnswer[]) {
+    if (!quiz) return;
+
+    setIsSubmitting(true);
     setErrorMessage("");
-    void loadPlayInfo();
+
+    const { data, error } = await supabase.rpc(
+      "creator_engine_submit_attempt_v2",
+      {
+        p_club_slug: quiz.club_slug,
+        p_quiz_slug: quiz.quiz_slug,
+        p_answers: nextAnswers,
+      },
+    );
+
+    if (error) {
+      setErrorMessage(
+        error.message || "Your challenge result could not be saved.",
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
+    const raw = data as unknown as AttemptResult;
+    setResult({
+      ...raw,
+      attempt_id: String(raw.attempt_id || ""),
+      attempt_number: Number(raw.attempt_number || 1),
+      correct_count: Number(raw.correct_count || 0),
+      partial_count: Number(raw.partial_count || 0),
+      total_questions: Number(raw.total_questions || quiz.questions.length),
+      score_percent: Number(raw.score_percent || 0),
+      total_points: Number(raw.total_points || 0),
+      total_response_time_ms: Number(raw.total_response_time_ms || 0),
+      answers: ((raw.answers || []) as AttemptAnswerResult[]).map(
+        (answer) => ({
+          ...answer,
+          question_order: Number(answer.question_order || 0),
+          credit: Number(answer.credit || 0),
+          points: Number(answer.points || 0),
+          selected_keys: answer.selected_keys || [],
+        }),
+      ),
+    });
+
+    setIsSubmitting(false);
+    window.dispatchEvent(new Event("creator-engine-attempt-completed"));
   }
 
-  const options = useMemo(
-    () =>
-      question
-        ? [["A", question.option_a], ["B", question.option_b], ["C", question.option_c], ["D", question.option_d]]
-        : [],
-    [question],
-  );
-
-  if (isLoading && !playInfo && screen === "intro") {
-    return <main className="fixed inset-0 flex items-center justify-center bg-[#020711] text-sm text-white/56">Loading creator quiz...</main>;
+  if (isLoading) {
+    return (
+      <main className="fixed inset-0 flex items-center justify-center bg-[#020711] text-sm text-white/52">
+        Loading Creator Challenge...
+      </main>
+    );
   }
-  if (hallAccess && !hallAccess.canAccess) return <CreatorClubsLockedScreen />;
-  if (!playInfo) {
+
+  if (!quiz) {
     return (
       <main className="fixed inset-0 flex items-center justify-center bg-[#020711] px-5 text-white">
-        <section className="w-full max-w-lg rounded-[28px] border border-white/10 bg-white/[0.045] p-8 text-center">
-          <h1 className="text-3xl font-black">Quiz unavailable</h1>
-          <p className="mt-3 text-sm text-white/46">This creator quiz is not currently published.</p>
-          <Link href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(clubSlug)}`} className="mt-6 inline-flex min-h-[44px] items-center rounded-full border border-cyan-200/20 bg-cyan-300/[0.07] px-5 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 no-underline">Back to Club</Link>
+        <section className="w-full max-w-lg rounded-[28px] border border-white/10 bg-white/[0.045] p-7 text-center">
+          <h1 className="text-3xl font-black">Challenge unavailable</h1>
+          <p className="mt-3 text-sm leading-6 text-white/44">
+            {errorMessage ||
+              "This Creator Club challenge cannot be played right now."}
+          </p>
+          <Link
+            href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(
+              clubSlug,
+            )}`}
+            className="mt-6 inline-flex min-h-11 items-center rounded-full border border-cyan-200/18 bg-cyan-300/[0.06] px-5 text-[9px] font-black uppercase tracking-[0.09em] text-cyan-100 no-underline"
+          >
+            Back to Club
+          </Link>
         </section>
       </main>
     );
   }
 
-  return (
-    <main className="fixed inset-0 overflow-hidden bg-[#020711] text-white">
-      {playInfo.cover_image_url && <img src={playInfo.cover_image_url} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover opacity-10" />}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(83,215,255,0.11),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.09),transparent_30%),linear-gradient(180deg,rgba(2,7,17,0.94),rgba(2,7,17,1))]" />
-      <div className="relative z-10 flex h-full min-h-0 flex-col">
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/7 px-3 py-3 sm:px-5">
-          <Link href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(clubSlug)}`} className="inline-flex min-h-[38px] items-center rounded-full border border-white/11 bg-white/[0.035] px-4 text-[8px] font-black uppercase tracking-[0.09em] text-white/52 no-underline">← {playInfo.club_name}</Link>
-          <div className="min-w-0 text-center"><p className="truncate text-[7px] font-black uppercase tracking-[0.14em] text-cyan-100/52">by {playInfo.creator_display_name}</p><strong className="block max-w-[48vw] truncate text-sm sm:text-base">{playInfo.title}</strong></div>
-          <span className="rounded-full border border-white/9 bg-white/[0.03] px-3 py-2 text-[8px] font-black uppercase tracking-[0.08em] text-white/40">{screen === "playing" ? `Q${question?.question_order || 1}/10` : "Creator Quiz"}</span>
-        </header>
+  if (result) {
+    return (
+      <main className="fixed inset-0 overflow-y-auto bg-[#020711] px-4 py-5 text-white sm:px-6">
+        <div className="mx-auto max-w-[1100px]">
+          <header className="flex items-center justify-between gap-3">
+            <Link
+              href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(
+                quiz.club_slug,
+              )}`}
+              className="rounded-full border border-white/10 bg-white/[0.035] px-4 py-2 text-[8px] font-black uppercase tracking-[0.09em] text-white/48 no-underline"
+            >
+              ← {quiz.club_name}
+            </Link>
+            <span className="text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/44">
+              Attempt {result.attempt_number}
+            </span>
+          </header>
 
-        {errorMessage && <p className="mx-3 mt-2 shrink-0 rounded-xl border border-red-200/14 bg-red-400/[0.07] px-3 py-2 text-center text-[10px] text-red-100 sm:mx-5">{errorMessage}</p>}
+          <section className="mt-5 rounded-[32px] border border-cyan-200/13 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_35%),linear-gradient(145deg,rgba(5,26,48,0.94),rgba(2,7,17,0.98))] p-6 text-center sm:p-8">
+            <p className="text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/58">
+              Creator Engine V2 · Challenge Complete
+            </p>
+            <h1 className="mt-3 font-serif text-4xl font-normal sm:text-6xl">
+              {quiz.title}
+            </h1>
 
-        {screen === "intro" ? (
-          <section className="flex min-h-0 flex-1 items-center justify-center p-4">
-            <div className="w-full max-w-[760px] rounded-[30px] border border-cyan-200/13 bg-white/[0.045] p-6 text-center backdrop-blur-xl sm:p-8">
-              <div className="flex flex-wrap justify-center gap-2">
-                {playInfo.current_challenge_id && (
-                  <span className="inline-flex rounded-full border border-amber-200/18 bg-amber-300/[0.08] px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-amber-100">
-                    Current Club Challenge
-                    {playInfo.challenge_ends_at
-                      ? ` · Ends ${formatChallengeEnd(playInfo.challenge_ends_at)}`
-                      : ""}
-                  </span>
-                )}
-                {playInfo.is_premium && (
-                  <span className="inline-flex rounded-full border border-violet-200/18 bg-violet-300/[0.08] px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-violet-100">
-                    Premium Pack Quiz
-                    {playInfo.has_pack_entitlement ? " · Owned" : ""}
-                  </span>
-                )}
-              </div>
-              <h1 className="mt-4 font-serif text-[clamp(40px,7vw,68px)] font-normal leading-[0.94]">{playInfo.title}</h1>
-              {playInfo.description && <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-white/50">{playInfo.description}</p>}
-              <div className="mx-auto mt-6 grid max-w-[560px] grid-cols-3 gap-2"><Metric label="Questions" value="10" /><Metric label="Best Score" value={`${playInfo.user_best_percent}%`} /><Metric label="Best Points" value={playInfo.user_best_points.toString()} /></div>
-              {playInfo.is_admin && <p className="mx-auto mt-4 max-w-xl rounded-xl border border-violet-200/14 bg-violet-400/[0.06] px-4 py-3 text-[10px] text-violet-100">Admin Preview: this result is saved for QA but excluded from public leaderboards.</p>}
-              {!playInfo.can_play && (
-                <p className="mx-auto mt-4 max-w-xl rounded-xl border border-amber-200/14 bg-amber-400/[0.06] px-4 py-3 text-[10px] leading-5 text-amber-100">
-                  {playInfo.play_reason === "login_required"
-                    ? "Log in to play Creator Club quizzes."
-                    : playInfo.play_reason === "join_required"
-                      ? "Join this Creator Club for free before playing."
-                      : playInfo.play_reason === "profile_required"
-                        ? "Complete your Dreamscape profile before playing."
-                        : playInfo.play_reason === "age_restricted"
-                          ? "Creator Club quizzes are available to users aged 13 and above."
-                          : playInfo.play_reason === "pack_required"
-                            ? `This quiz is part of ${
-                                playInfo.required_pack_title || "a premium pack"
-                              }. Unlock the pack for permanent access.`
-                            : playInfo.play_reason === "pack_unavailable"
-                              ? "This premium quiz is not currently available for a new unlock."
-                              : "This quiz is not available to this account."}
-                </p>
-              )}
-              <p className="mt-6 text-[8px] font-black uppercase tracking-[0.12em] text-white/32">Question Timer</p>
-              <div className="mt-2 inline-flex rounded-full border border-white/9 bg-black/18 p-1">
-                {[10,20].map((seconds) => <button key={seconds} type="button" onClick={() => setTimerSeconds(seconds as 10|20)} className={`min-h-9 rounded-full px-5 text-[9px] font-black uppercase tracking-[0.08em] ${timerSeconds === seconds ? "bg-cyan-300/12 text-cyan-100" : "text-white/36"}`}>{seconds}s</button>)}
-              </div>
+            <div className="mx-auto mt-7 grid max-w-3xl gap-3 sm:grid-cols-4">
+              <ResultMetric
+                label="Score"
+                value={`${result.score_percent}%`}
+              />
+              <ResultMetric
+                label="Points"
+                value={result.total_points.toLocaleString()}
+              />
+              <ResultMetric
+                label="Full Credit"
+                value={`${result.correct_count}/${result.total_questions}`}
+              />
+              <ResultMetric
+                label="Time"
+                value={formatTime(result.total_response_time_ms)}
+              />
+            </div>
+
+            {result.partial_count > 0 && (
+              <p className="mt-4 text-[10px] text-amber-100/58">
+                {result.partial_count} estimation question
+                {result.partial_count === 1 ? "" : "s"} received partial
+                credit.
+              </p>
+            )}
+
+            <div className="mt-7 flex flex-wrap justify-center gap-2">
               <button
                 type="button"
-                disabled={isSaving}
-                onClick={() => void startQuiz()}
-                className="mt-6 min-h-12 rounded-full border border-cyan-200/24 bg-cyan-300/10 px-7 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:opacity-40"
+                onClick={() => void load()}
+                className="min-h-11 rounded-full border border-cyan-200/22 bg-cyan-300/[0.08] px-5 text-[9px] font-black uppercase tracking-[0.09em] text-cyan-100"
               >
-                {isSaving
-                  ? "Starting..."
-                  : playInfo.can_play
-                    ? "Start Quiz"
-                    : playInfo.play_reason === "login_required"
-                      ? "Log In to Play"
-                      : playInfo.play_reason === "join_required"
-                        ? "Join Club to Play"
-                        : playInfo.play_reason === "pack_required"
-                          ? "View Premium Pack"
-                          : "Cannot Play Yet"}
+                Play Again
               </button>
-              <p className="mt-4 text-[9px] leading-4 text-white/25">Correct answers earn 100 base points plus up to 50 speed points. 10s and 20s modes use the same proportional speed bonus.</p>
+              <Link
+                href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(
+                  quiz.club_slug,
+                )}`}
+                className="inline-flex min-h-11 items-center rounded-full border border-white/10 bg-white/[0.035] px-5 text-[9px] font-black uppercase tracking-[0.09em] text-white/44 no-underline"
+              >
+                Back to Club
+              </Link>
             </div>
           </section>
-        ) : screen === "playing" ? (
-          <section className="flex min-h-0 flex-1 flex-col p-3 sm:p-5">
-            <div className="mx-auto flex w-full max-w-[1180px] shrink-0 items-center gap-3">
-              <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-white/7"><div className="h-full rounded-full bg-cyan-300/70 transition-all" style={{width:`${((question?.question_order || 1)/10)*100}%`}} /></div>
-              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border text-lg font-black ${feedback ? "border-white/10 bg-white/[0.035] text-white/40" : secondsLeft <= 3 ? "border-red-200/26 bg-red-400/10 text-red-100" : "border-cyan-200/20 bg-cyan-300/[0.07] text-cyan-100"}`}>{feedback ? "✓" : secondsLeft}</div>
-              <div className="hidden gap-2 sm:flex"><Pill label="Correct" value={`${correctCount}/10`} /><Pill label="Points" value={totalPoints.toString()} /></div>
-            </div>
 
-            <div className="mx-auto mt-3 grid min-h-0 w-full max-w-[1180px] flex-1 gap-3 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
-              <article className="flex min-h-0 flex-col justify-center rounded-[26px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl sm:p-7">
-                {question ? <>
-                  <div className="flex flex-wrap gap-2"><Badge>Question {question.question_order}</Badge>{question.topic && <Badge>{question.topic}</Badge>}<Badge>Difficulty {question.difficulty}</Badge></div>
-                  <h2 className="mt-5 text-[clamp(22px,3vw,38px)] font-black leading-[1.18]">{question.question}</h2>
-                  {feedback && <div className={`mt-5 rounded-2xl border p-4 ${feedback.is_correct ? "border-emerald-200/17 bg-emerald-400/[0.065]" : "border-amber-200/17 bg-amber-400/[0.065]"}`}>
-                    <strong className={`text-sm ${feedback.is_correct ? "text-emerald-100" : "text-amber-100"}`}>{feedback.is_correct ? `Correct · +${feedback.awarded_points} points` : feedback.timed_out ? "Time’s up" : "Not quite"}</strong>
-                    {!feedback.is_correct && <p className="mt-2 text-[10px] leading-5 text-white/52">Correct answer: <strong className="text-white">{feedback.correct_option}. {feedback.correct_answer}</strong></p>}
-                    {feedback.explanation && <p className="mt-2 text-[10px] leading-5 text-white/44">{feedback.explanation}</p>}
-                  </div>}
-                </> : <p className="text-center text-sm text-white/40">Loading question...</p>}
-              </article>
+          <section className="mt-5 rounded-[28px] border border-white/9 bg-white/[0.03] p-5 sm:p-6">
+            <p className="text-[8px] font-black uppercase tracking-[0.14em] text-white/34">
+              Answer Review
+            </p>
 
-              <section className="grid min-h-0 grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
-                {options.map(([letter,answer]) => {
-                  const selected = selectedOption === letter;
-                  const correct = Boolean(feedback && feedback.correct_option === letter);
-                  return <button key={letter} type="button" disabled={Boolean(feedback) || isSaving} onClick={() => void submitAnswer(letter)} className={`min-h-[88px] rounded-[22px] border p-4 text-left transition sm:min-h-[120px] ${feedback ? correct ? "border-emerald-200/28 bg-emerald-400/[0.09]" : selected ? "border-red-200/22 bg-red-400/[0.07]" : "border-white/8 bg-white/[0.025] opacity-55" : "border-white/10 bg-white/[0.04] hover:border-cyan-200/24 hover:bg-cyan-300/[0.05]"}`}>
-                    <div className="flex items-start gap-3"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-[10px] font-black ${correct ? "border-emerald-200/20 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-black/16 text-white/44"}`}>{letter}</span><span className="text-[clamp(12px,1.3vw,16px)] font-bold leading-5 text-white/80">{answer}</span></div>
-                  </button>;
-                })}
-              </section>
-            </div>
+            <div className="mt-4 grid gap-3">
+              {quiz.questions.map((question) => {
+                const answer = questionResultMap.get(question.id);
+                const credit = Number(answer?.credit || 0);
 
-            <div className="mx-auto mt-3 flex w-full max-w-[1180px] shrink-0 items-center justify-between gap-3">
-              <div className="flex gap-2 sm:hidden"><Pill label="Correct" value={`${correctCount}/10`} /><Pill label="Points" value={totalPoints.toString()} /></div>
-              <span className="hidden text-[9px] text-white/28 sm:block">Attempt {attemptNumber} · {timerSeconds}s timer</span>
-              {feedback && <button type="button" onClick={() => void nextQuestion()} className="ml-auto min-h-11 rounded-full border border-cyan-200/22 bg-cyan-300/10 px-6 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">{feedback.attempt_completed ? "See Results" : "Next →"}</button>}
+                return (
+                  <article
+                    key={question.id}
+                    className={`rounded-[20px] border p-4 ${
+                      credit >= 1
+                        ? "border-emerald-200/12 bg-emerald-400/[0.035]"
+                        : credit > 0
+                          ? "border-amber-200/12 bg-amber-300/[0.035]"
+                          : "border-red-200/10 bg-red-400/[0.025]"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="min-w-0">
+                        <small className="text-[7px] font-black uppercase tracking-[0.1em] text-white/28">
+                          Question {question.question_order}
+                        </small>
+                        <strong className="mt-1 block text-sm leading-5">
+                          {question.prompt}
+                        </strong>
+                      </span>
+
+                      <span
+                        className={`shrink-0 rounded-full border px-3 py-1 text-[7px] font-black uppercase tracking-[0.07em] ${
+                          credit >= 1
+                            ? "border-emerald-200/16 text-emerald-100"
+                            : credit > 0
+                              ? "border-amber-200/16 text-amber-100"
+                              : "border-red-200/14 text-red-100"
+                        }`}
+                      >
+                        {credit >= 1
+                          ? "Full Credit"
+                          : credit > 0
+                            ? "Partial Credit"
+                            : "No Credit"}
+                      </span>
+                    </div>
+
+                    {answer?.explanation && (
+                      <p className="mt-3 border-t border-white/7 pt-3 text-[10px] leading-5 text-white/40">
+                        {answer.explanation}
+                      </p>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           </section>
-        ) : (
-          <section className="dream-results mx-auto min-h-0 w-full max-w-[1100px] flex-1 overflow-y-auto p-4 sm:p-6">
-            <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-center backdrop-blur-xl sm:p-8">
-              <p className="text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/60">Quiz Complete</p>
-              <h1 className="mt-2 font-serif text-5xl font-normal sm:text-6xl">{scorePercent}%</h1>
-              <p className="mt-2 text-sm text-white/44">{correctCount}/10 correct · {totalPoints.toLocaleString()} leaderboard points</p>
-              {adminPreview && <p className="mx-auto mt-4 max-w-xl rounded-xl border border-violet-200/14 bg-violet-400/[0.06] px-4 py-3 text-[10px] text-violet-100">Admin Preview result saved for QA only. It is excluded from quiz, club and challenge rankings.</p>}
-              <div className="mx-auto mt-6 grid max-w-[620px] grid-cols-3 gap-2"><Metric label="Correct" value={`${correctCount}/10`} /><Metric label="Score" value={`${scorePercent}%`} /><Metric label="Points" value={totalPoints.toString()} /></div>
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                <button type="button" onClick={() => setReviewOpen((v) => !v)} className="min-h-11 rounded-full border border-violet-200/18 bg-violet-400/[0.07] px-5 text-[9px] font-black uppercase tracking-[0.1em] text-violet-100">{reviewOpen ? "Hide Review" : "Review Answers"}</button>
-                <button type="button" onClick={resetForReplay} className="min-h-11 rounded-full border border-cyan-200/20 bg-cyan-300/[0.07] px-5 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">Play Again</button>
-                <Link href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(clubSlug)}`} className="inline-flex min-h-11 items-center rounded-full border border-white/10 bg-white/[0.035] px-5 text-[9px] font-black uppercase tracking-[0.1em] text-white/44 no-underline">Back to Club</Link>
-              </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!currentQuestion) {
+    return null;
+  }
+
+  return (
+    <main className="fixed inset-0 overflow-hidden bg-[#020711] text-white">
+      {quiz.cover_image_url && (
+        <img
+          src={quiz.cover_image_url}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover opacity-[0.10]"
+        />
+      )}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.10),transparent_30%),linear-gradient(180deg,rgba(2,7,17,0.95),rgba(2,7,17,0.99))]" />
+
+      <div className="relative z-10 flex h-full min-h-0 flex-col">
+        <header className="shrink-0 border-b border-white/8 bg-[#020711]/72 px-4 py-3 backdrop-blur-xl sm:px-6">
+          <div className="mx-auto flex max-w-[1180px] items-center justify-between gap-3">
+            <Link
+              href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(
+                quiz.club_slug,
+              )}`}
+              className="rounded-full border border-white/10 bg-white/[0.035] px-4 py-2 text-[8px] font-black uppercase tracking-[0.09em] text-white/48 no-underline"
+            >
+              ← Exit
+            </Link>
+
+            <div className="min-w-0 text-center">
+              <p className="truncate text-[7px] font-black uppercase tracking-[0.13em] text-cyan-100/48">
+                {quiz.club_name}
+              </p>
+              <strong className="mt-1 block truncate text-sm">
+                {quiz.title}
+              </strong>
             </div>
 
-            {reviewOpen && <section className="mt-4 rounded-[26px] border border-violet-200/11 bg-white/[0.035] p-4 sm:p-5"><p className="text-[8px] font-black uppercase tracking-[0.14em] text-violet-100/58">Answer Review</p><div className="mt-3 space-y-2">{review.map((r) => <article key={r.question_order} className="rounded-xl border border-white/8 bg-black/14 p-3"><div className="flex items-start gap-3"><span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-[9px] font-black ${r.is_correct ? "border-emerald-200/16 bg-emerald-400/[0.07] text-emerald-100" : "border-red-200/16 bg-red-400/[0.07] text-red-100"}`}>{r.question_order}</span><div className="min-w-0 flex-1"><strong className="text-[10px] leading-5">{r.question}</strong><p className="mt-2 text-[9px] text-white/40">Your answer: <span className="text-white/66">{r.selected_option ? `${r.selected_option}. ${r.selected_answer || ""}` : "No answer / timed out"}</span></p>{!r.is_correct && <p className="mt-1 text-[9px] text-emerald-100/72">Correct: {r.correct_option}. {r.correct_answer}</p>}{r.explanation && <p className="mt-1 text-[9px] leading-4 text-white/32">{r.explanation}</p>}</div><strong className="shrink-0 text-[9px] text-cyan-100/66">+{r.awarded_points}</strong></div></article>)}</div></section>}
+            <span className="shrink-0 text-[9px] font-black text-white/42">
+              {questionIndex + 1}/{quiz.questions.length}
+            </span>
+          </div>
 
-            {!adminPreview && <section className="mt-4 rounded-[26px] border border-cyan-200/11 bg-white/[0.035] p-4 sm:p-5"><p className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/58">Quiz Leaderboard</p>{leaderboard.length === 0 ? <p className="mt-3 text-[10px] text-white/32">No ranked attempts yet.</p> : <div className="mt-3 grid gap-2 md:grid-cols-2">{leaderboard.map((r) => <div key={`${r.rank}-${r.user_id}`} className="grid grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-white/7 bg-black/14 px-3 py-2"><strong className={`text-sm ${r.rank <= 3 ? "text-amber-100" : "text-white/32"}`}>{r.rank}</strong><span className="truncate text-[10px]">{r.display_name}</span><span className="text-right"><strong className="block text-[10px] text-cyan-100">{r.total_points} pts</strong><small className="text-[8px] text-white/28">{r.score_percent}%</small></span></div>)}</div>}</section>}
-          </section>
-        )}
+          <div className="mx-auto mt-3 h-1.5 max-w-[1180px] overflow-hidden rounded-full bg-white/[0.05]">
+            <div
+              className="h-full rounded-full bg-cyan-200/70 transition-all"
+              style={{
+                width: `${Math.max(
+                  4,
+                  ((questionIndex + 1) / quiz.questions.length) * 100,
+                )}%`,
+              }}
+            />
+          </div>
+        </header>
+
+        <section className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+          <div className="mx-auto max-w-[980px]">
+            {errorMessage && (
+              <p className="mb-4 rounded-xl border border-red-200/14 bg-red-400/[0.06] px-4 py-3 text-[10px] text-red-100">
+                {errorMessage}
+              </p>
+            )}
+
+            <CreatorQuestionRenderer
+              question={currentQuestion}
+              value={currentValue}
+              onChange={setCurrentValue}
+              disabled={isSubmitting}
+            />
+
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-[20px] border border-white/8 bg-white/[0.025] p-3">
+              <span className="text-[9px] text-white/28">
+                {currentQuestion.question_type === "choice_grid" &&
+                String(
+                  currentQuestion.config?.selection_mode || "single",
+                ) === "multi"
+                  ? "Choose every correct tile, then lock your answer."
+                  : "Make your choice, then lock your answer."}
+              </span>
+
+              <button
+                type="button"
+                disabled={
+                  isSubmitting ||
+                  !canSubmitAnswer(currentQuestion, currentValue)
+                }
+                onClick={() => void lockAnswer()}
+                className="min-h-11 shrink-0 rounded-full border border-cyan-200/22 bg-cyan-300/[0.08] px-6 text-[9px] font-black uppercase tracking-[0.09em] text-cyan-100 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                {isSubmitting
+                  ? "Saving..."
+                  : questionIndex === quiz.questions.length - 1
+                    ? "Finish Challenge"
+                    : "Lock Answer →"}
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
-      <style jsx>{`.dream-results{scrollbar-width:thin;scrollbar-color:rgba(126,232,255,.28) rgba(255,255,255,.04)}.dream-results::-webkit-scrollbar{width:7px}.dream-results::-webkit-scrollbar-thumb{background:rgba(126,232,255,.28);border-radius:999px}`}</style>
     </main>
   );
 }
 
-function Metric({ label, value }: { label:string; value:string }) {
-  return <div className="rounded-2xl border border-white/9 bg-black/16 px-3 py-3"><strong className="block text-lg">{value}</strong><span className="mt-1 block text-[7px] font-black uppercase tracking-[0.09em] text-white/28">{label}</span></div>;
-}
-function Pill({ label, value }: { label:string; value:string }) {
-  return <span className="rounded-full border border-white/8 bg-white/[0.025] px-3 py-2 text-[8px] text-white/36">{label} <strong className="ml-1 text-white/70">{value}</strong></span>;
-}
-function Badge({ children }: { children:React.ReactNode }) {
-  return <span className="rounded-full border border-white/9 bg-white/[0.025] px-3 py-1 text-[8px] font-black uppercase tracking-[0.09em] text-white/36">{children}</span>;
+function ResultMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[20px] border border-white/9 bg-black/16 px-4 py-4">
+      <strong className="block text-2xl text-cyan-100">{value}</strong>
+      <span className="mt-1 block text-[7px] font-black uppercase tracking-[0.09em] text-white/26">
+        {label}
+      </span>
+    </div>
+  );
 }
