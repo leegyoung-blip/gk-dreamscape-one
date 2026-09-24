@@ -5,7 +5,10 @@ import { useFinancialAdvisor } from "../hooks/useFinancialAdvisor";
 import { useFinancialCourse } from "../hooks/useFinancialCourse";
 import { useFinancialCourseCompletion } from "../hooks/useFinancialCourseCompletion";
 import type { BankScreenMode } from "../lib/bank-types";
-import type { FinancialLessonDefinition } from "../lib/financial-learning-engine-types";
+import type {
+  FinancialLessonDefinition,
+  FinancialLessonResponseMap,
+} from "../lib/financial-learning-engine-types";
 import type { MiloFinanceLessonSummary } from "../lib/financial-learning-content-types";
 import FinancialAdvisorSelector from "./FinancialAdvisorSelector";
 import FinancialLessonCard from "./FinancialLessonCard";
@@ -111,7 +114,22 @@ export default function FinancialCoursePanel({
         />
       ) : null}
 
-      <FinancialLessonPlayer lesson={selectedLesson} open={Boolean(selectedLesson)} advisorId={advisor.advisorId} loading={course.actionLoading} onClose={() => setSelectedLesson(null)} onCheckpoint={(lesson, responses, lastBlockKey) => course.saveCheckpoint(lesson, advisor.advisorId, lastBlockKey, responses)} onComplete={(lesson, responses) => course.completeLesson(lesson, advisor.advisorId, responses)} />
+      <FinancialLessonPlayer
+        lesson={selectedLesson}
+        open={Boolean(selectedLesson)}
+        advisorId={advisor.advisorId}
+        loading={course.actionLoading}
+        onClose={() => setSelectedLesson(null)}
+        onCheckpoint={(
+          lesson: FinancialLessonDefinition,
+          responses: FinancialLessonResponseMap,
+          lastBlockKey: string,
+        ) => course.saveCheckpoint(lesson, advisor.advisorId, lastBlockKey, responses)}
+        onComplete={(
+          lesson: FinancialLessonDefinition,
+          responses: FinancialLessonResponseMap,
+        ) => course.completeLesson(lesson, advisor.advisorId, responses)}
+      />
     </section>
   );
 }

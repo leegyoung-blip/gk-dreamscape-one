@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import CreatorQuestionRenderer, {
   type CreatorEngineAnswerValue,
+  type CreatorEngineOption,
   type CreatorEngineQuestion,
 } from "@/components/milo/creator-engine/CreatorQuestionRenderer";
 
@@ -16,12 +17,14 @@ type QueueRow = {
   question_count: number;
 };
 
-type ReviewQuestion = CreatorEngineQuestion & {
+type ReviewOption = CreatorEngineOption & {
+  is_correct: boolean;
+};
+
+type ReviewQuestion = Omit<CreatorEngineQuestion, "options"> & {
   answer_config: Record<string, unknown>;
   migrated_from_legacy: boolean;
-  options: (CreatorEngineQuestion["options"][number] & {
-    is_correct: boolean;
-  })[];
+  options: ReviewOption[];
 };
 
 function formatDate(value: string | null) {
