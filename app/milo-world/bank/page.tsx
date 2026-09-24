@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import BankFeaturePlaceholder from "./components/BankFeaturePlaceholder";
+import BondsPanel from "./components/BondsPanel";
 import BankHeader from "./components/BankHeader";
 import BankNavigation from "./components/BankNavigation";
 import BankOverview from "./components/BankOverview";
@@ -126,7 +127,7 @@ export default function MiloBankPage() {
         )}
 
         {activeTab === "bonds" && (
-          <BankFeaturePlaceholder feature="bonds" screenMode={screenMode} />
+          <BondsPanel screenMode={screenMode} isLoggedIn={isLoggedIn} />
         )}
 
         {activeTab === "learn" && (
