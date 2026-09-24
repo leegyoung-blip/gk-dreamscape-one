@@ -22,6 +22,16 @@ type AdminRow = {
   updated_at: string | null;
 };
 
+
+type RewardSettings = {
+  rewards_enabled: boolean;
+  milestone_rewards_enabled: boolean;
+  minimum_reputation: number;
+  cycle_days: number;
+  cycle_cap_dt: number;
+  updated_at: string | null;
+};
+
 type DraftRow = AdminRow & {
   isSaving?: boolean;
   message?: string;
@@ -36,6 +46,10 @@ export default function CreatorDiscoveryAdminPanel({
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [rewardSettings, setRewardSettings] =
+    useState<RewardSettings | null>(null);
+  const [isSavingRewards, setIsSavingRewards] = useState(false);
+  const [rewardMessage, setRewardMessage] = useState("");
 
   useEffect(() => {
     if (open && rows.length === 0) {
@@ -47,19 +61,22 @@ export default function CreatorDiscoveryAdminPanel({
     setIsLoading(true);
     setErrorMessage("");
 
-    const { data, error } = await supabase.rpc(
-      "admin_get_creator_discovery_overview_v1",
-    );
+    const [discoveryResponse, rewardResponse] = await Promise.all([
+      supabase.rpc("admin_get_creator_discovery_overview_v1"),
+      supabase.rpc("admin_get_creator_reward_settings_v1"),
+    ]);
 
-    if (error) {
-      setErrorMessage(error.message || "Could not load discovery controls.");
+    if (discoveryResponse.error) {
+      setErrorMessage(
+        discoveryResponse.error.message || "Could not load discovery controls.",
+      );
       setRows([]);
       setIsLoading(false);
       return;
     }
 
     setRows(
-      ((data || []) as AdminRow[]).map((row) => ({
+      ((discoveryResponse.data || []) as AdminRow[]).map((row) => ({
         ...row,
         reputation_score: Number(row.reputation_score || 0),
         moderation_penalty: Number(row.moderation_penalty || 0),
@@ -68,6 +85,26 @@ export default function CreatorDiscoveryAdminPanel({
         dreamscape_pick: Boolean(row.dreamscape_pick),
       })),
     );
+
+    if (!rewardResponse.error) {
+      const row = Array.isArray(rewardResponse.data)
+        ? rewardResponse.data[0]
+        : rewardResponse.data;
+
+      if (row) {
+        setRewardSettings({
+          rewards_enabled: Boolean(row.rewards_enabled),
+          milestone_rewards_enabled: Boolean(
+            row.milestone_rewards_enabled,
+          ),
+          minimum_reputation: Number(row.minimum_reputation || 0),
+          cycle_days: Number(row.cycle_days || 7),
+          cycle_cap_dt: Number(row.cycle_cap_dt || 0),
+          updated_at: row.updated_at ? String(row.updated_at) : null,
+        });
+      }
+    }
+
     setIsLoading(false);
   }
 
@@ -130,6 +167,45 @@ export default function CreatorDiscoveryAdminPanel({
     onChanged?.();
   }
 
+  async function saveRewardSettings() {
+    if (!rewardSettings) return;
+
+    setIsSavingRewards(true);
+    setRewardMessage("");
+    setErrorMessage("");
+
+    const { error } = await supabase.rpc(
+      "admin_update_creator_reward_settings_v1",
+      {
+        p_rewards_enabled: rewardSettings.rewards_enabled,
+        p_milestone_rewards_enabled:
+          rewardSettings.milestone_rewards_enabled,
+        p_minimum_reputation: Math.max(
+          0,
+          Math.min(1000, rewardSettings.minimum_reputation),
+        ),
+        p_cycle_days: Math.max(1, Math.min(30, rewardSettings.cycle_days)),
+        p_cycle_cap_dt: Math.max(
+          0,
+          Math.min(5000, rewardSettings.cycle_cap_dt),
+        ),
+      },
+    );
+
+    if (error) {
+      setRewardMessage(
+        error.message || "Creator Reward settings could not be saved.",
+      );
+      setIsSavingRewards(false);
+      return;
+    }
+
+    setRewardMessage("Creator Reward settings saved.");
+    await load();
+    onChanged?.();
+    setIsSavingRewards(false);
+  }
+
   const counts = useMemo(
     () => ({
       picks: rows.filter((row) => row.dreamscape_pick).length,
@@ -175,6 +251,137 @@ export default function CreatorDiscoveryAdminPanel({
             <AdminMetric label="Suppressed" value={counts.suppressed} />
             <AdminMetric label="Paused" value={counts.paused} />
           </div>
+
+          {rewardSettings && (
+            <section className="mt-4 rounded-[20px] border border-emerald-200/12 bg-emerald-400/[0.035] p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-[8px] font-black uppercase tracking-[0.13em] text-emerald-100/58">
+                    Creator Rewards Economy
+                  </p>
+                  <h3 className="mt-1 text-lg font-black">
+                    Control DT creator rewards
+                  </h3>
+                  <p className="mt-1 max-w-3xl text-[9px] leading-4 text-white/30">
+                    These settings affect fictional Dream Token rewards only.
+                    Existing claimed rewards are never changed retroactively.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isSavingRewards}
+                  onClick={() => void saveRewardSettings()}
+                  className="min-h-9 shrink-0 rounded-full border border-emerald-200/20 bg-emerald-400/[0.08] px-4 text-[8px] font-black uppercase tracking-[0.09em] text-emerald-100 disabled:opacity-35"
+                >
+                  {isSavingRewards ? "Saving..." : "Save Reward Settings"}
+                </button>
+              </div>
+
+              {rewardMessage && (
+                <p
+                  className={`mt-3 rounded-xl border px-3 py-2 text-[9px] ${
+                    /saved/i.test(rewardMessage)
+                      ? "border-emerald-200/12 bg-emerald-400/[0.05] text-emerald-100"
+                      : "border-red-200/12 bg-red-400/[0.05] text-red-100"
+                  }`}
+                >
+                  {rewardMessage}
+                </p>
+              )}
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <Toggle
+                  label="Creator Rewards"
+                  checked={rewardSettings.rewards_enabled}
+                  onChange={(checked) =>
+                    setRewardSettings((current) =>
+                      current
+                        ? { ...current, rewards_enabled: checked }
+                        : current,
+                    )
+                  }
+                />
+
+                <Toggle
+                  label="Milestone Rewards"
+                  checked={rewardSettings.milestone_rewards_enabled}
+                  onChange={(checked) =>
+                    setRewardSettings((current) =>
+                      current
+                        ? {
+                            ...current,
+                            milestone_rewards_enabled: checked,
+                          }
+                        : current,
+                    )
+                  }
+                />
+
+                <AdminField label="Minimum REP">
+                  <input
+                    type="number"
+                    min={0}
+                    max={1000}
+                    value={rewardSettings.minimum_reputation}
+                    onChange={(event) =>
+                      setRewardSettings((current) =>
+                        current
+                          ? {
+                              ...current,
+                              minimum_reputation: Number(
+                                event.target.value || 0,
+                              ),
+                            }
+                          : current,
+                      )
+                    }
+                    className={inputClass}
+                  />
+                </AdminField>
+
+                <AdminField label="Cycle days">
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={rewardSettings.cycle_days}
+                    onChange={(event) =>
+                      setRewardSettings((current) =>
+                        current
+                          ? {
+                              ...current,
+                              cycle_days: Number(event.target.value || 7),
+                            }
+                          : current,
+                      )
+                    }
+                    className={inputClass}
+                  />
+                </AdminField>
+
+                <AdminField label="Cycle cap · DT">
+                  <input
+                    type="number"
+                    min={0}
+                    max={5000}
+                    value={rewardSettings.cycle_cap_dt}
+                    onChange={(event) =>
+                      setRewardSettings((current) =>
+                        current
+                          ? {
+                              ...current,
+                              cycle_cap_dt: Number(event.target.value || 0),
+                            }
+                          : current,
+                      )
+                    }
+                    className={inputClass}
+                  />
+                </AdminField>
+              </div>
+            </section>
+          )}
 
           {isLoading ? (
             <p className="mt-4 text-xs text-white/38">

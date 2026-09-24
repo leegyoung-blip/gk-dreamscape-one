@@ -14,6 +14,7 @@ import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen
 
 import CreatorChallengeCyclePanel from "@/components/milo/CreatorChallengeCyclePanel";
 import CreatorReputationPanel from "@/components/milo/CreatorReputationPanel";
+import CreatorRewardsPanel from "@/components/milo/CreatorRewardsPanel";
 
 import {
 
@@ -1403,8 +1404,7 @@ export default function CreatorStudioPage() {
 
           <CreatorReputationPanel />
 
-
-
+          <CreatorRewardsPanel />
 
           {clubs.length === 0 ? (
 

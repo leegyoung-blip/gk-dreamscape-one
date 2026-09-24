@@ -19,6 +19,7 @@ import type {
   FinancialLessonResponseMap,
 } from "../lib/financial-learning-engine-types";
 import { useFinancialCourseCatalog } from "./useFinancialCourseCatalog";
+import { syncMiloFinanceCourseCompletion } from "../lib/financial-course-completion-api";
 
 function messageFrom(error: unknown) {
   if (error && typeof error === "object" && "message" in error) {
@@ -103,10 +104,17 @@ export function useFinancialCourse(courseId: string, isLoggedIn: boolean) {
     setError(null);
     try {
       const result = await completeMiloFinanceLesson({ lessonKey: lesson.id, advisorId, responses });
+      try {
+        await syncMiloFinanceCourseCompletion(lesson.courseId, advisorId);
+      } catch {
+        // Course summary sync must never turn an already-completed lesson into
+        // a learner-facing failure. The summary can refresh on the next load.
+      }
       await refreshProgress();
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("milo-finance-learning-updated"));
         window.dispatchEvent(new Event("dream-tokens-updated"));
+        window.dispatchEvent(new Event("milo-finance-course-updated"));
       }
       return result;
     } catch (caught) {

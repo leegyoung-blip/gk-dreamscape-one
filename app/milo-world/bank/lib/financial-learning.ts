@@ -33,7 +33,7 @@ export const FINANCIAL_LEARNING_PATHWAYS: FinancialLearningPathway[] = [
     description:
       "Go deeper into banks, liquidity, interest, compound growth and bonds through applied Dreamscape decisions.",
     status: "available",
-    meta: "5 lessons live · first 2 free",
+    meta: "8 lessons · first 2 free",
     accent: "#9fffd2",
     accessTier: "free",
     includesPremium: true,

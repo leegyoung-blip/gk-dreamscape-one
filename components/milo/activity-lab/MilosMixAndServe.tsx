@@ -71,6 +71,7 @@ type Props = {
   height: number;
   onTokenTransaction: (amount: number, description: string) => Promise<boolean>;
   batteryCanStart?: boolean;
+  batteryUnlimited?: boolean;
   onBatteryBlocked?: () => void;
   onBatteryRunStart?: () => Promise<boolean>;
 };
@@ -86,6 +87,10 @@ const PAN_WARNING_TICKS = 28;
 const PAN_BURNT_TICKS = 48; // 5 full seconds of flashing warning before burning
 const DISCARD_PENALTY = 25;
 const ASSET_BASE = "/milo/activity-lab/mix-serve";
+const LANDING_ASSETS = {
+  kitchen: `${ASSET_BASE}/landing/mix-serve-kitchen-bg.png`,
+  chefMilo: `${ASSET_BASE}/landing/milo-chef.png`,
+};
 
 const WORKSTATION_ASSETS = {
   emptyPan: `${ASSET_BASE}/workstations/pan-empty.png`,
@@ -281,6 +286,7 @@ export default function MilosMixAndServe({
   height,
   onTokenTransaction,
   batteryCanStart = true,
+  batteryUnlimited = false,
   onBatteryBlocked,
   onBatteryRunStart,
 }: Props) {
@@ -1231,6 +1237,34 @@ export default function MilosMixAndServe({
           <div style={{ position: "absolute", right: "10%", top: mobile ? 69 : 87, width: "27%", height: mobile ? 58 : 78, borderRadius: 14, background: "linear-gradient(180deg,#252e31,#0d1417)", border: "1px solid rgba(255,255,255,.06)" }} />
         </div>
 
+        <img
+          src={LANDING_ASSETS.kitchen}
+          alt=""
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 1,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: mobile ? "52% center" : "center center",
+            userSelect: "none",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 2,
+            background:
+              "linear-gradient(90deg,rgba(4,7,10,.48) 0%,rgba(4,7,10,.16) 38%,rgba(4,7,10,.24) 100%), linear-gradient(180deg,rgba(3,6,9,.28) 0%,transparent 38%,rgba(3,6,9,.42) 100%)",
+            pointerEvents: "none",
+          }}
+        />
+
         <div style={{ position: "relative", zIndex: 3, height: "100%", display: "grid", gridTemplateRows: "auto minmax(0,1fr)", padding: mobile ? 12 : 18 }}>
           <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <div>
@@ -1244,14 +1278,14 @@ export default function MilosMixAndServe({
 
           <section style={{ position: "relative", minHeight: 0 }}>
             <img
-              src="/milo-world/milo-character.png"
+              src={LANDING_ASSETS.chefMilo}
               alt="Milo"
               style={{
                 position: "absolute",
                 left: mobile ? "-10px" : "3%",
                 bottom: mobile ? "-18px" : "-28px",
-                height: introOpen ? (mobile ? "56%" : "76%") : (mobile ? "43%" : "61%"),
-                maxHeight: introOpen ? 500 : 390,
+                height: introOpen ? (mobile ? "62%" : "82%") : (mobile ? "49%" : "67%"),
+                maxHeight: introOpen ? 560 : 430,
                 width: "auto",
                 objectFit: "contain",
                 filter: "drop-shadow(0 28px 42px rgba(0,0,0,.56))",
@@ -1274,7 +1308,13 @@ export default function MilosMixAndServe({
                 <div style={{ textAlign: "center", marginBottom: mobile ? 10 : 18 }}>
                   <p style={{ margin: 0, color: "#ffc36f", fontSize: mobile ? 10 : 12, fontWeight: 950, letterSpacing: ".16em", textTransform: "uppercase" }}>Today’s Kitchen</p>
                   <h3 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : 37, fontWeight: 400 }}>What would you like to cook?</h3>
-                  {!mobile && <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.48)", fontSize: 13 }}>Choose a station. Each run costs 5 Bolts when you actually start cooking.</p>}
+                  {!mobile && (
+                    <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.48)", fontSize: 13 }}>
+                      {batteryUnlimited
+                        ? "Choose a station. Admin cooking runs have unlimited Bolt access."
+                        : "Choose a station. Each run costs 5 Bolts when you actually start cooking."}
+                    </p>
+                  )}
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: mobile ? 7 : 12, minHeight: 0 }}>

@@ -56,8 +56,9 @@ export default function ActivityLabBatteryMeter(props: Props) {
     fullRechargeInSeconds,
   } = props;
 
-  const colour = accent(percentage);
+  const colour = unlimited ? "#9fffd2" : accent(percentage);
   const runCost = state?.runCostBolts ?? 5;
+  const unlimited = Boolean(userId && state && runCost === 0);
   const rechargeAmount = state?.rechargeBoltsPerInterval ?? 10;
   const nextActualRecharge = Math.min(rechargeAmount, Math.max(0, capacityBolts - batteryBolts));
   const ready = totalBolts >= runCost;
@@ -89,9 +90,9 @@ export default function ActivityLabBatteryMeter(props: Props) {
           )}
           <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <strong style={{ fontSize: mobile ? 9 : 11, whiteSpace: "nowrap" }}>
-              {userId ? `${batteryBolts} / ${capacityBolts}` : "Guest"}
+              {unlimited ? "Unlimited" : userId ? `${batteryBolts} / ${capacityBolts}` : "Guest"}
             </strong>
-            {!mobile && bonusBolts > 0 && (
+            {!unlimited && !mobile && bonusBolts > 0 && (
               <span style={{ fontSize: 7, color: "#9fffd2", fontWeight: 900 }}>+{bonusBolts} reserve</span>
             )}
           </span>
@@ -105,7 +106,7 @@ export default function ActivityLabBatteryMeter(props: Props) {
               <div>
                 <p style={{ margin: 0, color: colour, fontSize: 9, fontWeight: 950, letterSpacing: ".16em" }}>ACTIVITY LAB BATTERY</p>
                 <h2 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 28 : 36, fontWeight: 400 }}>
-                  {userId ? `${batteryBolts} / ${capacityBolts} Bolts` : "Guest play"}
+                  {unlimited ? "Unlimited Bolts" : userId ? `${batteryBolts} / ${capacityBolts} Bolts` : "Guest play"}
                 </h2>
               </div>
               <button type="button" onClick={onClose} style={{ width: 38, height: 38, borderRadius: 999, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.05)", color: "white", fontSize: 20, cursor: "pointer" }}>×</button>
@@ -119,6 +120,22 @@ export default function ActivityLabBatteryMeter(props: Props) {
               <p style={{ margin: "15px 0 0", color: "rgba(255,255,255,.58)", fontSize: 12 }}>Loading your battery…</p>
             ) : error ? (
               <p style={{ margin: "15px 0 0", color: "#ff9ca7", fontSize: 12 }}>{error}</p>
+            ) : unlimited ? (
+              <>
+                <div style={{ marginTop: 18, height: 15, borderRadius: 999, background: "rgba(255,255,255,.07)", padding: 2, overflow: "hidden" }}>
+                  <div style={{ width: "100%", height: "100%", borderRadius: 999, background: "linear-gradient(90deg,#7ce8ff,#9fffd2)", boxShadow: "0 0 22px rgba(159,255,210,.26)" }} />
+                </div>
+
+                <div style={{ marginTop: 16 }}>
+                  <Info colour="#9fffd2" title="Admin unlimited access">
+                    Your admin account does not spend Bolts. Every Activity Lab run can start immediately with no battery deduction.
+                  </Info>
+                </div>
+
+                <p style={{ margin: "12px 0 0", color: "rgba(255,255,255,.38)", fontSize: 10, lineHeight: 1.5, textAlign: "center" }}>
+                  Recharge timers and reserve Bolt purchases are not required for admin accounts.
+                </p>
+              </>
             ) : (
               <>
                 <div style={{ marginTop: 16, height: 15, borderRadius: 999, background: "rgba(255,255,255,.07)", padding: 2, overflow: "hidden" }}>
