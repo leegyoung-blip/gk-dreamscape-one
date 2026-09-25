@@ -308,6 +308,55 @@ export type PricingSimulatorBlock = FinancialBlockBase & {
   takeaway?: string;
 };
 
+
+export type CashflowTimelinePeriod = {
+  id: string;
+  label: string;
+  subtitle?: string;
+};
+
+export type CashflowTimelineEvent = {
+  id: string;
+  label: string;
+  amount: number;
+  kind: "inflow" | "outflow";
+  description?: string;
+  correctPeriodId?: string;
+};
+
+export type CashflowTimelineBlock = FinancialBlockBase & {
+  type: "cashflow_timeline";
+  prompt: string;
+  openingCash: number;
+  periods: CashflowTimelinePeriod[];
+  events: CashflowTimelineEvent[];
+  contextNote?: string;
+  warningBelow?: number;
+  takeaway?: string;
+};
+
+export type InventoryDemandScenario = {
+  id: string;
+  label: string;
+  demand: number;
+  description?: string;
+};
+
+export type InventorySimulatorBlock = FinancialBlockBase & {
+  type: "inventory_simulator";
+  prompt: string;
+  openingCash: number;
+  openingInventory?: number;
+  unitCost: number;
+  salePrice: number;
+  orderQuantity: BusinessModelControl;
+  demandScenarios: InventoryDemandScenario[];
+  revealScenarioId?: string;
+  holdingCostPerUnit?: number;
+  contextNote?: string;
+  takeaway?: string;
+};
+
 export type FinancialLearningBlock =
   | ExplainBlock
   | QuestionBlock
@@ -321,7 +370,9 @@ export type FinancialLearningBlock =
   | PredictionBlock
   | GrowthSimulatorBlock
   | BusinessModelBlock
-  | PricingSimulatorBlock;
+  | PricingSimulatorBlock
+  | CashflowTimelineBlock
+  | InventorySimulatorBlock;
 
 export type FinancialLessonDefinition = {
   schemaVersion: 1 | 2;

@@ -99,6 +99,29 @@ export function normaliseTeachingText(
   };
 }
 
+
+/**
+ * Teaching V2 progressive hints.
+ *
+ * - Prefer teaching.hints when authored.
+ * - Keep the legacy teaching.hint field working unchanged.
+ * - Limit the learner-facing progression to three hints.
+ */
+export function normaliseTeachingHints(
+  teaching: TeachingConfig | null | undefined,
+): NormalisedTeachingText[] {
+  const authored = Array.isArray(teaching?.hints)
+    ? teaching!.hints
+        .map((item) => normaliseTeachingText(item))
+        .filter(Boolean) as NormalisedTeachingText[]
+    : [];
+
+  if (authored.length > 0) return authored.slice(0, 3);
+
+  const legacy = normaliseTeachingText(teaching?.hint);
+  return legacy ? [legacy] : [];
+}
+
 function normaliseLessonItem(value: TeachingLessonItem) {
   if (typeof value === "string") {
     const text = value.trim();

@@ -142,10 +142,33 @@ export async function confirmActivityLabCreditCheckout(sessionId: string): Promi
     body: JSON.stringify({ sessionId }),
   });
 
-  const body = (await response.json().catch(() => ({}))) as ActivityLabCheckoutConfirmation | { error?: string };
+  const body = (await response.json().catch(() => ({}))) as
+    | ActivityLabCheckoutConfirmation
+    | {
+        error?: string;
+        errorCode?: string;
+        reference?: string;
+      };
+
   if (response.status !== 202 && !response.ok) {
-    throw new Error("error" in body && body.error ? body.error : "Could not confirm Play Credit checkout.");
+    const message =
+      "error" in body && body.error
+        ? body.error
+        : "Could not confirm Play Credit checkout.";
+
+    const reference =
+      "reference" in body && body.reference
+        ? ` Reference: ${body.reference}.`
+        : "";
+
+    const code =
+      "errorCode" in body && body.errorCode
+        ? ` (${body.errorCode})`
+        : "";
+
+    throw new Error(`${message}${code}${reference}`);
   }
+
   return body as ActivityLabCheckoutConfirmation;
 }
 

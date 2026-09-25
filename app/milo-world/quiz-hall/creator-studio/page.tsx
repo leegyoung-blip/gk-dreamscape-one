@@ -18,6 +18,7 @@ import CreatorRewardsPanel from "@/components/milo/CreatorRewardsPanel";
 import CreatorEngineV2Builder from "@/components/milo/creator-engine/CreatorEngineV2Builder";
 import CreatorClubPlaySettings from "@/components/milo/creator-engine/CreatorClubPlaySettings";
 import CreatorEngagementPanel from "@/components/milo/creator-engine/CreatorEngagementPanel";
+import CreatorClubProgressionPanel from "@/components/milo/creator-engine/CreatorClubProgressionPanel";
 
 import {
 
@@ -1415,6 +1416,8 @@ export default function CreatorStudioPage() {
           <CreatorRewardsPanel />
 
           <CreatorClubPlaySettings />
+
+          <CreatorClubProgressionPanel />
 
           <CreatorEngagementPanel />
 

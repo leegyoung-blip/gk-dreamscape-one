@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
 import CreatorDiscoveryAdminPanel from "@/components/milo/CreatorDiscoveryAdminPanel";
+import CreatorClubLevelBadge from "@/components/milo/creator-engine/CreatorClubLevelBadge";
 import {
   getMiloQuizHallCreatorClubsAccess,
   type MiloQuizHallCreatorClubsAccess,
@@ -37,6 +38,9 @@ type ClubDirectoryRow = {
   member_count: number;
   is_member: boolean;
   joined_at: string | null;
+  club_level_number?: number;
+  club_level_name?: string;
+  club_progression_score?: number;
 };
 
 
@@ -85,6 +89,21 @@ type DiscoveryRow = {
   discovery_score: number;
   dreamscape_pick: boolean;
   reason_label: string;
+
+  club_level_number?: number;
+  club_level_name?: string;
+  club_progression_score?: number;
+};
+
+type ClubProgressionDirectoryRow = {
+  club_id: string;
+  club_slug: string;
+  level_number: number;
+  level_key: string;
+  level_name: string;
+  badge_label: string;
+  progression_score: number;
+  updated_at: string;
 };
 
 type ViewMode = "discover" | "my" | "create";
@@ -189,12 +208,49 @@ export default function CreatorClubsPage() {
     const user = userResponse.data.user;
     setIsAuthenticated(Boolean(user));
 
-    const [clubsResponse, discoverableResponse, discoveryResponse] =
-      await Promise.all([
-        supabase.rpc("get_creator_club_directory"),
-        supabase.rpc("get_creator_discovery_directory_v1"),
-        supabase.rpc("get_creator_discovery_sections_v1"),
-      ]);
+    const [
+      clubsResponse,
+      discoverableResponse,
+      discoveryResponse,
+      progressionResponse,
+    ] = await Promise.all([
+      supabase.rpc("get_creator_club_directory"),
+      supabase.rpc("get_creator_discovery_directory_v1"),
+      supabase.rpc("get_creator_discovery_sections_v1"),
+      supabase.rpc("get_creator_club_progression_directory_v1"),
+    ]);
+
+    const clubProgressionMap = new Map<
+      string,
+      ClubProgressionDirectoryRow
+    >(
+      progressionResponse.error
+        ? []
+        : ((progressionResponse.data || []) as ClubProgressionDirectoryRow[]).map(
+            (row) => [
+              String(row.club_slug),
+              {
+                ...row,
+                club_id: String(row.club_id),
+                club_slug: String(row.club_slug),
+                level_number: Number(row.level_number || 1),
+                level_name: String(row.level_name || "Starter Club"),
+                progression_score: Number(row.progression_score || 0),
+              },
+            ],
+          ),
+    );
+
+    function withClubLevel<T extends { club_slug: string }>(row: T) {
+      const progression = clubProgressionMap.get(String(row.club_slug));
+
+      return {
+        ...row,
+        club_level_number: progression?.level_number || 1,
+        club_level_name: progression?.level_name || "Starter Club",
+        club_progression_score: progression?.progression_score || 0,
+      };
+    }
 
     if (clubsResponse.error) {
       setClubs([]);
@@ -203,12 +259,14 @@ export default function CreatorClubsPage() {
       );
     } else {
       setClubs(
-        ((clubsResponse.data || []) as ClubDirectoryRow[]).map((club) => ({
-          ...club,
-          featured: Boolean(club.featured),
-          member_count: Number(club.member_count || 0),
-          is_member: Boolean(club.is_member),
-        })),
+        ((clubsResponse.data || []) as ClubDirectoryRow[]).map((club) =>
+          withClubLevel({
+            ...club,
+            featured: Boolean(club.featured),
+            member_count: Number(club.member_count || 0),
+            is_member: Boolean(club.is_member),
+          }),
+        ),
       );
     }
 
@@ -222,12 +280,14 @@ export default function CreatorClubsPage() {
       }
     } else {
       setDiscoverableClubs(
-        ((discoverableResponse.data || []) as ClubDirectoryRow[]).map((club) => ({
-          ...club,
-          featured: Boolean(club.featured),
-          member_count: Number(club.member_count || 0),
-          is_member: Boolean(club.is_member),
-        })),
+        ((discoverableResponse.data || []) as ClubDirectoryRow[]).map((club) =>
+          withClubLevel({
+            ...club,
+            featured: Boolean(club.featured),
+            member_count: Number(club.member_count || 0),
+            is_member: Boolean(club.is_member),
+          }),
+        ),
       );
     }
 
@@ -241,7 +301,8 @@ export default function CreatorClubsPage() {
       }
     } else {
       setDiscoveryRows(
-        ((discoveryResponse.data || []) as DiscoveryRow[]).map((row) => ({
+        ((discoveryResponse.data || []) as DiscoveryRow[]).map((row) =>
+          withClubLevel({
           ...row,
           section_rank: Number(row.section_rank || 0),
           member_count: Number(row.member_count || 0),
@@ -263,7 +324,8 @@ export default function CreatorClubsPage() {
           repeat_rate: Number(row.repeat_rate || 0),
           discovery_score: Number(row.discovery_score || 0),
           dreamscape_pick: Boolean(row.dreamscape_pick),
-        })),
+          }),
+        ),
       );
     }
 
@@ -772,9 +834,14 @@ function DiscoveryHero({ row }: { row: DiscoveryRow }) {
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,7,17,0.97)_0%,rgba(2,7,17,0.80)_54%,rgba(2,7,17,0.42)_100%)]" />
 
         <div className="relative z-10 flex min-h-[278px] max-w-3xl flex-col justify-end">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <DiscoveryPill>{row.reason_label}</DiscoveryPill>
-            <DiscoveryPill>{row.level_name}</DiscoveryPill>
+            <CreatorClubLevelBadge
+              levelNumber={row.club_level_number || 1}
+              levelName={row.club_level_name || "Starter Club"}
+              compact
+            />
+            <DiscoveryPill>{row.level_name} creator</DiscoveryPill>
             <DiscoveryPill>{row.reputation_score} REP</DiscoveryPill>
           </div>
 
@@ -931,9 +998,11 @@ function DiscoveryClubCard({ row }: { row: DiscoveryRow }) {
             )}
           </span>
 
-          <span className="rounded-full border border-cyan-200/14 bg-cyan-300/[0.06] px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.08em] text-cyan-100">
-            {row.level_name}
-          </span>
+          <CreatorClubLevelBadge
+            levelNumber={row.club_level_number || 1}
+            levelName={row.club_level_name || "Starter Club"}
+            compact
+          />
         </div>
 
         <p className="mt-4 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100/62">
@@ -950,6 +1019,7 @@ function DiscoveryClubCard({ row }: { row: DiscoveryRow }) {
 
         <div className="mt-3 flex flex-wrap gap-1.5">
           <DiscoveryPill>{row.reason_label}</DiscoveryPill>
+          <DiscoveryPill>{row.level_name} creator</DiscoveryPill>
           <DiscoveryPill>{row.reputation_score} REP</DiscoveryPill>
         </div>
 
@@ -1461,7 +1531,8 @@ function ClubCard({ club }: { club: ClubDirectoryRow }) {
       )}
 
       <div className="relative z-10 flex h-full flex-col">
-        <div className="flex items-start gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-amber-200/18 bg-amber-300/[0.08] text-lg font-black text-amber-100">
             {club.logo_image_url ? (
               <img
@@ -1482,6 +1553,13 @@ function ClubCard({ club }: { club: ClubDirectoryRow }) {
               {club.club_name}
             </h3>
           </div>
+          </div>
+
+          <CreatorClubLevelBadge
+            levelNumber={club.club_level_number || 1}
+            levelName={club.club_level_name || "Starter Club"}
+            compact
+          />
         </div>
 
         <p className="mt-4 line-clamp-3 text-[11px] leading-5 text-white/48">

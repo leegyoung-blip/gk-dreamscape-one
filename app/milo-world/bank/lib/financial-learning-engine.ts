@@ -37,6 +37,16 @@ export function isResponseComplete(
     return typeof response.value === "number" && Number.isFinite(response.value);
   }
 
+  if (block.type === "cashflow_timeline") {
+    const values = response.value as Record<string, string>;
+    return block.events.every((event) => Boolean(values[event.id]));
+  }
+
+  if (block.type === "inventory_simulator") {
+    const values = response.value as Record<string, number>;
+    return Number.isFinite(Number(values.orderQuantity)) && Number.isFinite(Number(values.demand));
+  }
+
   return response.value !== undefined && response.value !== null && response.value !== "";
 }
 

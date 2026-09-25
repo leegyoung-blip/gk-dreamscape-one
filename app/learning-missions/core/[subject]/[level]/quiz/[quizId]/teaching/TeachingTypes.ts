@@ -142,9 +142,7 @@ export type TeachingLessonObject = {
   problem?: string;
   correction?: string;
 
-  // Math Teaching V1 fields. The same generic steps/examples fields remain
-  // available, while these fields let the renderer present mathematical
-  // reasoning as a method rather than as one paragraph.
+  // Math Teaching V1 fields.
   method?: string;
   expression?: string;
   formula?: string;
@@ -171,7 +169,6 @@ export type TeachingLesson = string | TeachingLessonObject;
 export type TeachingMisconception = TeachingTextObject & {
   lesson?: TeachingLesson;
 };
-
 
 export type TeachingQuickCheckType =
   | "multiple_choice"
@@ -218,7 +215,13 @@ export type NormalisedTeachingQuickCheck = {
 
 export type TeachingConfig = {
   version?: number;
+
+  // Legacy single hint remains supported.
   hint?: TeachingTextBlock;
+
+  // Teaching V2: progressive hints. Author up to three.
+  hints?: TeachingTextBlock[];
+
   correct?: TeachingTextBlock;
   incorrect?: TeachingTextBlock;
   lesson?: TeachingLesson;

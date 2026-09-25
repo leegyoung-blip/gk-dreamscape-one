@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import type {
   CoreSubject,
   ImmediateFeedback,
@@ -17,6 +18,7 @@ import MathTeachingRenderer from "./math/MathTeachingRenderer";
 import { recordTeachingEvent } from "./TeachingEvents";
 import { buildTeachingEvidenceMetadata } from "./TeachingEvidenceMetadata";
 import {
+  normaliseTeachingHints,
   normaliseTeachingLesson,
   normaliseTeachingQuickCheck,
   normaliseTeachingText,
@@ -49,12 +51,14 @@ export default function CoreTeachingEngine({
   feedback?: ImmediateFeedback;
 }) {
   const [hintOpen, setHintOpen] = useState(false);
+  const [revealedHintCount, setRevealedHintCount] = useState(0);
   const [lessonOpen, setLessonOpen] = useState(false);
   const [teachMeOpen, setTeachMeOpen] = useState(false);
   const [teachingViewed, setTeachingViewed] = useState(false);
 
   useEffect(() => {
     setHintOpen(false);
+    setRevealedHintCount(0);
     setLessonOpen(false);
     setTeachMeOpen(false);
     setTeachingViewed(false);
@@ -77,7 +81,7 @@ export default function CoreTeachingEngine({
     [primaryLevel, question, teaching?.version, topicId, topicTitle],
   );
 
-  const hint = normaliseTeachingText(teaching?.hint);
+  const hints = useMemo(() => normaliseTeachingHints(teaching), [teaching]);
   const correctSummary = normaliseTeachingText(teaching?.correct);
   const incorrectSummary = normaliseTeachingText(teaching?.incorrect);
   const authoredLesson = normaliseTeachingLesson(teaching?.lesson);
@@ -103,7 +107,15 @@ export default function CoreTeachingEngine({
       misconceptionCode: misconception.code,
       metadata: evidenceMetadata,
     });
-  }, [attemptId, evidenceMetadata, feedback, misconception, question.id, quizId, subject]);
+  }, [
+    attemptId,
+    evidenceMetadata,
+    feedback,
+    misconception,
+    question.id,
+    quizId,
+    subject,
+  ]);
 
   function record(
     eventType:
@@ -119,6 +131,7 @@ export default function CoreTeachingEngine({
     } = {},
   ) {
     if (!quizId || !attemptId) return;
+
     recordTeachingEvent({
       subject,
       quizId,
@@ -136,24 +149,70 @@ export default function CoreTeachingEngine({
   }
 
   function toggleHint() {
-    const next = !hintOpen;
-    setHintOpen(next);
-    if (next) record("hint_opened");
+    const nextOpen = !hintOpen;
+    setHintOpen(nextOpen);
+
+    if (!nextOpen) return;
+
+    if (revealedHintCount === 0) {
+      setRevealedHintCount(1);
+      record("hint_opened", {
+        eventKey: "hint_1",
+        metadata: {
+          hint_index: 1,
+          hint_total: hints.length,
+        },
+      });
+      return;
+    }
+
+    record("hint_opened", {
+      eventKey: `hint_${revealedHintCount}`,
+      metadata: {
+        hint_index: revealedHintCount,
+        hint_total: hints.length,
+        reopened: true,
+      },
+    });
   }
 
-  // Before the learner checks an answer, expose only authored hints. Hints are
-  // intentionally authored rather than generated from explanations so they do
-  // not accidentally reveal the answer.
+  function revealNextHint() {
+    if (hints.length === 0) return;
+
+    const nextCount = Math.min(
+      hints.length,
+      Math.max(1, revealedHintCount) + 1,
+    );
+
+    if (nextCount === revealedHintCount) return;
+
+    setRevealedHintCount(nextCount);
+    setHintOpen(true);
+
+    record("hint_opened", {
+      eventKey: `hint_${nextCount}`,
+      metadata: {
+        hint_index: nextCount,
+        hint_total: hints.length,
+      },
+    });
+  }
+
+  // Before the learner checks an answer, expose only authored hints.
+  // Teaching V2 supports up to three progressive hints while keeping
+  // the legacy single teaching.hint field backward-compatible.
   if (!feedback) {
-    if (!hint) return null;
+    if (hints.length === 0) return null;
 
     return (
       <CoreTeachingHint
         subject={subject}
         questionText={question.prompt}
-        hint={hint}
+        hints={hints}
+        revealedCount={revealedHintCount}
         open={hintOpen}
         onToggle={toggleHint}
+        onRevealNext={revealNextHint}
       />
     );
   }
@@ -196,6 +255,7 @@ export default function CoreTeachingEngine({
     const next = !lessonOpen;
     setLessonOpen(next);
     setTeachMeOpen(false);
+
     if (next && detailLesson) {
       setTeachingViewed(true);
       record("lesson_opened", {
@@ -209,6 +269,7 @@ export default function CoreTeachingEngine({
     const next = !teachMeOpen;
     setTeachMeOpen(next);
     setLessonOpen(false);
+
     if (next && teachMeLesson) {
       setTeachingViewed(true);
       record("teach_me_opened", {
@@ -245,6 +306,45 @@ export default function CoreTeachingEngine({
   const quickCheckReady =
     Boolean(quickCheck) &&
     (teachingViewed || (!detailLesson && !teachMeLesson));
+
+  const teachingModalOpen =
+    (lessonOpen && Boolean(detailLesson)) ||
+    (teachMeOpen && Boolean(teachMeLesson));
+
+  useEffect(() => {
+    if (!teachingModalOpen || typeof document === "undefined") return;
+
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+    };
+  }, [teachingModalOpen]);
+
+  const modalLesson = lessonOpen
+    ? detailLesson
+    : teachMeOpen
+      ? teachMeLesson
+      : null;
+
+  const modalLabel = lessonOpen
+    ? subject === "math"
+      ? "Method"
+      : "Why this works"
+    : "Teach Me";
+
+  function closeTeachingModal() {
+    setLessonOpen(false);
+    setTeachMeOpen(false);
+  }
 
   return (
     <section
@@ -288,14 +388,42 @@ export default function CoreTeachingEngine({
         </div>
       )}
 
-      {lessonOpen && detailLesson &&
-        renderLesson(
-          detailLesson,
-          subject === "math" ? "Method" : "Why this works",
-        )}
+      {teachingModalOpen && modalLesson && (
+        <div
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeTeachingModal();
+          }}
+          style={teachingModalBackdrop}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label={modalLabel}
+            style={teachingModalPanel}
+          >
+            <div style={teachingModalHeader}>
+              <div>
+                <p style={teachingModalEyebrow}>Nova explains</p>
+                <h2 style={teachingModalTitle}>{modalLabel}</h2>
+              </div>
 
-      {teachMeOpen && teachMeLesson &&
-        renderLesson(teachMeLesson, "Teach Me")}
+              <button
+                type="button"
+                onClick={closeTeachingModal}
+                aria-label="Close teaching explanation"
+                style={teachingModalClose}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={teachingModalBody}>
+              {renderLesson(modalLesson, modalLabel)}
+            </div>
+          </section>
+        </div>
+      )}
 
       {quickCheckReady && quickCheck && (
         <CoreTeachingQuickCheck
@@ -314,3 +442,87 @@ export default function CoreTeachingEngine({
     </section>
   );
 }
+
+const teachingModalBackdrop: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 140,
+  background: "rgba(2, 8, 19, 0.72)",
+  backdropFilter: "blur(6px)",
+  display: "grid",
+  placeItems: "center",
+  padding: "clamp(10px, 2vw, 24px)",
+  boxSizing: "border-box",
+  overflow: "hidden",
+};
+
+const teachingModalPanel: React.CSSProperties = {
+  width: "min(1120px, 96vw)",
+  height: "min(760px, calc(100dvh - 120px))",
+  maxHeight: "calc(100dvh - 120px)",
+  minHeight: 0,
+  borderRadius: "22px",
+  border: "1px solid rgba(126,232,255,0.24)",
+  background:
+    "linear-gradient(180deg, rgba(8,27,51,0.995), rgba(5,18,42,0.995))",
+  boxShadow: "0 30px 90px rgba(0,0,0,0.52)",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+};
+
+const teachingModalHeader: React.CSSProperties = {
+  flex: "0 0 auto",
+  minHeight: "70px",
+  padding: "14px 16px 12px 18px",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "14px",
+  background:
+    "linear-gradient(90deg, rgba(83,215,255,0.08), rgba(168,85,247,0.06))",
+};
+
+const teachingModalEyebrow: React.CSSProperties = {
+  margin: 0,
+  color: "#8ee8ff",
+  fontSize: "10px",
+  lineHeight: 1,
+  fontWeight: 900,
+  letterSpacing: "0.14em",
+  textTransform: "uppercase",
+};
+
+const teachingModalTitle: React.CSSProperties = {
+  margin: "6px 0 0",
+  color: "white",
+  fontSize: "clamp(20px, 2.2vw, 28px)",
+  lineHeight: 1.1,
+  letterSpacing: "-0.025em",
+};
+
+const teachingModalClose: React.CSSProperties = {
+  flex: "0 0 auto",
+  width: "40px",
+  height: "40px",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.13)",
+  background: "rgba(255,255,255,0.06)",
+  color: "white",
+  cursor: "pointer",
+  fontSize: "26px",
+  lineHeight: 1,
+  fontWeight: 500,
+};
+
+const teachingModalBody: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflowY: "auto",
+  overflowX: "hidden",
+  padding: "14px",
+  boxSizing: "border-box",
+  scrollbarGutter: "stable",
+};
+

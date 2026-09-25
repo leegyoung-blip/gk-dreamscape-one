@@ -6,6 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
 import CreatorReputationBadge from "@/components/milo/CreatorReputationBadge";
+import CreatorClubLevelBadge from "@/components/milo/creator-engine/CreatorClubLevelBadge";
+import CreatorClubProgressionCard, {
+  normalizeClubProgressionPayload,
+  type ClubProgressionPayload,
+} from "@/components/milo/creator-engine/CreatorClubProgressionCard";
 import {
   getMiloQuizHallCreatorClubsAccess,
   type MiloQuizHallCreatorClubsAccess,
@@ -133,7 +138,7 @@ type MemberProgress = {
   totalPoints: number;
 };
 
-const CLUB_LEVELS = [
+const MEMBER_LEVELS = [
   { name: "Newcomer", xp: 0 },
   { name: "Regular", xp: 300 },
   { name: "Challenger", xp: 900 },
@@ -194,12 +199,12 @@ function getMemberProgress(
   const xp = clubXp(challengesCompleted, totalPoints);
   let levelIndex = 0;
 
-  for (let index = 0; index < CLUB_LEVELS.length; index += 1) {
-    if (xp >= CLUB_LEVELS[index].xp) levelIndex = index;
+  for (let index = 0; index < MEMBER_LEVELS.length; index += 1) {
+    if (xp >= MEMBER_LEVELS[index].xp) levelIndex = index;
   }
 
-  const level = CLUB_LEVELS[levelIndex];
-  const next = CLUB_LEVELS[levelIndex + 1] || null;
+  const level = MEMBER_LEVELS[levelIndex];
+  const next = MEMBER_LEVELS[levelIndex + 1] || null;
 
   const progressPercent = next
     ? Math.max(
@@ -255,6 +260,8 @@ export default function CreatorClubPage() {
   const [playRoomAccess, setPlayRoomAccess] =
     useState<PlayRoomAccess | null>(null);
   const [pulseNotices, setPulseNotices] = useState<ClubPulseNotice[]>([]);
+  const [clubProgression, setClubProgression] =
+    useState<ClubProgressionPayload | null>(null);
   const [hallAccess, setHallAccess] =
     useState<MiloQuizHallCreatorClubsAccess | null>(null);
   const [userId, setUserId] = useState("");
@@ -445,6 +452,7 @@ export default function CreatorClubPage() {
       playAccessResponse,
       pulseResponse,
       roomProgressResponse,
+      progressionResponse,
     ] = await Promise.all([
       supabase.rpc("get_creator_club_quiz_catalog", { p_club_slug: slug }),
       supabase.rpc("get_creator_club_leaderboard", {
@@ -479,6 +487,9 @@ export default function CreatorClubPage() {
       }),
       supabase.rpc("get_creator_club_room_progress_v2", {
         p_club_id: nextClub.club_id,
+      }),
+      supabase.rpc("get_creator_club_progression_v1", {
+        p_club_slug: slug,
       }),
     ]);
 
@@ -563,6 +574,14 @@ export default function CreatorClubPage() {
           };
         }),
       );
+    }
+
+    if (!progressionResponse.error && progressionResponse.data) {
+      setClubProgression(
+        normalizeClubProgressionPayload(progressionResponse.data),
+      );
+    } else {
+      setClubProgression(null);
     }
 
     if (!playAccessResponse.error) {
@@ -1033,8 +1052,15 @@ export default function CreatorClubPage() {
                     <h1 className="mt-2 font-serif text-[clamp(38px,5vw,64px)] font-normal leading-[0.94]">
                       {club.club_name}
                     </h1>
-                    <div className="mt-3">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       <CreatorReputationBadge creatorSlug={club.creator_slug} />
+                      {clubProgression && (
+                        <CreatorClubLevelBadge
+                          levelNumber={clubProgression.level_number}
+                          levelName={clubProgression.level_name}
+                          score={clubProgression.progression_score}
+                        />
+                      )}
                     </div>
                     {club.tagline && (
                       <p className="mt-3 max-w-3xl text-sm leading-6 text-white/56">
@@ -1194,6 +1220,7 @@ export default function CreatorClubPage() {
                   userId={userId}
                   myProgress={myProgress}
                   pulseNotices={pulseNotices}
+                  clubProgression={clubProgression}
                   onJoin={() => void joinClub()}
                 />
               )}
@@ -1259,6 +1286,7 @@ function HomeTab({
   userId,
   myProgress,
   pulseNotices,
+  clubProgression,
   onJoin,
 }: {
   club: ClubDetail;
@@ -1273,6 +1301,7 @@ function HomeTab({
   userId: string;
   myProgress: MemberProgress;
   pulseNotices: ClubPulseNotice[];
+  clubProgression: ClubProgressionPayload | null;
   onJoin: () => void;
 }) {
   const memberMilestone = milestoneState(
@@ -1451,6 +1480,13 @@ function HomeTab({
       </div>
 
       <div className="space-y-4">
+        {clubProgression && (
+          <CreatorClubProgressionCard
+            progression={clubProgression}
+            compact
+          />
+        )}
+
         {canPlay && userId && <MemberProgressCard progress={myProgress} large />}
 
         <ClubMilestones
