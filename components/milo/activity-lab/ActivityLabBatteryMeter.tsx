@@ -132,8 +132,29 @@ export default function ActivityLabBatteryMeter(props: Props) {
                   </Info>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={onAddBolts}
+                  style={{
+                    width: "100%",
+                    minHeight: 46,
+                    marginTop: 14,
+                    borderRadius: 14,
+                    border: "1px solid rgba(126,232,255,.3)",
+                    background: "linear-gradient(135deg,rgba(83,215,255,.16),rgba(159,255,210,.13))",
+                    color: "white",
+                    fontSize: 12,
+                    fontWeight: 950,
+                    letterSpacing: ".03em",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  View Credits & Buy Bolts
+                </button>
+
                 <p style={{ margin: "12px 0 0", color: "rgba(255,255,255,.38)", fontSize: 10, lineHeight: 1.5, textAlign: "center" }}>
-                  Recharge timers and reserve Bolt purchases are not required for admin accounts.
+                  Unlimited gameplay stays active. You can still use the normal Credits and Bolt shop exactly like a regular user.
                 </p>
               </>
             ) : (

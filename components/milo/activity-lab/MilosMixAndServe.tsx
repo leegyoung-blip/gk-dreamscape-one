@@ -1282,21 +1282,21 @@ export default function MilosMixAndServe({
               alt="Milo"
               style={{
                 position: "absolute",
-                left: mobile ? "-10px" : "3%",
+                left: "auto",
+                right: mobile ? "-2%" : "2.5%",
                 bottom: mobile ? "-18px" : "-28px",
-                height: introOpen ? (mobile ? "62%" : "82%") : (mobile ? "49%" : "67%"),
-                maxHeight: introOpen ? 560 : 430,
+                height: mobile ? "62%" : "82%",
+                maxHeight: 560,
                 width: "auto",
                 objectFit: "contain",
                 filter: "drop-shadow(0 28px 42px rgba(0,0,0,.56))",
                 animation: "mixServeMiloFloat 3.2s ease-in-out infinite",
-                transition: "height .3s ease",
                 zIndex: 3,
               }}
             />
 
             {introOpen ? (
-              <div style={{ position: "absolute", zIndex: 4, top: mobile ? 18 : "12%", right: mobile ? 6 : "5%", width: mobile ? "min(72%,420px)" : "min(58%,650px)", borderRadius: mobile ? 22 : 30, padding: mobile ? 18 : 28, border: "1px solid rgba(255,211,142,.28)", background: "linear-gradient(145deg,rgba(50,31,19,.96),rgba(7,15,24,.97))", boxShadow: "0 30px 80px rgba(0,0,0,.46)" }}>
+              <div style={{ position: "absolute", zIndex: 4, top: mobile ? 18 : "12%", left: mobile ? 6 : "5%", right: "auto", width: mobile ? "min(68%,420px)" : "min(56%,650px)", borderRadius: mobile ? 22 : 30, padding: mobile ? 18 : 28, border: "1px solid rgba(255,211,142,.28)", background: "linear-gradient(145deg,rgba(50,31,19,.96),rgba(7,15,24,.97))", boxShadow: "0 30px 80px rgba(0,0,0,.46)" }}>
                 <button type="button" onClick={() => setLandingPhase("choose")} style={{ position: "absolute", top: 13, right: 13, minHeight: 34, padding: "0 13px", borderRadius: 999, border: "1px solid rgba(255,255,255,.12)", background: "rgba(255,255,255,.05)", color: "rgba(255,255,255,.72)", fontSize: mobile ? 11 : 12, fontWeight: 900, cursor: "pointer" }}>Skip</button>
                 <p style={{ margin: 0, color: "#ffc36f", fontSize: mobile ? 11 : 13, fontWeight: 950, letterSpacing: ".15em", textTransform: "uppercase" }}>Milo says</p>
                 <h3 style={{ margin: "9px 0 0", maxWidth: "90%", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 27 : 42, lineHeight: 1.04, fontWeight: 400 }}>Welcome to my kitchen!</h3>
@@ -1304,7 +1304,7 @@ export default function MilosMixAndServe({
                 <button type="button" onClick={() => setLandingPhase("choose")} style={{ width: "100%", minHeight: mobile ? 44 : 52, marginTop: mobile ? 15 : 22, borderRadius: 14, border: "1px solid rgba(255,213,126,.46)", background: "linear-gradient(135deg,#ffd06b,#f1a340)", color: "#281700", fontSize: mobile ? 13 : 15, fontWeight: 950, cursor: "pointer", boxShadow: "0 14px 34px rgba(228,140,40,.18)" }}>Choose a Dish</button>
               </div>
             ) : (
-              <div style={{ position: "absolute", zIndex: 4, top: mobile ? 12 : "5%", left: mobile ? "29%" : "28%", right: mobile ? 2 : "3%", bottom: mobile ? 8 : "3%", display: "grid", alignContent: "start", animation: "mixServeDishRise .35s ease-out" }}>
+              <div style={{ position: "absolute", zIndex: 4, top: mobile ? 12 : "5%", left: mobile ? 2 : "3%", right: mobile ? "31%" : "29%", bottom: mobile ? 8 : "3%", display: "grid", alignContent: "start", animation: "mixServeDishRise .35s ease-out" }}>
                 <div style={{ textAlign: "center", marginBottom: mobile ? 10 : 18 }}>
                   <p style={{ margin: 0, color: "#ffc36f", fontSize: mobile ? 10 : 12, fontWeight: 950, letterSpacing: ".16em", textTransform: "uppercase" }}>Today’s Kitchen</p>
                   <h3 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : 37, fontWeight: 400 }}>What would you like to cook?</h3>

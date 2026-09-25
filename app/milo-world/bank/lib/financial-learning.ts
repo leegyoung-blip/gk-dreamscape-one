@@ -45,7 +45,7 @@ export const FINANCIAL_LEARNING_PATHWAYS: FinancialLearningPathway[] = [
     description:
       "Understand why people invest, how uncertainty and potential return interact, and how choices in Milo’s Exchange connect to real financial reasoning.",
     status: "available",
-    meta: "2 lessons live · Milo Finance",
+    meta: "8 lessons · Milo Finance",
     accent: "#b8a8ff",
     accessTier: "milo_finance",
   },
@@ -56,7 +56,7 @@ export const FINANCIAL_LEARNING_PATHWAYS: FinancialLearningPathway[] = [
     description:
       "Work through realistic Dreamscape choices where timing, value, flexibility and trade-offs matter more than finding one simplistic answer.",
     status: "available",
-    meta: "2 lessons live · free preview",
+    meta: "8 lessons · first 2 free",
     accent: "#ffd18a",
     accessTier: "free",
     includesPremium: true,
