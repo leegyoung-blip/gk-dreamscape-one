@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import type {
   CashflowTimelineBlock,
   FinancialBlockResponse,
-} from "../../lib/financial-learning-engine-types";
-import LearningBlockShell from "./LearningBlockShell";
+} from "../lib/financial-learning-engine-types";
+import LearningBlockShell from "./learning-blocks/LearningBlockShell";
 
 function fmt(value: number) {
   return value.toLocaleString("en-SG", { maximumFractionDigits: 0 });

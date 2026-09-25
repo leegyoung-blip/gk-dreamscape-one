@@ -47,6 +47,16 @@ export function isResponseComplete(
     return Number.isFinite(Number(values.orderQuantity)) && Number.isFinite(Number(values.demand));
   }
 
+  if (block.type === "capacity_simulator") {
+    const values = response.value as Record<string, number>;
+    return Number.isFinite(Number(values.optionIndex));
+  }
+
+  if (block.type === "business_risk_map") {
+    const values = response.value as Record<string, number>;
+    return Number.isFinite(Number(values.totalSpend));
+  }
+
   return response.value !== undefined && response.value !== null && response.value !== "";
 }
 

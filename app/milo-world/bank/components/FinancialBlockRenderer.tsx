@@ -21,6 +21,8 @@ import BusinessModelLearningBlock from "./learning-blocks/BusinessModelLearningB
 import PricingSimulatorLearningBlock from "./learning-blocks/PricingSimulatorLearningBlock";
 import CashFlowTimelineLearningBlock from "./learning-blocks/CashFlowTimelineLearningBlock";
 import InventorySimulatorLearningBlock from "./learning-blocks/InventorySimulatorLearningBlock";
+import CapacitySimulatorLearningBlock from "./learning-blocks/CapacitySimulatorLearningBlock";
+import BusinessRiskMapLearningBlock from "./learning-blocks/BusinessRiskMapLearningBlock";
 
 export default function FinancialBlockRenderer({
   block,
@@ -71,6 +73,10 @@ export default function FinancialBlockRenderer({
       return <CashFlowTimelineLearningBlock block={block} response={response} onChange={onChange} />;
     case "inventory_simulator":
       return <InventorySimulatorLearningBlock block={block} response={response} onChange={onChange} />;
+    case "capacity_simulator":
+      return <CapacitySimulatorLearningBlock block={block} response={response} onChange={onChange} />;
+    case "business_risk_map":
+      return <BusinessRiskMapLearningBlock block={block} response={response} onChange={onChange} />;
     default:
       return null;
   }

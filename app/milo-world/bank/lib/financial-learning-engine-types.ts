@@ -357,6 +357,56 @@ export type InventorySimulatorBlock = FinancialBlockBase & {
   takeaway?: string;
 };
 
+
+export type CapacityOption = {
+  id: string;
+  label: string;
+  description?: string;
+  capacityChange: number;
+  monthlyCost: number;
+  oneOffCost?: number;
+  qualityNote?: string;
+  flexibilityNote?: string;
+};
+
+export type CapacitySimulatorBlock = FinancialBlockBase & {
+  type: "capacity_simulator";
+  prompt: string;
+  currentCapacity: number;
+  currentDemand: number;
+  stressDemand?: number;
+  options: CapacityOption[];
+  contextNote?: string;
+  takeaway?: string;
+};
+
+export type BusinessRiskItem = {
+  id: string;
+  label: string;
+  category: string;
+  exposure: number;
+  description?: string;
+};
+
+export type BusinessRiskMitigation = {
+  id: string;
+  label: string;
+  cost: number;
+  description?: string;
+  reductions: Record<string, number>;
+};
+
+export type BusinessRiskMapBlock = FinancialBlockBase & {
+  type: "business_risk_map";
+  prompt: string;
+  budget: number;
+  risks: BusinessRiskItem[];
+  mitigations: BusinessRiskMitigation[];
+  eventRiskId?: string;
+  contextNote?: string;
+  takeaway?: string;
+};
+
 export type FinancialLearningBlock =
   | ExplainBlock
   | QuestionBlock
@@ -372,7 +422,9 @@ export type FinancialLearningBlock =
   | BusinessModelBlock
   | PricingSimulatorBlock
   | CashflowTimelineBlock
-  | InventorySimulatorBlock;
+  | InventorySimulatorBlock
+  | CapacitySimulatorBlock
+  | BusinessRiskMapBlock;
 
 export type FinancialLessonDefinition = {
   schemaVersion: 1 | 2;
