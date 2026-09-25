@@ -5,6 +5,7 @@ import type { CSSProperties, DragEvent, PointerEvent as ReactPointerEvent } from
 import { supabase } from "@/lib/supabase";
 
 type ItemType = "ingredient" | "dish";
+type DishStation = "burger" | "salad";
 type IngredientKey =
   | "bun"
   | "raw-beef-patty"
@@ -12,6 +13,9 @@ type IngredientKey =
   | "lettuce"
   | "whole-tomato"
   | "chopped-tomato"
+  | "raw-chicken"
+  | "cooked-chicken"
+  | "ham"
   | "cheese-slice"
   | "bacon";
 
@@ -49,7 +53,7 @@ type DragState = { source: DragSource; x: number; y: number } | null;
 type ProcessStatus = "processing" | "ready" | "warning" | "burnt";
 type WorkstationJob = {
   id: number;
-  kind: "patty" | "tomato";
+  kind: "patty" | "chicken" | "tomato";
   status: ProcessStatus;
   elapsedTicks: number;
 };
@@ -105,22 +109,34 @@ const INGREDIENTS: IngredientDef[] = [
   { key: "lettuce", label: "Lettuce", image: `${ASSET_BASE}/ingredients/ingredient-lettuce.png`, supply: true },
   { key: "whole-tomato", label: "Whole Tomato", image: `${ASSET_BASE}/ingredients/ingredient-whole-tomato.png`, supply: true },
   { key: "chopped-tomato", label: "Chopped Tomato", image: `${ASSET_BASE}/ingredients/ingredient-tomato.png` },
+  { key: "raw-chicken", label: "Chicken", image: `${ASSET_BASE}/ingredients/ingredient-chicken.png`, supply: true },
+  { key: "cooked-chicken", label: "Cooked Chicken", image: `${ASSET_BASE}/ingredients/ingredient-chicken.png` },
+  { key: "ham", label: "Ham", image: `${ASSET_BASE}/ingredients/ingredient-ham.png`, supply: true },
   { key: "cheese-slice", label: "Cheese", image: `${ASSET_BASE}/ingredients/ingredient-cheese-slice.png`, supply: true },
   { key: "bacon", label: "Bacon", image: `${ASSET_BASE}/ingredients/ingredient-bacon.png`, supply: true },
 ];
 
 // Five physical ingredient boxes. The final Toppings box is split into two
 // deterministic compartments so Cheese and Bacon remain individually selectable.
-const INGREDIENT_DISPENSERS: Array<{
+type IngredientDispenser = {
   id: string;
   label: string;
   keys: IngredientKey[];
-}> = [
+};
+
+const BURGER_INGREDIENT_DISPENSERS: IngredientDispenser[] = [
   { id: "bun", label: "Buns", keys: ["bun"] },
   { id: "patty", label: "Raw Patties", keys: ["raw-beef-patty"] },
   { id: "lettuce", label: "Lettuce", keys: ["lettuce"] },
   { id: "tomato", label: "Tomatoes", keys: ["whole-tomato"] },
   { id: "toppings", label: "Toppings", keys: ["cheese-slice", "bacon"] },
+];
+
+const SALAD_INGREDIENT_DISPENSERS: IngredientDispenser[] = [
+  { id: "lettuce", label: "Lettuce Base", keys: ["lettuce"] },
+  { id: "tomato", label: "Tomatoes", keys: ["whole-tomato"] },
+  { id: "chicken", label: "Chicken", keys: ["raw-chicken"] },
+  { id: "ham", label: "Ham", keys: ["ham"] },
 ];
 
 const BURGER_RECIPES: RecipeDef[] = [
@@ -161,6 +177,45 @@ const BURGER_RECIPES: RecipeDef[] = [
   },
 ];
 
+const SALAD_RECIPES: RecipeDef[] = [
+  {
+    key: "dish-salad-tier-1-side-salad",
+    label: "Side Salad",
+    image: `${ASSET_BASE}/dishes/dish-salad-tier-1-side-salad.png`,
+    tier: 1,
+    ingredients: ["lettuce"],
+  },
+  {
+    key: "dish-salad-tier-2-garden-salad",
+    label: "Garden Salad",
+    image: `${ASSET_BASE}/dishes/dish-salad-tier-2-garden-salad.png`,
+    tier: 2,
+    ingredients: ["lettuce", "chopped-tomato"],
+  },
+  {
+    key: "dish-salad-tier-3-chicken-salad",
+    label: "Chicken Salad",
+    image: `${ASSET_BASE}/dishes/dish-salad-tier-3-chicken-salad.png`,
+    tier: 3,
+    ingredients: ["lettuce", "chopped-tomato", "cooked-chicken"],
+  },
+  {
+    key: "dish-salad-tier-4-chef-salad",
+    label: "Chef Salad",
+    image: `${ASSET_BASE}/dishes/dish-salad-tier-4-chef-salad.png`,
+    tier: 4,
+    ingredients: ["lettuce", "chopped-tomato", "cooked-chicken", "ham"],
+  },
+];
+
+function recipesForStation(station: DishStation) {
+  return station === "salad" ? SALAD_RECIPES : BURGER_RECIPES;
+}
+
+function dispensersForStation(station: DishStation) {
+  return station === "salad" ? SALAD_INGREDIENT_DISPENSERS : BURGER_INGREDIENT_DISPENSERS;
+}
+
 const STAGE1_DT_BY_STARS: Record<number, number> = { 1: 6, 2: 9, 3: 12 };
 
 const DISH_CHOICES = [
@@ -177,10 +232,10 @@ const DISH_CHOICES = [
     id: "salad",
     title: "Salad Station",
     subtitle: "Fresh Builds",
-    status: "Coming Soon",
-    image: `${ASSET_BASE}/dishes/dish-salad-tier-5-supreme-chef-salad.png`,
+    status: "Available Now",
+    image: `${ASSET_BASE}/dishes/dish-salad-tier-4-chef-salad.png`,
     fallback: "🥗",
-    available: false,
+    available: true,
   },
   {
     id: "sandwich",
@@ -251,20 +306,21 @@ function starsForStage(success: boolean, elapsedSeconds: number) {
   return 1;
 }
 
-function nextBurgerRecipe(a: PrepItem, b: PrepItem) {
+function nextStationRecipe(station: DishStation, a: PrepItem, b: PrepItem) {
+  const recipes = recipesForStation(station);
   const dish = a.type === "dish" ? a : b.type === "dish" ? b : null;
   const ingredient = a.type === "ingredient" ? a : b.type === "ingredient" ? b : null;
 
   if (dish && ingredient) {
-    const current = BURGER_RECIPES.find((recipe) => recipe.key === dish.key);
+    const current = recipes.find((recipe) => recipe.key === dish.key);
     if (!current) return null;
-    const next = BURGER_RECIPES.find((recipe) => recipe.tier === current.tier + 1);
+    const next = recipes.find((recipe) => recipe.tier === current.tier + 1);
     if (!next) return null;
     const added = next.ingredients.filter((key) => !current.ingredients.includes(key));
     return added.length === 1 && ingredient.key === added[0] ? next : null;
   }
 
-  if (a.type === "ingredient" && b.type === "ingredient") {
+  if (station === "burger" && a.type === "ingredient" && b.type === "ingredient") {
     const keys = new Set([a.key, b.key]);
     if (keys.has("bun") && keys.has("cooked-beef-patty")) return BURGER_RECIPES[0];
   }
@@ -295,6 +351,7 @@ export default function MilosMixAndServe({
   const [paused, setPaused] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [landingPhase, setLandingPhase] = useState<LandingPhase>("intro");
+  const [activeStation, setActiveStation] = useState<DishStation>("burger");
   const [showGuide, setShowGuide] = useState(false);
   const [guideStep, setGuideStep] = useState(0);
   const [board, setBoard] = useState<BoardCell[]>(() => initialBoard());
@@ -317,7 +374,7 @@ export default function MilosMixAndServe({
   const [recentOrderIds, setRecentOrderIds] = useState<number[]>([]);
   const [leavingOrderId, setLeavingOrderId] = useState<number | null>(null);
   const leavingOrderIdRef = useRef<number | null>(null);
-  const [status, setStatus] = useState("Milo will show you how to cook and build the burgers before Stage 1 starts.");
+  const [status, setStatus] = useState("Choose a dish station and Milo will guide you through the kitchen.");
   const [stageResult, setStageResult] = useState<StageResult | null>(null);
   const [rewardState, setRewardState] = useState<"idle" | "awarding" | "awarded" | "guest" | "failed">("idle");
   const [awardedDt, setAwardedDt] = useState(0);
@@ -359,6 +416,11 @@ export default function MilosMixAndServe({
   };
 
   const occupied = useMemo(() => board.filter(Boolean).length, [board]);
+  const activeRecipes = recipesForStation(activeStation);
+  const activeDispensers = dispensersForStation(activeStation);
+  const stationName = activeStation === "salad" ? "Salad Station" : "Burger Station";
+  const stationLesson = activeStation === "salad" ? "Salad Shift" : "Burger Basics";
+  const stationEyebrow = activeStation === "salad" ? "Milo’s Salad Lesson" : "Milo’s Burger Lesson";
   const timeLeft = Math.max(0, STAGE_DURATION_SECONDS - runSeconds);
   const currentStarsPreview = starsForStage(true, runSeconds);
   const stageDtPreview = STAGE1_DT_BY_STARS[currentStarsPreview] ?? 0;
@@ -398,15 +460,16 @@ export default function MilosMixAndServe({
   }
 
   function eligibleRecipes(servedCount: number) {
-    const cap = tierCapForProgress(servedCount);
-    return BURGER_RECIPES.filter((recipe) => recipe.tier <= cap);
+    const maxTier = activeRecipes[activeRecipes.length - 1]?.tier ?? 1;
+    const cap = Math.min(maxTier, tierCapForProgress(servedCount));
+    return activeRecipes.filter((recipe) => recipe.tier <= cap);
   }
 
   function createOrder(servedCount: number, avoidKeys: string[] = []): OrderSlot {
     const eligible = eligibleRecipes(servedCount);
     const fresh = eligible.filter((recipe) => !avoidKeys.includes(recipe.key));
     const pool = fresh.length ? fresh : eligible;
-    const recipe = pool[Math.floor(Math.random() * pool.length)] ?? BURGER_RECIPES[0];
+    const recipe = pool[Math.floor(Math.random() * pool.length)] ?? activeRecipes[0];
     return { id: nextOrderId.current++, recipeKey: recipe.key, secondsLeft: ORDER_DURATION_SECONDS };
   }
 
@@ -449,7 +512,7 @@ export default function MilosMixAndServe({
     setShowGuide(false);
     setRunning(true);
     setPaused(false);
-    setStatus("Burger Basics started. You have 5:00 to complete 10 orders. Customer order clocks begin after your first successful serve.");
+    setStatus(`${stationLesson} started. You have 5:00 to complete 10 orders. Customer order clocks begin after your first successful serve.`);
     window.setTimeout(fillInitialOrders, 0);
     return true;
   }
@@ -471,8 +534,8 @@ export default function MilosMixAndServe({
     });
     setStatus(
       success
-        ? "Burger Basics complete! Replay Stage 1 to chase a higher score."
-        : "Time is up. Complete all 10 orders within 5 minutes to clear Stage 1.",
+        ? `${stationLesson} complete! Replay ${stationName} to chase a higher score.`
+        : `Time is up. Complete all 10 orders within 5 minutes to clear ${stationName}.`,
     );
   }
 
@@ -571,7 +634,7 @@ export default function MilosMixAndServe({
 
     awardedStageRuns.current.add(key);
     setRewardState("awarding");
-    void onTokenTransaction(reward, `Milo's Mix & Serve · Stage 1 reward · Run ${stageResult.runId}`).then((success) => {
+    void onTokenTransaction(reward, `Milo's Mix & Serve · ${stationName} reward · Run ${stageResult.runId}`).then((success) => {
       if (success) {
         setAwardedDt(reward);
         setRewardState("awarded");
@@ -580,7 +643,7 @@ export default function MilosMixAndServe({
         setRewardState("failed");
       }
     });
-  }, [stageResult, userId, onTokenTransaction]);
+  }, [stageResult, userId, onTokenTransaction, stationName]);
 
   useEffect(() => {
     if (!stageResult) return;
@@ -650,6 +713,15 @@ export default function MilosMixAndServe({
       return;
     }
 
+    if (activeStation === "salad" && key === "lettuce") {
+      const baseSalad = createDish(++nextItemId.current, SALAD_RECIPES[0]);
+      current[empty] = baseSalad;
+      boardRef.current = current;
+      setBoard(current);
+      setStatus("Side Salad base placed on the prep counter. Add chopped tomato next.");
+      return;
+    }
+
     const item = createIngredient(++nextItemId.current, key);
     current[empty] = item;
     boardRef.current = current;
@@ -676,37 +748,50 @@ export default function MilosMixAndServe({
 
   function discardPanJob(panIndex: number) {
     if (!running || paused) return;
+
     const job = panJobs[panIndex];
-    if (!job || job.status === "processing") {
-      setStatus("Wait for the patty to finish cooking before moving it.");
+    if (!job) return;
+
+    const food = job.kind === "chicken" ? "chicken" : "patty";
+
+    if (job.status === "processing") {
+      setStatus(`Wait for the ${food} to finish cooking before discarding it.`);
       return;
     }
-    setPanJobs((jobs) => jobs.map((entry, index) => index === panIndex ? null : entry));
-    applyDiscardPenalty(job.status === "burnt" ? "Burnt patty" : "Cooked patty");
+
+    setPanJobs((jobs) =>
+      jobs.map((entry, index) => (index === panIndex ? null : entry)),
+    );
+
+    applyDiscardPenalty(
+      job.status === "burnt" ? `Burnt ${food}` : `Cooked ${food}`,
+    );
   }
 
   function returnPanToCounter(panIndex: number, toIndex: number) {
     if (!running || paused) return;
     const job = panJobs[panIndex];
     if (!job) return;
+    const food = job.kind === "chicken" ? "chicken" : "patty";
     if (job.status === "processing") {
-      setStatus("That patty is still cooking.");
+      setStatus(`That ${food} is still cooking.`);
       return;
     }
     if (job.status === "burnt") {
-      setStatus("Burnt patties cannot return to the prep counter. Drag it to the bin.");
+      setStatus(`Burnt ${food} cannot return to the prep counter. Drag it to the bin.`);
       return;
     }
     const current = [...boardRef.current];
     if (current[toIndex]) {
-      setStatus("Choose an empty prep-counter square for the cooked patty.");
+      setStatus(`Choose an empty prep-counter square for the cooked ${food}.`);
       return;
     }
-    current[toIndex] = createIngredient(++nextItemId.current, "cooked-beef-patty");
+    const outputKey: IngredientKey = job.kind === "chicken" ? "cooked-chicken" : "cooked-beef-patty";
+    current[toIndex] = createIngredient(++nextItemId.current, outputKey);
     boardRef.current = current;
     setBoard(current);
     setPanJobs((jobs) => jobs.map((entry, index) => index === panIndex ? null : entry));
-    setStatus(`Cooked patty moved from Pan ${panIndex + 1} to the prep counter.`);
+    setStatus(`Cooked ${food} moved from Pan ${panIndex + 1} to the prep counter.`);
   }
 
   function moveOrCombine(fromIndex: number, toIndex: number) {
@@ -725,7 +810,7 @@ export default function MilosMixAndServe({
       return;
     }
 
-    const recipe = nextBurgerRecipe(source, destination);
+    const recipe = nextStationRecipe(activeStation, source, destination);
     if (recipe) {
       current[toIndex] = createDish(++nextItemId.current, recipe);
       current[fromIndex] = null;
@@ -738,7 +823,7 @@ export default function MilosMixAndServe({
       current[fromIndex] = destination;
       boardRef.current = current;
       setBoard(current);
-      setStatus("That is not the next burger step — the two items swapped places.");
+      setStatus(`That is not the next ${activeStation === "salad" ? "salad" : "burger"} step — the two items swapped places.`);
     }
     setSelectedIndex(null);
   }
@@ -760,8 +845,13 @@ export default function MilosMixAndServe({
     if (!running || paused) return;
     const item = boardRef.current[fromIndex];
     if (!item) return;
-    if (item.type !== "ingredient" || item.key !== "raw-beef-patty") {
-      setStatus("Only a raw beef patty goes into the pan.");
+
+    const expectedKey: IngredientKey = activeStation === "salad" ? "raw-chicken" : "raw-beef-patty";
+    const jobKind: WorkstationJob["kind"] = activeStation === "salad" ? "chicken" : "patty";
+    const food = activeStation === "salad" ? "chicken" : "beef patty";
+
+    if (item.type !== "ingredient" || item.key !== expectedKey) {
+      setStatus(`Only ${activeStation === "salad" ? "chicken" : "a raw beef patty"} goes into the pan in ${stationName}.`);
       return;
     }
     if (panJobs[panIndex]) {
@@ -772,9 +862,9 @@ export default function MilosMixAndServe({
     current[fromIndex] = null;
     boardRef.current = current;
     setBoard(current);
-    setPanJobs((jobs) => jobs.map((job, index) => index === panIndex ? { id: nextJobId.current++, kind: "patty", status: "processing", elapsedTicks: 0 } : job));
+    setPanJobs((jobs) => jobs.map((job, index) => index === panIndex ? { id: nextJobId.current++, kind: jobKind, status: "processing", elapsedTicks: 0 } : job));
     setSelectedIndex(null);
-    setStatus(`Patty cooking in Pan ${panIndex + 1} · 5 seconds.`);
+    setStatus(`${food === "chicken" ? "Chicken" : "Patty"} cooking in Pan ${panIndex + 1} · 5 seconds.`);
   }
 
   function sendToChoppingBoard(fromIndex: number) {
@@ -782,7 +872,7 @@ export default function MilosMixAndServe({
     const item = boardRef.current[fromIndex];
     if (!item) return;
     if (item.type !== "ingredient" || item.key !== "whole-tomato") {
-      setStatus("Only a whole tomato needs the chopping board in Stage 1.");
+      setStatus(`Only a whole tomato uses the chopping board in ${stationName}.`);
       return;
     }
     if (choppingJob) {
@@ -814,16 +904,16 @@ export default function MilosMixAndServe({
     const order = ordersRef.current.find((item) => item.id === orderId);
     if (!dish || !order) return;
     if (dish.type !== "dish") {
-      setStatus("Only a finished burger can be served.");
+      setStatus(`Only a finished ${activeStation === "salad" ? "salad" : "burger"} can be served.`);
       return;
     }
     if (dish.key !== order.recipeKey) {
-      const requested = BURGER_RECIPES.find((recipe) => recipe.key === order.recipeKey);
+      const requested = activeRecipes.find((recipe) => recipe.key === order.recipeKey);
       setStatus(`${dish.label} does not match ${requested?.label ?? "this order"}.`);
       return;
     }
 
-    const recipe = BURGER_RECIPES.find((item) => item.key === order.recipeKey);
+    const recipe = activeRecipes.find((item) => item.key === order.recipeKey);
     if (!recipe) return;
 
     const current = [...boardRef.current];
@@ -959,54 +1049,97 @@ export default function MilosMixAndServe({
     return Math.min(100, (Math.min(job.elapsedTicks, PROCESS_DONE_TICKS) / PROCESS_DONE_TICKS) * 100);
   }
 
-  const guideSteps = [
-    {
-      target: "ingredient-boxes",
-      title: "Choose exactly what you need",
-      body: "Use the five ingredient boxes below the prep counter. Nothing is random: click Bun, Patty, Lettuce or Tomato directly. The Toppings box has separate Cheese and Bacon compartments.",
-    },
-    {
-      target: "pans",
-      title: "Cook patties in a pan",
-      body: "Drag a raw patty into any empty pan. It cooks for 5 seconds. When the green tick appears, drag it back to an EMPTY prep-counter square. If the flashing ! appears, you have a full 5-second warning before it burns.",
-    },
-    {
-      target: "chopping",
-      title: "Chop every tomato",
-      body: "Drag a whole tomato onto the chopping board. It takes 5 seconds. Chopped tomato returns to the prep counter when it is ready.",
-    },
-    {
-      target: "prep-counter",
-      title: "Build burgers in order",
-      body: "Combine in this exact order: Bun + Cooked Patty → Lettuce → Chopped Tomato → Cheese → Bacon. A wrong combination swaps the two items instead of deleting them.",
-    },
-    {
-      target: "orders",
-      title: "Serve the customer orders",
-      body: "Match the finished burger to an order. Customer clocks begin after your FIRST successful serve. A completed or expired order leaves; the remaining orders move right and a new order enters from the left.",
-    },
-    {
-      target: "bin",
-      title: "The bin costs points",
-      body: `Drag unwanted counter items or burnt patties into the bin. Every discard costs ${DISCARD_PENALTY} points, so plan before throwing food away.`,
-    },
-    {
-      target: "game-controls",
-      title: "Pause or restart anytime",
-      body: "Pause freezes the kitchen and the 5-minute stage clock. Restart begins from zero. Your only goal is 10 completed orders before 5:00 runs out — expired orders never end the game by themselves.",
-    },
-  ] as const;
+  const guideSteps = activeStation === "salad"
+    ? [
+        {
+          target: "ingredient-boxes",
+          title: "Choose your salad ingredients",
+          body: "Use the four ingredient boxes below the prep counter. Lettuce starts a Side Salad immediately. Tomato must be chopped, chicken must be cooked, and ham is added last.",
+        },
+        {
+          target: "pans",
+          title: "Cook the chicken in a pan",
+          body: "Drag Chicken into any empty pan. It cooks for 5 seconds. When the green tick appears, drag the cooked chicken back to an EMPTY prep-counter square. After the flashing ! appears, you have 5 seconds before it burns.",
+        },
+        {
+          target: "chopping",
+          title: "Chop every tomato",
+          body: "Drag a whole tomato onto the chopping board. It takes 5 seconds. Chopped tomato returns to the prep counter automatically.",
+        },
+        {
+          target: "prep-counter",
+          title: "Build the 4 salad tiers",
+          body: "Build in order: Lettuce → Chopped Tomato → Cooked Chicken → Ham. That makes Side Salad, Garden Salad, Chicken Salad and Chef Salad. There is no egg tier.",
+        },
+        {
+          target: "orders",
+          title: "Serve the customer orders",
+          body: "Match the finished salad to an order. Customer clocks begin after your FIRST successful serve. A completed or expired order leaves; the remaining orders move right and a new order enters from the left.",
+        },
+        {
+          target: "bin",
+          title: "The bin costs points",
+          body: `Drag unwanted counter items or burnt chicken into the bin. Every discard costs ${DISCARD_PENALTY} points.`,
+        },
+        {
+          target: "game-controls",
+          title: "Pause or restart anytime",
+          body: "Pause freezes the kitchen and the 5-minute stage clock. Restart begins from zero. Serve 10 orders before 5:00 runs out.",
+        },
+      ] as const
+    : [
+        {
+          target: "ingredient-boxes",
+          title: "Choose exactly what you need",
+          body: "Use the five ingredient boxes below the prep counter. Nothing is random: click Bun, Patty, Lettuce or Tomato directly. The Toppings box has separate Cheese and Bacon compartments.",
+        },
+        {
+          target: "pans",
+          title: "Cook patties in a pan",
+          body: "Drag a raw patty into any empty pan. It cooks for 5 seconds. When the green tick appears, drag it back to an EMPTY prep-counter square. If the flashing ! appears, you have a full 5-second warning before it burns.",
+        },
+        {
+          target: "chopping",
+          title: "Chop every tomato",
+          body: "Drag a whole tomato onto the chopping board. It takes 5 seconds. Chopped tomato returns to the prep counter when it is ready.",
+        },
+        {
+          target: "prep-counter",
+          title: "Build burgers in order",
+          body: "Combine in this exact order: Bun + Cooked Patty → Lettuce → Chopped Tomato → Cheese → Bacon. A wrong combination swaps the two items instead of deleting them.",
+        },
+        {
+          target: "orders",
+          title: "Serve the customer orders",
+          body: "Match the finished burger to an order. Customer clocks begin after your FIRST successful serve. A completed or expired order leaves; the remaining orders move right and a new order enters from the left.",
+        },
+        {
+          target: "bin",
+          title: "The bin costs points",
+          body: `Drag unwanted counter items or burnt patties into the bin. Every discard costs ${DISCARD_PENALTY} points, so plan before throwing food away.`,
+        },
+        {
+          target: "game-controls",
+          title: "Pause or restart anytime",
+          body: "Pause freezes the kitchen and the 5-minute stage clock. Restart begins from zero. Your only goal is 10 completed orders before 5:00 runs out — expired orders never end the game by themselves.",
+        },
+      ] as const;
 
   function restartStage() {
     void startStage();
   }
 
-  function openBurgerKitchen() {
+  function openKitchen(station: DishStation) {
+    setActiveStation(station);
     resetStageState();
     setLandingPhase("game");
     setGuideStep(0);
     setShowGuide(true);
-    setStatus("Milo will show you how to cook and build the burgers before Stage 1 starts.");
+    setStatus(
+      station === "salad"
+        ? "Milo will show you how to build all 4 salad tiers before the run starts."
+        : "Milo will show you how to cook and build the burgers before the run starts.",
+    );
   }
 
   function returnToDishMenu() {
@@ -1070,7 +1203,7 @@ export default function MilosMixAndServe({
       window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", positionGuide);
     };
-  }, [guideStep, mobile, showGuide, running]);
+  }, [activeStation, guideStep, mobile, showGuide, running]);
 
   function renderEquipmentItem(job: WorkstationJob | null, kind: "pan" | "chopping") {
     const statusBorder = job?.status === "burnt"
@@ -1080,7 +1213,8 @@ export default function MilosMixAndServe({
         : "rgba(132,239,178,.22)";
 
     if (kind === "pan") {
-      const image = !job
+      const chickenJob = job?.kind === "chicken";
+      const image = !job || chickenJob
         ? WORKSTATION_ASSETS.emptyPan
         : job.status === "burnt"
           ? WORKSTATION_ASSETS.burntPan
@@ -1112,6 +1246,24 @@ export default function MilosMixAndServe({
               animation: job?.status === "warning" ? "mixServeEquipmentShake .5s linear infinite" : undefined,
             }}
           />
+          {chickenJob && (
+            <img
+              src={ingredientDef(job.status === "processing" ? "raw-chicken" : "cooked-chicken").image}
+              alt=""
+              draggable={false}
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "48%",
+                transform: "translate(-50%,-50%)",
+                width: mobile ? 42 : 48,
+                height: mobile ? 42 : 48,
+                objectFit: "contain",
+                pointerEvents: "none",
+                filter: job.status === "burnt" ? "grayscale(1) brightness(.35)" : undefined,
+              }}
+            />
+          )}
           {(job?.status === "ready" || job?.status === "warning") && (
             <span
               style={{
@@ -1300,7 +1452,7 @@ export default function MilosMixAndServe({
                 <button type="button" onClick={() => setLandingPhase("choose")} style={{ position: "absolute", top: 13, right: 13, minHeight: 34, padding: "0 13px", borderRadius: 999, border: "1px solid rgba(255,255,255,.12)", background: "rgba(255,255,255,.05)", color: "rgba(255,255,255,.72)", fontSize: mobile ? 11 : 12, fontWeight: 900, cursor: "pointer" }}>Skip</button>
                 <p style={{ margin: 0, color: "#ffc36f", fontSize: mobile ? 11 : 13, fontWeight: 950, letterSpacing: ".15em", textTransform: "uppercase" }}>Milo says</p>
                 <h3 style={{ margin: "9px 0 0", maxWidth: "90%", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 27 : 42, lineHeight: 1.04, fontWeight: 400 }}>Welcome to my kitchen!</h3>
-                <p style={{ margin: mobile ? "12px 0 0" : "17px 0 0", color: "rgba(255,255,255,.72)", fontSize: mobile ? 13 : 18, lineHeight: 1.55 }}>Pick a dish you want to cook and I’ll guide you through the kitchen step by step. Start with burgers today — more stations are opening soon.</p>
+                <p style={{ margin: mobile ? "12px 0 0" : "17px 0 0", color: "rgba(255,255,255,.72)", fontSize: mobile ? 13 : 18, lineHeight: 1.55 }}>Pick a dish you want to cook and I’ll guide you through the kitchen step by step. Burger Station and Salad Station are both open now.</p>
                 <button type="button" onClick={() => setLandingPhase("choose")} style={{ width: "100%", minHeight: mobile ? 44 : 52, marginTop: mobile ? 15 : 22, borderRadius: 14, border: "1px solid rgba(255,213,126,.46)", background: "linear-gradient(135deg,#ffd06b,#f1a340)", color: "#281700", fontSize: mobile ? 13 : 15, fontWeight: 950, cursor: "pointer", boxShadow: "0 14px 34px rgba(228,140,40,.18)" }}>Choose a Dish</button>
               </div>
             ) : (
@@ -1323,7 +1475,10 @@ export default function MilosMixAndServe({
                       key={dish.id}
                       type="button"
                       disabled={!dish.available}
-                      onClick={() => dish.available && openBurgerKitchen()}
+                      onClick={() => {
+                        if (!dish.available) return;
+                        if (dish.id === "burger" || dish.id === "salad") openKitchen(dish.id);
+                      }}
                       style={{
                         minWidth: 0,
                         minHeight: mobile ? 128 : 178,
@@ -1425,22 +1580,22 @@ export default function MilosMixAndServe({
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, minWidth: 0 }}>
         <div style={{ minWidth: 0 }}>
-          <p style={{ margin: 0, color: "#ffbf68", fontSize: mobile ? 11 : 13, fontWeight: 950, letterSpacing: ".14em", textTransform: "uppercase" }}>Stage 1 · Milo’s Burger Lesson</p>
+          <p style={{ margin: 0, color: "#ffbf68", fontSize: mobile ? 11 : 13, fontWeight: 950, letterSpacing: ".14em", textTransform: "uppercase" }}>{stationEyebrow}</p>
           <h2 style={{ margin: "3px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 27 : compact ? 32 : 38, lineHeight: 1, fontWeight: 400 }}>Milo’s Mix & Serve</h2>
         </div>
         <div data-guide-target="game-controls" style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button type="button" onClick={returnToDishMenu} disabled={running} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.035)", color: running ? "rgba(255,255,255,.28)" : "rgba(255,255,255,.72)", fontSize: 14, fontWeight: 900, cursor: running ? "not-allowed" : "pointer" }}>Dish Menu</button>
           <button type="button" onClick={() => { if (running) setPaused(true); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,191,104,.22)", background: "rgba(255,173,66,.06)", color: "#ffd08a", fontSize: 14, fontWeight: 900, cursor: "pointer" }}>Milo Guide</button>
           <button type="button" onClick={() => setShowHelp(true)} style={{ minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.06)", color: "#dffaff", fontSize: 14, fontWeight: 900, cursor: "pointer" }}>? How to Play</button>
-          <button type="button" onClick={restartStage} disabled={!running} aria-label="Restart Stage 1" title="Restart Stage 1" style={{ width: 36, height: 36, borderRadius: 999, border: "1px solid rgba(255,191,104,.2)", background: "rgba(255,173,66,.06)", color: running ? "#ffd08a" : "rgba(255,255,255,.3)", fontSize: 17, fontWeight: 900, cursor: running ? "pointer" : "not-allowed" }}>↻</button>
-          <button type="button" onClick={() => running && setPaused((value) => !value)} disabled={!running} aria-label={paused ? "Resume Stage 1" : "Pause Stage 1"} style={{ width: 36, height: 36, borderRadius: 999, border: "1px solid rgba(126,232,255,.18)", background: "rgba(83,215,255,.06)", color: running ? "white" : "rgba(255,255,255,.3)", cursor: running ? "pointer" : "not-allowed" }}>{paused ? "▶" : "Ⅱ"}</button>
+          <button type="button" onClick={restartStage} disabled={!running} aria-label={`Restart ${stationName}`} title={`Restart ${stationName}`} style={{ width: 36, height: 36, borderRadius: 999, border: "1px solid rgba(255,191,104,.2)", background: "rgba(255,173,66,.06)", color: running ? "#ffd08a" : "rgba(255,255,255,.3)", fontSize: 17, fontWeight: 900, cursor: running ? "pointer" : "not-allowed" }}>↻</button>
+          <button type="button" onClick={() => running && setPaused((value) => !value)} disabled={!running} aria-label={paused ? `Resume ${stationName}` : `Pause ${stationName}`} style={{ width: 36, height: 36, borderRadius: 999, border: "1px solid rgba(126,232,255,.18)", background: "rgba(83,215,255,.06)", color: running ? "white" : "rgba(255,255,255,.3)", cursor: running ? "pointer" : "not-allowed" }}>{paused ? "▶" : "Ⅱ"}</button>
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: mobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap: 6 }}>
         {[
           ["SCORE", score.toLocaleString(), "Base + speed − waste"],
-          ["ORDERS", `${ordersServed} / ${STAGE_ORDER_GOAL}`, "Complete 10 to clear Stage 1"],
+          ["ORDERS", `${ordersServed} / ${STAGE_ORDER_GOAL}`, `Complete 10 to clear ${stationName}`],
           ["TIME LEFT", formatTime(timeLeft), "Finish before 00:00"],
           ["STAGE DT", `Up to +${STAGE1_DT_BY_STARS[3]}`, `Current pace would earn +${stageDtPreview}`],
         ].map(([label, value, sub]) => (
@@ -1456,7 +1611,7 @@ export default function MilosMixAndServe({
 
       <div data-guide-target="orders" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6 }}>
         {orders.map((order) => {
-          const recipe = BURGER_RECIPES.find((item) => item.key === order.recipeKey)!;
+          const recipe = activeRecipes.find((item) => item.key === order.recipeKey)!;
           const urgent = orderTimersStarted && order.secondsLeft <= 15;
           const shakeNow = orderTimersStarted && order.secondsLeft === 15;
           const progress = (order.secondsLeft / ORDER_DURATION_SECONDS) * 100;
@@ -1552,8 +1707,8 @@ export default function MilosMixAndServe({
               <span style={{ color: "#ffd08a", fontSize: 10, fontWeight: 950, letterSpacing: ".11em" }}>INGREDIENT BOXES</span>
               <span style={{ color: "rgba(255,255,255,.3)", fontSize: 10.5 }}>Click exactly what you need</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: 6 }}>
-              {INGREDIENT_DISPENSERS.map((dispenser) => (
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${activeDispensers.length},minmax(0,1fr))`, gap: 6 }}>
+              {activeDispensers.map((dispenser) => (
                 <div key={dispenser.id} style={{ minWidth: 0, minHeight: mobile ? 62 : 72, borderRadius: 13, border: "1px solid rgba(255,196,100,.14)", background: "linear-gradient(145deg,rgba(36,27,23,.56),rgba(10,17,29,.82))", padding: 5, display: "grid", gridTemplateRows: "1fr auto", gap: 3 }}>
                   <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: dispenser.keys.length > 1 ? "repeat(2,minmax(0,1fr))" : "1fr", gap: 3 }}>
                     {dispenser.keys.map((key) => (
@@ -1582,7 +1737,7 @@ export default function MilosMixAndServe({
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
               <div>
                 <p style={{ margin: 0, color: "#ffb86b", fontSize: 13, fontWeight: 950, letterSpacing: ".12em" }}>COOKING LINE · 3 PANS</p>
-                <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.35)", fontSize: 10.5 }}>Raw patties · 5 seconds · drag cooked patties back yourself</span>
+                <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.35)", fontSize: 10.5 }}>{activeStation === "salad" ? "Chicken · 5 seconds · drag cooked chicken back yourself" : "Raw patties · 5 seconds · drag cooked patties back yourself"}</span>
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6, minHeight: 0 }}>
@@ -1618,7 +1773,7 @@ export default function MilosMixAndServe({
                           {job.status === "processing" ? `${Math.max(0, 5 - job.elapsedTicks * PROCESS_TICK_MS / 1000).toFixed(1)}s` : job.status === "ready" ? "DRAG TO COUNTER" : job.status === "warning" ? `BURNS IN ${Math.max(0, (PAN_BURNT_TICKS - job.elapsedTicks) * PROCESS_TICK_MS / 1000).toFixed(1)}s` : "DRAG TO BIN"}
                         </span>
                       </div>
-                    ) : <span style={{ color: "rgba(255,255,255,.26)", fontSize: 10.5 }}>Drop raw patty</span>}
+                    ) : <span style={{ color: "rgba(255,255,255,.26)", fontSize: 10.5 }}>{activeStation === "salad" ? "Drop chicken" : "Drop raw patty"}</span>}
                   </div>
                 );
               })}
@@ -1664,7 +1819,7 @@ export default function MilosMixAndServe({
               <div style={{ width: 68, height: 68, borderRadius: "50%", border: "5px solid rgba(255,129,143,.32)", background: "radial-gradient(circle at 50% 44%, rgba(27,31,39,.96) 0 47%, rgba(255,129,143,.16) 49% 58%, rgba(7,13,23,.95) 60%)", boxShadow: "inset 0 0 0 5px rgba(255,255,255,.035), 0 8px 20px rgba(0,0,0,.28)", display: "grid", placeItems: "center", color: "#ff9da8", fontSize: 11, fontWeight: 950, letterSpacing: ".08em" }}>BIN</div>
               <div style={{ minWidth: 0 }}>
                 <strong style={{ display: "block", color: "#ff9da8", fontSize: 14 }}>Waste Bin</strong>
-                <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.42)", fontSize: 11.5, lineHeight: 1.35 }}>Drag unwanted food or burnt patties here.</span>
+                <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.42)", fontSize: 11.5, lineHeight: 1.35 }}>{activeStation === "salad" ? "Drag unwanted food or burnt chicken here." : "Drag unwanted food or burnt patties here."}</span>
                 <strong style={{ display: "block", marginTop: 6, color: "#ff8996", fontSize: 10.5 }}>−{DISCARD_PENALTY} points each</strong>
               </div>
             </div>
@@ -1674,7 +1829,19 @@ export default function MilosMixAndServe({
 
       {dragState && mobile && (
         <div style={{ position: "fixed", left: dragState.x, top: dragState.y, transform: "translate(-50%,-50%)", zIndex: 1000, width: 58, height: 58, borderRadius: 14, border: "1px solid rgba(255,213,104,.72)", background: "rgba(11,17,27,.96)", display: "grid", placeItems: "center", pointerEvents: "none", boxShadow: "0 12px 30px rgba(0,0,0,.42)" }}>
-          <img src={dragState.source.type === "cell" ? board[dragState.source.index]?.image : dragState.source.type === "pan" && panJobs[dragState.source.panIndex]?.status === "burnt" ? WORKSTATION_ASSETS.burntPan : ingredientDef("cooked-beef-patty").image} alt="" style={{ width: 48, height: 48, objectFit: "contain" }} />
+          <img
+            src={
+              dragState.source.type === "cell"
+                ? board[dragState.source.index]?.image
+                : panJobs[dragState.source.panIndex]?.kind === "chicken"
+                  ? ingredientDef("cooked-chicken").image
+                  : panJobs[dragState.source.panIndex]?.status === "burnt"
+                    ? WORKSTATION_ASSETS.burntPan
+                    : ingredientDef("cooked-beef-patty").image
+            }
+            alt=""
+            style={{ width: 48, height: 48, objectFit: "contain" }}
+          />
         </div>
       )}
 
@@ -1731,7 +1898,7 @@ export default function MilosMixAndServe({
               {guideStep < guideSteps.length - 1 ? (
                 <button type="button" onClick={() => setGuideStep((value) => Math.min(guideSteps.length - 1, value + 1))} style={{ minHeight: 36, padding: "0 16px", borderRadius: 10, border: "1px solid rgba(255,211,104,.34)", background: "rgba(255,190,65,.08)", color: "#ffd16a", fontSize: 11, fontWeight: 950, cursor: "pointer" }}>Next</button>
               ) : !running && !stageResult ? (
-                <button type="button" onClick={() => { void startStage(); }} style={{ minHeight: 38, padding: "0 18px", borderRadius: 11, border: "1px solid rgba(255,211,104,.4)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 14, fontWeight: 950, cursor: "pointer" }}>Start Stage 1</button>
+                <button type="button" onClick={() => { void startStage(); }} style={{ minHeight: 38, padding: "0 18px", borderRadius: 11, border: "1px solid rgba(255,211,104,.4)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 14, fontWeight: 950, cursor: "pointer" }}>Start {stationName}</button>
               ) : (
                 <button type="button" onClick={() => { setShowGuide(false); if (running) setPaused(false); }} style={{ minHeight: 36, padding: "0 16px", borderRadius: 10, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontSize: 11, fontWeight: 900, cursor: "pointer" }}>Back to Kitchen</button>
               )}
@@ -1744,17 +1911,29 @@ export default function MilosMixAndServe({
         <div onClick={() => setShowHelp(false)} style={{ position: "absolute", inset: 0, zIndex: 75, display: "grid", placeItems: "center", padding: 14, background: "rgba(1,6,14,.86)", backdropFilter: "blur(8px)" }}>
           <div onClick={(event) => event.stopPropagation()} style={{ ...panel, width: "min(620px,100%)", borderRadius: 23, padding: mobile ? 17 : 22 }}>
             <p style={{ margin: 0, color: "#9feeff", fontSize: 14, fontWeight: 950, letterSpacing: ".13em" }}>HOW TO PLAY</p>
-            <h3 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 29, fontWeight: 400 }}>Burger Basics</h3>
+            <h3 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 29, fontWeight: 400 }}>{stationLesson}</h3>
             <div style={{ marginTop: 12, display: "grid", gap: 8, color: "rgba(255,255,255,.62)", fontSize: 13, lineHeight: 1.45 }}>
-              <div><strong style={{ color: "white" }}>Choose:</strong> Use the ingredient boxes below the counter; there is no random supply.</div>
-              <div><strong style={{ color: "white" }}>Cook:</strong> Raw patties need 5 seconds in a pan. After the flashing warning begins, you have 5 seconds to remove the patty before it burns.</div>
-              <div><strong style={{ color: "white" }}>Chop:</strong> Whole tomatoes need 5 seconds on the chopping board.</div>
-              <div><strong style={{ color: "white" }}>Build:</strong> Bun + cooked patty → lettuce → chopped tomato → cheese → bacon.</div>
-              <div><strong style={{ color: "white" }}>Wrong order:</strong> Invalid ingredient combinations swap positions instead of disappearing.</div>
-              <div><strong style={{ color: "white" }}>Waste:</strong> Every item dragged into the bin costs 25 points.</div>
-              <div><strong style={{ color: "white" }}>Timers:</strong> The stage lasts 5 minutes. Customer clocks begin after your first successful order; expired orders are replaced and never end the stage by themselves.</div>
+              {activeStation === "salad" ? (
+                <>
+                  <div><strong style={{ color: "white" }}>Choose:</strong> Lettuce, Tomato, Chicken and Ham come from the ingredient boxes.</div>
+                  <div><strong style={{ color: "white" }}>Cook:</strong> Chicken needs 5 seconds in a pan. Drag it back yourself when ready; after the flashing warning begins, you have 5 seconds before it burns.</div>
+                  <div><strong style={{ color: "white" }}>Chop:</strong> Whole tomatoes need 5 seconds on the chopping board.</div>
+                  <div><strong style={{ color: "white" }}>Build:</strong> Lettuce → chopped tomato → cooked chicken → ham. There are 4 tiers and no egg.</div>
+                  <div><strong style={{ color: "white" }}>Waste:</strong> Every item dragged into the bin costs 25 points.</div>
+                  <div><strong style={{ color: "white" }}>Goal:</strong> Serve 10 salad orders before the 5-minute stage clock reaches 00:00.</div>
+                </>
+              ) : (
+                <>
+                  <div><strong style={{ color: "white" }}>Choose:</strong> Use the ingredient boxes below the counter; there is no random supply.</div>
+                  <div><strong style={{ color: "white" }}>Cook:</strong> Raw patties need 5 seconds in a pan. After the flashing warning begins, you have 5 seconds to remove the patty before it burns.</div>
+                  <div><strong style={{ color: "white" }}>Chop:</strong> Whole tomatoes need 5 seconds on the chopping board.</div>
+                  <div><strong style={{ color: "white" }}>Build:</strong> Bun + cooked patty → lettuce → chopped tomato → cheese → bacon.</div>
+                  <div><strong style={{ color: "white" }}>Waste:</strong> Every item dragged into the bin costs 25 points.</div>
+                  <div><strong style={{ color: "white" }}>Goal:</strong> Serve 10 burger orders before the 5-minute stage clock reaches 00:00.</div>
+                </>
+              )}
+              <div><strong style={{ color: "white" }}>Timers:</strong> Customer clocks begin after your first successful order. Expired orders are replaced and do not end the run.</div>
               <div><strong style={{ color: "white" }}>Order flow:</strong> When an order leaves, remaining orders shift right and a new order enters from the left.</div>
-              <div><strong style={{ color: "white" }}>Goal:</strong> Serve 10 orders before the 5-minute stage clock reaches 00:00. Stage 2 is coming soon.</div>
             </div>
             <button type="button" onClick={() => setShowHelp(false)} style={{ width: "100%", minHeight: 43, marginTop: 14, borderRadius: 13, border: "1px solid rgba(126,232,255,.2)", background: "rgba(83,215,255,.07)", color: "white", fontSize: 14, fontWeight: 900, cursor: "pointer" }}>Back</button>
           </div>
@@ -1764,8 +1943,8 @@ export default function MilosMixAndServe({
       {stageResult && (
         <div style={{ position: "absolute", inset: 0, zIndex: 80, display: "grid", placeItems: "center", padding: 14, background: "rgba(1,6,14,.9)", backdropFilter: "blur(9px)" }}>
           <div style={{ ...panel, width: "min(720px,100%)", maxHeight: "calc(100% - 20px)", overflowY: "auto", borderRadius: 25, padding: mobile ? 18 : 25, textAlign: "center" }}>
-            <p style={{ margin: 0, color: stageResult.success ? "#84efb2" : "#ff9ca7", fontSize: 14, fontWeight: 950, letterSpacing: ".14em" }}>STAGE 1 {stageResult.success ? "COMPLETE" : "FAILED"}</p>
-            <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 31 : 40, fontWeight: 400 }}>Burger Basics</h3>
+            <p style={{ margin: 0, color: stageResult.success ? "#84efb2" : "#ff9ca7", fontSize: 14, fontWeight: 950, letterSpacing: ".14em" }}>{stationName.toUpperCase()} {stageResult.success ? "COMPLETE" : "FAILED"}</p>
+            <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 31 : 40, fontWeight: 400 }}>{stationLesson}</h3>
             <div style={{ marginTop: 10, fontSize: mobile ? 33 : 42, letterSpacing: ".08em", color: "#ffd66f" }}>{[1,2,3].map((star) => <span key={star} style={{ opacity: star <= stageResult.stars ? 1 : .18 }}>★</span>)}</div>
             <div style={{ marginTop: 15, display: "grid", gridTemplateColumns: mobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap: 8 }}>
               {[["Score", score.toLocaleString()], ["Orders", `${ordersServed}/${STAGE_ORDER_GOAL}`], ["Time Used", formatTime(stageResult.elapsedSeconds)], ["Time Left", formatTime(Math.max(0, STAGE_DURATION_SECONDS - stageResult.elapsedSeconds))]].map(([label, value]) => <div key={label} style={{ borderRadius: 13, border: "1px solid rgba(255,255,255,.07)", background: "rgba(255,255,255,.02)", padding: 10 }}><span style={{ display: "block", color: "rgba(255,255,255,.42)", fontSize: 14, fontWeight: 900 }}>{label}</span><strong style={{ display: "block", marginTop: 4, fontSize: 17 }}>{value}</strong></div>)}
@@ -1792,7 +1971,7 @@ export default function MilosMixAndServe({
               </details>
 
               <details style={{ borderRadius: 15, border: "1px solid rgba(255,211,104,.14)", background: "rgba(255,196,64,.025)", padding: "10px 12px" }}>
-                <summary style={{ cursor: "pointer", color: "#ffd98a", fontSize: 14, fontWeight: 950 }}>Stage 1 Leaderboard</summary>
+                <summary style={{ cursor: "pointer", color: "#ffd98a", fontSize: 14, fontWeight: 950 }}>Mix & Serve Leaderboard</summary>
                 <div style={{ marginTop: 10 }}>
                   {leaderboardLoading ? (
                     <p style={{ margin: 0, color: "rgba(255,255,255,.5)", fontSize: 11 }}>Loading leaderboard…</p>
@@ -1816,10 +1995,10 @@ export default function MilosMixAndServe({
             <div style={{ marginTop: 14, borderRadius: 15, border: "1px solid rgba(255,214,111,.17)", background: "rgba(255,196,64,.04)", padding: 11 }}>
               <span style={{ color: "rgba(255,255,255,.44)", fontSize: 11, fontWeight: 900 }}>STAGE DREAM TOKENS</span>
               <strong style={{ display: "block", marginTop: 5, color: stageResult.success ? "#ffd66f" : "rgba(255,255,255,.3)", fontSize: 28 }}>+{stageResult.success ? (rewardState === "awarded" ? awardedDt : resultDt) : 0} DT</strong>
-              <span style={{ display: "block", marginTop: 4, color: "rgba(255,255,255,.38)", fontSize: 11.5 }}>{!stageResult.success ? "Complete Stage 1 to collect DT." : rewardState === "awarding" ? "Adding DT to your balance…" : rewardState === "guest" ? "Log in to collect stage DT." : rewardState === "failed" ? "DT payout failed." : `${stageResult.stars}★ Stage 1 reward`}</span>
+              <span style={{ display: "block", marginTop: 4, color: "rgba(255,255,255,.38)", fontSize: 11.5 }}>{!stageResult.success ? "Complete the station to collect DT." : rewardState === "awarding" ? "Adding DT to your balance…" : rewardState === "guest" ? "Log in to collect stage DT." : rewardState === "failed" ? "DT payout failed." : `${stageResult.stars}★ ${stationName} reward`}</span>
             </div>
             <div style={{ marginTop: 15, display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => { resetStageState(); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(255,211,104,.38)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 14, fontWeight: 950, cursor: "pointer" }}>{stageResult.success ? "Replay Burger Station" : "Retry Burger Station"}</button>
+              <button type="button" onClick={() => { resetStageState(); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(255,211,104,.38)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 14, fontWeight: 950, cursor: "pointer" }}>{stageResult.success ? `Replay ${stationName}` : `Retry ${stationName}`}</button>
               <button type="button" onClick={returnToDishMenu} style={{ minHeight: 44, padding: "0 20px", borderRadius: 13, border: "1px solid rgba(126,232,255,.18)", background: "rgba(83,215,255,.05)", color: "#dffaff", fontSize: 14, fontWeight: 900, cursor: "pointer" }}>Choose Another Dish</button>
             </div>
           </div>

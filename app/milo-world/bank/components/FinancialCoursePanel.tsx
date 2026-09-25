@@ -13,7 +13,7 @@ import type { MiloFinanceLessonSummary } from "../lib/financial-learning-content
 import FinancialAdvisorSelector from "./FinancialAdvisorSelector";
 import FinancialLessonCard from "./FinancialLessonCard";
 import FinancialLessonPlayer from "./FinancialLessonPlayer";
-import BankingGrowthCourseSummary from "./BankingGrowthCourseSummary";
+import FinancialCourseSummary from "./FinancialCourseSummary";
 
 export default function FinancialCoursePanel({
   courseId,
@@ -31,7 +31,7 @@ export default function FinancialCoursePanel({
   const isMobile = screenMode === "mobile";
   const advisor = useFinancialAdvisor(isLoggedIn);
   const course = useFinancialCourse(courseId, isLoggedIn);
-  const courseCompletion = useFinancialCourseCompletion(courseId, isLoggedIn && courseId === "banking-growth");
+  const courseCompletion = useFinancialCourseCompletion(courseId, isLoggedIn);
   const [selectedLesson, setSelectedLesson] = useState<FinancialLessonDefinition | null>(null);
   const [opening, setOpening] = useState(false);
 
@@ -106,8 +106,10 @@ export default function FinancialCoursePanel({
       </div>
 
 
-      {courseId === "banking-growth" && courseCompletion.completion?.isCompleted ? (
-        <BankingGrowthCourseSummary
+      {courseCompletion.completion?.isCompleted ? (
+        <FinancialCourseSummary
+          courseId={courseId}
+          courseTitle={selectedCourse?.title ?? "Milo Finance"}
           completion={courseCompletion.completion}
           skills={courseCompletion.skills}
           screenMode={screenMode}

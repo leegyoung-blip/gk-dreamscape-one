@@ -1,5 +1,6 @@
 export type FinancialProgressEventKind =
   | "lesson"
+  | "course_completed"
   | "savings_goal"
   | "goal_reached"
   | "bond_started"
@@ -14,16 +15,34 @@ export type FinancialProgressEvent = {
 };
 
 export type FinancialSkillEvidence = {
-  id:
-    | "money-management"
-    | "saving-planning"
+  id: string;
+  skillKey:
+    | "money_management"
+    | "saving_planning"
     | "budgeting"
-    | "risk-return"
-    | "financial-decisions";
+    | "risk_return"
+    | "markets"
+    | "financial_decisions"
+    | "business";
   title: string;
   description: string;
+  stageLabel: "Not assessed yet" | "Evidence observed" | "Applied evidence" | "Demonstrated evidence";
+  evidenceCount: number;
+  evidencePoints: number;
   evidence: string[];
   upcoming: string;
+};
+
+export type FinancialCourseProgress = {
+  courseId: string;
+  title: string;
+  plannedLessons: number;
+  liveLessons: number;
+  completedLessons: number;
+  isCompleted: boolean;
+  completedAt: string | null;
+  advisorId: "nova" | "milo" | null;
+  accessTier: "free" | "milo_finance";
 };
 
 export type FinancialProgressSnapshot = {
@@ -35,9 +54,31 @@ export type FinancialProgressSnapshot = {
   bondsStarted: number;
   returnsCollected: number;
   appliedActions: number;
+  completedCourses: number;
+  courses: FinancialCourseProgress[];
   history: FinancialProgressEvent[];
   skills: FinancialSkillEvidence[];
 };
+
+const EMPTY_SKILLS: FinancialSkillEvidence[] = [
+  ["money-management", "money_management", "Money Management", "Priorities, liquidity and everyday use of available resources."],
+  ["saving-planning", "saving_planning", "Saving & Planning", "Goals, reserves, time horizons and preparation for future needs."],
+  ["budgeting", "budgeting", "Budgeting", "Allocating limited resources across competing priorities."],
+  ["risk-return", "risk_return", "Risk & Return", "Understanding uncertainty, fixed returns, changing value and exposure."],
+  ["markets", "markets", "Markets", "How market assets change in value and how portfolio exposure works."],
+  ["financial-decisions", "financial_decisions", "Financial Decisions", "Comparing choices, trade-offs and consequences before acting."],
+  ["business", "business", "Business", "Revenue, costs, profit, cash flow and enterprise decisions."],
+].map(([id, skillKey, title, description]) => ({
+  id,
+  skillKey: skillKey as FinancialSkillEvidence["skillKey"],
+  title,
+  description,
+  stageLabel: "Not assessed yet" as const,
+  evidenceCount: 0,
+  evidencePoints: 0,
+  evidence: [],
+  upcoming: "Future lessons, simulations and Milo World activity will add evidence here.",
+}));
 
 export const EMPTY_FINANCIAL_PROGRESS: FinancialProgressSnapshot = {
   foundationCompleted: 0,
@@ -48,42 +89,8 @@ export const EMPTY_FINANCIAL_PROGRESS: FinancialProgressSnapshot = {
   bondsStarted: 0,
   returnsCollected: 0,
   appliedActions: 0,
+  completedCourses: 0,
+  courses: [],
   history: [],
-  skills: [
-    {
-      id: "money-management",
-      title: "Money Management",
-      description: "Priorities, available resources and everyday money choices.",
-      evidence: [],
-      upcoming: "More evidence will come from budgeting and decision simulations.",
-    },
-    {
-      id: "saving-planning",
-      title: "Saving & Planning",
-      description: "Goals, reserves and planning ahead for future needs.",
-      evidence: [],
-      upcoming: "More evidence will come from longer planning challenges.",
-    },
-    {
-      id: "budgeting",
-      title: "Budgeting",
-      description: "Allocating limited resources across competing priorities.",
-      evidence: [],
-      upcoming: "The Budget Simulator will begin assessing this skill.",
-    },
-    {
-      id: "risk-return",
-      title: "Risk & Return",
-      description: "Understanding uncertainty, fixed returns and changing value.",
-      evidence: [],
-      upcoming: "Risk Lab and Exchange activities will add stronger evidence later.",
-    },
-    {
-      id: "financial-decisions",
-      title: "Financial Decisions",
-      description: "Comparing options, trade-offs and consequences before acting.",
-      evidence: [],
-      upcoming: "Case studies and branching decisions will add deeper evidence later.",
-    },
-  ],
+  skills: EMPTY_SKILLS,
 };

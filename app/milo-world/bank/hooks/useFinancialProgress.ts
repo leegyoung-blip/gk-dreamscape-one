@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { MONEY_LAB_LESSONS } from "../lib/money-lab-content";
+import {
+  getMiloFinanceSkillSummary,
+  listMiloFinanceSkillEvidence,
+} from "../lib/financial-skill-evidence-api";
+import { listMiloFinanceCourseProgressOverview } from "../lib/financial-course-completion-api";
+import type { MiloFinanceCourseProgressOverview } from "../lib/financial-course-completion-types";
+import type {
+  MiloFinanceSkillEvidenceRecord,
+  MiloFinanceSkillSummary,
+} from "../lib/financial-skill-evidence-types";
 import {
   EMPTY_FINANCIAL_PROGRESS,
   type FinancialProgressEvent,
@@ -11,19 +20,22 @@ import {
 } from "../lib/financial-progress-types";
 
 function messageFrom(error: unknown) {
-  if (
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-  ) {
-    return (error as { message: string }).message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
   }
   return "Could not load your financial progress.";
 }
 
-function lessonTitle(key: string) {
-  return MONEY_LAB_LESSONS.find((lesson) => lesson.key === key)?.title ?? "Financial Foundations lesson";
+function stageLabel(summary: {
+  demonstratedCount: number;
+  appliedCount: number;
+  evidenceCount: number;
+}): FinancialSkillEvidence["stageLabel"] {
+  if (summary.demonstratedCount > 0) return "Demonstrated evidence";
+  if (summary.appliedCount > 0) return "Applied evidence";
+  if (summary.evidenceCount > 0) return "Evidence observed";
+  return "Not assessed yet";
 }
 
 export function useFinancialProgress(isLoggedIn: boolean) {
@@ -46,17 +58,28 @@ export function useFinancialProgress(isLoggedIn: boolean) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
       if (!user) {
         setSnapshot(EMPTY_FINANCIAL_PROGRESS);
         setLoading(false);
         return;
       }
 
-      const [lessonResult, goalsResult, bondsResult] = await Promise.all([
+      const [
+        lessonCatalogResult,
+        lessonProgressResult,
+        goalsResult,
+        bondsResult,
+        skillSummaryResult,
+        evidenceRecordsResult,
+        courseOverviewResult,
+      ] = await Promise.all([
         supabase
-          .from("milo_bank_money_lab_progress")
-          .select("lesson_key,completed_at,reward_amount")
+          .from("milo_finance_lessons")
+          .select("id,course_id,lesson_key,title,reward_dt")
+          .eq("status", "published"),
+        supabase
+          .from("milo_finance_lesson_progress")
+          .select("lesson_id,status,reward_issued,completed_at")
           .eq("user_id", user.id),
         supabase
           .from("milo_bank_savings_goals")
@@ -66,44 +89,85 @@ export function useFinancialProgress(isLoggedIn: boolean) {
           .from("milo_bank_bond_holdings")
           .select("id,bond_name,status,purchased_at,settled_at")
           .eq("user_id", user.id),
+        getMiloFinanceSkillSummary(),
+        listMiloFinanceSkillEvidence(),
+        listMiloFinanceCourseProgressOverview(),
       ]);
 
-      if (lessonResult.error) throw lessonResult.error;
+      if (lessonCatalogResult.error) throw lessonCatalogResult.error;
+      if (lessonProgressResult.error) throw lessonProgressResult.error;
       if (goalsResult.error) throw goalsResult.error;
       if (bondsResult.error) throw bondsResult.error;
 
-      const lessons = (lessonResult.data || []) as Array<{
+      const skillSummary: MiloFinanceSkillSummary[] = skillSummaryResult;
+      const evidenceRecords: MiloFinanceSkillEvidenceRecord[] = evidenceRecordsResult;
+      const courseOverview: MiloFinanceCourseProgressOverview[] = courseOverviewResult;
+
+      const lessons = (lessonCatalogResult.data ?? []) as Array<{
+        id: string;
+        course_id: string;
         lesson_key: string;
-        completed_at: string;
-        reward_amount: number | string;
+        title: string;
+        reward_dt: number | string;
       }>;
-      const goals = (goalsResult.data || []) as Array<{
+      const lessonById = new Map(lessons.map((item) => [item.id, item]));
+      const foundationLessonIds = new Set(
+        lessons
+          .filter((item) => item.course_id === "financial-foundations")
+          .map((item) => item.id),
+      );
+      const progressRows = (lessonProgressResult.data ?? []) as Array<{
+        lesson_id: string;
+        status: string;
+        reward_issued: number | string;
+        completed_at: string | null;
+      }>;
+      const completed = progressRows.filter((item) => item.status === "completed");
+      const foundationCompletedRows = completed.filter((item) =>
+        foundationLessonIds.has(item.lesson_id),
+      );
+      const goals = (goalsResult.data ?? []) as Array<{
         id: string;
         name: string;
         status: string;
         created_at: string;
         completed_at: string | null;
       }>;
-      const bonds = (bondsResult.data || []) as Array<{
+      const bonds = (bondsResult.data ?? []) as Array<{
         id: string;
         bond_name: string;
         status: string;
         purchased_at: string;
         settled_at: string | null;
       }>;
-
-      const completedKeys = new Set(lessons.map((item) => item.lesson_key));
       const goalsReached = goals.filter((goal) => Boolean(goal.completed_at)).length;
       const returnsCollected = bonds.filter((bond) => bond.status === "settled").length;
+      const completedCourses = courseOverview.filter(
+        (course: MiloFinanceCourseProgressOverview) => course.isCompleted,
+      ).length;
 
       const history: FinancialProgressEvent[] = [
-        ...lessons.map((item) => ({
-          id: `lesson-${item.lesson_key}`,
-          kind: "lesson" as const,
-          title: lessonTitle(item.lesson_key),
-          detail: "Financial Foundations lesson completed",
-          occurredAt: item.completed_at,
-        })),
+        ...completed
+          .filter((item) => Boolean(item.completed_at))
+          .map((item) => ({
+            id: `lesson-${item.lesson_id}`,
+            kind: "lesson" as const,
+            title: lessonById.get(item.lesson_id)?.title ?? "Milo Finance lesson",
+            detail: "Interactive Milo Finance lesson completed",
+            occurredAt: item.completed_at as string,
+          })),
+        ...courseOverview
+          .filter(
+            (course: MiloFinanceCourseProgressOverview) =>
+              course.isCompleted && Boolean(course.completedAt),
+          )
+          .map((course: MiloFinanceCourseProgressOverview) => ({
+            id: `course-${course.courseId}`,
+            kind: "course_completed" as const,
+            title: course.title,
+            detail: "Milo Finance course completed",
+            occurredAt: course.completedAt as string,
+          })),
         ...goals.map((goal) => ({
           id: `goal-${goal.id}`,
           kind: "savings_goal" as const,
@@ -137,65 +201,47 @@ export function useFinancialProgress(isLoggedIn: boolean) {
             occurredAt: bond.settled_at as string,
           })),
       ].sort(
-        (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+        (a, b) =>
+          new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
       );
 
-      const skills: FinancialSkillEvidence[] = [
-        {
-          id: "money-management",
-          title: "Money Management",
-          description: "Priorities, available resources and everyday money choices.",
-          evidence: [
-            completedKeys.has("needs-vs-wants") ? "Needs vs wants lesson completed" : null,
-            goals.length > 0 ? "Savings Goal created" : null,
-          ].filter(Boolean) as string[],
-          upcoming: "More evidence will come from budgeting and decision simulations.",
-        },
-        {
-          id: "saving-planning",
-          title: "Saving & Planning",
-          description: "Goals, reserves and planning ahead for future needs.",
-          evidence: [
-            completedKeys.has("saving-basics") ? "Saving lesson completed" : null,
-            goalsReached > 0 ? "Savings Goal target reached" : null,
-          ].filter(Boolean) as string[],
-          upcoming: "More evidence will come from longer planning challenges.",
-        },
-        {
-          id: "budgeting",
-          title: "Budgeting",
-          description: "Allocating limited resources across competing priorities.",
-          evidence: [],
-          upcoming: "The Budget Simulator will begin assessing this skill.",
-        },
-        {
-          id: "risk-return",
-          title: "Risk & Return",
-          description: "Understanding uncertainty, fixed returns and changing value.",
-          evidence: [
-            completedKeys.has("risk-and-return") ? "Risk & return lesson completed" : null,
-            completedKeys.has("bond-basics") ? "Bond lesson completed" : null,
-            bonds.length > 0 ? "Bank Bond experience recorded" : null,
-          ].filter(Boolean) as string[],
-          upcoming: "Risk Lab and Exchange activities will add stronger evidence later.",
-        },
-        {
-          id: "financial-decisions",
-          title: "Financial Decisions",
-          description: "Comparing options, trade-offs and consequences before acting.",
-          evidence: [
-            completedKeys.has("saving-vs-investing") ? "Saving vs investing lesson completed" : null,
-            completedKeys.has("needs-vs-wants") ? "Priorities lesson completed" : null,
-          ].filter(Boolean) as string[],
-          upcoming: "Case studies and branching decisions will add deeper evidence later.",
-        },
-      ];
+      const evidenceBySkill = new Map<string, string[]>();
+      for (const record of evidenceRecords) {
+        const list = evidenceBySkill.get(record.skillKey) ?? [];
+        if (!list.includes(record.label)) list.push(record.label);
+        evidenceBySkill.set(record.skillKey, list);
+      }
+
+      const bankEvidence: Record<string, string[]> = {
+        money_management: [goals.length > 0 ? "Savings Goal created" : ""].filter(Boolean),
+        saving_planning: [goalsReached > 0 ? "Savings Goal target reached" : ""].filter(Boolean),
+        risk_return: [
+          bonds.length > 0 ? "Bank Bond experience recorded" : "",
+          returnsCollected > 0 ? "Bond return collected" : "",
+        ].filter(Boolean),
+      };
+
+      const skills: FinancialSkillEvidence[] = skillSummary.map((summary) => ({
+        id: summary.skillKey.replaceAll("_", "-"),
+        skillKey: summary.skillKey,
+        title: summary.title,
+        description: summary.description,
+        stageLabel: stageLabel(summary),
+        evidenceCount: summary.evidenceCount,
+        evidencePoints: summary.evidencePoints,
+        evidence: [
+          ...(evidenceBySkill.get(summary.skillKey) ?? []),
+          ...(bankEvidence[summary.skillKey] ?? []),
+        ].slice(0, 4),
+        upcoming:
+          "More evidence will come from later lessons, simulations and activity across Milo World.",
+      }));
 
       setSnapshot({
-        foundationCompleted: lessons.length,
-        foundationTotal: MONEY_LAB_LESSONS.length,
-        foundationRewardEarned: lessons.reduce(
-          (sum, item) => sum + Number(item.reward_amount || 0),
+        foundationCompleted: foundationCompletedRows.length,
+        foundationTotal: foundationLessonIds.size || 6,
+        foundationRewardEarned: foundationCompletedRows.reduce(
+          (sum, item) => sum + Number(item.reward_issued || 0),
           0,
         ),
         goalsCreated: goals.length,
@@ -203,6 +249,18 @@ export function useFinancialProgress(isLoggedIn: boolean) {
         bondsStarted: bonds.length,
         returnsCollected,
         appliedActions: goals.length + goalsReached + bonds.length + returnsCollected,
+        completedCourses,
+        courses: courseOverview.map((course: MiloFinanceCourseProgressOverview) => ({
+          courseId: course.courseId,
+          title: course.title,
+          plannedLessons: course.plannedLessons,
+          liveLessons: course.liveLessons,
+          completedLessons: course.completedLessons,
+          isCompleted: course.isCompleted,
+          completedAt: course.completedAt,
+          advisorId: course.advisorId,
+          accessTier: course.accessTier,
+        })),
         history,
         skills,
       });
@@ -215,13 +273,13 @@ export function useFinancialProgress(isLoggedIn: boolean) {
 
   useEffect(() => {
     refresh();
-
     if (typeof window === "undefined") return;
 
     const events = [
       "milo-bank-savings-updated",
       "milo-bank-bonds-updated",
-      "milo-bank-money-lab-updated",
+      "milo-finance-learning-updated",
+      "milo-finance-course-updated",
       "dream-tokens-updated",
     ];
 
@@ -231,10 +289,5 @@ export function useFinancialProgress(isLoggedIn: boolean) {
     };
   }, [refresh]);
 
-  return {
-    ...snapshot,
-    loading,
-    error,
-    refresh,
-  };
+  return { ...snapshot, loading, error, refresh };
 }

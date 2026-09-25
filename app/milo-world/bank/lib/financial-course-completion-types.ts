@@ -19,3 +19,16 @@ export type MiloFinanceCourseSkillSummary = {
   demonstratedCount: number;
   lastEvidenceAt: string | null;
 };
+
+export type MiloFinanceCourseProgressOverview = {
+  courseId: string;
+  title: string;
+  sortOrder: number;
+  accessTier: "free" | "milo_finance";
+  plannedLessons: number;
+  liveLessons: number;
+  completedLessons: number;
+  isCompleted: boolean;
+  completedAt: string | null;
+  advisorId: FinancialAdvisorId | null;
+};

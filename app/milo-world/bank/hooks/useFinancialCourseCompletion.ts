@@ -15,7 +15,7 @@ function messageFrom(error: unknown) {
     const message = (error as { message?: unknown }).message;
     if (typeof message === "string") return message;
   }
-  return "Could not load the Banking & Growth course summary.";
+  return "Could not load this Milo Finance course summary.";
 }
 
 export function useFinancialCourseCompletion(courseId: string, isLoggedIn: boolean) {
@@ -29,6 +29,7 @@ export function useFinancialCourseCompletion(courseId: string, isLoggedIn: boole
       setCompletion(null);
       setSkills([]);
       setLoading(false);
+      setError(null);
       return;
     }
     setLoading(true);

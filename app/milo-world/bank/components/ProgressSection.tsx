@@ -127,7 +127,7 @@ export default function ProgressSection({
         style={{
           marginTop: "14px",
           display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0,1fr))",
+          gridTemplateColumns: isMobile ? "1fr" : compact ? "repeat(2, minmax(0,1fr))" : "repeat(4, minmax(0,1fr))",
           gap: "10px",
         }}
       >
@@ -136,6 +136,12 @@ export default function ProgressSection({
           value={progressLoading ? "—" : `${progress.foundationCompleted} / ${progress.foundationTotal}`}
           detail="Lessons completed"
           accent="#8ee8ff"
+        />
+        <SummaryCard
+          label="Courses complete"
+          value={progressLoading ? "—" : String(progress.completedCourses)}
+          detail="Full Milo Finance pathways completed"
+          accent="#b8a8ff"
         />
         <SummaryCard
           label="Applied finance"
@@ -150,6 +156,69 @@ export default function ProgressSection({
           accent="#ffd18a"
         />
       </section>
+
+      {progress.courses.length > 0 && (
+        <section
+          style={{
+            marginTop: "14px",
+            borderRadius: "22px",
+            border: "1px solid rgba(126,232,255,0.09)",
+            background: "rgba(4,13,29,0.72)",
+            padding: isMobile ? "18px" : "20px 21px",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "14px", alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div>
+              <p style={{ ...eyebrowStyle, color: "rgba(142,232,255,0.72)" }}>Learning Pathways</p>
+              <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "28px", fontWeight: 500 }}>
+                Course progress across Milo Finance.
+              </h3>
+            </div>
+            <span style={sectionMetaStyle}>{progress.completedCourses} complete</span>
+          </div>
+
+          <div
+            style={{
+              marginTop: "15px",
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : compact ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))",
+              gap: "9px",
+            }}
+          >
+            {progress.courses.map((course) => {
+              const denominator = Math.max(course.plannedLessons, course.liveLessons, 1);
+              const percent = Math.min(100, Math.round((course.completedLessons / denominator) * 100));
+              return (
+                <div
+                  key={course.courseId}
+                  style={{
+                    borderRadius: "16px",
+                    border: course.isCompleted ? "1px solid rgba(113,236,176,0.18)" : "1px solid rgba(255,255,255,0.07)",
+                    background: course.isCompleted ? "rgba(69,207,142,0.055)" : "rgba(255,255,255,0.025)",
+                    padding: "13px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "flex-start" }}>
+                    <div>
+                      <div style={{ color: course.isCompleted ? "#9af3c3" : "rgba(255,255,255,0.34)", fontSize: "8px", fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                        {course.isCompleted ? "Course complete" : `${course.completedLessons} / ${denominator} lessons`}
+                      </div>
+                      <strong style={{ display: "block", marginTop: "5px", fontSize: "11px", lineHeight: 1.35 }}>{course.title}</strong>
+                    </div>
+                    {course.accessTier === "milo_finance" && <MiloFinanceBadge active={hasMiloFinanceAccess} compact />}
+                  </div>
+                  <div style={{ marginTop: "11px", height: "5px", borderRadius: "999px", overflow: "hidden", background: "rgba(255,255,255,0.06)" }}>
+                    <div style={{ width: `${percent}%`, height: "100%", borderRadius: "999px", background: course.isCompleted ? "#9af3c3" : "linear-gradient(90deg,#58d8ff,#8cf0ca)" }} />
+                  </div>
+                  <div style={{ marginTop: "6px", color: "rgba(255,255,255,0.32)", fontSize: "8px" }}>
+                    {course.isCompleted && course.completedAt ? `Completed ${formatDate(course.completedAt)}` : `${percent}% of planned pathway`}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section
         style={{
@@ -254,7 +323,7 @@ export default function ProgressSection({
               ? "1fr"
               : compact
                 ? "repeat(2, minmax(0,1fr))"
-                : "repeat(5, minmax(0,1fr))",
+                : "repeat(4, minmax(0,1fr))",
             gap: "8px",
           }}
         >
@@ -284,11 +353,16 @@ export default function ProgressSection({
                     textTransform: "uppercase",
                   }}
                 >
-                  {hasEvidence ? "Evidence collected" : "Not assessed yet"}
+                  {skill.stageLabel}
                 </div>
                 <strong style={{ display: "block", marginTop: "6px", fontSize: "11px", lineHeight: 1.35 }}>
                   {skill.title}
                 </strong>
+                {hasEvidence && (
+                  <div style={{ marginTop: "5px", color: "rgba(142,232,255,0.62)", fontSize: "8px", fontWeight: 850 }}>
+                    {skill.evidenceCount} evidence · {skill.evidencePoints} pts
+                  </div>
+                )}
                 <p
                   style={{
                     margin: "6px 0 0",
@@ -340,8 +414,8 @@ export default function ProgressSection({
             lineHeight: 1.5,
           }}
         >
-          These cards currently show evidence only. Skill levels will be introduced after the new
-          lesson and simulation engines can provide enough meaningful data.
+          These cards are now driven by evidence from interactive learning blocks and applied Milo World activity.
+          They do not convert evidence into a mastery percentage; later simulations will deepen the profile.
         </p>
       </section>
 
