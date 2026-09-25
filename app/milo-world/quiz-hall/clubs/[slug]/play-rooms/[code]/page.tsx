@@ -8,6 +8,11 @@ import CreatorQuestionRenderer, {
   type CreatorEngineAnswerValue,
   type CreatorEngineQuestion,
 } from "@/components/milo/creator-engine/CreatorQuestionRenderer";
+import {
+  normalizeCreatorClubUpgradeAppearance,
+  roomUpgradeBackdropStyle,
+  type CreatorClubUpgradeAppearance,
+} from "@/components/milo/creator-engine/CreatorClubUpgradeStyle";
 
 type RoomMember = {
   user_id: string;
@@ -155,6 +160,9 @@ export default function CreatorClubPlayRoomPage() {
   const roomCode = decodeURIComponent(String(params?.code || "")).toUpperCase();
 
   const [state, setState] = useState<RoomState | null>(null);
+  const [appearance, setAppearance] = useState<CreatorClubUpgradeAppearance>(
+    normalizeCreatorClubUpgradeAppearance(null),
+  );
   const [answer, setAnswer] = useState<CreatorEngineAnswerValue>({
     selectedKeys: [],
     numericValue: null,
@@ -231,6 +239,17 @@ export default function CreatorClubPlayRoomPage() {
       );
       return;
     }
+
+    const appearanceResponse = await supabase.rpc(
+      "get_creator_club_upgrade_public_v1",
+      { p_club_slug: clubSlug },
+    );
+
+    setAppearance(
+      appearanceResponse.error
+        ? normalizeCreatorClubUpgradeAppearance(null)
+        : normalizeCreatorClubUpgradeAppearance(appearanceResponse.data),
+    );
 
     const joinResponse = await supabase.rpc(
       "creator_join_play_room_v2",
@@ -442,7 +461,10 @@ export default function CreatorClubPlayRoomPage() {
   }
 
   return (
-    <main className="fixed inset-0 overflow-hidden bg-[#020711] text-white">
+    <main
+      className="fixed inset-0 overflow-hidden bg-[#020711] text-white"
+      style={roomUpgradeBackdropStyle(appearance.room_theme_key)}
+    >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.10),transparent_32%),linear-gradient(180deg,#041124_0%,#020711_100%)]" />
 
       <div className="relative z-10 flex h-full min-h-0 flex-col">
@@ -465,6 +487,11 @@ export default function CreatorClubPlayRoomPage() {
                 <strong className="block truncate text-sm">
                   Club Play Room
                 </strong>
+                {appearance.room_theme_name && (
+                  <span className="mt-0.5 block truncate text-[7px] font-black uppercase tracking-[0.07em] text-fuchsia-100/48">
+                    {appearance.room_theme_name}
+                  </span>
+                )}
               </div>
             </div>
 

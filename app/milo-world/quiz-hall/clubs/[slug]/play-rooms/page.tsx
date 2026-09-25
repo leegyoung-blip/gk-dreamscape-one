@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+  normalizeCreatorClubUpgradeAppearance,
+  roomUpgradeBackdropStyle,
+  type CreatorClubUpgradeAppearance,
+} from "@/components/milo/creator-engine/CreatorClubUpgradeStyle";
 
 type AccessRow = {
   club_id: string;
@@ -47,6 +52,9 @@ export default function CreatorClubPlayRoomsPage() {
   const [access, setAccess] = useState<AccessRow | null>(null);
   const [quizzes, setQuizzes] = useState<QuizRow[]>([]);
   const [rooms, setRooms] = useState<OpenRoom[]>([]);
+  const [appearance, setAppearance] = useState<CreatorClubUpgradeAppearance>(
+    normalizeCreatorClubUpgradeAppearance(null),
+  );
 
   const [joinCode, setJoinCode] = useState("");
   const [sourceQuizSlug, setSourceQuizSlug] = useState("");
@@ -91,7 +99,7 @@ export default function CreatorClubPlayRoomsPage() {
       return;
     }
 
-    const [accessResponse, quizResponse, roomsResponse] =
+    const [accessResponse, quizResponse, roomsResponse, appearanceResponse] =
       await Promise.all([
         supabase.rpc("get_creator_club_play_access_v2", {
           p_club_slug: clubSlug,
@@ -100,6 +108,9 @@ export default function CreatorClubPlayRoomsPage() {
           p_club_slug: clubSlug,
         }),
         supabase.rpc("get_creator_club_open_rooms_v2", {
+          p_club_slug: clubSlug,
+        }),
+        supabase.rpc("get_creator_club_upgrade_public_v1", {
           p_club_slug: clubSlug,
         }),
       ]);
@@ -157,6 +168,12 @@ export default function CreatorClubPlayRoomsPage() {
             player_count: Number(room.player_count || 0),
             max_players: Number(room.max_players || 12),
           })),
+    );
+
+    setAppearance(
+      appearanceResponse.error
+        ? normalizeCreatorClubUpgradeAppearance(null)
+        : normalizeCreatorClubUpgradeAppearance(appearanceResponse.data),
     );
 
     setIsLoading(false);
@@ -266,7 +283,10 @@ export default function CreatorClubPlayRoomsPage() {
   }
 
   return (
-    <main className="fixed inset-0 overflow-y-auto bg-[#020711] px-4 py-5 text-white sm:px-6">
+    <main
+      className="fixed inset-0 overflow-y-auto bg-[#020711] px-4 py-5 text-white sm:px-6"
+      style={roomUpgradeBackdropStyle(appearance.room_theme_key)}
+    >
       <div className="mx-auto max-w-[1280px]">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -297,6 +317,11 @@ export default function CreatorClubPlayRoomsPage() {
             <span className="mt-1 block text-[8px] font-black uppercase tracking-[0.08em] text-white/28">
               Club members
             </span>
+            {appearance.room_theme_name && (
+              <span className="mt-2 block text-[7px] font-black uppercase tracking-[0.07em] text-fuchsia-100/58">
+                {appearance.room_theme_name}
+              </span>
+            )}
           </div>
         </header>
 

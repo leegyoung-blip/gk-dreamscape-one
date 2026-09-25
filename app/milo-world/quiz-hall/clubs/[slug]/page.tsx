@@ -12,6 +12,12 @@ import CreatorClubProgressionCard, {
   type ClubProgressionPayload,
 } from "@/components/milo/creator-engine/CreatorClubProgressionCard";
 import {
+  clubUpgradeBackdropStyle,
+  clubUpgradeCardStyle,
+  normalizeCreatorClubUpgradeAppearance,
+  type CreatorClubUpgradeAppearance,
+} from "@/components/milo/creator-engine/CreatorClubUpgradeStyle";
+import {
   getMiloQuizHallCreatorClubsAccess,
   type MiloQuizHallCreatorClubsAccess,
 } from "@/lib/milo-quiz-hall-access";
@@ -262,6 +268,10 @@ export default function CreatorClubPage() {
   const [pulseNotices, setPulseNotices] = useState<ClubPulseNotice[]>([]);
   const [clubProgression, setClubProgression] =
     useState<ClubProgressionPayload | null>(null);
+  const [clubAppearance, setClubAppearance] =
+    useState<CreatorClubUpgradeAppearance>(
+      normalizeCreatorClubUpgradeAppearance(null),
+    );
   const [hallAccess, setHallAccess] =
     useState<MiloQuizHallCreatorClubsAccess | null>(null);
   const [userId, setUserId] = useState("");
@@ -453,6 +463,7 @@ export default function CreatorClubPage() {
       pulseResponse,
       roomProgressResponse,
       progressionResponse,
+      appearanceResponse,
     ] = await Promise.all([
       supabase.rpc("get_creator_club_quiz_catalog", { p_club_slug: slug }),
       supabase.rpc("get_creator_club_leaderboard", {
@@ -489,6 +500,9 @@ export default function CreatorClubPage() {
         p_club_id: nextClub.club_id,
       }),
       supabase.rpc("get_creator_club_progression_v1", {
+        p_club_slug: slug,
+      }),
+      supabase.rpc("get_creator_club_upgrade_public_v1", {
         p_club_slug: slug,
       }),
     ]);
@@ -583,6 +597,12 @@ export default function CreatorClubPage() {
     } else {
       setClubProgression(null);
     }
+
+    setClubAppearance(
+      appearanceResponse.error
+        ? normalizeCreatorClubUpgradeAppearance(null)
+        : normalizeCreatorClubUpgradeAppearance(appearanceResponse.data),
+    );
 
     if (!playAccessResponse.error) {
       const row = Array.isArray(playAccessResponse.data)
@@ -984,14 +1004,20 @@ export default function CreatorClubPage() {
   const canPlay = Boolean(hallAccess?.isAdmin || club.is_member);
 
   return (
-    <main className="fixed inset-0 overflow-hidden bg-[#020711] text-white">
+    <main
+      className="fixed inset-0 overflow-hidden bg-[#020711] text-white"
+      style={clubUpgradeBackdropStyle(clubAppearance.club_theme_key)}
+    >
       <img
         src={club.cover_image_url || "/milo-world/quiz-hall/quiz-hall-bg.png"}
         alt=""
         aria-hidden="true"
         className="absolute inset-0 h-full w-full object-cover opacity-[0.20]"
       />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_4%,rgba(251,191,36,0.10),transparent_28%),linear-gradient(180deg,rgba(2,7,17,0.80),rgba(2,7,17,0.97)_44%,#020711)]" />
+      <div
+        className="absolute inset-0 bg-[radial-gradient(circle_at_18%_4%,rgba(251,191,36,0.10),transparent_28%),linear-gradient(180deg,rgba(2,7,17,0.80),rgba(2,7,17,0.97)_44%,#020711)]"
+        style={{ opacity: clubAppearance.club_theme_key ? 0.78 : 1 }}
+      />
 
       <div className="relative z-10 flex h-full min-h-0 flex-col">
         <header className="shrink-0 border-b border-white/8 bg-[#020711]/68 px-4 py-3 backdrop-blur-xl sm:px-6 sm:py-4">
@@ -1024,7 +1050,13 @@ export default function CreatorClubPage() {
         <section className="club-scroll min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-4 sm:px-6 sm:pt-5">
           <div className="mx-auto w-full max-w-[1380px]">
             <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
-              <article className="relative overflow-hidden rounded-[30px] border border-white/11 bg-[#061222]/82 p-6 shadow-[0_26px_80px_rgba(0,0,0,0.30)] backdrop-blur-xl sm:p-8">
+              <article
+                className="relative overflow-hidden rounded-[30px] border border-white/11 bg-[#061222]/82 p-6 shadow-[0_26px_80px_rgba(0,0,0,0.30)] backdrop-blur-xl sm:p-8"
+                style={clubUpgradeCardStyle(
+                  clubAppearance.club_theme_key,
+                  clubAppearance.club_frame_key,
+                )}
+              >
                 <div className="flex items-start gap-4">
                   <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[20px] border border-amber-200/18 bg-amber-300/[0.08] text-2xl font-black text-amber-100">
                     {club.logo_image_url ? (
@@ -1060,6 +1092,16 @@ export default function CreatorClubPage() {
                           levelName={clubProgression.level_name}
                           score={clubProgression.progression_score}
                         />
+                      )}
+                      {clubAppearance.club_theme_name && (
+                        <span className="rounded-full border border-cyan-200/12 bg-cyan-300/[0.04] px-3 py-1.5 text-[7px] font-black uppercase tracking-[0.08em] text-cyan-100/70">
+                          {clubAppearance.club_theme_name}
+                        </span>
+                      )}
+                      {clubAppearance.club_frame_name && (
+                        <span className="rounded-full border border-violet-200/12 bg-violet-300/[0.04] px-3 py-1.5 text-[7px] font-black uppercase tracking-[0.08em] text-violet-100/70">
+                          {clubAppearance.club_frame_name}
+                        </span>
                       )}
                     </div>
                     {club.tagline && (

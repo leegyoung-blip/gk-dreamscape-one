@@ -20,6 +20,23 @@ type ModuleRow = {
   wallet_dt: number;
 };
 
+type CreatorToolUnlock = {
+  item_key: string;
+  display_name: string;
+  effect_key: string;
+  unlocked: boolean;
+};
+
+type QuestionPreset = {
+  id: string;
+  preset_name: string;
+  question_type: QuestionForm["questionType"];
+  payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+
 type StoredOption = CreatorEngineOption & {
   is_correct: boolean;
 };
@@ -100,6 +117,101 @@ function blankForm(): QuestionForm {
   };
 }
 
+function normalizePresetPayload(payload: unknown): QuestionForm | null {
+  if (!payload || typeof payload !== "object") return null;
+  const row = payload as Partial<QuestionForm>;
+  const type = row.questionType;
+
+  if (
+    type !== "classic_choice" &&
+    type !== "choice_grid" &&
+    type !== "bar_estimate" &&
+    type !== "pie_estimate"
+  ) {
+    return null;
+  }
+
+  const base = blankForm();
+  const rawOptions = Array.isArray(row.options) ? row.options : base.options;
+
+  return {
+    ...base,
+    ...row,
+    questionType: type,
+    selectionMode: row.selectionMode === "multi" ? "multi" : "single",
+    options: rawOptions.slice(0, 20).map((option, index) => ({
+      option_key: optionKey(index),
+      label: String(option?.label || ""),
+      image_url: String(option?.image_url || ""),
+      is_correct: Boolean(option?.is_correct),
+    })),
+    min: Number(row.min ?? base.min),
+    max: Number(row.max ?? base.max),
+    step: Number(row.step ?? base.step),
+    unit: String(row.unit || ""),
+    target: Number(row.target ?? base.target),
+    fullTolerance: Number(row.fullTolerance ?? base.fullTolerance),
+    acceptableTolerance: Number(
+      row.acceptableTolerance ?? base.acceptableTolerance,
+    ),
+    explanation: String(row.explanation || ""),
+    topic: String(row.topic || ""),
+    difficulty: Math.max(1, Math.min(5, Number(row.difficulty || 2))),
+  };
+}
+
+function buildQuestionRpcArgs(
+  quizId: string,
+  questionOrder: number,
+  form: QuestionForm,
+) {
+  const isChoice =
+    form.questionType === "classic_choice" ||
+    form.questionType === "choice_grid";
+
+  return {
+    p_quiz_id: quizId,
+    p_question_order: questionOrder,
+    p_question_type: form.questionType,
+    p_prompt: form.prompt.trim(),
+    p_config: isChoice
+      ? {
+          selection_mode:
+            form.questionType === "classic_choice"
+              ? "single"
+              : form.selectionMode,
+          layout:
+            form.questionType === "classic_choice" ? "buttons" : "grid",
+        }
+      : form.questionType === "bar_estimate"
+        ? {
+            min: Number(form.min),
+            max: Number(form.max),
+            step: Number(form.step),
+            unit: form.unit.trim(),
+          }
+        : { min: 0, max: 100, step: 1, unit: "%" },
+    p_answer_config: isChoice
+      ? {}
+      : {
+          target: Number(form.target),
+          full_tolerance: Number(form.fullTolerance),
+          acceptable_tolerance: Number(form.acceptableTolerance),
+        },
+    p_explanation: form.explanation.trim() || null,
+    p_topic: form.topic.trim() || null,
+    p_difficulty: Number(form.difficulty),
+    p_options: isChoice
+      ? form.options.map((option, index) => ({
+          option_key: optionKey(index),
+          label: option.label.trim(),
+          image_url: option.image_url.trim() || null,
+          is_correct: Boolean(option.is_correct),
+        }))
+      : [],
+  };
+}
+
 function fromStored(question: StoredQuestion): QuestionForm {
   return {
     questionType: question.question_type,
@@ -149,6 +261,10 @@ export default function CreatorEngineV2Builder({
 }) {
   const [modules, setModules] = useState<ModuleRow[]>([]);
   const [questions, setQuestions] = useState<StoredQuestion[]>([]);
+  const [creatorTools, setCreatorTools] = useState<CreatorToolUnlock[]>([]);
+  const [presets, setPresets] = useState<QuestionPreset[]>([]);
+  const [presetName, setPresetName] = useState("");
+  const [creatorToolsOpen, setCreatorToolsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(1);
   const [form, setForm] = useState<QuestionForm>(blankForm());
   const [previewValue, setPreviewValue] =
@@ -184,6 +300,19 @@ export default function CreatorEngineV2Builder({
   const barUnlocked = Boolean(moduleMap.get("bar_estimate")?.unlocked);
   const pieUnlocked = Boolean(moduleMap.get("pie_estimate")?.unlocked);
   const maxGridOptions = expandedUnlocked ? 20 : 6;
+  const presetLibraryUnlocked = creatorTools.some(
+    (tool) =>
+      tool.effect_key === "question_preset_library" && tool.unlocked,
+  );
+  const quickDuplicateUnlocked = creatorTools.some(
+    (tool) => tool.effect_key === "quick_duplicate" && tool.unlocked,
+  );
+  const emptyQuestionOrders = Array.from({ length: 10 }, (_, index) => index + 1)
+    .filter(
+      (order) =>
+        order !== selectedOrder &&
+        !questions.some((question) => question.question_order === order),
+    );
 
   useEffect(() => {
     void load();
@@ -198,11 +327,18 @@ export default function CreatorEngineV2Builder({
     setIsLoading(true);
     setErrorMessage("");
 
-    const [moduleResponse, questionResponse] = await Promise.all([
+    const [
+      moduleResponse,
+      questionResponse,
+      toolResponse,
+      presetResponse,
+    ] = await Promise.all([
       supabase.rpc("creator_engine_get_modules_v2"),
       supabase.rpc("creator_engine_get_quiz_questions_v2", {
         p_quiz_id: quizId,
       }),
+      supabase.rpc("get_my_creator_tool_unlocks_v1"),
+      supabase.rpc("creator_get_question_presets_v1"),
     ]);
 
     if (moduleResponse.error) {
@@ -250,6 +386,35 @@ export default function CreatorEngineV2Builder({
 
       setQuestions(next);
     }
+
+    setCreatorTools(
+      toolResponse.error
+        ? []
+        : ((toolResponse.data || []) as CreatorToolUnlock[]).map((tool) => ({
+            ...tool,
+            item_key: String(tool.item_key),
+            display_name: String(tool.display_name || "Creator Tool"),
+            effect_key: String(tool.effect_key || ""),
+            unlocked: Boolean(tool.unlocked),
+          })),
+    );
+
+    setPresets(
+      presetResponse.error
+        ? []
+        : ((presetResponse.data || []) as QuestionPreset[]).map((preset) => ({
+            ...preset,
+            id: String(preset.id),
+            preset_name: String(preset.preset_name || "Question Preset"),
+            question_type: preset.question_type,
+            payload:
+              preset.payload && typeof preset.payload === "object"
+                ? preset.payload
+                : {},
+            created_at: String(preset.created_at || ""),
+            updated_at: String(preset.updated_at || ""),
+          })),
+    );
 
     setIsLoading(false);
   }
@@ -441,58 +606,9 @@ export default function CreatorEngineV2Builder({
     setMessage("");
     setErrorMessage("");
 
-    const isChoice =
-      form.questionType === "classic_choice" ||
-      form.questionType === "choice_grid";
-
     const { error } = await supabase.rpc(
       "creator_engine_upsert_question_v2",
-      {
-        p_quiz_id: quizId,
-        p_question_order: selectedOrder,
-        p_question_type: form.questionType,
-        p_prompt: form.prompt.trim(),
-        p_config: isChoice
-          ? {
-              selection_mode:
-                form.questionType === "classic_choice"
-                  ? "single"
-                  : form.selectionMode,
-              layout:
-                form.questionType === "classic_choice" ? "buttons" : "grid",
-            }
-          : form.questionType === "bar_estimate"
-            ? {
-                min: Number(form.min),
-                max: Number(form.max),
-                step: Number(form.step),
-                unit: form.unit.trim(),
-              }
-            : {
-                min: 0,
-                max: 100,
-                step: 1,
-                unit: "%",
-              },
-        p_answer_config: isChoice
-          ? {}
-          : {
-              target: Number(form.target),
-              full_tolerance: Number(form.fullTolerance),
-              acceptable_tolerance: Number(form.acceptableTolerance),
-            },
-        p_explanation: form.explanation.trim() || null,
-        p_topic: form.topic.trim() || null,
-        p_difficulty: Number(form.difficulty),
-        p_options: isChoice
-          ? form.options.map((option, index) => ({
-              option_key: optionKey(index),
-              label: option.label.trim(),
-              image_url: option.image_url.trim() || null,
-              is_correct: Boolean(option.is_correct),
-            }))
-          : [],
-      },
+      buildQuestionRpcArgs(quizId, selectedOrder, form),
     );
 
     if (error) {
@@ -541,6 +657,115 @@ export default function CreatorEngineV2Builder({
 
     setMessage(`Question ${selectedOrder} removed.`);
     await load();
+    onQuizChanged?.();
+    setIsSaving(false);
+  }
+
+  async function savePreset() {
+    if (!presetLibraryUnlocked) {
+      setErrorMessage(
+        "Unlock Question Preset Library in the Club Upgrade Store first.",
+      );
+      return;
+    }
+
+    const name = presetName.trim();
+    if (name.length < 2) {
+      setErrorMessage("Give this preset a name first.");
+      return;
+    }
+
+    setIsSaving(true);
+    setMessage("");
+    setErrorMessage("");
+
+    const { error } = await supabase.rpc(
+      "creator_save_question_preset_v1",
+      {
+        p_preset_name: name,
+        p_payload: form,
+      },
+    );
+
+    if (error) {
+      setErrorMessage(error.message || "Question preset could not be saved.");
+      setIsSaving(false);
+      return;
+    }
+
+    setPresetName("");
+    setMessage(`Preset “${name}” saved.`);
+    await load();
+    setIsSaving(false);
+  }
+
+  function applyPreset(preset: QuestionPreset) {
+    const next = normalizePresetPayload(preset.payload);
+    if (!next) {
+      setErrorMessage("This saved preset is no longer compatible.");
+      return;
+    }
+
+    setForm(next);
+    setPreviewValue(DEFAULT_PREVIEW);
+    setMessage(`Loaded preset “${preset.preset_name}”. Save the question when ready.`);
+    setErrorMessage("");
+  }
+
+  async function deletePreset(preset: QuestionPreset) {
+    if (!window.confirm(`Delete preset “${preset.preset_name}”?`)) return;
+
+    const { error } = await supabase.rpc(
+      "creator_delete_question_preset_v1",
+      { p_preset_id: preset.id },
+    );
+
+    if (error) {
+      setErrorMessage(error.message || "Preset could not be deleted.");
+      return;
+    }
+
+    await load();
+  }
+
+  async function duplicateQuestion(targetOrder: number) {
+    if (!quickDuplicateUnlocked) {
+      setErrorMessage("Unlock Quick Duplicate in the Club Upgrade Store first.");
+      return;
+    }
+
+    if (!selectedQuestion) {
+      setErrorMessage("Save the current question before duplicating it.");
+      return;
+    }
+
+    if (!emptyQuestionOrders.includes(targetOrder)) {
+      setErrorMessage("Choose an empty question slot for the duplicate.");
+      return;
+    }
+
+    setIsSaving(true);
+    setMessage("");
+    setErrorMessage("");
+
+    const { error } = await supabase.rpc(
+      "creator_engine_upsert_question_v2",
+      buildQuestionRpcArgs(
+        quizId,
+        targetOrder,
+        fromStored(selectedQuestion),
+      ),
+    );
+
+    if (error) {
+      setErrorMessage(error.message || "Question could not be duplicated.");
+      setIsSaving(false);
+      return;
+    }
+
+    setMessage(`Question ${selectedOrder} duplicated into slot ${targetOrder}.`);
+    await load();
+    setSelectedOrder(targetOrder);
     onQuizChanged?.();
     setIsSaving(false);
   }
@@ -684,6 +909,13 @@ export default function CreatorEngineV2Builder({
           >
             Engine Store · {walletDt.toLocaleString()} DT
           </button>
+          <button
+            type="button"
+            onClick={() => setCreatorToolsOpen((value) => !value)}
+            className="min-h-9 rounded-full border border-violet-200/16 bg-violet-300/[0.05] px-4 text-[8px] font-black uppercase tracking-[0.08em] text-violet-100"
+          >
+            Creator Tools
+          </button>
         </div>
       </div>
 
@@ -762,6 +994,148 @@ export default function CreatorEngineV2Builder({
                 )}
               </article>
             ))}
+          </div>
+        </div>
+      )}
+
+      {creatorToolsOpen && (
+        <div className="mt-4 rounded-[22px] border border-violet-200/12 bg-violet-300/[0.025] p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-[8px] font-black uppercase tracking-[0.13em] text-violet-100/58">
+                Phase 7 Creator Tools
+              </p>
+              <h4 className="mt-1 text-lg font-black">Build faster without changing the game.</h4>
+              <p className="mt-1 max-w-3xl text-[9px] leading-4 text-white/30">
+                These productivity tools are permanent creator-wide upgrades from the Club Upgrade Store.
+              </p>
+            </div>
+            <span className="rounded-full border border-white/8 bg-black/14 px-3 py-1.5 text-[7px] font-black uppercase tracking-[0.07em] text-white/30">
+              {creatorTools.filter((tool) => tool.unlocked).length}/{creatorTools.length} unlocked
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <section className="rounded-[18px] border border-white/8 bg-black/14 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <strong className="text-sm">Question Preset Library</strong>
+                <span className={`rounded-full border px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.07em] ${
+                  presetLibraryUnlocked
+                    ? "border-emerald-200/14 bg-emerald-400/[0.05] text-emerald-100"
+                    : "border-white/8 bg-white/[0.025] text-white/28"
+                }`}>
+                  {presetLibraryUnlocked ? `${presets.length}/20 saved` : "Locked"}
+                </span>
+              </div>
+
+              {presetLibraryUnlocked ? (
+                <>
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      value={presetName}
+                      onChange={(event) => setPresetName(event.target.value)}
+                      maxLength={60}
+                      placeholder="Preset name"
+                      className={inputClass}
+                    />
+                    <button
+                      type="button"
+                      disabled={isSaving || presets.length >= 20}
+                      onClick={() => void savePreset()}
+                      className="min-h-10 shrink-0 rounded-xl border border-violet-200/14 bg-violet-300/[0.05] px-4 text-[7px] font-black uppercase tracking-[0.07em] text-violet-100 disabled:opacity-35"
+                    >
+                      Save Current
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid max-h-[220px] gap-2 overflow-y-auto pr-1">
+                    {presets.length === 0 ? (
+                      <p className="rounded-xl border border-white/7 bg-white/[0.02] px-3 py-3 text-[9px] text-white/26">
+                        Save a reusable question setup from the current editor.
+                      </p>
+                    ) : (
+                      presets.map((preset) => (
+                        <div
+                          key={preset.id}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-white/7 bg-white/[0.02] px-3 py-3"
+                        >
+                          <span className="min-w-0">
+                            <strong className="block truncate text-[9px] text-white/58">
+                              {preset.preset_name}
+                            </strong>
+                            <small className="mt-1 block text-[7px] uppercase tracking-[0.06em] text-white/22">
+                              {questionTypeLabel(preset.question_type)}
+                            </small>
+                          </span>
+                          <span className="flex shrink-0 gap-1">
+                            <button
+                              type="button"
+                              onClick={() => applyPreset(preset)}
+                              className="rounded-full border border-cyan-200/12 bg-cyan-300/[0.04] px-3 py-1.5 text-[7px] font-black uppercase tracking-[0.06em] text-cyan-100"
+                            >
+                              Load
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void deletePreset(preset)}
+                              className="rounded-full border border-white/8 bg-white/[0.02] px-2.5 py-1.5 text-[7px] font-black uppercase tracking-[0.06em] text-white/24"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="mt-3 text-[9px] leading-4 text-white/28">
+                  Unlock this creator-wide tool from the Club Upgrade Store after reaching Club Level 2.
+                </p>
+              )}
+            </section>
+
+            <section className="rounded-[18px] border border-white/8 bg-black/14 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <strong className="text-sm">Quick Duplicate</strong>
+                <span className={`rounded-full border px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.07em] ${
+                  quickDuplicateUnlocked
+                    ? "border-emerald-200/14 bg-emerald-400/[0.05] text-emerald-100"
+                    : "border-white/8 bg-white/[0.025] text-white/28"
+                }`}>
+                  {quickDuplicateUnlocked ? "Unlocked" : "Locked"}
+                </span>
+              </div>
+
+              {quickDuplicateUnlocked ? (
+                <>
+                  <p className="mt-3 text-[9px] leading-4 text-white/28">
+                    Duplicate the currently saved question into an empty slot, then edit the copy.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {emptyQuestionOrders.length === 0 ? (
+                      <span className="text-[8px] text-white/24">No empty slots available.</span>
+                    ) : (
+                      emptyQuestionOrders.map((order) => (
+                        <button
+                          key={order}
+                          type="button"
+                          disabled={!selectedQuestion || isSaving}
+                          onClick={() => void duplicateQuestion(order)}
+                          className="h-9 min-w-9 rounded-xl border border-cyan-200/12 bg-cyan-300/[0.04] px-3 text-[8px] font-black text-cyan-100 disabled:opacity-30"
+                        >
+                          → {order}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="mt-3 text-[9px] leading-4 text-white/28">
+                  Unlock Quick Duplicate in the Club Upgrade Store to copy saved questions between empty slots.
+                </p>
+              )}
+            </section>
           </div>
         </div>
       )}

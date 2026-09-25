@@ -5,8 +5,8 @@ import type {
   FinancialBlockResponse,
   InventoryDemandScenario,
   InventorySimulatorBlock,
-} from "../../lib/financial-learning-engine-types";
-import LearningBlockShell from "./LearningBlockShell";
+} from "../lib/financial-learning-engine-types";
+import LearningBlockShell from "./learning-blocks/LearningBlockShell";
 
 function fmt(value: number, decimals = 0) {
   return value.toLocaleString("en-SG", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
