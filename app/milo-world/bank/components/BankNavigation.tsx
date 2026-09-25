@@ -32,9 +32,11 @@ export default function BankNavigation({
       style={{
         marginTop: "16px",
         display: "grid",
-        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-        gap: isMobile ? "6px" : "10px",
-        padding: isMobile ? "6px" : "8px",
+        gridTemplateColumns: isMobile
+          ? "repeat(2, minmax(0, 1fr))"
+          : "repeat(4, minmax(0, 1fr))",
+        gap: isMobile ? "7px" : "10px",
+        padding: isMobile ? "7px" : "8px",
         borderRadius: isMobile ? "18px" : "22px",
         border: "1px solid rgba(126,232,255,0.12)",
         background: "rgba(4,14,30,0.76)",
@@ -53,7 +55,7 @@ export default function BankNavigation({
             onClick={() => onChange(section.id)}
             aria-pressed={active}
             style={{
-              minHeight: isMobile ? "60px" : "68px",
+              minHeight: isMobile ? "54px" : "64px",
               padding: isMobile ? "7px 4px" : "9px 14px",
               borderRadius: isMobile ? "13px" : "16px",
               border: active

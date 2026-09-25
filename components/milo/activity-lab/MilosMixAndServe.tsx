@@ -49,7 +49,14 @@ type OrderSlot = { id: number; recipeKey: string; secondsLeft: number };
 type DragSource =
   | { type: "cell"; index: number }
   | { type: "pan"; panIndex: number };
-type DragState = { source: DragSource; x: number; y: number } | null;
+type DragState = {
+  source: DragSource;
+  x: number;
+  y: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+} | null;
 type ProcessStatus = "processing" | "ready" | "warning" | "burnt";
 type WorkstationJob = {
   id: number;
@@ -395,6 +402,7 @@ export default function MilosMixAndServe({
   const awardedStageRuns = useRef<Set<string>>(new Set());
   const recordedLeaderboardRuns = useRef<Set<string>>(new Set());
   const batteryRunStartBusy = useRef(false);
+  const suppressCellClickUntilRef = useRef(0);
 
   useEffect(() => {
     boardRef.current = board;
@@ -829,6 +837,7 @@ export default function MilosMixAndServe({
   }
 
   function handleCellClick(index: number) {
+    if (Date.now() < suppressCellClickUntilRef.current) return;
     if (!running || paused) return;
     if (selectedIndex === null) {
       if (boardRef.current[index]) setSelectedIndex(index);
@@ -956,23 +965,62 @@ export default function MilosMixAndServe({
     }, 220);
   }
 
-  function beginPointerDrag(event: ReactPointerEvent<HTMLButtonElement>, index: number) {
-    if (!mobile || !running || paused || !boardRef.current[index]) return;
+  function beginPointerDrag(
+    event: ReactPointerEvent<HTMLButtonElement>,
+    index: number,
+  ) {
+    if (!running || paused || !boardRef.current[index]) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setSelectedIndex(index);
-    setDragState({ source: { type: "cell", index }, x: event.clientX, y: event.clientY });
+    setDragState({
+      source: { type: "cell", index },
+      x: event.clientX,
+      y: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    });
   }
 
-  function beginPanPointerDrag(event: ReactPointerEvent<HTMLDivElement>, panIndex: number) {
+  function beginPanPointerDrag(
+    event: ReactPointerEvent<HTMLDivElement>,
+    panIndex: number,
+  ) {
     const job = panJobs[panIndex];
-    if (!mobile || !running || paused || !job || job.status === "processing") return;
+    if (!running || paused || !job || job.status === "processing") return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    setDragState({ source: { type: "pan", panIndex }, x: event.clientX, y: event.clientY });
+    setDragState({
+      source: { type: "pan", panIndex },
+      x: event.clientX,
+      y: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    });
   }
 
   function movePointerDrag(event: ReactPointerEvent<HTMLElement>) {
-    if (!dragState) return;
-    setDragState((current) => current ? { ...current, x: event.clientX, y: event.clientY } : null);
+    setDragState((current) => {
+      if (!current) return current;
+
+      const moved =
+        current.moved ||
+        Math.hypot(
+          event.clientX - current.startX,
+          event.clientY - current.startY,
+        ) > 4;
+
+      return {
+        ...current,
+        x: event.clientX,
+        y: event.clientY,
+        moved,
+      };
+    });
   }
 
   function resolveDropTarget(target: Element | null) {
@@ -1004,9 +1052,31 @@ export default function MilosMixAndServe({
   }
 
   function endPointerDrag(event: ReactPointerEvent<HTMLElement>) {
-    if (!dragState) return;
-    const target = resolveDropTarget(document.elementFromPoint(event.clientX, event.clientY));
-    completePointerDrop(dragState.source, target);
+    const drag = dragState;
+    if (!drag) return;
+
+    try {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {
+      // Pointer capture may already have been released by the browser.
+    }
+
+    if (drag.moved) {
+      const target = resolveDropTarget(
+        document.elementFromPoint(event.clientX, event.clientY),
+      );
+
+      completePointerDrop(drag.source, target);
+
+      // Browsers may emit a click after pointerup. Suppress that click so
+      // a completed drag is not immediately followed by a second cell action.
+      if (drag.source.type === "cell") {
+        suppressCellClickUntilRef.current = Date.now() + 250;
+      }
+    }
+
     setDragState(null);
   }
 
@@ -1679,7 +1749,7 @@ export default function MilosMixAndServe({
                   key={index}
                   type="button"
                   data-prep-cell={index}
-                  draggable={!mobile && Boolean(item) && running && !paused}
+                  draggable={false}
                   onClick={() => handleCellClick(index)}
                   onDragStart={(event) => onDragStart(event, index)}
                   onDragOver={(event) => { if (running && !paused) event.preventDefault(); }}
@@ -1694,7 +1764,7 @@ export default function MilosMixAndServe({
                   onPointerMove={movePointerDrag}
                   onPointerUp={endPointerDrag}
                   onPointerCancel={() => setDragState(null)}
-                  style={{ minWidth: 0, minHeight: mobile ? 52 : compact ? 58 : 70, borderRadius: 12, border: selected ? "1px solid rgba(255,212,102,.82)" : item ? "1px solid rgba(126,232,255,.12)" : "1px solid rgba(255,255,255,.06)", background: selected ? "rgba(255,201,76,.09)" : item ? "linear-gradient(145deg,rgba(18,45,61,.86),rgba(8,19,31,.94))" : "rgba(255,255,255,.016)", boxShadow: selected ? "0 0 18px rgba(255,196,64,.15)" : "none", padding: 2, display: "grid", placeItems: "center", cursor: item && running && !paused ? "grab" : running && !paused ? "pointer" : "default", touchAction: mobile ? "none" : undefined }}
+                  style={{ minWidth: 0, minHeight: mobile ? 52 : compact ? 58 : 70, borderRadius: 12, border: selected ? "1px solid rgba(255,212,102,.82)" : item ? "1px solid rgba(126,232,255,.12)" : "1px solid rgba(255,255,255,.06)", background: selected ? "rgba(255,201,76,.09)" : item ? "linear-gradient(145deg,rgba(18,45,61,.86),rgba(8,19,31,.94))" : "rgba(255,255,255,.016)", boxShadow: selected ? "0 0 18px rgba(255,196,64,.15)" : "none", padding: 2, display: "grid", placeItems: "center", cursor: item && running && !paused ? "grab" : running && !paused ? "pointer" : "default", touchAction: item && running && !paused ? "none" : "auto", userSelect: "none" }}
                 >
                   {item ? <img src={item.image} alt="" draggable={false} style={{ width: "84%", height: "84%", maxWidth: 82, maxHeight: 82, objectFit: "contain", pointerEvents: "none" }} /> : <span style={{ color: "rgba(255,255,255,.11)", fontSize: 10 }}>+</span>}
                 </button>
@@ -1748,7 +1818,7 @@ export default function MilosMixAndServe({
                   <div
                     key={panIndex}
                     data-pan-index={panIndex}
-                    draggable={!mobile && draggablePan && running && !paused}
+                    draggable={false}
                     onDragStart={(event) => onPanDragStart(event, panIndex)}
                     onPointerDown={(event) => beginPanPointerDrag(event, panIndex)}
                     onPointerMove={movePointerDrag}
@@ -1760,7 +1830,7 @@ export default function MilosMixAndServe({
                       const source = readDragSource(event);
                       if (source?.type === "cell") sendToPan(source.index, panIndex);
                     }}
-                    style={{ minHeight: 0, borderRadius: 13, border: `1px dashed ${job?.status === "burnt" ? "rgba(255,97,110,.42)" : "rgba(255,184,107,.28)"}`, background: "rgba(255,255,255,.018)", padding: 8, display: "grid", gridTemplateRows: "auto 1fr auto", gap: 6, placeItems: "center", cursor: draggablePan && running && !paused ? "grab" : undefined, touchAction: mobile ? "none" : undefined }}
+                    style={{ minHeight: 0, borderRadius: 13, border: `1px dashed ${job?.status === "burnt" ? "rgba(255,97,110,.42)" : "rgba(255,184,107,.28)"}`, background: "rgba(255,255,255,.018)", padding: 8, display: "grid", gridTemplateRows: "auto 1fr auto", gap: 6, placeItems: "center", cursor: draggablePan && running && !paused ? "grab" : undefined, touchAction: draggablePan && running && !paused ? "none" : "auto", userSelect: "none" }}
                   >
                     <strong style={{ fontSize: 13, color: job?.status === "burnt" ? "#ff818d" : "#ffc17e" }}>PAN {panIndex + 1}</strong>
                     {renderEquipmentItem(job, "pan")}
@@ -1827,7 +1897,7 @@ export default function MilosMixAndServe({
         </div>
       </div>
 
-      {dragState && mobile && (
+      {dragState && (
         <div style={{ position: "fixed", left: dragState.x, top: dragState.y, transform: "translate(-50%,-50%)", zIndex: 1000, width: 58, height: 58, borderRadius: 14, border: "1px solid rgba(255,213,104,.72)", background: "rgba(11,17,27,.96)", display: "grid", placeItems: "center", pointerEvents: "none", boxShadow: "0 12px 30px rgba(0,0,0,.42)" }}>
           <img
             src={
@@ -1840,7 +1910,12 @@ export default function MilosMixAndServe({
                     : ingredientDef("cooked-beef-patty").image
             }
             alt=""
-            style={{ width: 48, height: 48, objectFit: "contain" }}
+            style={{
+              width: mobile ? 48 : 58,
+              height: mobile ? 48 : 58,
+              objectFit: "contain",
+              pointerEvents: "none",
+            }}
           />
         </div>
       )}

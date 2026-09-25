@@ -156,7 +156,15 @@ export default function CargoRush({
   const [completedRunId, setCompletedRunId] = useState<number | null>(null);
   const [rewardState, setRewardState] = useState<"idle" | "awarding" | "awarded" | "guest" | "failed">("idle");
   const [awardedDt, setAwardedDt] = useState(0);
-  const [touchDrag, setTouchDrag] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [pointerDrag, setPointerDrag] = useState<{
+    id: number;
+    x: number;
+    y: number;
+    startX: number;
+    startY: number;
+    moved: boolean;
+    wasSelected: boolean;
+  } | null>(null);
 
   const nextPackageId = useRef(1);
   const lastFrameAt = useRef<number | null>(null);
@@ -170,7 +178,7 @@ export default function CargoRush({
   const veryCompact = width < 980 || height < 720;
   const phoneLandscape = mobile && width > height;
   const bayColumns = mobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))";
-  const draggedCargo = touchDrag ? packages.find((item) => item.id === touchDrag.id) ?? null : null;
+  const draggedCargo = pointerDrag ? packages.find((item) => item.id === pointerDrag.id) ?? null : null;
   const elapsed = 60 - timeLeft;
   const rushStage = elapsed < 15
     ? RUSH_STAGES[0]
@@ -498,32 +506,92 @@ export default function CargoRush({
     routePackageToBay(selectedPackageId, bayId);
   }
 
-  function beginTouchDrag(event: ReactPointerEvent<HTMLButtonElement>, packageId: number) {
-    if (!mobile || !running || paused) return;
-    const cargo = packages.find((item) => item.id === packageId && item.status === "active");
-    if (!cargo) return;
+  function beginPointerDrag(
+    event: ReactPointerEvent<HTMLButtonElement>,
+    packageId: number,
+  ) {
+    if (!running || paused) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    const cargoItem = packages.find(
+      (item) => item.id === packageId && item.status === "active",
+    );
+    if (!cargoItem) return;
+
     event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    setPointerDrag({
+      id: packageId,
+      x: event.clientX,
+      y: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      wasSelected: selectedPackageId === packageId,
+    });
+
+    // Highlight immediately while the player is holding the item.
     setSelectedPackageId(packageId);
-    setTouchDrag({ id: packageId, x: event.clientX, y: event.clientY });
     setRouteFeedback(null);
   }
 
-  function moveTouchDrag(event: ReactPointerEvent<HTMLButtonElement>, packageId: number) {
-    if (!mobile || touchDrag?.id !== packageId) return;
-    setTouchDrag({ id: packageId, x: event.clientX, y: event.clientY });
+  function movePointerDrag(
+    event: ReactPointerEvent<HTMLButtonElement>,
+    packageId: number,
+  ) {
+    setPointerDrag((current) => {
+      if (!current || current.id !== packageId) return current;
+
+      const moved =
+        current.moved ||
+        Math.hypot(
+          event.clientX - current.startX,
+          event.clientY - current.startY,
+        ) > 4;
+
+      return {
+        ...current,
+        x: event.clientX,
+        y: event.clientY,
+        moved,
+      };
+    });
   }
 
-  function endTouchDrag(event: ReactPointerEvent<HTMLButtonElement>, packageId: number) {
-    if (!mobile || touchDrag?.id !== packageId) return;
+  function endPointerDrag(
+    event: ReactPointerEvent<HTMLButtonElement>,
+    packageId: number,
+  ) {
+    const drag = pointerDrag;
+    if (!drag || drag.id !== packageId) return;
+
+    try {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {
+      // Pointer capture may already have been released by the browser.
+    }
+
+    // A press without movement keeps the original tap-to-select behaviour.
+    if (!drag.moved) {
+      setSelectedPackageId(drag.wasSelected ? null : packageId);
+      setPointerDrag(null);
+      return;
+    }
+
     const target = document.elementFromPoint(event.clientX, event.clientY);
     const bayElement = target?.closest("[data-cargo-bay]") as HTMLElement | null;
     const bayId = bayElement?.dataset.cargoBay as CargoCategory | undefined;
+
     if (bayId && CARGO_BAYS.some((bay) => bay.id === bayId)) {
       routePackageToBay(packageId, bayId);
     } else {
-      setSelectedPackageId(null);
+      // Keep it selected so the player can still tap a bay as a fallback.
+      setSelectedPackageId(packageId);
     }
-    setTouchDrag(null);
+
+    setPointerDrag(null);
   }
 
   function renderPackage(item: MovingPackage, lane: number, vertical: boolean) {
@@ -532,25 +600,13 @@ export default function CargoRush({
       <button
         key={item.id}
         type="button"
-        draggable={!mobile && running && !paused}
+        draggable={false}
         aria-pressed={selected}
         aria-label={`${item.label} package moving on lane ${lane + 1}. ${selected ? "Selected." : "Drag it to a cargo bay."}`}
-        onClick={() => {
-          if (!mobile) selectPackage(item.id);
-        }}
-        onPointerDown={(event) => beginTouchDrag(event, item.id)}
-        onPointerMove={(event) => moveTouchDrag(event, item.id)}
-        onPointerUp={(event) => endTouchDrag(event, item.id)}
-        onPointerCancel={() => setTouchDrag(null)}
-        onDragStart={(event) => {
-          if (!running || paused) {
-            event.preventDefault();
-            return;
-          }
-          setSelectedPackageId(item.id);
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/cargo-package-id", String(item.id));
-        }}
+        onPointerDown={(event) => beginPointerDrag(event, item.id)}
+        onPointerMove={(event) => movePointerDrag(event, item.id)}
+        onPointerUp={(event) => endPointerDrag(event, item.id)}
+        onPointerCancel={() => setPointerDrag(null)}
         style={{
           position: "absolute",
           ...(vertical
@@ -577,7 +633,7 @@ export default function CargoRush({
           placeItems: "center",
           cursor: running && !paused ? "grab" : "default",
           pointerEvents: running && !paused ? "auto" : "none",
-          touchAction: mobile ? "none" : undefined,
+          touchAction: "none",
           userSelect: "none",
           zIndex: selected ? 8 : 3,
           willChange: vertical ? "bottom, transform" : "left, transform",
@@ -1368,13 +1424,13 @@ export default function CargoRush({
         </div>
       </div>
 
-      {mobile && touchDrag && draggedCargo && (
+      {pointerDrag && draggedCargo && (
         <div
           aria-hidden="true"
           style={{
             position: "fixed",
-            left: touchDrag.x,
-            top: touchDrag.y,
+            left: pointerDrag.x,
+            top: pointerDrag.y,
             zIndex: 120,
             width: "72px",
             minHeight: "62px",
@@ -1389,7 +1445,17 @@ export default function CargoRush({
             placeItems: "center",
           }}
         >
-          <img src={draggedCargo.image} alt="" style={{ width: "38px", height: "38px", objectFit: "contain" }} />
+          <img
+            src={draggedCargo.image}
+            alt=""
+            draggable={false}
+            style={{
+              width: mobile ? "38px" : "48px",
+              height: mobile ? "38px" : "48px",
+              objectFit: "contain",
+              pointerEvents: "none",
+            }}
+          />
           <strong style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "8px" }}>{draggedCargo.label}</strong>
         </div>
       )}

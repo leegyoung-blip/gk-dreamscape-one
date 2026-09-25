@@ -22,7 +22,9 @@ import type { BankSection } from "./lib/bank-types";
 export default function MiloBankPage() {
   const screenMode = useBankResponsive();
   const isMobile = screenMode === "mobile";
+  const isDesktop = screenMode === "desktop";
   const [activeSection, setActiveSection] = useState<BankSection | null>(null);
+  const overviewDesktop = activeSection === null && isDesktop;
   const [guideOpen, setGuideOpen] = useState(false);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
   const [financeUpgradeOpen, setFinanceUpgradeOpen] = useState(false);
@@ -50,7 +52,9 @@ export default function MiloBankPage() {
         position: "relative",
         width: "100%",
         minHeight: "100dvh",
+        height: overviewDesktop ? "100dvh" : undefined,
         overflowX: "hidden",
+        overflowY: overviewDesktop ? "hidden" : "visible",
         background: "#020813",
         color: "white",
         fontFamily:
@@ -98,17 +102,23 @@ export default function MiloBankPage() {
         style={{
           position: "relative",
           zIndex: 2,
-          width: isMobile
-            ? "min(1180px, calc(100% - 20px))"
-            : "min(1180px, calc(100% - 28px))",
+          width: isMobile ? "calc(100% - 16px)" : "calc(100% - 32px)",
+          maxWidth: "none",
           margin: "0 auto",
-          padding: isMobile ? "24px 0 70px" : "42px 0 90px",
+          boxSizing: "border-box",
+          height: overviewDesktop ? "calc(100dvh - 73px)" : undefined,
+          overflow: overviewDesktop ? "hidden" : "visible",
+          padding: overviewDesktop
+            ? "14px 0 14px"
+            : isMobile
+              ? "18px 0 56px"
+              : "28px 0 64px",
         }}
       >
         <div
           style={{
             textAlign: "center",
-            marginBottom: isMobile ? "22px" : "28px",
+            marginBottom: overviewDesktop ? "12px" : isMobile ? "18px" : "22px",
           }}
         >
           <p
@@ -130,7 +140,7 @@ export default function MiloBankPage() {
             aria-label="Return to Milo’s Bank overview"
             style={{
               display: "block",
-              margin: "11px auto 0",
+              margin: overviewDesktop ? "7px auto 0" : "11px auto 0",
               padding: 0,
               border: 0,
               background: "transparent",
@@ -138,8 +148,10 @@ export default function MiloBankPage() {
               cursor: activeSection ? "pointer" : "default",
               fontFamily: 'Georgia, "Times New Roman", serif',
               fontSize: isMobile
-                ? "clamp(46px, 14vw, 64px)"
-                : "clamp(66px, 7vw, 92px)",
+                ? "clamp(42px, 13vw, 60px)"
+                : overviewDesktop
+                  ? "clamp(54px, 5vw, 72px)"
+                  : "clamp(62px, 6vw, 84px)",
               lineHeight: 0.92,
               fontWeight: 400,
               letterSpacing: "-0.055em",
@@ -151,10 +163,10 @@ export default function MiloBankPage() {
 
           <p
             style={{
-              margin: "15px auto 0",
+              margin: overviewDesktop ? "8px auto 0" : "12px auto 0",
               maxWidth: "740px",
               color: "rgba(255,255,255,0.58)",
-              fontSize: isMobile ? "13px" : "15px",
+              fontSize: isMobile ? "12px" : overviewDesktop ? "13px" : "14px",
               lineHeight: 1.6,
             }}
           >
@@ -162,7 +174,7 @@ export default function MiloBankPage() {
           </p>
 
           {!financeAccess.loading && (
-            <div style={{ marginTop: "12px" }}>
+<div style={{ marginTop: overviewDesktop ? "7px" : "10px" }}>
               {financeAccess.hasAccess ? (
                 <MiloFinanceBadge active />
               ) : (

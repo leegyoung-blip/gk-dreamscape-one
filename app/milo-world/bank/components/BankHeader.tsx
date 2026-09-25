@@ -64,9 +64,10 @@ export default function BankHeader({
       <div
         style={{
           width: "100%",
-          maxWidth: "1440px",
+          maxWidth: "none",
           margin: "0 auto",
-          padding: isMobile ? "10px" : "14px 28px",
+          padding: isMobile ? "8px 10px" : "12px 22px",
+          boxSizing: "border-box",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -75,7 +76,7 @@ export default function BankHeader({
       >
         <Link href="/milo-world" style={buttonStyle}>
           <span>←</span>
-          {isMobile ? "Milo’s World" : "Back to Milo’s World"}
+          {isMobile ? "World" : "Back to Milo’s World"}
         </Link>
 
         <div
