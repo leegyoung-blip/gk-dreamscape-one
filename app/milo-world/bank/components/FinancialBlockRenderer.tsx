@@ -11,6 +11,8 @@ import SortLearningBlock from "./learning-blocks/SortLearningBlock";
 import NumberInputLearningBlock from "./learning-blocks/NumberInputLearningBlock";
 import PredictionLearningBlock from "./learning-blocks/PredictionLearningBlock";
 import GrowthSimulatorLearningBlock from "./learning-blocks/GrowthSimulatorLearningBlock";
+import BusinessModelLearningBlock from "./learning-blocks/BusinessModelLearningBlock";
+import PricingSimulatorLearningBlock from "./learning-blocks/PricingSimulatorLearningBlock";
 
 export default function FinancialBlockRenderer({block,response,advisorId,onChange}:{block:FinancialLearningBlock;response?:FinancialBlockResponse;advisorId:FinancialAdvisorId;onChange:(r:FinancialBlockResponse)=>void}){
   switch(block.type){
@@ -25,5 +27,7 @@ export default function FinancialBlockRenderer({block,response,advisorId,onChang
     case "number_input": return <NumberInputLearningBlock block={block} response={response} onChange={onChange}/>;
     case "prediction": return <PredictionLearningBlock block={block} response={response} onChange={onChange}/>;
     case "growth_simulator": return <GrowthSimulatorLearningBlock block={block} response={response} onChange={onChange}/>;
+    case "business_model": return <BusinessModelLearningBlock block={block} response={response} onChange={onChange}/>;
+    case "pricing_simulator": return <PricingSimulatorLearningBlock block={block} response={response} onChange={onChange}/>;
   }
 }

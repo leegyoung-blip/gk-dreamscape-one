@@ -265,6 +265,49 @@ export type GrowthSimulatorBlock = FinancialBlockBase & {
   takeaway?: string;
 };
 
+
+
+export type BusinessModelControl = {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  defaultValue: number;
+  unit?: string;
+  prefix?: string;
+  editable?: boolean;
+};
+
+export type BusinessModelBlock = FinancialBlockBase & {
+  type: "business_model";
+  prompt: string;
+  price: BusinessModelControl;
+  units: BusinessModelControl;
+  variableCostPerUnit: BusinessModelControl;
+  fixedCosts: BusinessModelControl;
+  contextNote?: string;
+  showMargin?: boolean;
+  takeaway?: string;
+};
+
+export type PricingDemandPoint = {
+  price: number;
+  demand: number;
+};
+
+export type PricingSimulatorBlock = FinancialBlockBase & {
+  type: "pricing_simulator";
+  prompt: string;
+  price: BusinessModelControl;
+  unitCost: number;
+  fixedCosts: number;
+  capacity: number;
+  demandPoints: PricingDemandPoint[];
+  competitorPrice?: number;
+  contextNote?: string;
+  takeaway?: string;
+};
+
 export type FinancialLearningBlock =
   | ExplainBlock
   | QuestionBlock
@@ -276,7 +319,9 @@ export type FinancialLearningBlock =
   | SortBlock
   | NumberInputBlock
   | PredictionBlock
-  | GrowthSimulatorBlock;
+  | GrowthSimulatorBlock
+  | BusinessModelBlock
+  | PricingSimulatorBlock;
 
 export type FinancialLessonDefinition = {
   schemaVersion: 1 | 2;

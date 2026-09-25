@@ -67,9 +67,10 @@ export const FINANCIAL_LEARNING_PATHWAYS: FinancialLearningPathway[] = [
     title: "Business & Enterprise",
     description:
       "Learn revenue, cost, profit, pricing, cash flow and business growth before using Business Builder.",
-    status: "planned",
-    meta: "Advanced pathway",
+    status: "available",
+    meta: "3 of 11 lessons live · first 2 free",
     accent: "#ffb98e",
-    accessTier: "milo_finance",
+    accessTier: "free",
+    includesPremium: true,
   },
 ];

@@ -89,6 +89,38 @@ type ChallengeCycle = {
   lifecycle_status: "scheduled" | "live" | "ended";
 };
 
+type PlayRoomAccess = {
+  club_id: string;
+  club_slug: string;
+  club_name: string;
+  member_count: number;
+  unlock_threshold: number;
+  size_eligible: boolean;
+  member_hosting_enabled: boolean;
+  is_member: boolean;
+  is_owner: boolean;
+  is_admin: boolean;
+  can_host: boolean;
+  can_enter_rooms: boolean;
+  open_room_count: number;
+};
+
+type ClubPulseNotice = {
+  type: string;
+  title: string;
+  text: string;
+  priority: "high" | "normal" | "low";
+};
+
+type RoomProgressRow = {
+  user_id: string;
+  display_name: string;
+  room_xp: number;
+  rooms_completed: number;
+  wins: number;
+  last_played_at: string | null;
+};
+
 type ClubTab = "home" | "challenges" | "rankings" | "about";
 
 type MemberProgress = {
@@ -220,6 +252,9 @@ export default function CreatorClubPage() {
     useState<ChallengeLeaderboardRow[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [cycle, setCycle] = useState<ChallengeCycle | null>(null);
+  const [playRoomAccess, setPlayRoomAccess] =
+    useState<PlayRoomAccess | null>(null);
+  const [pulseNotices, setPulseNotices] = useState<ClubPulseNotice[]>([]);
   const [hallAccess, setHallAccess] =
     useState<MiloQuizHallCreatorClubsAccess | null>(null);
   const [userId, setUserId] = useState("");
@@ -407,6 +442,9 @@ export default function CreatorClubPage() {
       v2PlayCountsResponse,
       v2LeaderboardResponse,
       v2HistoryResponse,
+      playAccessResponse,
+      pulseResponse,
+      roomProgressResponse,
     ] = await Promise.all([
       supabase.rpc("get_creator_club_quiz_catalog", { p_club_slug: slug }),
       supabase.rpc("get_creator_club_leaderboard", {
@@ -433,6 +471,15 @@ export default function CreatorClubPage() {
             p_club_id: nextClub.club_id,
           })
         : Promise.resolve({ data: [], error: null }),
+      supabase.rpc("get_creator_club_play_access_v2", {
+        p_club_slug: slug,
+      }),
+      supabase.rpc("get_creator_club_pulse_v2", {
+        p_club_slug: slug,
+      }),
+      supabase.rpc("get_creator_club_room_progress_v2", {
+        p_club_id: nextClub.club_id,
+      }),
     ]);
 
     const v2HistoryRows = v2HistoryResponse.error
@@ -518,6 +565,66 @@ export default function CreatorClubPage() {
       );
     }
 
+    if (!playAccessResponse.error) {
+      const row = Array.isArray(playAccessResponse.data)
+        ? playAccessResponse.data[0]
+        : playAccessResponse.data;
+
+      setPlayRoomAccess(
+        row
+          ? {
+              ...(row as PlayRoomAccess),
+              member_count: Number(row.member_count || 0),
+              unlock_threshold: Number(row.unlock_threshold || 100),
+              size_eligible: Boolean(row.size_eligible),
+              member_hosting_enabled: Boolean(row.member_hosting_enabled),
+              is_member: Boolean(row.is_member),
+              is_owner: Boolean(row.is_owner),
+              is_admin: Boolean(row.is_admin),
+              can_host: Boolean(row.can_host),
+              can_enter_rooms: Boolean(row.can_enter_rooms),
+              open_room_count: Number(row.open_room_count || 0),
+            }
+          : null,
+      );
+    } else {
+      setPlayRoomAccess(null);
+    }
+
+    if (!pulseResponse.error && pulseResponse.data) {
+      const payload = pulseResponse.data as unknown as {
+        notices?: ClubPulseNotice[];
+      };
+      setPulseNotices(
+        ((payload.notices || []) as ClubPulseNotice[]).map((notice) => ({
+          ...notice,
+          type: String(notice.type || ""),
+          title: String(notice.title || ""),
+          text: String(notice.text || ""),
+          priority:
+            notice.priority === "high" || notice.priority === "low"
+              ? notice.priority
+              : "normal",
+        })),
+      );
+    } else {
+      setPulseNotices([]);
+    }
+
+    const roomProgressRows = roomProgressResponse.error
+      ? []
+      : ((roomProgressResponse.data || []) as RoomProgressRow[]).map((row) => ({
+          ...row,
+          user_id: String(row.user_id),
+          display_name: String(row.display_name || "Player"),
+          room_xp: Number(row.room_xp || 0),
+          rooms_completed: Number(row.rooms_completed || 0),
+          wins: Number(row.wins || 0),
+          last_played_at: row.last_played_at
+            ? String(row.last_played_at)
+            : null,
+        }));
+
     const oldLeaderboardRows = leaderboardResponse.error
       ? []
       : ((leaderboardResponse.data || []) as ClubLeaderboardRow[]).map(
@@ -582,6 +689,39 @@ export default function CreatorClubPage() {
                     new Date(row.last_completed_at).getTime()
                 ? existing.last_completed_at
                 : row.last_completed_at,
+      });
+    }
+
+    for (const roomRow of roomProgressRows) {
+      const existing = combinedLeaderboard.get(roomRow.user_id);
+
+      if (!existing) {
+        combinedLeaderboard.set(roomRow.user_id, {
+          rank: 0,
+          user_id: roomRow.user_id,
+          display_name: roomRow.display_name,
+          quizzes_completed: 0,
+          total_points: roomRow.room_xp,
+          average_percent: 0,
+          last_completed_at: roomRow.last_played_at,
+        });
+        continue;
+      }
+
+      combinedLeaderboard.set(roomRow.user_id, {
+        ...existing,
+        display_name: existing.display_name || roomRow.display_name,
+        total_points:
+          Number(existing.total_points || 0) + roomRow.room_xp,
+        last_completed_at:
+          !existing.last_completed_at
+            ? roomRow.last_played_at
+            : !roomRow.last_played_at
+              ? existing.last_completed_at
+              : new Date(existing.last_completed_at).getTime() >=
+                    new Date(roomRow.last_played_at).getTime()
+                ? existing.last_completed_at
+                : roomRow.last_played_at,
       });
     }
 
@@ -953,6 +1093,68 @@ export default function CreatorClubPage() {
                     {isAuthenticated ? "Join Club — Free" : "Log In to Join"}
                   </button>
                 )}
+
+                {playRoomAccess && (
+                  <div className="mt-4 border-t border-white/8 pt-4">
+                    <p className="text-[7px] font-black uppercase tracking-[0.10em] text-fuchsia-100/52">
+                      Club Play Rooms
+                    </p>
+
+                    {playRoomAccess.size_eligible &&
+                    playRoomAccess.member_hosting_enabled &&
+                    playRoomAccess.can_enter_rooms ? (
+                      <Link
+                        href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(
+                          club.club_slug,
+                        )}/play-rooms`}
+                        className="mt-2 flex min-h-11 items-center justify-between rounded-xl border border-fuchsia-200/16 bg-fuchsia-300/[0.055] px-4 text-[8px] font-black uppercase tracking-[0.08em] text-fuchsia-100 no-underline"
+                      >
+                        <span>Enter Play Rooms</span>
+                        <span>
+                          {playRoomAccess.open_room_count > 0
+                            ? `${playRoomAccess.open_room_count} open`
+                            : "→"}
+                        </span>
+                      </Link>
+                    ) : (
+                      <div className="mt-2 rounded-xl border border-white/8 bg-black/12 px-3 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-[9px] font-bold text-white/42">
+                            {playRoomAccess.size_eligible
+                              ? "100-member milestone reached"
+                              : `${playRoomAccess.member_count}/${playRoomAccess.unlock_threshold} members`}
+                          </span>
+                          <span className="text-[8px] font-black text-fuchsia-100/50">
+                            {playRoomAccess.size_eligible
+                              ? "Creator setup"
+                              : "Locked"}
+                          </span>
+                        </div>
+                        {!playRoomAccess.size_eligible && (
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+                            <div
+                              className="h-full rounded-full bg-fuchsia-200/65"
+                              style={{
+                                width: `${Math.max(
+                                  0,
+                                  Math.min(
+                                    100,
+                                    (playRoomAccess.member_count /
+                                      Math.max(
+                                        1,
+                                        playRoomAccess.unlock_threshold,
+                                      )) *
+                                      100,
+                                  ),
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </aside>
             </section>
 
@@ -991,6 +1193,7 @@ export default function CreatorClubPage() {
                   canPlay={canPlay}
                   userId={userId}
                   myProgress={myProgress}
+                  pulseNotices={pulseNotices}
                   onJoin={() => void joinClub()}
                 />
               )}
@@ -1055,6 +1258,7 @@ function HomeTab({
   canPlay,
   userId,
   myProgress,
+  pulseNotices,
   onJoin,
 }: {
   club: ClubDetail;
@@ -1068,6 +1272,7 @@ function HomeTab({
   canPlay: boolean;
   userId: string;
   myProgress: MemberProgress;
+  pulseNotices: ClubPulseNotice[];
   onJoin: () => void;
 }) {
   const memberMilestone = milestoneState(
@@ -1091,6 +1296,10 @@ function HomeTab({
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-4">
+        {pulseNotices.length > 0 && (
+          <ClubPulse notices={pulseNotices} />
+        )}
+
         {currentChallenge && cycle ? (
           <section className="relative overflow-hidden rounded-[28px] border border-amber-200/18 bg-[linear-gradient(135deg,rgba(104,60,12,0.26),rgba(30,17,4,0.52))] p-5 backdrop-blur-xl sm:p-6">
             {currentChallenge.cover_image_url && (
@@ -1581,6 +1790,39 @@ function MemberProgressCard({
               }`
             : "Highest club rank"}
         </span>
+      </div>
+    </section>
+  );
+}
+
+function ClubPulse({
+  notices,
+}: {
+  notices: ClubPulseNotice[];
+}) {
+  return (
+    <section className="rounded-[24px] border border-fuchsia-200/10 bg-[linear-gradient(145deg,rgba(75,28,82,0.12),rgba(4,14,30,0.86))] p-4">
+      <p className="text-[8px] font-black uppercase tracking-[0.13em] text-fuchsia-100/54">
+        Club Pulse
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {notices.slice(0, 4).map((notice, index) => (
+          <div
+            key={`${notice.type}-${index}`}
+            className={`rounded-xl border px-3 py-3 ${
+              notice.priority === "high"
+                ? "border-amber-200/14 bg-amber-300/[0.04]"
+                : "border-white/7 bg-black/12"
+            }`}
+          >
+            <strong className="block text-[10px] text-white/68">
+              {notice.title}
+            </strong>
+            <p className="mt-1 text-[8px] leading-4 text-white/28">
+              {notice.text}
+            </p>
+          </div>
+        ))}
       </div>
     </section>
   );

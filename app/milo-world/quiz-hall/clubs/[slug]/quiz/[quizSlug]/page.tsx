@@ -8,6 +8,7 @@ import CreatorQuestionRenderer, {
   type CreatorEngineAnswerValue,
   type CreatorEngineQuestion,
 } from "@/components/milo/creator-engine/CreatorQuestionRenderer";
+import CreatorChallengeReactions from "@/components/milo/creator-engine/CreatorChallengeReactions";
 
 type QuizPayload = {
   club_id: string;
@@ -107,6 +108,7 @@ export default function CreatorQuizEngineV2PlayPage() {
     });
   const [answers, setAnswers] = useState<SubmittedAnswer[]>([]);
   const [result, setResult] = useState<AttemptResult | null>(null);
+  const [playSessionId, setPlaySessionId] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -228,8 +230,22 @@ export default function CreatorQuizEngineV2PlayPage() {
     setQuestionIndex(0);
     setAnswers([]);
     setResult(null);
+    setPlaySessionId(null);
     setCurrentValue(initialValue(normalized.questions[0]));
     questionStartedAt.current = Date.now();
+
+    const sessionResponse = await supabase.rpc(
+      "creator_engine_begin_play_session_v2",
+      {
+        p_club_slug: normalized.club_slug,
+        p_quiz_slug: normalized.quiz_slug,
+      },
+    );
+
+    if (!sessionResponse.error && sessionResponse.data) {
+      setPlaySessionId(String(sessionResponse.data));
+    }
+
     setIsLoading(false);
   }
 
@@ -292,7 +308,7 @@ export default function CreatorQuizEngineV2PlayPage() {
     }
 
     const raw = data as unknown as AttemptResult;
-    setResult({
+    const normalizedResult: AttemptResult = {
       ...raw,
       attempt_id: String(raw.attempt_id || ""),
       attempt_number: Number(raw.attempt_number || 1),
@@ -311,7 +327,16 @@ export default function CreatorQuizEngineV2PlayPage() {
           selected_keys: answer.selected_keys || [],
         }),
       ),
-    });
+    };
+
+    setResult(normalizedResult);
+
+    if (playSessionId && normalizedResult.attempt_id) {
+      await supabase.rpc("creator_engine_complete_play_session_v2", {
+        p_session_id: playSessionId,
+        p_attempt_id: normalizedResult.attempt_id,
+      });
+    }
 
     setIsSubmitting(false);
     window.dispatchEvent(new Event("creator-engine-attempt-completed"));
@@ -418,6 +443,8 @@ export default function CreatorQuizEngineV2PlayPage() {
               </Link>
             </div>
           </section>
+
+          <CreatorChallengeReactions quizId={quiz.quiz_id} />
 
           <section className="mt-5 rounded-[28px] border border-white/9 bg-white/[0.03] p-5 sm:p-6">
             <p className="text-[8px] font-black uppercase tracking-[0.14em] text-white/34">
