@@ -57,6 +57,11 @@ export function isResponseComplete(
     return Number.isFinite(Number(values.totalSpend));
   }
 
+  if (block.type === "business_strategy_simulator") {
+    const values = response.value as Record<string, number>;
+    return Number(values.completedStages ?? 0) >= block.stages.length;
+  }
+
   return response.value !== undefined && response.value !== null && response.value !== "";
 }
 

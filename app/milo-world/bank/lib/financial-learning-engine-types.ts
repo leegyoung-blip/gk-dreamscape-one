@@ -407,6 +407,46 @@ export type BusinessRiskMapBlock = FinancialBlockBase & {
   takeaway?: string;
 };
 
+
+
+export type BusinessStrategyMetric = {
+  id: string;
+  label: string;
+  initialValue: number;
+  format?: "dt" | "number" | "units" | "percent";
+  decimals?: number;
+  accent?: "cyan" | "gold" | "green" | "purple" | "red";
+};
+
+export type BusinessStrategyStageOption = {
+  id: string;
+  label: string;
+  description?: string;
+  effects: Record<string, number>;
+  strengths?: string[];
+  tradeoffs?: string[];
+  advisorFeedback?: FinancialAdvisorMessage;
+};
+
+export type BusinessStrategyStage = {
+  id: string;
+  eyebrow?: string;
+  title: string;
+  scenario: string;
+  facts?: ScenarioFact[];
+  options: BusinessStrategyStageOption[];
+  advisorPrompt?: FinancialAdvisorMessage;
+};
+
+export type BusinessStrategySimulatorBlock = FinancialBlockBase & {
+  type: "business_strategy_simulator";
+  prompt: string;
+  metrics: BusinessStrategyMetric[];
+  stages: BusinessStrategyStage[];
+  contextNote?: string;
+  takeaway?: string;
+};
+
 export type FinancialLearningBlock =
   | ExplainBlock
   | QuestionBlock
@@ -424,7 +464,8 @@ export type FinancialLearningBlock =
   | CashflowTimelineBlock
   | InventorySimulatorBlock
   | CapacitySimulatorBlock
-  | BusinessRiskMapBlock;
+  | BusinessRiskMapBlock
+  | BusinessStrategySimulatorBlock;
 
 export type FinancialLessonDefinition = {
   schemaVersion: 1 | 2;

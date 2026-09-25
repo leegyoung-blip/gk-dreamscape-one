@@ -23,6 +23,7 @@ import CashFlowTimelineLearningBlock from "./learning-blocks/CashFlowTimelineLea
 import InventorySimulatorLearningBlock from "./learning-blocks/InventorySimulatorLearningBlock";
 import CapacitySimulatorLearningBlock from "./learning-blocks/CapacitySimulatorLearningBlock";
 import BusinessRiskMapLearningBlock from "./learning-blocks/BusinessRiskMapLearningBlock";
+import BusinessStrategySimulatorLearningBlock from "./learning-blocks/BusinessStrategySimulatorLearningBlock";
 
 export default function FinancialBlockRenderer({
   block,
@@ -77,6 +78,8 @@ export default function FinancialBlockRenderer({
       return <CapacitySimulatorLearningBlock block={block} response={response} onChange={onChange} />;
     case "business_risk_map":
       return <BusinessRiskMapLearningBlock block={block} response={response} onChange={onChange} />;
+    case "business_strategy_simulator":
+      return <BusinessStrategySimulatorLearningBlock block={block} response={response} advisorId={advisorId} onChange={onChange} />;
     default:
       return null;
   }

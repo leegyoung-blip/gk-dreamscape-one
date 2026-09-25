@@ -105,6 +105,17 @@ export default function MasteryCodeQuickPlay({
   const [loading, setLoading] = useState(true);
   const [validWords, setValidWords] = useState<Set<string> | null>(null);
   const [wordListLoading, setWordListLoading] = useState(true);
+  const [viewportHeight, setViewportHeight] = useState(900);
+
+  useEffect(() => {
+    function updateViewportHeight() {
+      setViewportHeight(window.innerHeight);
+    }
+
+    updateViewportHeight();
+    window.addEventListener("resize", updateViewportHeight);
+    return () => window.removeEventListener("resize", updateViewportHeight);
+  }, []);
 
   const remainingAttempts = Math.max(
     0,
@@ -126,15 +137,31 @@ export default function MasteryCodeQuickPlay({
       5,
   );
 
+  const shortViewport = !mobile && viewportHeight < 960;
+  const veryShortViewport = !mobile && viewportHeight < 820;
+
+  const desktopCellSize = (() => {
+    if (veryShortViewport) return 44;
+    if (shortViewport) return 52;
+    if (dense) return 48;
+    if (wide) return 62;
+    if (compact) return 52;
+    return 58;
+  })();
+
   const cellSize = mobile
-    ? Math.max(44, Math.min(mobileCellTarget, mobileCellWidthCap))
-    : dense
-      ? 48
-      : wide
-        ? 66
-        : compact
-          ? 52
-          : 58;
+    ? Math.max(40, Math.min(mobileCellTarget, mobileCellWidthCap))
+    : desktopCellSize;
+
+  const quickGap = mobile
+    ? "6px"
+    : veryShortViewport
+      ? "6px"
+      : shortViewport
+        ? "8px"
+        : dense
+          ? "9px"
+          : "13px";
 
   useEffect(() => {
     let cancelled = false;
@@ -501,7 +528,15 @@ export default function MasteryCodeQuickPlay({
     highlighted = false,
   ): CSSProperties => ({
     width: "100%",
-    minHeight: mobile ? "35px" : dense ? "42px" : "48px",
+    minHeight: mobile
+      ? "35px"
+      : veryShortViewport
+        ? "34px"
+        : shortViewport
+          ? "38px"
+          : dense
+            ? "42px"
+            : "48px",
     borderRadius: "12px",
     border: highlighted
       ? "1px solid rgba(126,232,255,0.42)"
@@ -528,45 +563,146 @@ export default function MasteryCodeQuickPlay({
       <div
         style={{
           minWidth: 0,
+          minHeight: 0,
+          width: "100%",
+          height: "100%",
+          overflow: "hidden",
           display: "grid",
           gridTemplateColumns: mobile
             ? "1fr"
             : wide
               ? "minmax(0, 1fr) 275px"
               : "minmax(0, 1fr) 235px",
-          gridTemplateRows: mobile ? "auto auto" : "1fr",
-          gap: mobile ? "7px" : dense ? "14px" : "20px",
+          gridTemplateRows: mobile ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)",
+          gap: mobile
+            ? "7px"
+            : veryShortViewport
+              ? "10px"
+              : shortViewport
+                ? "12px"
+                : dense
+                  ? "14px"
+                  : "20px",
         }}
       >
         <section
           style={{
             minWidth: 0,
+            minHeight: 0,
+            overflow: "hidden",
             borderRadius: mobile ? "13px" : "19px",
             border: "1px solid rgba(126,232,255,0.1)",
             background: "rgba(255,255,255,0.025)",
-            padding: mobile ? "6px" : dense ? "12px" : "16px",
+            padding: mobile
+              ? "6px"
+              : veryShortViewport
+                ? "9px 12px"
+                : shortViewport
+                  ? "10px 13px"
+                  : dense
+                    ? "12px"
+                    : "16px",
             display: "grid",
-            gridTemplateRows: "auto auto auto",
-            gap: mobile ? "6px" : dense ? "9px" : "13px",
+            gridTemplateRows: "auto minmax(0, 1fr) auto",
+            gap: quickGap,
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: "12px",
+              minWidth: 0,
+            }}
+          >
             <div>
               <p style={{ margin: 0, color: "#8ee8ff", fontSize: mobile ? "8px" : "10px", fontWeight: 900, letterSpacing: "0.17em", textTransform: "uppercase" }}>
                 Mastery Code · Quick Play
               </p>
-              <h2 style={{ margin: mobile ? "3px 0 0" : "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? (dense ? "22px" : "27px") : dense ? "31px" : wide ? "43px" : "37px", lineHeight: 0.95, fontWeight: 400 }}>
+              <h2
+                style={{
+                  margin: mobile ? "3px 0 0" : "6px 0 0",
+                  fontFamily: 'Georgia, "Times New Roman", serif',
+                  fontSize: mobile
+                    ? dense
+                      ? "22px"
+                      : "27px"
+                    : veryShortViewport
+                      ? "28px"
+                      : shortViewport
+                        ? "33px"
+                        : dense
+                          ? "31px"
+                          : wide
+                            ? "43px"
+                            : "37px",
+                  lineHeight: 0.95,
+                  fontWeight: 400,
+                }}
+              >
                 Today’s Code
               </h2>
               {!mobile && <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.48)", fontSize: dense ? "9px" : "11px" }}>Green = right place. Gold = right letter, wrong place.</p>}
             </div>
-            <div style={{ flexShrink: 0, borderRadius: "999px", border: "1px solid rgba(126,232,255,0.2)", background: "rgba(83,215,255,0.07)", padding: mobile ? "5px 7px" : "7px 10px", textAlign: "right" }}>
-              <span style={{ display: "block", color: "rgba(255,255,255,0.45)", fontSize: mobile ? "7px" : "8px", fontWeight: 850, textTransform: "uppercase" }}>Next reward</span>
-              <strong style={{ color: "#9bf5ff", fontSize: mobile ? "10px" : "12px" }}>{solvedToday ? "Claimed" : `${nextReward} DT`}</strong>
+            <div
+              style={{
+                flex: "0 0 auto",
+                alignSelf: "flex-start",
+                minWidth: mobile ? 82 : 104,
+                minHeight: mobile ? 44 : 52,
+                borderRadius: mobile ? 11 : 13,
+                border: "1px solid rgba(126,232,255,0.22)",
+                background:
+                  "linear-gradient(145deg, rgba(83,215,255,0.09), rgba(83,215,255,0.035))",
+                padding: mobile ? "7px 9px" : "8px 12px",
+                display: "grid",
+                placeItems: "center",
+                alignContent: "center",
+                textAlign: "center",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.16)",
+              }}
+            >
+              <span
+                style={{
+                  display: "block",
+                  color: "rgba(255,255,255,0.46)",
+                  fontSize: mobile ? "7px" : "8px",
+                  lineHeight: 1,
+                  fontWeight: 900,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Next Reward
+              </span>
+              <strong
+                style={{
+                  display: "block",
+                  marginTop: mobile ? 4 : 5,
+                  color: "#9bf5ff",
+                  fontSize: mobile ? "11px" : "14px",
+                  lineHeight: 1,
+                  fontWeight: 950,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {solvedToday ? "Claimed" : `${nextReward} DT`}
+              </strong>
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", overflow: "visible", padding: "2px 0" }}>
+          <div
+            style={{
+              minHeight: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+              padding: "2px 0",
+            }}
+          >
             <MasteryCodeGrid
               attempts={attempts}
               currentLetters={currentLetters}
@@ -586,14 +722,57 @@ export default function MasteryCodeQuickPlay({
             mobile={mobile}
             dense={dense}
             wide={wide}
+            viewportHeight={viewportHeight}
             disabled={gameDisabled}
           />
         </section>
 
-        <form onSubmit={submitPuzzle} style={{ minWidth: 0, borderRadius: mobile ? "13px" : "19px", border: "1px solid rgba(126,232,255,0.1)", background: "rgba(255,255,255,0.02)", padding: mobile ? "7px" : dense ? "11px" : "14px", display: "grid", gridTemplateColumns: mobile ? "repeat(2, minmax(0, 1fr))" : "1fr", alignContent: "center", gap: mobile ? "5px" : dense ? "8px" : "11px" }}>
+        <form
+          onSubmit={submitPuzzle}
+          style={{
+            minWidth: 0,
+            minHeight: 0,
+            overflow: "hidden",
+            borderRadius: mobile ? "13px" : "19px",
+            border: "1px solid rgba(126,232,255,0.1)",
+            background: "rgba(255,255,255,0.02)",
+            padding: mobile
+              ? "7px"
+              : veryShortViewport
+                ? "9px"
+                : shortViewport
+                  ? "10px"
+                  : dense
+                    ? "11px"
+                    : "14px",
+            display: "grid",
+            gridTemplateColumns: mobile ? "repeat(2, minmax(0, 1fr))" : "1fr",
+            alignContent: "center",
+            gap: mobile
+              ? "5px"
+              : veryShortViewport
+                ? "6px"
+                : shortViewport
+                  ? "7px"
+                  : dense
+                    ? "8px"
+                    : "11px",
+          }}
+        >
           <div style={{ gridColumn: mobile ? "1 / -1" : "auto", borderRadius: "14px", border: "1px solid rgba(126,232,255,0.12)", background: "rgba(83,215,255,0.045)", padding: mobile ? "7px 9px" : "11px 12px" }}>
             <span style={{ color: "#8ee8ff", fontSize: mobile ? "7px" : "9px", fontWeight: 900, textTransform: "uppercase" }}>{clueBought ? "Today’s clue" : "Clue locked"}</span>
-            <p style={{ margin: "5px 0 0", color: "rgba(255,255,255,0.7)", fontSize: mobile ? "9px" : "12px", lineHeight: 1.4 }}>
+            <p
+              style={{
+                margin: "5px 0 0",
+                color: "rgba(255,255,255,0.7)",
+                fontSize: mobile ? "9px" : veryShortViewport ? "10px" : "12px",
+                lineHeight: 1.4,
+                display: !mobile && (shortViewport || veryShortViewport) ? "-webkit-box" : "block",
+                WebkitLineClamp: !mobile && veryShortViewport ? 2 : !mobile && shortViewport ? 3 : undefined,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
               {clueBought
                 ? puzzle?.base_clue || "No clue is available."
                 : loading
@@ -626,7 +805,38 @@ export default function MasteryCodeQuickPlay({
             </div>
           )}
 
-          <div role="status" style={{ gridColumn: mobile ? "1 / -1" : "auto", minHeight: mobile ? "28px" : dense ? "42px" : "54px", borderRadius: "11px", border: "1px solid rgba(126,232,255,0.09)", background: "rgba(255,255,255,0.025)", padding: mobile ? "5px 7px" : "9px 10px", display: "flex", alignItems: "center", justifyContent: "center", color: solvedToday ? "#9fffd2" : "#8ee8ff", fontSize: mobile ? "8px" : dense ? "10px" : "11px", fontWeight: 750, lineHeight: 1.35, textAlign: "center" }}>
+          <div
+            role="status"
+            style={{
+              gridColumn: mobile ? "1 / -1" : "auto",
+              minHeight: mobile
+                ? "28px"
+                : veryShortViewport
+                  ? "34px"
+                  : shortViewport
+                    ? "38px"
+                    : dense
+                      ? "42px"
+                      : "54px",
+              borderRadius: "11px",
+              border: "1px solid rgba(126,232,255,0.09)",
+              background: "rgba(255,255,255,0.025)",
+              padding: mobile
+                ? "5px 7px"
+                : veryShortViewport
+                  ? "6px 8px"
+                  : "9px 10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+              color: solvedToday ? "#9fffd2" : "#8ee8ff",
+              fontSize: mobile ? "8px" : veryShortViewport ? "9px" : dense ? "10px" : "11px",
+              fontWeight: 750,
+              lineHeight: 1.35,
+              textAlign: "center",
+            }}
+          >
             {puzzleMessage || "Only recognised five-letter English words are accepted."}
           </div>
         </form>

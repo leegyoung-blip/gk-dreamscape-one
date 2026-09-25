@@ -24,4 +24,10 @@ export const FINANCIAL_COURSE_RECOMMENDATIONS: Record<string, FinancialCourseRec
     nextCourseTitle: "Business & Enterprise",
     message: "Your next pathway will apply trade-offs, opportunity cost and cash decisions inside Business Builder.",
   },
+  "business-enterprise": {
+    nextCourseTitle: "Milo’s Business Builder",
+    message: "You have completed the business pathway. Apply pricing, cash-flow, capacity, risk and growth reasoning inside your live Dreamscape business.",
+    actionLabel: "Apply it in Business Builder",
+    actionHref: "/milo-world/club",
+  },
 };
