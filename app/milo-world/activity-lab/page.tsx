@@ -368,13 +368,14 @@ export default function ActivityLabPage() {
   const [masteryMode, setMasteryMode] = useState<MasteryMode>("quick");
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [dreamTokens, setDreamTokens] = useState(0);
   const [batteryPanelOpen, setBatteryPanelOpen] = useState(false);
   const [topUpOpen, setTopUpOpen] = useState(false);
   const [masteryRunActive, setMasteryRunActive] = useState(false);
 
-  const battery = useActivityLabBattery({ userId });
-  const batteryReadyForNewRun = !userId || (
+  const battery = useActivityLabBattery({ userId, unlimited: isAdmin });
+  const batteryReadyForNewRun = !userId || isAdmin || (
     battery.status !== "loading" &&
     battery.status !== "error" &&
     !battery.isChargingRun &&
@@ -386,14 +387,14 @@ export default function ActivityLabPage() {
   }
 
   const consumeActivityRun = useCallback(async (gameKey: string) => {
-    if (!userId) return true;
+    if (!userId || isAdmin) return true;
     const result = await battery.consumeRun(gameKey);
     if (!result?.accepted) {
       setBatteryPanelOpen(true);
       return false;
     }
     return true;
-  }, [battery, userId]);
+  }, [battery, isAdmin, userId]);
 
   async function startMasteryBatteryRun() {
     if (!batteryReadyForNewRun) {
@@ -471,11 +472,38 @@ export default function ActivityLabPage() {
       } = await supabase.auth.getUser();
 
       if (!mounted) return;
-      setUserId(user?.id ?? "");
-      setUserEmail(user?.email ?? "");
+
+      if (!user) {
+        setIsAdmin(false);
+        setUserId("");
+        setUserEmail("");
+        setDreamTokens(0);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!mounted) return;
+
+      if (profileError) {
+        console.warn("Could not load Activity Lab account role:", profileError.message);
+      }
+
+      const role = String(profile?.role || "")
+        .trim()
+        .toLowerCase()
+        .replace(/_/g, "-");
+
+      setIsAdmin(role === "admin");
+      setUserId(user.id);
+      setUserEmail(user.email ?? "");
       setDreamTokens(0);
 
-      if (user) await refreshTokenBalance(user.id);
+      await refreshTokenBalance(user.id);
     }
 
     loadAccount();
@@ -889,13 +917,13 @@ export default function ActivityLabPage() {
                       <p style={{ margin: "14px 0 0", color: "#8ee8ff", fontSize: 9, fontWeight: 950, letterSpacing: ".14em" }}>ACTIVITY BATTERY</p>
                       <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 28 : 36, fontWeight: 400 }}>Start a Mastery Code run</h3>
                       <p style={{ margin: "9px auto 0", maxWidth: 490, color: "rgba(255,255,255,.48)", fontSize: 11, lineHeight: 1.55 }}>
-                        {battery.runCostBolts === 0
+                        {isAdmin
                           ? "Admin access is unlimited. Start as many Mastery Code runs as you need with no Bolt charge."
                           : "Every Mastery Code run costs 5 Bolts. Bolts are charged once when you start; the battery does not drain while you play."}
                       </p>
                       <button type="button" onClick={startMasteryBatteryRun} style={{ minHeight: 44, marginTop: 16, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(126,232,255,.3)", background: batteryReadyForNewRun ? "linear-gradient(135deg,#71e1ff,#56c9e8)" : "rgba(255,255,255,.05)", color: batteryReadyForNewRun ? "#03101a" : "rgba(255,255,255,.42)", fontSize: 11, fontWeight: 950, cursor: "pointer" }}>
                         {batteryReadyForNewRun
-                          ? battery.runCostBolts === 0
+                          ? isAdmin
                             ? "Start Mastery Run · Unlimited"
                             : `Start Mastery Run · ${battery.runCostBolts} Bolts`
                           : "Need More Bolts"}
@@ -947,7 +975,7 @@ export default function ActivityLabPage() {
               height={height}
               onTokenTransaction={addTokenTransaction}
               batteryCanStart={batteryReadyForNewRun}
-              batteryUnlimited={Boolean(userId && battery.runCostBolts === 0)}
+              batteryUnlimited={isAdmin}
               onBatteryBlocked={openBatteryGate}
               onBatteryRunStart={() => consumeActivityRun("mix_and_serve")}
             />

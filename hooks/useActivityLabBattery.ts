@@ -11,13 +11,55 @@ import {
 
 type UseActivityLabBatteryOptions = {
   userId?: string | null;
+  unlimited?: boolean;
 };
 
 type BatteryStatus = "idle" | "loading" | "ready" | "charging" | "error";
 
-export function useActivityLabBattery({ userId }: UseActivityLabBatteryOptions) {
+const ADMIN_UNLIMITED_STATE: ActivityLabBatteryState = {
+  batteryBolts: 100,
+  bonusBolts: 0,
+  totalBolts: 100,
+  capacityBolts: 100,
+  rechargeIntervalSeconds: 3600,
+  rechargeBoltsPerInterval: 10,
+  runCostBolts: 0,
+  nextRechargeAt: null,
+  fullRechargeAt: null,
+};
+
+function readableBatteryError(err: unknown, fallback: string) {
+  if (err instanceof Error && err.message) return err.message;
+
+  if (err && typeof err === "object") {
+    const value = err as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+
+    const parts = [
+      typeof value.message === "string" ? value.message : "",
+      typeof value.details === "string" && value.details ? `Details: ${value.details}` : "",
+      typeof value.hint === "string" && value.hint ? `Hint: ${value.hint}` : "",
+      typeof value.code === "string" && value.code ? `Code: ${value.code}` : "",
+    ].filter(Boolean);
+
+    if (parts.length) return parts.join(" | ");
+  }
+
+  return fallback;
+}
+
+export function useActivityLabBattery({
+  userId,
+  unlimited = false,
+}: UseActivityLabBatteryOptions) {
   const [state, setState] = useState<ActivityLabBatteryState | null>(null);
-  const [status, setStatus] = useState<BatteryStatus>(userId ? "loading" : "idle");
+  const [status, setStatus] = useState<BatteryStatus>(
+    userId ? (unlimited ? "ready" : "loading") : "idle",
+  );
   const [error, setError] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const chargingRef = useRef(false);
@@ -39,6 +81,13 @@ export function useActivityLabBattery({ userId }: UseActivityLabBatteryOptions) 
       return null;
     }
 
+    if (unlimited) {
+      setState(ADMIN_UNLIMITED_STATE);
+      setStatus("ready");
+      setError(null);
+      return ADMIN_UNLIMITED_STATE;
+    }
+
     setStatus((current) => (current === "charging" ? current : "loading"));
     try {
       const next = await getActivityLabBattery();
@@ -49,11 +98,11 @@ export function useActivityLabBattery({ userId }: UseActivityLabBatteryOptions) 
       return next;
     } catch (err) {
       if (!mountedRef.current) return null;
-      setError(err instanceof Error ? err.message : "Could not load Activity Lab battery.");
+      setError(readableBatteryError(err, "Could not load Activity Lab battery."));
       setStatus("error");
       return null;
     }
-  }, [userId]);
+  }, [unlimited, userId]);
 
   useEffect(() => {
     void refresh();
@@ -78,6 +127,25 @@ export function useActivityLabBattery({ userId }: UseActivityLabBatteryOptions) 
     async (gameKey: string, runKey = createActivityLabRunKey()): Promise<ActivityLabBatteryConsumeRunResult | null> => {
       if (!userId || chargingRef.current) return null;
 
+      if (unlimited) {
+        const result: ActivityLabBatteryConsumeRunResult = {
+          accepted: true,
+          alreadyCharged: false,
+          boltsCharged: 0,
+          batteryBolts: 100,
+          bonusBolts: 0,
+          totalBolts: 100,
+          capacityBolts: 100,
+          runCostBolts: 0,
+          nextRechargeAt: null,
+          fullRechargeAt: null,
+        };
+        setState(ADMIN_UNLIMITED_STATE);
+        setStatus("ready");
+        setError(null);
+        return result;
+      }
+
       chargingRef.current = true;
       setStatus("charging");
       setError(null);
@@ -101,7 +169,7 @@ export function useActivityLabBattery({ userId }: UseActivityLabBatteryOptions) 
         return result;
       } catch (err) {
         if (mountedRef.current) {
-          setError(err instanceof Error ? err.message : "Could not charge the Activity Lab run.");
+          setError(readableBatteryError(err, "Could not charge the Activity Lab run."));
           setStatus("error");
         }
         return null;
@@ -109,7 +177,7 @@ export function useActivityLabBattery({ userId }: UseActivityLabBatteryOptions) 
         chargingRef.current = false;
       }
     },
-    [userId],
+    [unlimited, userId],
   );
 
   const percentage = useMemo(() => {
