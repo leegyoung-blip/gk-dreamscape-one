@@ -64,7 +64,7 @@ type WorkstationJob = {
   status: ProcessStatus;
   elapsedTicks: number;
 };
-type StageResult = { success: boolean; runId: number; stars: number; elapsedSeconds: number };
+type StageResult = { success: boolean; runId: number; stars: number; elapsedSeconds: number; finalScore: number };
 type LandingPhase = "intro" | "choose" | "game";
 type LeaderboardRow = {
   rank_position: number;
@@ -88,8 +88,7 @@ type Props = {
 };
 
 const BOARD_SIZE = 20;
-const STAGE_ORDER_GOAL = 10;
-const STAGE_DURATION_SECONDS = 5 * 60;
+const STAGE_DURATION_SECONDS = 2 * 60 + 30;
 const ORDER_DURATION_SECONDS = 60;
 const PROCESS_TICK_MS = 250;
 const PROCESS_DONE_TICKS = 20; // 5 seconds
@@ -290,7 +289,7 @@ function initialBoard(): BoardCell[] {
 }
 
 function tierBaseScore(tier: number) {
-  return [0, 100, 150, 200, 250, 300][tier] ?? 100;
+  return [0, 100, 200, 350, 550, 800][tier] ?? 100;
 }
 
 function scorePartsForOrder(recipe: RecipeDef, secondsLeft: number) {
@@ -299,18 +298,11 @@ function scorePartsForOrder(recipe: RecipeDef, secondsLeft: number) {
   return { base, speed, total: base + speed };
 }
 
-function tierCapForProgress(ordersServed: number) {
-  if (ordersServed < 2) return 2;
-  if (ordersServed < 5) return 3;
-  if (ordersServed < 8) return 4;
-  return 5;
-}
-
-function starsForStage(success: boolean, elapsedSeconds: number) {
-  if (!success) return 0;
-  if (elapsedSeconds <= 180) return 3;
-  if (elapsedSeconds <= 240) return 2;
-  return 1;
+function starsForScore(score: number) {
+  if (score >= 5000) return 3;
+  if (score >= 3000) return 2;
+  if (score >= 1500) return 1;
+  return 0;
 }
 
 function nextStationRecipe(station: DishStation, a: PrepItem, b: PrepItem) {
@@ -374,6 +366,9 @@ export default function MilosMixAndServe({
   const [basePointsEarned, setBasePointsEarned] = useState(0);
   const [speedBonusEarned, setSpeedBonusEarned] = useState(0);
   const [discardPenaltyTotal, setDiscardPenaltyTotal] = useState(0);
+  const basePointsRef = useRef(0);
+  const speedBonusRef = useRef(0);
+  const discardPenaltyRef = useRef(0);
   const score = Math.max(0, basePointsEarned + speedBonusEarned - discardPenaltyTotal);
   const [runSeconds, setRunSeconds] = useState(0);
   const runSecondsRef = useRef(0);
@@ -430,9 +425,9 @@ export default function MilosMixAndServe({
   const stationLesson = activeStation === "salad" ? "Salad Shift" : "Burger Basics";
   const stationEyebrow = activeStation === "salad" ? "Milo’s Salad Lesson" : "Milo’s Burger Lesson";
   const timeLeft = Math.max(0, STAGE_DURATION_SECONDS - runSeconds);
-  const currentStarsPreview = starsForStage(true, runSeconds);
+  const currentStarsPreview = starsForScore(score);
   const stageDtPreview = STAGE1_DT_BY_STARS[currentStarsPreview] ?? 0;
-  const resultDt = stageResult?.success ? STAGE1_DT_BY_STARS[stageResult.stars] ?? 0 : 0;
+  const resultDt = stageResult ? STAGE1_DT_BY_STARS[stageResult.stars] ?? 0 : 0;
 
   function resetStageState() {
     const initial = initialBoard();
@@ -451,6 +446,9 @@ export default function MilosMixAndServe({
     setBasePointsEarned(0);
     setSpeedBonusEarned(0);
     setDiscardPenaltyTotal(0);
+    basePointsRef.current = 0;
+    speedBonusRef.current = 0;
+    discardPenaltyRef.current = 0;
     setRunSeconds(0);
     runSecondsRef.current = 0;
     setOrdersRevision(0);
@@ -467,14 +465,12 @@ export default function MilosMixAndServe({
     nextJobId.current = 1;
   }
 
-  function eligibleRecipes(servedCount: number) {
-    const maxTier = activeRecipes[activeRecipes.length - 1]?.tier ?? 1;
-    const cap = Math.min(maxTier, tierCapForProgress(servedCount));
-    return activeRecipes.filter((recipe) => recipe.tier <= cap);
+  function eligibleRecipes() {
+    return activeRecipes;
   }
 
-  function createOrder(servedCount: number, avoidKeys: string[] = []): OrderSlot {
-    const eligible = eligibleRecipes(servedCount);
+  function createOrder(_servedCount: number, avoidKeys: string[] = []): OrderSlot {
+    const eligible = eligibleRecipes();
     const fresh = eligible.filter((recipe) => !avoidKeys.includes(recipe.key));
     const pool = fresh.length ? fresh : eligible;
     const recipe = pool[Math.floor(Math.random() * pool.length)] ?? activeRecipes[0];
@@ -520,13 +516,18 @@ export default function MilosMixAndServe({
     setShowGuide(false);
     setRunning(true);
     setPaused(false);
-    setStatus(`${stationLesson} started. You have 5:00 to complete 10 orders. Customer order clocks begin after your first successful serve.`);
+    setStatus(`${stationLesson} score attack started. You have 2:30. Serve as many dishes as possible before time runs out.`);
     window.setTimeout(fillInitialOrders, 0);
     return true;
   }
 
-  function completeStage(success: boolean) {
-    const elapsedSeconds = Math.min(STAGE_DURATION_SECONDS, runSecondsRef.current);
+  function completeStage() {
+    const elapsedSeconds = STAGE_DURATION_SECONDS;
+    const finalScore = Math.max(
+      0,
+      basePointsRef.current + speedBonusRef.current - discardPenaltyRef.current,
+    );
+
     setRunning(false);
     setPaused(false);
     setOrders([]);
@@ -535,15 +536,14 @@ export default function MilosMixAndServe({
     setSelectedIndex(null);
     setDragState(null);
     setStageResult({
-      success,
+      success: true,
       runId: currentStageRunId.current,
-      stars: starsForStage(success, elapsedSeconds),
+      stars: starsForScore(finalScore),
       elapsedSeconds,
+      finalScore,
     });
     setStatus(
-      success
-        ? `${stationLesson} complete! Replay ${stationName} to chase a higher score.`
-        : `Time is up. Complete all 10 orders within 5 minutes to clear ${stationName}.`,
+      `Time's up! You served ${ordersServedRef.current} dish${ordersServedRef.current === 1 ? "" : "es"} and scored ${finalScore.toLocaleString()} points.`,
     );
   }
 
@@ -555,7 +555,7 @@ export default function MilosMixAndServe({
       setRunSeconds(nextRunSeconds);
 
       if (nextRunSeconds >= STAGE_DURATION_SECONDS) {
-        if (ordersServedRef.current < STAGE_ORDER_GOAL) completeStage(false);
+        completeStage();
         return;
       }
 
@@ -581,7 +581,7 @@ export default function MilosMixAndServe({
       setRecentOrderIds(additions.map((order) => order.id));
       setOrdersRevision((value) => value + 1);
       setOrders(nextOrders);
-      setStatus(`${expired.length === 1 ? "An order expired" : `${expired.length} orders expired`}. Keep going — only the 5-minute stage clock can end the run.`);
+      setStatus(`${expired.length === 1 ? "An order expired" : `${expired.length} orders expired`}. Keep going — the run only ends when the 2:30 score-attack timer reaches 00:00.`);
     }, 1000);
     return () => window.clearInterval(timer);
   }, [running, paused, stageResult, orderTimersStarted]);
@@ -629,10 +629,17 @@ export default function MilosMixAndServe({
   }, [running, paused, stageResult]);
 
   useEffect(() => {
-    if (!stageResult?.success) return;
+    if (!stageResult) return;
     const key = `stage1-${stageResult.runId}`;
     if (awardedStageRuns.current.has(key)) return;
     const reward = STAGE1_DT_BY_STARS[stageResult.stars] ?? 0;
+
+    if (reward <= 0) {
+      awardedStageRuns.current.add(key);
+      setRewardState(userId ? "awarded" : "guest");
+      setAwardedDt(0);
+      return;
+    }
 
     if (!userId) {
       awardedStageRuns.current.add(key);
@@ -642,7 +649,7 @@ export default function MilosMixAndServe({
 
     awardedStageRuns.current.add(key);
     setRewardState("awarding");
-    void onTokenTransaction(reward, `Milo's Mix & Serve · ${stationName} reward · Run ${stageResult.runId}`).then((success) => {
+    void onTokenTransaction(reward, `Milo's Mix & Serve · ${stationName} score-attack reward · Run ${stageResult.runId}`).then((success) => {
       if (success) {
         setAwardedDt(reward);
         setRewardState("awarded");
@@ -671,7 +678,7 @@ export default function MilosMixAndServe({
       if (userId) {
         const { error: saveError } = await supabase.rpc("record_milo_mix_serve_run", {
           p_run_key: runKey,
-          p_score: score,
+          p_score: result.finalScore,
           p_orders_served: ordersServed,
           p_elapsed_seconds: result.elapsedSeconds,
           p_base_points: basePointsEarned,
@@ -707,7 +714,7 @@ export default function MilosMixAndServe({
 
     void saveAndLoadLeaderboard();
     return () => { cancelled = true; };
-  }, [stageResult, userId, score, ordersServed, basePointsEarned, speedBonusEarned, discardPenaltyTotal, expiredOrders]);
+  }, [stageResult, userId, ordersServed, basePointsEarned, speedBonusEarned, discardPenaltyTotal, expiredOrders]);
 
   function dispenseIngredient(key: IngredientKey) {
     if (!running || paused) return;
@@ -738,7 +745,11 @@ export default function MilosMixAndServe({
   }
 
   function applyDiscardPenalty(label: string) {
-    setDiscardPenaltyTotal((value) => value + DISCARD_PENALTY);
+    setDiscardPenaltyTotal((value) => {
+      const next = value + DISCARD_PENALTY;
+      discardPenaltyRef.current = next;
+      return next;
+    });
     setStatus(`${label} discarded · −${DISCARD_PENALTY} points.`);
   }
 
@@ -935,8 +946,16 @@ export default function MilosMixAndServe({
     const nextServed = ordersServedRef.current + 1;
     ordersServedRef.current = nextServed;
     setOrdersServed(nextServed);
-    setBasePointsEarned((value) => value + points.base);
-    setSpeedBonusEarned((value) => value + points.speed);
+    setBasePointsEarned((value) => {
+      const next = value + points.base;
+      basePointsRef.current = next;
+      return next;
+    });
+    setSpeedBonusEarned((value) => {
+      const next = value + points.speed;
+      speedBonusRef.current = next;
+      return next;
+    });
     setSelectedIndex(null);
 
     if (!orderTimersStarted) {
@@ -948,15 +967,6 @@ export default function MilosMixAndServe({
 
     leavingOrderIdRef.current = orderId;
     setLeavingOrderId(orderId);
-
-    if (nextServed >= STAGE_ORDER_GOAL) {
-      window.setTimeout(() => {
-        leavingOrderIdRef.current = null;
-        setLeavingOrderId(null);
-        completeStage(true);
-      }, 220);
-      return;
-    }
 
     window.setTimeout(() => {
       shiftOrderQueue(orderId, nextServed);
@@ -1144,7 +1154,7 @@ export default function MilosMixAndServe({
         {
           target: "orders",
           title: "Serve the customer orders",
-          body: "Match the finished salad to an order. Customer clocks begin after your FIRST successful serve. A completed or expired order leaves; the remaining orders move right and a new order enters from the left.",
+          body: "Match the finished salad to an order. Customer clocks begin after your FIRST successful serve. A completed or expired order leaves; the remaining orders move right and a new order enters from the left. Keep going until the 2:30 run timer ends.",
         },
         {
           target: "bin",
@@ -1154,7 +1164,7 @@ export default function MilosMixAndServe({
         {
           target: "game-controls",
           title: "Pause or restart anytime",
-          body: "Pause freezes the kitchen and the 5-minute stage clock. Restart begins from zero. Serve 10 orders before 5:00 runs out.",
+          body: "Pause freezes the kitchen and the 2:30 score-attack clock. Restart begins from zero. There is no dish limit — keep serving until time runs out.",
         },
       ] as const
     : [
@@ -1181,7 +1191,7 @@ export default function MilosMixAndServe({
         {
           target: "orders",
           title: "Serve the customer orders",
-          body: "Match the finished burger to an order. Customer clocks begin after your FIRST successful serve. A completed or expired order leaves; the remaining orders move right and a new order enters from the left.",
+          body: "Match the finished burger to an order. Customer clocks begin after your FIRST successful serve. A completed or expired order leaves; the remaining orders move right and a new order enters from the left. Keep going until the 2:30 run timer ends.",
         },
         {
           target: "bin",
@@ -1191,7 +1201,7 @@ export default function MilosMixAndServe({
         {
           target: "game-controls",
           title: "Pause or restart anytime",
-          body: "Pause freezes the kitchen and the 5-minute stage clock. Restart begins from zero. Your only goal is 10 completed orders before 5:00 runs out — expired orders never end the game by themselves.",
+          body: "Pause freezes the kitchen and the 2:30 score-attack clock. Restart begins from zero. There is no dish limit — keep serving for the full 2:30. Expired orders never end the run.",
         },
       ] as const;
 
@@ -1664,15 +1674,28 @@ export default function MilosMixAndServe({
 
       <div style={{ display: "grid", gridTemplateColumns: mobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap: 6 }}>
         {[
-          ["SCORE", score.toLocaleString(), "Base + speed − waste"],
-          ["ORDERS", `${ordersServed} / ${STAGE_ORDER_GOAL}`, `Complete 10 to clear ${stationName}`],
-          ["TIME LEFT", formatTime(timeLeft), "Finish before 00:00"],
-          ["STAGE DT", `Up to +${STAGE1_DT_BY_STARS[3]}`, `Current pace would earn +${stageDtPreview}`],
+          ["SCORE", score.toLocaleString(), "Tier value + speed − waste"],
+          ["DISHES", String(ordersServed), "No limit · serve continuously"],
+          ["TIME", formatTime(timeLeft), "2:30 score attack"],
+          ["RUN DT", `Up to +${STAGE1_DT_BY_STARS[3]}`, `Current score tier: +${stageDtPreview}`],
         ].map(([label, value, sub]) => (
           <div key={label} style={{ ...panel, borderRadius: 13, padding: "8px 10px", minWidth: 0 }}>
             <p style={{ margin: 0, color: "rgba(166,235,255,.5)", fontSize: 10, fontWeight: 950, letterSpacing: ".11em" }}>{label}</p>
             <div style={{ marginTop: 3, display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 7 }}>
-              <strong style={{ fontSize: mobile ? 18 : 21, lineHeight: 1, color: label === "TIME LEFT" && timeLeft <= 60 ? "#ff9ca7" : label === "STAGE DT" ? "#ffd66f" : "white" }}>{value}</strong>
+              <strong
+                style={{
+                  fontSize: mobile ? 18 : 21,
+                  lineHeight: 1,
+                  color:
+                    label === "TIME" && timeLeft <= 30
+                      ? "#ff9ca7"
+                      : label === "RUN DT"
+                        ? "#ffd66f"
+                        : "white",
+                }}
+              >
+                {value}
+              </strong>
               {!mobile && !compact && <span style={{ color: "rgba(255,255,255,.28)", fontSize: 10.5 }}>{sub}</span>}
             </div>
           </div>
@@ -1703,7 +1726,7 @@ export default function MilosMixAndServe({
                 <div style={{ minWidth: 0 }}>
                   <span style={{ display: "block", color: "#ffd08a", fontSize: 11, fontWeight: 950, letterSpacing: ".1em" }}>ORDER · TIER {recipe.tier}</span>
                   <strong style={{ display: "block", marginTop: 2, fontSize: mobile ? 12 : 14, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{recipe.label}</strong>
-                  <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.34)", fontSize: 10 }}>Base {tierBaseScore(recipe.tier)} + speed</span>
+                  <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.34)", fontSize: 10 }}>Tier value {tierBaseScore(recipe.tier)} + speed bonus</span>
                 </div>
                 {!mobile && (
                   <div style={{ display: "flex", gap: 3, justifyContent: "flex-end", flexWrap: "wrap", maxWidth: 150 }}>
@@ -1994,8 +2017,9 @@ export default function MilosMixAndServe({
                   <div><strong style={{ color: "white" }}>Cook:</strong> Chicken needs 5 seconds in a pan. Drag it back yourself when ready; after the flashing warning begins, you have 5 seconds before it burns.</div>
                   <div><strong style={{ color: "white" }}>Chop:</strong> Whole tomatoes need 5 seconds on the chopping board.</div>
                   <div><strong style={{ color: "white" }}>Build:</strong> Lettuce → chopped tomato → cooked chicken → ham. There are 4 tiers and no egg.</div>
+                  <div><strong style={{ color: "white" }}>Scoring:</strong> Higher-tier salads are worth much more. Serve quickly for an extra speed bonus.</div>
                   <div><strong style={{ color: "white" }}>Waste:</strong> Every item dragged into the bin costs 25 points.</div>
-                  <div><strong style={{ color: "white" }}>Goal:</strong> Serve 10 salad orders before the 5-minute stage clock reaches 00:00.</div>
+                  <div><strong style={{ color: "white" }}>Goal:</strong> Score as many points as possible in 2:30. There is no dish limit.</div>
                 </>
               ) : (
                 <>
@@ -2003,8 +2027,9 @@ export default function MilosMixAndServe({
                   <div><strong style={{ color: "white" }}>Cook:</strong> Raw patties need 5 seconds in a pan. After the flashing warning begins, you have 5 seconds to remove the patty before it burns.</div>
                   <div><strong style={{ color: "white" }}>Chop:</strong> Whole tomatoes need 5 seconds on the chopping board.</div>
                   <div><strong style={{ color: "white" }}>Build:</strong> Bun + cooked patty → lettuce → chopped tomato → cheese → bacon.</div>
+                  <div><strong style={{ color: "white" }}>Scoring:</strong> Higher-tier burgers are worth much more. Serve quickly for an extra speed bonus.</div>
                   <div><strong style={{ color: "white" }}>Waste:</strong> Every item dragged into the bin costs 25 points.</div>
-                  <div><strong style={{ color: "white" }}>Goal:</strong> Serve 10 burger orders before the 5-minute stage clock reaches 00:00.</div>
+                  <div><strong style={{ color: "white" }}>Goal:</strong> Score as many points as possible in 2:30. There is no dish limit.</div>
                 </>
               )}
               <div><strong style={{ color: "white" }}>Timers:</strong> Customer clocks begin after your first successful order. Expired orders are replaced and do not end the run.</div>
@@ -2018,11 +2043,14 @@ export default function MilosMixAndServe({
       {stageResult && (
         <div style={{ position: "absolute", inset: 0, zIndex: 80, display: "grid", placeItems: "center", padding: 14, background: "rgba(1,6,14,.9)", backdropFilter: "blur(9px)" }}>
           <div style={{ ...panel, width: "min(720px,100%)", maxHeight: "calc(100% - 20px)", overflowY: "auto", borderRadius: 25, padding: mobile ? 18 : 25, textAlign: "center" }}>
-            <p style={{ margin: 0, color: stageResult.success ? "#84efb2" : "#ff9ca7", fontSize: 14, fontWeight: 950, letterSpacing: ".14em" }}>{stationName.toUpperCase()} {stageResult.success ? "COMPLETE" : "FAILED"}</p>
+            <p style={{ margin: 0, color: "#84efb2", fontSize: 14, fontWeight: 950, letterSpacing: ".14em" }}>{stationName.toUpperCase()} · TIME'S UP</p>
             <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 31 : 40, fontWeight: 400 }}>{stationLesson}</h3>
-            <div style={{ marginTop: 10, fontSize: mobile ? 33 : 42, letterSpacing: ".08em", color: "#ffd66f" }}>{[1,2,3].map((star) => <span key={star} style={{ opacity: star <= stageResult.stars ? 1 : .18 }}>★</span>)}</div>
+            <div style={{ marginTop: 12 }}>
+              <span style={{ display: "block", color: "rgba(255,255,255,.42)", fontSize: 12, fontWeight: 900, letterSpacing: ".12em" }}>FINAL SCORE</span>
+              <strong style={{ display: "block", marginTop: 3, color: "#ffd66f", fontSize: mobile ? 42 : 56, lineHeight: 1 }}>{stageResult.finalScore.toLocaleString()}</strong>
+            </div>
             <div style={{ marginTop: 15, display: "grid", gridTemplateColumns: mobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap: 8 }}>
-              {[["Score", score.toLocaleString()], ["Orders", `${ordersServed}/${STAGE_ORDER_GOAL}`], ["Time Used", formatTime(stageResult.elapsedSeconds)], ["Time Left", formatTime(Math.max(0, STAGE_DURATION_SECONDS - stageResult.elapsedSeconds))]].map(([label, value]) => <div key={label} style={{ borderRadius: 13, border: "1px solid rgba(255,255,255,.07)", background: "rgba(255,255,255,.02)", padding: 10 }}><span style={{ display: "block", color: "rgba(255,255,255,.42)", fontSize: 14, fontWeight: 900 }}>{label}</span><strong style={{ display: "block", marginTop: 4, fontSize: 17 }}>{value}</strong></div>)}
+              {[["Dishes Served", String(ordersServed)], ["Run Time", "2:30"], ["Expired Orders", String(expiredOrders)], ["Score Tier", stageResult.stars ? `${stageResult.stars}★` : "—"]].map(([label, value]) => <div key={label} style={{ borderRadius: 13, border: "1px solid rgba(255,255,255,.07)", background: "rgba(255,255,255,.02)", padding: 10 }}><span style={{ display: "block", color: "rgba(255,255,255,.42)", fontSize: 14, fontWeight: 900 }}>{label}</span><strong style={{ display: "block", marginTop: 4, fontSize: 17 }}>{value}</strong></div>)}
             </div>
 
             <div style={{ marginTop: 12, display: "grid", gap: 8, textAlign: "left" }}>
@@ -2030,7 +2058,7 @@ export default function MilosMixAndServe({
                 <summary style={{ cursor: "pointer", color: "#b8f4ff", fontSize: 14, fontWeight: 950 }}>Score Breakdown</summary>
                 <div style={{ marginTop: 10, display: "grid", gap: 7, fontSize: 11.5, color: "rgba(255,255,255,.68)" }}>
                   {[
-                    ["Order base points", `+${basePointsEarned.toLocaleString()}`],
+                    ["Dish tier points", `+${basePointsEarned.toLocaleString()}`],
                     ["Speed bonus", `+${speedBonusEarned.toLocaleString()}`],
                     ["Waste-bin penalties", `−${discardPenaltyTotal.toLocaleString()}`],
                     ["Expired orders", `${expiredOrders} · no direct point penalty`],
@@ -2040,7 +2068,7 @@ export default function MilosMixAndServe({
                     </div>
                   ))}
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, paddingTop: 2 }}>
-                    <strong>Final score</strong><strong style={{ color: "#ffd66f", fontSize: 15 }}>{score.toLocaleString()}</strong>
+                    <strong>Final score</strong><strong style={{ color: "#ffd66f", fontSize: 15 }}>{stageResult.finalScore.toLocaleString()}</strong>
                   </div>
                 </div>
               </details>
@@ -2068,12 +2096,12 @@ export default function MilosMixAndServe({
               </details>
             </div>
             <div style={{ marginTop: 14, borderRadius: 15, border: "1px solid rgba(255,214,111,.17)", background: "rgba(255,196,64,.04)", padding: 11 }}>
-              <span style={{ color: "rgba(255,255,255,.44)", fontSize: 11, fontWeight: 900 }}>STAGE DREAM TOKENS</span>
-              <strong style={{ display: "block", marginTop: 5, color: stageResult.success ? "#ffd66f" : "rgba(255,255,255,.3)", fontSize: 28 }}>+{stageResult.success ? (rewardState === "awarded" ? awardedDt : resultDt) : 0} DT</strong>
-              <span style={{ display: "block", marginTop: 4, color: "rgba(255,255,255,.38)", fontSize: 11.5 }}>{!stageResult.success ? "Complete the station to collect DT." : rewardState === "awarding" ? "Adding DT to your balance…" : rewardState === "guest" ? "Log in to collect stage DT." : rewardState === "failed" ? "DT payout failed." : `${stageResult.stars}★ ${stationName} reward`}</span>
+              <span style={{ color: "rgba(255,255,255,.44)", fontSize: 11, fontWeight: 900 }}>RUN DREAM TOKENS</span>
+              <strong style={{ display: "block", marginTop: 5, color: resultDt > 0 ? "#ffd66f" : "rgba(255,255,255,.3)", fontSize: 28 }}>+{rewardState === "awarded" ? awardedDt : resultDt} DT</strong>
+              <span style={{ display: "block", marginTop: 4, color: "rgba(255,255,255,.38)", fontSize: 11.5 }}>{resultDt <= 0 ? "Reach 1,500 points to earn the first DT reward tier." : rewardState === "awarding" ? "Adding DT to your balance…" : rewardState === "guest" ? "Log in to collect run DT." : rewardState === "failed" ? "DT payout failed." : `${stageResult.stars}★ score tier · ${stationName}`}</span>
             </div>
             <div style={{ marginTop: 15, display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => { resetStageState(); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(255,211,104,.38)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 14, fontWeight: 950, cursor: "pointer" }}>{stageResult.success ? `Replay ${stationName}` : `Retry ${stationName}`}</button>
+              <button type="button" onClick={() => { resetStageState(); setGuideStep(0); setShowGuide(true); }} style={{ minHeight: 44, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(255,211,104,.38)", background: "linear-gradient(135deg,#ffd16a,#f5a73f)", color: "#221400", fontSize: 14, fontWeight: 950, cursor: "pointer" }}>{`Play ${stationName} Again`}</button>
               <button type="button" onClick={returnToDishMenu} style={{ minHeight: 44, padding: "0 20px", borderRadius: 13, border: "1px solid rgba(126,232,255,.18)", background: "rgba(83,215,255,.05)", color: "#dffaff", fontSize: 14, fontWeight: 900, cursor: "pointer" }}>Choose Another Dish</button>
             </div>
           </div>

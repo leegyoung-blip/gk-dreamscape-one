@@ -40,6 +40,11 @@ type ClubDetail = {
   is_member: boolean;
   joined_at: string | null;
   created_at: string;
+
+  is_official?: boolean;
+  official_badge_image_url?: string | null;
+  creator_rewards_enabled?: boolean;
+  creator_reputation_enabled?: boolean;
 };
 
 type QuizCatalogRow = {
@@ -360,7 +365,7 @@ export default function CreatorClubPage() {
   }, [slug]);
 
   async function loadCycleOnly() {
-    if (!club?.club_id) return;
+    if (!club?.club_id || club.is_official) return;
     const { data, error } = await supabase.rpc(
       "get_creator_phase3_challenge_cycle",
       { p_club_id: String(club.club_id) },
@@ -397,6 +402,49 @@ export default function CreatorClubPage() {
     setUserId(currentUser?.id || "");
     setIsAuthenticated(Boolean(currentUser));
 
+    const officialResponse = await supabase.rpc(
+      "get_creator_official_club_by_slug_v1",
+      { p_slug: slug },
+    );
+
+    if (!officialResponse.error) {
+      const officialRaw = Array.isArray(officialResponse.data)
+        ? officialResponse.data[0]
+        : officialResponse.data;
+
+      if (officialRaw) {
+        const officialClub: ClubDetail = {
+          ...(officialRaw as ClubDetail),
+          club_id: String(officialRaw.club_id),
+          featured: true,
+          member_count: Number(officialRaw.member_count || 0),
+          is_member: Boolean(officialRaw.is_member),
+          is_official: true,
+          creator_display_name: String(
+            officialRaw.creator_display_name || "Dreamscape",
+          ),
+          creator_slug: "dreamscape",
+          creator_bio: String(
+            officialRaw.creator_bio ||
+              "Official Dreamscape-created community.",
+          ),
+        };
+
+        setClub(officialClub);
+        setQuizzes([]);
+        setClubLeaderboard([]);
+        setChallengeLeaderboard([]);
+        setHistory([]);
+        setCycle(null);
+        setPlayRoomAccess(null);
+        setPulseNotices([]);
+        setClubProgression(null);
+        setClubAppearance(normalizeCreatorClubUpgradeAppearance(null));
+        setIsLoading(false);
+        return;
+      }
+    }
+
     const clubResponse = await supabase.rpc("get_creator_club_by_slug", {
       p_slug: slug,
     });
@@ -426,6 +474,7 @@ export default function CreatorClubPage() {
       featured: Boolean(raw.featured),
       member_count: Number(raw.member_count || 0),
       is_member: Boolean(raw.is_member),
+      is_official: false,
     };
 
     const moderationResponse = await supabase.rpc(
@@ -928,9 +977,13 @@ export default function CreatorClubPage() {
     setMessage("");
     setErrorMessage("");
 
-    const { data, error } = await supabase.rpc("join_creator_club", {
-      p_club_id: club.club_id,
-    });
+    const { data, error } = club.is_official
+      ? await supabase.rpc("join_creator_official_club_v1", {
+          p_club_slug: club.club_slug,
+        })
+      : await supabase.rpc("join_creator_club", {
+          p_club_id: club.club_id,
+        });
 
     if (error) {
       setErrorMessage(error.message || "The club could not be joined.");
@@ -956,9 +1009,13 @@ export default function CreatorClubPage() {
     setMessage("");
     setErrorMessage("");
 
-    const { error } = await supabase.rpc("leave_creator_club", {
-      p_club_id: club.club_id,
-    });
+    const { error } = club.is_official
+      ? await supabase.rpc("leave_creator_official_club_v1", {
+          p_club_slug: club.club_slug,
+        })
+      : await supabase.rpc("leave_creator_club", {
+          p_club_id: club.club_id,
+        });
 
     if (error) {
       setErrorMessage(error.message || "The club could not be left.");
@@ -1072,20 +1129,40 @@ export default function CreatorClubPage() {
                   <div className="min-w-0">
                     <p className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/64">
                       {club.topic || "Creator Club"} · by{" "}
-                      <Link
-                        href={`/milo-world/quiz-hall/creators/${encodeURIComponent(
-                          club.creator_slug,
-                        )}`}
-                        className="text-amber-100 underline decoration-amber-100/24 underline-offset-2"
-                      >
-                        {club.creator_display_name}
-                      </Link>
+                      {club.is_official ? (
+                        <span className="text-amber-100">
+                          {club.creator_display_name}
+                        </span>
+                      ) : (
+                        <Link
+                          href={`/milo-world/quiz-hall/creators/${encodeURIComponent(
+                            club.creator_slug,
+                          )}`}
+                          className="text-amber-100 underline decoration-amber-100/24 underline-offset-2"
+                        >
+                          {club.creator_display_name}
+                        </Link>
+                      )}
                     </p>
                     <h1 className="mt-2 font-serif text-[clamp(38px,5vw,64px)] font-normal leading-[0.94]">
                       {club.club_name}
                     </h1>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <CreatorReputationBadge creatorSlug={club.creator_slug} />
+                      {club.is_official ? (
+                        <span className="flex items-center gap-2 rounded-full border border-amber-200/20 bg-amber-300/[0.075] px-3 py-1.5 text-[7px] font-black uppercase tracking-[0.08em] text-amber-100">
+                          <img
+                            src={
+                              club.official_badge_image_url ||
+                              "/milo-world/quiz-hall/official-clubs/dreamscape-official-club-badge.png"
+                            }
+                            alt=""
+                            className="h-5 w-5 rounded-full object-cover"
+                          />
+                          Official Dreamscape Club
+                        </span>
+                      ) : (
+                        <CreatorReputationBadge creatorSlug={club.creator_slug} />
+                      )}
                       {clubProgression && (
                         <CreatorClubLevelBadge
                           levelNumber={clubProgression.level_number}
@@ -1225,6 +1302,20 @@ export default function CreatorClubPage() {
                 )}
               </aside>
             </section>
+
+            {club.is_official && (
+              <section className="mt-4 rounded-[22px] border border-cyan-200/12 bg-cyan-300/[0.035] px-4 py-4">
+                <p className="text-[8px] font-black uppercase tracking-[0.13em] text-cyan-100/58">
+                  Dreamscape Original · Launch Setup
+                </p>
+                <p className="mt-2 text-[10px] leading-5 text-white/38">
+                  This official community is live and can accept genuine members.
+                  Its first Dreamscape-created challenge pack will be added in the
+                  next content phase. No member counts, plays, reactions or
+                  creator rewards are pre-filled.
+                </p>
+              </section>
+            )}
 
             <nav className="mt-4 flex gap-2 overflow-x-auto rounded-[22px] border border-white/8 bg-white/[0.025] p-2 backdrop-blur-xl">
               <ClubTabButton active={tab === "home"} onClick={() => setTab("home")}>
@@ -1776,7 +1867,7 @@ function AboutTab({ club }: { club: ClubDetail }) {
 
       <aside className="rounded-[28px] border border-amber-200/13 bg-[linear-gradient(180deg,rgba(85,47,8,0.16),rgba(4,15,30,0.9))] p-5 backdrop-blur-xl">
         <p className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/58">
-          Creator
+          {club.is_official ? "Official Owner" : "Creator"}
         </p>
         <div className="mt-4 flex items-center gap-3">
           <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-amber-200/16 bg-amber-300/[0.07] text-xl font-black text-amber-100">
@@ -1791,35 +1882,72 @@ function AboutTab({ club }: { club: ClubDetail }) {
             )}
           </span>
           <div className="min-w-0">
-            <Link
-              href={`/milo-world/quiz-hall/creators/${encodeURIComponent(
-                club.creator_slug,
-              )}`}
-              className="block truncate text-lg font-black text-white no-underline hover:text-amber-100"
-            >
-              {club.creator_display_name}
-            </Link>
+            {club.is_official ? (
+              <strong className="block truncate text-lg font-black text-white">
+                {club.creator_display_name}
+              </strong>
+            ) : (
+              <Link
+                href={`/milo-world/quiz-hall/creators/${encodeURIComponent(
+                  club.creator_slug,
+                )}`}
+                className="block truncate text-lg font-black text-white no-underline hover:text-amber-100"
+              >
+                {club.creator_display_name}
+              </Link>
+            )}
             <span className="mt-1 block text-[9px] text-white/30">
-              Club creator
+              {club.is_official
+                ? "Dreamscape-created community"
+                : "Club creator"}
             </span>
           </div>
         </div>
-        <div className="mt-4">
-          <CreatorReputationBadge creatorSlug={club.creator_slug} />
-        </div>
+
+        {club.is_official ? (
+          <div className="mt-4 rounded-2xl border border-amber-200/14 bg-amber-300/[0.055] p-4">
+            <div className="flex items-center gap-3">
+              <img
+                src={
+                  club.official_badge_image_url ||
+                  "/milo-world/quiz-hall/official-clubs/dreamscape-official-club-badge.png"
+                }
+                alt=""
+                className="h-12 w-12 rounded-xl object-cover"
+              />
+              <span>
+                <strong className="block text-[10px] text-amber-100">
+                  Official Dreamscape Club
+                </strong>
+                <small className="mt-1 block text-[8px] leading-4 text-white/30">
+                  Creator REP and Creator Reward DT are not generated by this
+                  system-owned club.
+                </small>
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <CreatorReputationBadge creatorSlug={club.creator_slug} />
+          </div>
+        )}
+
         {club.creator_bio && (
           <p className="mt-4 whitespace-pre-line text-xs leading-6 text-white/42">
             {club.creator_bio}
           </p>
         )}
-        <Link
-          href={`/milo-world/quiz-hall/creators/${encodeURIComponent(
-            club.creator_slug,
-          )}`}
-          className="mt-4 inline-flex min-h-9 items-center rounded-full border border-amber-200/15 bg-amber-300/[0.055] px-4 text-[8px] font-black uppercase tracking-[0.08em] text-amber-100 no-underline"
-        >
-          View Creator Profile →
-        </Link>
+
+        {!club.is_official && (
+          <Link
+            href={`/milo-world/quiz-hall/creators/${encodeURIComponent(
+              club.creator_slug,
+            )}`}
+            className="mt-4 inline-flex min-h-9 items-center rounded-full border border-amber-200/15 bg-amber-300/[0.055] px-4 text-[8px] font-black uppercase tracking-[0.08em] text-amber-100 no-underline"
+          >
+            View Creator Profile →
+          </Link>
+        )}
       </aside>
     </div>
   );

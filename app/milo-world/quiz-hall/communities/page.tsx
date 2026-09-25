@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
 import CreatorDiscoveryAdminPanel from "@/components/milo/CreatorDiscoveryAdminPanel";
 import CreatorClubLevelBadge from "@/components/milo/creator-engine/CreatorClubLevelBadge";
+import CreatorOfficialClubsAdminPanel from "@/components/milo/creator-engine/CreatorOfficialClubsAdminPanel";
 import {
   clubUpgradeCardStyle,
 } from "@/components/milo/creator-engine/CreatorClubUpgradeStyle";
@@ -48,6 +49,11 @@ type ClubDirectoryRow = {
   club_frame_key?: string | null;
   club_theme_name?: string | null;
   club_frame_name?: string | null;
+
+  is_official?: boolean;
+  official_badge_image_url?: string | null;
+  creator_rewards_enabled?: boolean;
+  creator_reputation_enabled?: boolean;
 };
 
 
@@ -157,6 +163,8 @@ type SpotlightRow = {
 type ViewMode = "discover" | "my" | "create";
 
 const INTERESTS = [
+  "Football",
+  "K-Pop",
   "Science & Technology",
   "Sports",
   "Animals & Nature",
@@ -190,6 +198,7 @@ export default function CreatorClubsPage() {
 
   const [clubs, setClubs] = useState<ClubDirectoryRow[]>([]);
   const [discoverableClubs, setDiscoverableClubs] = useState<ClubDirectoryRow[]>([]);
+  const [officialClubs, setOfficialClubs] = useState<ClubDirectoryRow[]>([]);
   const [ownedClubs, setOwnedClubs] = useState<OwnedCreatorClub[]>([]);
   const [discoveryRows, setDiscoveryRows] = useState<DiscoveryRow[]>([]);
   const [spotlightRows, setSpotlightRows] = useState<SpotlightRow[]>([]);
@@ -246,6 +255,7 @@ export default function CreatorClubsPage() {
     if (!accessResult.access.canAccess) {
       setClubs([]);
       setDiscoverableClubs([]);
+      setOfficialClubs([]);
       setOwnedClubs([]);
       setDiscoveryRows([]);
       setSpotlightRows([]);
@@ -265,6 +275,7 @@ export default function CreatorClubsPage() {
       progressionResponse,
       upgradeResponse,
       spotlightResponse,
+      officialResponse,
     ] = await Promise.all([
       supabase.rpc("get_creator_club_directory"),
       supabase.rpc("get_creator_discovery_directory_v1"),
@@ -272,6 +283,7 @@ export default function CreatorClubsPage() {
       supabase.rpc("get_creator_club_progression_directory_v1"),
       supabase.rpc("get_creator_club_upgrade_directory_v1"),
       supabase.rpc("get_creator_spotlight_rotation_v1"),
+      supabase.rpc("get_creator_official_club_directory_v1"),
     ]);
 
     const clubProgressionMap = new Map<
@@ -407,6 +419,27 @@ export default function CreatorClubsPage() {
       );
     }
 
+    setOfficialClubs(
+      officialResponse.error
+        ? []
+        : ((officialResponse.data || []) as ClubDirectoryRow[]).map((club) => ({
+            ...club,
+            club_id: String(club.club_id),
+            club_slug: String(club.club_slug),
+            club_name: String(club.club_name),
+            featured: true,
+            member_count: Number(club.member_count || 0),
+            is_member: Boolean(club.is_member),
+            is_official: true,
+            creator_display_name: String(
+              club.creator_display_name || "Dreamscape",
+            ),
+            official_badge_image_url: club.official_badge_image_url
+              ? String(club.official_badge_image_url)
+              : "/milo-world/quiz-hall/official-clubs/dreamscape-official-club-badge.png",
+          })),
+    );
+
     setSpotlightRows(
       spotlightResponse.error
         ? []
@@ -451,8 +484,9 @@ export default function CreatorClubsPage() {
 
   const filteredClubs = useMemo(() => {
     const term = search.trim().toLowerCase();
+    const browse = [...officialClubs, ...discoverableClubs];
 
-    return discoverableClubs.filter((club) => {
+    return browse.filter((club) => {
       if (
         interest !== "All" &&
         String(club.topic || "").toLowerCase() !== interest.toLowerCase()
@@ -474,9 +508,12 @@ export default function CreatorClubsPage() {
         .toLowerCase()
         .includes(term);
     });
-  }, [discoverableClubs, interest, search]);
+  }, [discoverableClubs, officialClubs, interest, search]);
 
-  const joinedClubs = clubs.filter((club) => club.is_member);
+  const joinedClubs = [
+    ...officialClubs.filter((club) => club.is_member),
+    ...clubs.filter((club) => club.is_member),
+  ];
 
   function selectView(next: ViewMode) {
     setView(next);
@@ -691,7 +728,8 @@ export default function CreatorClubsPage() {
 
         <section className="dream-club-scroll mx-auto min-h-0 w-full max-w-[1360px] flex-1 overflow-y-auto px-4 pb-8 pt-4 sm:px-6">
           {hallAccess?.isAdmin && (
-            <div className="mb-4">
+            <div className="mb-4 grid gap-3">
+              <CreatorOfficialClubsAdminPanel onChanged={() => void loadPage()} />
               <CreatorDiscoveryAdminPanel onChanged={() => void loadPage()} />
             </div>
           )}
@@ -701,6 +739,7 @@ export default function CreatorClubsPage() {
           ) : view === "discover" ? (
             <DiscoverView
               clubs={filteredClubs}
+              officialClubs={officialClubs}
               discoveryRows={discoveryRows}
               spotlightRows={spotlightRows}
               search={search}
@@ -766,6 +805,7 @@ export default function CreatorClubsPage() {
 
 function DiscoverView({
   clubs,
+  officialClubs,
   discoveryRows,
   spotlightRows,
   search,
@@ -774,6 +814,7 @@ function DiscoverView({
   onInterest,
 }: {
   clubs: ClubDirectoryRow[];
+  officialClubs: ClubDirectoryRow[];
   discoveryRows: DiscoveryRow[];
   spotlightRows: SpotlightRow[];
   search: string;
@@ -854,6 +895,10 @@ function DiscoverView({
         </section>
       ) : (
         <>
+          {officialClubs.length > 0 && (
+            <DreamscapeOriginalsSection clubs={officialClubs} />
+          )}
+
           {spotlightRows.length > 0 && (
             <SpotlightSection rows={spotlightRows} />
           )}
@@ -920,6 +965,102 @@ function DiscoverView({
         </>
       )}
     </div>
+  );
+}
+
+function DreamscapeOriginalsSection({
+  clubs,
+}: {
+  clubs: ClubDirectoryRow[];
+}) {
+  return (
+    <section className="mt-5 rounded-[30px] border border-amber-200/13 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.08),transparent_32%),linear-gradient(145deg,rgba(31,22,8,0.56),rgba(3,12,28,0.94))] p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <SectionHeading
+          eyebrow="Dreamscape Originals"
+          title="Start with an official community"
+        />
+        <p className="max-w-xl text-[9px] leading-4 text-white/30 sm:text-right">
+          Created by Dreamscape. Member counts, plays and reactions begin at
+          zero and grow only from real community activity.
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        {clubs.map((club) => (
+          <Link
+            key={club.club_id}
+            href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(
+              club.club_slug,
+            )}`}
+            className="group relative min-h-[290px] overflow-hidden rounded-[26px] border border-amber-200/16 bg-[#061222] p-5 text-white no-underline shadow-[0_24px_70px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 hover:border-amber-200/28 sm:p-6"
+          >
+            {club.cover_image_url && (
+              <img
+                src={club.cover_image_url}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover opacity-32 transition duration-500 group-hover:scale-[1.02]"
+              />
+            )}
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,7,17,0.96)_0%,rgba(2,7,17,0.78)_56%,rgba(2,7,17,0.40)_100%)]" />
+
+            <div className="relative z-10 flex h-full min-h-[242px] max-w-xl flex-col">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-white/12 bg-black/20">
+                    {club.logo_image_url ? (
+                      <img
+                        src={club.logo_image_url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      club.club_name.charAt(0)
+                    )}
+                  </span>
+                  <span>
+                    <p className="text-[8px] font-black uppercase tracking-[0.13em] text-amber-100/66">
+                      {club.topic || "Dreamscape Original"}
+                    </p>
+                    <strong className="mt-1 block text-[9px] text-white/34">
+                      by Dreamscape
+                    </strong>
+                  </span>
+                </div>
+
+                <span className="flex items-center gap-1.5 rounded-full border border-amber-200/20 bg-amber-300/[0.08] px-2.5 py-1.5 text-[7px] font-black uppercase tracking-[0.07em] text-amber-100">
+                  <img
+                    src={
+                      club.official_badge_image_url ||
+                      "/milo-world/quiz-hall/official-clubs/dreamscape-official-club-badge.png"
+                    }
+                    alt=""
+                    className="h-5 w-5 rounded-full object-cover"
+                  />
+                  Official
+                </span>
+              </div>
+
+              <h3 className="mt-6 font-serif text-[clamp(34px,4vw,52px)] font-normal leading-[0.94]">
+                {club.club_name}
+              </h3>
+              <p className="mt-3 max-w-lg text-sm leading-6 text-white/52">
+                {club.tagline || club.description}
+              </p>
+
+              <div className="mt-auto flex items-center justify-between gap-3 border-t border-white/9 pt-4">
+                <span className="text-[9px] font-bold text-amber-100/62">
+                  Explore Club →
+                </span>
+                <span className="text-[9px] font-bold text-white/38">
+                  {club.member_count.toLocaleString()} genuine members
+                </span>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1749,11 +1890,25 @@ function ClubCard({ club }: { club: ClubDirectoryRow }) {
           </div>
           </div>
 
-          <CreatorClubLevelBadge
-            levelNumber={club.club_level_number || 1}
-            levelName={club.club_level_name || "Starter Club"}
-            compact
-          />
+          {club.is_official ? (
+            <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200/18 bg-amber-300/[0.07] px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.07em] text-amber-100">
+              <img
+                src={
+                  club.official_badge_image_url ||
+                  "/milo-world/quiz-hall/official-clubs/dreamscape-official-club-badge.png"
+                }
+                alt=""
+                className="h-4 w-4 rounded-full object-cover"
+              />
+              Official
+            </span>
+          ) : (
+            <CreatorClubLevelBadge
+              levelNumber={club.club_level_number || 1}
+              levelName={club.club_level_name || "Starter Club"}
+              compact
+            />
+          )}
         </div>
 
         <p className="mt-4 line-clamp-3 text-[11px] leading-5 text-white/48">
