@@ -236,7 +236,7 @@ export default function CreatorQuizEngineV2PlayPage() {
           ? String(row.cover_image_url)
           : null
         : creatorClubBackground ||
-          "/milo-world/quiz-hall/quiz-hall-bg.png",
+          "/milo-world/quiz-hall/backgrounds/dreamscape-core-glow.png",
       challenge_id: row.challenge_id
         ? String(row.challenge_id)
         : null,

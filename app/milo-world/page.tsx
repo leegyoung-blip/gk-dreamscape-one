@@ -1635,7 +1635,22 @@ function MembershipPlans() {
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
-  const [builderHovered, setBuilderHovered] = useState(false);
+
+  const freeFeatures = [
+    "Explore selected Milo’s World zones",
+    "Play selected Activity Lab games",
+    "Earn Dream Tokens through activities",
+    "Use selected free Bank and Exchange experiences",
+  ];
+
+  const financeFeatures = [
+    "Full Milo’s Bank financial literacy lessons",
+    "Milo’s Business Builder access",
+    "Exclusive Milo’s Exchange finance lessons",
+    "Early access to selected property launches",
+    "Additional property upgrade and development options",
+    "Milo Finance progression and achievements",
+  ];
 
   return (
     <div
@@ -1643,25 +1658,52 @@ function MembershipPlans() {
         borderRadius: "28px",
         border: "1px solid rgba(210, 151, 65, 0.38)",
         background:
-          "linear-gradient(145deg, rgba(255,250,239,0.96), rgba(242,226,198,0.94))",
+          "radial-gradient(circle at 90% 8%, rgba(57,184,127,0.14), transparent 25%), linear-gradient(145deg, rgba(255,250,239,0.97), rgba(242,226,198,0.95))",
         padding: isMobile ? "22px 16px 26px" : "30px 42px 40px",
         color: "#1d140c",
         boxShadow:
           "0 24px 70px rgba(89, 54, 18, 0.16), inset 0 0 70px rgba(255,255,255,0.4)",
       }}
     >
-      <h3
-        style={{
-          margin: 0,
-          textAlign: "center",
-          color: "#6f461c",
-          fontSize: isMobile ? "20px" : "24px",
-          fontWeight: 900,
-          letterSpacing: "-0.02em",
-        }}
-      >
-        Choose your Milo’s World access level.
-      </h3>
+      <div style={{ textAlign: "center" }}>
+        <p
+          style={{
+            margin: 0,
+            color: "#2f7d5d",
+            fontSize: "11px",
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            fontWeight: 900,
+          }}
+        >
+          Milo Finance
+        </p>
+
+        <h3
+          style={{
+            margin: "10px 0 0",
+            color: "#5a3617",
+            fontSize: isMobile ? "28px" : "34px",
+            fontWeight: 900,
+            letterSpacing: "-0.03em",
+          }}
+        >
+          Learn money by actually using it.
+        </h3>
+
+        <p
+          style={{
+            margin: "13px auto 0",
+            maxWidth: "760px",
+            color: "rgba(29,20,12,0.62)",
+            fontSize: isMobile ? "14px" : "15px",
+            lineHeight: 1.65,
+          }}
+        >
+          Explore Milo’s World for free, then unlock the complete financial literacy,
+          business and market-learning experience with Milo Finance.
+        </p>
+      </div>
 
       <div
         style={{
@@ -1683,12 +1725,12 @@ function MembershipPlans() {
       >
         <article
           style={{
-            minHeight: isDesktop ? "520px" : "auto",
+            minHeight: isDesktop ? "570px" : "auto",
             borderRadius: "26px",
             padding: isMobile ? "28px 22px" : "34px 30px",
             border: "1px solid rgba(115, 78, 38, 0.18)",
             background:
-              "linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,247,231,0.88))",
+              "linear-gradient(180deg, rgba(255,255,255,0.84), rgba(255,247,231,0.9))",
             boxShadow: "0 18px 42px rgba(90,55,20,0.08)",
             display: "flex",
             flexDirection: "column",
@@ -1704,7 +1746,7 @@ function MembershipPlans() {
               fontWeight: 900,
             }}
           >
-            Basic Access
+            Free Access
           </p>
 
           <h4
@@ -1740,8 +1782,8 @@ function MembershipPlans() {
               lineHeight: 1.6,
             }}
           >
-            Basic access lets users explore selected parts of Milo’s World
-            before joining the full experience.
+            Start exploring money, activities and selected Milo experiences before
+            moving into the full Milo Finance pathway.
           </p>
 
           <ul
@@ -1753,12 +1795,7 @@ function MembershipPlans() {
               gap: "16px",
             }}
           >
-            {[
-              "Explore selected Milo zones",
-              "Play selected Activity Lab games",
-              "Earn Dreamscape Tokens through activities",
-              "Explore Milo’s Bank and money tools",
-            ].map((feature) => (
+            {freeFeatures.map((feature) => (
               <li
                 key={feature}
                 style={{
@@ -1768,7 +1805,7 @@ function MembershipPlans() {
                   alignItems: "start",
                   color: "rgba(29,20,12,0.78)",
                   fontSize: "14px",
-                  lineHeight: 1.35,
+                  lineHeight: 1.4,
                 }}
               >
                 <span
@@ -1793,274 +1830,315 @@ function MembershipPlans() {
             ))}
           </ul>
 
-          <button
-            type="button"
-            disabled
+          <div
             style={{
               marginTop: "auto",
-              width: "100%",
-              height: "56px",
-              borderRadius: "14px",
-              border: "1px solid rgba(115,78,38,0.16)",
-              background: "rgba(255,255,255,0.54)",
-              color: "rgba(29,20,12,0.36)",
-              fontSize: "16px",
-              fontWeight: 900,
-              cursor: "not-allowed",
+              paddingTop: "30px",
             }}
           >
-            Current Plan
-          </button>
+            <div
+              style={{
+                width: "100%",
+                minHeight: "56px",
+                borderRadius: "14px",
+                border: "1px solid rgba(115,78,38,0.16)",
+                background: "rgba(255,255,255,0.54)",
+                color: "rgba(29,20,12,0.48)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "15px",
+                fontWeight: 900,
+              }}
+            >
+              Free to Explore
+            </div>
+          </div>
         </article>
 
         <article
-          onMouseEnter={() => setBuilderHovered(true)}
-          onMouseLeave={() => setBuilderHovered(false)}
-          onTouchStart={() => setBuilderHovered((current) => !current)}
           style={{
             position: "relative",
-            minHeight: isDesktop ? "520px" : isMobile ? "430px" : "520px",
+            minHeight: isDesktop ? "570px" : "auto",
             borderRadius: "26px",
             overflow: "hidden",
-            border: "1px solid rgba(205, 132, 42, 0.82)",
+            border: "1px solid rgba(47,125,93,0.48)",
             background:
-              "linear-gradient(180deg, rgba(255,239,199,0.98), rgba(241,196,111,0.92))",
+              "radial-gradient(circle at 84% 10%, rgba(82,219,160,0.18), transparent 28%), linear-gradient(145deg, rgba(248,255,247,0.98), rgba(229,242,217,0.96))",
             boxShadow:
-              "0 0 42px rgba(219,150,56,0.26), 0 26px 60px rgba(90,55,20,0.14)",
-            cursor: "not-allowed",
+              "0 0 42px rgba(65,145,99,0.16), 0 26px 60px rgba(90,55,20,0.13)",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
-          <img
-            src="/milo-world/membership/milos-club-cover.png"
-            alt="Milo’s Business Builder"
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              objectPosition: "center",
-              display: "block",
-              transform: builderHovered ? "scale(1.035)" : "scale(1)",
-              transition: "transform 320ms ease",
-              filter: "saturate(0.92)",
-            }}
-          />
-
           <div
             style={{
-              position: "absolute",
-              inset: 0,
-              background: builderHovered
-                ? "linear-gradient(180deg, rgba(25,12,4,0.42), rgba(25,12,4,0.88))"
-                : "linear-gradient(180deg, rgba(25,12,4,0.18), rgba(25,12,4,0.44))",
-              transition: "background 260ms ease",
-            }}
-          />
-
-          <div
-            style={{
-              position: "absolute",
-              top: "22px",
-              left: "22px",
-              right: "22px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              gap: "16px",
-              zIndex: 2,
+              position: "relative",
+              height: isMobile ? "180px" : "210px",
+              overflow: "hidden",
+              borderBottom: "1px solid rgba(47,125,93,0.14)",
+              background: "#173626",
             }}
           >
-            <div
+            <img
+              src="/milo-world/membership/milos-club-cover.png"
+              alt="Milo Finance"
               style={{
-                minHeight: "34px",
-                padding: "0 16px",
-                borderRadius: "999px",
-                border: "1px solid rgba(255,255,255,0.42)",
-                color: "white",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "13px",
-                fontWeight: 900,
-                background: "rgba(199,94,16,0.82)",
-                boxShadow: "0 10px 24px rgba(0,0,0,0.14)",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                objectPosition: "center",
+                display: "block",
+                filter: "saturate(0.9) brightness(0.86)",
               }}
-            >
-              ✦ Coming Soon
-            </div>
-
-            <div
-              style={{
-                minHeight: "34px",
-                padding: "0 16px",
-                borderRadius: "999px",
-                border: "1px solid rgba(255,255,255,0.38)",
-                color: "white",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "13px",
-                fontWeight: 900,
-                background: "rgba(0,0,0,0.34)",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
-              }}
-            >
-              $9.90/month
-            </div>
-          </div>
-
-          {builderHovered ? (
+            />
             <div
               style={{
                 position: "absolute",
-                left: "24px",
-                right: "24px",
-                bottom: "24px",
-                zIndex: 2,
-                borderRadius: "22px",
-                border: "1px solid rgba(255,255,255,0.22)",
-                background: "rgba(24,12,4,0.78)",
-                backdropFilter: "blur(14px)",
-                WebkitBackdropFilter: "blur(14px)",
-                padding: isMobile ? "20px" : "24px",
-                color: "white",
-                boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+                inset: 0,
+                background:
+                  "linear-gradient(180deg, rgba(16,34,24,0.08), rgba(16,34,24,0.68))",
+              }}
+            />
+
+            <div
+              style={{
+                position: "absolute",
+                top: "18px",
+                left: "18px",
+                right: "18px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: "12px",
               }}
             >
-              <p
+              <span
                 style={{
-                  margin: 0,
-                  color: "#ffd18a",
-                  fontSize: "12px",
-                  letterSpacing: "0.18em",
+                  minHeight: "32px",
+                  padding: "0 13px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.42)",
+                  color: "white",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "11px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
                   textTransform: "uppercase",
-                  fontWeight: 900,
-                }}
-              >
-                Milo’s Business Builder Preview
-              </p>
-
-              <h4
-                style={{
-                  margin: "10px 0 0",
-                  fontSize: isMobile ? "28px" : "34px",
-                  lineHeight: 1.05,
-                  fontWeight: 900,
-                  letterSpacing: "-0.04em",
-                }}
-              >
-                Build a business, make decisions, and grow its value.
-              </h4>
-
-              <ul
-                style={{
-                  listStyle: "none",
-                  padding: 0,
-                  margin: "18px 0 0",
-                  display: "grid",
-                  gap: "10px",
-                }}
-              >
-                {[
-                  "Choose a business concept",
-                  "Manage staffing, stock, and operating costs",
-                  "Complete business cycles and review profits",
-                  "Reinvest earnings or distribute dividends",
-                ].map((feature) => (
-                  <li
-                    key={feature}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "22px 1fr",
-                      gap: "10px",
-                      alignItems: "start",
-                      color: "rgba(255,255,255,0.86)",
-                      fontSize: "14px",
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    <span style={{ color: "#ffd18a", fontWeight: 900 }}>✓</span>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                type="button"
-                disabled
-                style={{
-                  marginTop: "20px",
-                  width: "100%",
-                  height: "52px",
-                  borderRadius: "14px",
-                  border: "1px solid rgba(255,255,255,0.26)",
-                  background: "rgba(255,255,255,0.12)",
-                  color: "rgba(255,255,255,0.58)",
-                  fontSize: "16px",
-                  fontWeight: 900,
-                  cursor: "not-allowed",
+                  background: "rgba(38,112,80,0.86)",
+                  backdropFilter: "blur(8px)",
                 }}
               >
                 Coming Soon
-              </button>
+              </span>
+
+              <span
+                style={{
+                  minHeight: "32px",
+                  padding: "0 13px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.38)",
+                  color: "white",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "11px",
+                  fontWeight: 900,
+                  background: "rgba(0,0,0,0.42)",
+                  backdropFilter: "blur(8px)",
+                }}
+              >
+                SGD 12.90/month
+              </span>
             </div>
-          ) : (
+
             <div
               style={{
                 position: "absolute",
-                left: "24px",
-                right: "24px",
-                bottom: "24px",
-                zIndex: 2,
-                borderRadius: "18px",
-                background: "rgba(255,255,255,0.86)",
-                border: "1px solid rgba(196,122,37,0.24)",
-                padding: "16px 18px",
-                color: "#1d140c",
-                boxShadow: "0 18px 40px rgba(0,0,0,0.12)",
+                left: isMobile ? "20px" : "26px",
+                right: isMobile ? "20px" : "26px",
+                bottom: isMobile ? "18px" : "22px",
+                color: "white",
               }}
             >
               <p
                 style={{
                   margin: 0,
-                  color: "#8a4f13",
-                  fontSize: "12px",
-                  letterSpacing: "0.16em",
+                  color: "#b8ffd9",
+                  fontSize: "10px",
+                  letterSpacing: "0.17em",
                   textTransform: "uppercase",
                   fontWeight: 900,
                 }}
               >
-                Business Simulation
+                Financial Literacy · Business · Markets
               </p>
-
               <h4
                 style={{
                   margin: "6px 0 0",
-                  fontSize: "24px",
-                  lineHeight: 1.08,
+                  fontSize: isMobile ? "29px" : "36px",
+                  lineHeight: 1.05,
                   fontWeight: 900,
-                  letterSpacing: "-0.03em",
+                  letterSpacing: "-0.035em",
                 }}
               >
-                Milo’s Business Builder
+                Milo Finance
               </h4>
-
-              <p
-                style={{
-                  margin: "8px 0 0",
-                  color: "rgba(29,20,12,0.62)",
-                  fontSize: "13px",
-                  lineHeight: 1.45,
-                }}
-              >
-                Learn to manage costs, profits, ownership, reinvestment, and
-                dividends through a guided Dreamscape business.
-              </p>
             </div>
-          )}
+          </div>
+
+          <div
+            style={{
+              padding: isMobile ? "26px 22px 28px" : "30px 30px 32px",
+              display: "flex",
+              flexDirection: "column",
+              flex: 1,
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: "rgba(29,20,12,0.66)",
+                fontSize: "15px",
+                lineHeight: 1.6,
+              }}
+            >
+              The complete Milo learning membership: learn financial concepts, apply
+              them in Dreamscape, build a business and unlock deeper market and
+              property experiences.
+            </p>
+
+            <ul
+              style={{
+                listStyle: "none",
+                padding: 0,
+                margin: "24px 0 0",
+                display: "grid",
+                gap: "13px",
+              }}
+            >
+              {financeFeatures.map((feature) => (
+                <li
+                  key={feature}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "24px 1fr",
+                    gap: "10px",
+                    alignItems: "start",
+                    color: "rgba(29,20,12,0.82)",
+                    fontSize: "14px",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  <span
+                    style={{
+                      color: "#2f7d5d",
+                      fontWeight: 950,
+                      fontSize: "16px",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    ✓
+                  </span>
+                  {feature}
+                </li>
+              ))}
+            </ul>
+
+            <button
+              type="button"
+              disabled
+              style={{
+                marginTop: "auto",
+                width: "100%",
+                minHeight: "56px",
+                borderRadius: "14px",
+                border: "1px solid rgba(47,125,93,0.28)",
+                background: "rgba(47,125,93,0.09)",
+                color: "rgba(35,94,70,0.62)",
+                fontSize: "15px",
+                fontWeight: 900,
+                cursor: "not-allowed",
+              }}
+            >
+              Milo Finance Coming Soon
+            </button>
+          </div>
         </article>
+      </div>
+
+      <div
+        style={{
+          marginTop: "24px",
+          padding: isMobile ? "20px" : "22px 26px",
+          borderRadius: "22px",
+          border: "1px solid rgba(111,70,28,0.16)",
+          background: "rgba(255,255,255,0.48)",
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          alignItems: isMobile ? "flex-start" : "center",
+          justifyContent: "space-between",
+          gap: "16px",
+        }}
+      >
+        <div>
+          <p
+            style={{
+              margin: 0,
+              color: "#8a4f13",
+              fontSize: "10px",
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              fontWeight: 900,
+            }}
+          >
+            Full Access · Coming Soon
+          </p>
+          <p
+            style={{
+              margin: "6px 0 0",
+              color: "#1d140c",
+              fontSize: isMobile ? "16px" : "18px",
+              fontWeight: 900,
+              lineHeight: 1.35,
+            }}
+          >
+            Milo Finance is also included in Dreamscape Full Access.
+          </p>
+          <p
+            style={{
+              margin: "6px 0 0",
+              color: "rgba(29,20,12,0.6)",
+              fontSize: "13px",
+              lineHeight: 1.5,
+            }}
+          >
+            Full Access combines NOVA+, Science and the complete Milo Finance experience.
+          </p>
+        </div>
+
+        <Link
+          href="/pricing"
+          style={{
+            minHeight: "44px",
+            padding: "0 18px",
+            borderRadius: "999px",
+            border: "1px solid rgba(111,70,28,0.22)",
+            background: "rgba(255,255,255,0.72)",
+            color: "#5a3617",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            textDecoration: "none",
+            fontSize: "12px",
+            fontWeight: 900,
+            whiteSpace: "nowrap",
+          }}
+        >
+          Compare Plans →
+        </Link>
       </div>
     </div>
   );
@@ -2128,7 +2206,7 @@ function MembershipPopup({
       >
         <button
           type="button"
-          aria-label="Close membership portal"
+          aria-label="Close Milo Finance membership"
           onClick={onClose}
           style={{
             position: "absolute",
@@ -3234,7 +3312,7 @@ export default function MiloWorldPage() {
                   style={{...menuItemStyle, width: "100%", cursor: "pointer", fontFamily: "inherit"}}
                 >
                   <span aria-hidden="true">✦</span>
-                  <span>Membership</span>
+                  <span>Milo Finance</span>
                   <span aria-hidden="true">›</span>
                 </button>
 

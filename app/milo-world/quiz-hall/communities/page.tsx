@@ -183,6 +183,9 @@ const EMPTY_CREATOR = {
   rulesAccepted: false,
 };
 
+const DEFAULT_CREATOR_BACKGROUND_URL =
+  "/milo-world/quiz-hall/backgrounds/dreamscape-core-glow.png";
+
 type ClubCreateForm = {
   name: string;
   slug: string;
@@ -206,7 +209,7 @@ const EMPTY_CLUB: ClubCreateForm = {
   description: "",
   logoFile: null,
   backgroundFile: null,
-  backgroundPresetUrl: "",
+  backgroundPresetUrl: DEFAULT_CREATOR_BACKGROUND_URL,
 };
 
 const CREATOR_CLUB_MEDIA_BUCKET = "creator-club-media";
@@ -225,7 +228,33 @@ type CreatorBackgroundPreset = {
 
 // Preset-ready by design. We will populate this with the generic Dreamscape
 // themes in the next asset pass without changing the creation flow again.
-const CREATOR_BACKGROUND_PRESETS: CreatorBackgroundPreset[] = [];
+const CREATOR_BACKGROUND_PRESETS: CreatorBackgroundPreset[] = [
+  {
+    key: "dreamscape-core-glow",
+    label: "Dreamscape Core Glow",
+    imageUrl: "/milo-world/quiz-hall/backgrounds/dreamscape-core-glow.png",
+  },
+  {
+    key: "knowledge-grid",
+    label: "Knowledge Grid",
+    imageUrl: "/milo-world/quiz-hall/backgrounds/knowledge-grid.png",
+  },
+  {
+    key: "neon-horizon",
+    label: "Neon Horizon",
+    imageUrl: "/milo-world/quiz-hall/backgrounds/neon-horizon.png",
+  },
+  {
+    key: "adventure-map",
+    label: "Adventure Map",
+    imageUrl: "/milo-world/quiz-hall/backgrounds/adventure-map.png",
+  },
+  {
+    key: "cosmic-arena",
+    label: "Cosmic Arena",
+    imageUrl: "/milo-world/quiz-hall/backgrounds/cosmic-arena.png",
+  },
+];
 
 function safeFileExtension(file: File) {
   const fromName = file.name.split(".").pop()?.toLowerCase().trim() || "";
@@ -704,7 +733,8 @@ export default function CreatorClubsPage() {
 
     // `coverImageUrl` is the legacy API/database field name.
     // Product/UI semantics are now "Club Background".
-    let backgroundImageUrl = clubForm.backgroundPresetUrl.trim();
+    let backgroundImageUrl =
+      clubForm.backgroundPresetUrl.trim() || DEFAULT_CREATOR_BACKGROUND_URL;
 
     try {
       if (clubForm.logoFile) {
@@ -1904,7 +1934,9 @@ function CreateView({
               setClubForm((current) => ({
                 ...current,
                 backgroundFile: file,
-                backgroundPresetUrl: file ? "" : current.backgroundPresetUrl,
+                backgroundPresetUrl: file
+                  ? ""
+                  : current.backgroundPresetUrl || DEFAULT_CREATOR_BACKGROUND_URL,
               }))
             }
             onPresetChange={(imageUrl) =>
@@ -1993,7 +2025,7 @@ function CreatorBackgroundPicker({
                 ? file.name
                 : presetUrl
                   ? "Dreamscape background selected"
-                  : "Dreamscape Default"}
+                  : "Dreamscape Core Glow"}
             </strong>
             <small className="mt-1 block text-[8px] leading-4 text-white/28">
               16:9 recommended · PNG, JPG or WebP · max 5 MB. This background
@@ -2006,7 +2038,7 @@ function CreatorBackgroundPicker({
               type="button"
               onClick={() => {
                 onFileChange(null);
-                onPresetChange("");
+                onPresetChange(DEFAULT_CREATOR_BACKGROUND_URL);
               }}
               className="min-h-9 shrink-0 rounded-xl border border-white/10 bg-white/[0.035] px-3 text-[7px] font-black uppercase tracking-[0.07em] text-white/42"
             >
@@ -2047,9 +2079,8 @@ function CreatorBackgroundPicker({
           </div>
         ) : (
           <p className="border-t border-white/8 pt-3 text-[8px] leading-4 text-white/25">
-            If you skip the upload, Dreamscape Default is used. Additional
-            Dreamscape background themes are ready to plug into this picker
-            once their images are added.
+            Dreamscape Core Glow is selected by default. You can keep it,
+            choose another Dreamscape theme, or upload your own background.
           </p>
         )}
       </div>

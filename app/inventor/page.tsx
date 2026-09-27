@@ -12,8 +12,6 @@ import {
   ZoneUnderUpgradeModal,
 } from "@/components/world/WorldZoneAccess";
 
-const STUDENT_COVER_IMAGE = "/nova/membership/student-access-cover.png";
-
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
 type NovaZoneKey =
@@ -1510,7 +1508,7 @@ function FloatingControls({
               }}
             >
               <span aria-hidden="true" style={{ color: "#8ee8ff" }}>✦</span>
-              <span>Membership</span>
+              <span>Plans & Memberships</span>
               <span aria-hidden="true">›</span>
             </button>
 
@@ -3131,568 +3129,445 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
-  const [studentHovered, setStudentHovered] = useState(false);
 
-  function openStudentAccessPage() {
+  const plans = [
+    {
+      key: "core",
+      eyebrow: "English + Mathematics",
+      name: "Core Missions",
+      price: "SGD 19.90",
+      suffix: "/month",
+      badge: "Launch Price",
+      accent: "#c58cff",
+      description:
+        "Structured English and Mathematics learning across Dreamscape, with curriculum practice, thinking activities, rewards and progress tracking.",
+      features: [
+        "Primary 1–6 English Learning Missions",
+        "Primary 1–6 Mathematics Learning Missions",
+        "Think Lab and Knowledge Arena access",
+        "Topic mastery and progress insights",
+        "Dream Token and Dream Gem rewards",
+      ],
+    },
+    {
+      key: "nova",
+      eyebrow: "Learning Intelligence",
+      name: "NOVA+",
+      price: "SGD 24.90",
+      suffix: "/month",
+      badge: "Launch Price",
+      accent: "#8ee8ff",
+      description:
+        "Everything in Core Missions plus Dreamscape learning intelligence for families who want a clearer view of progress, strengths, gaps and mastery.",
+      features: [
+        "Everything in Core Missions",
+        "My Learning weekly intelligence",
+        "Concept-level Strengths & Gaps",
+        "Curriculum Mastery Map",
+        "Personalised Nova recommendations",
+        "Downloadable parent learning reports",
+      ],
+    },
+    {
+      key: "milo",
+      eyebrow: "Real-World Learning",
+      name: "Milo Finance",
+      price: "SGD 12.90",
+      suffix: "/month",
+      badge: "Coming Soon",
+      accent: "#9fffd2",
+      comingSoon: true,
+      description:
+        "Financial literacy, business and market learning across Milo’s World, designed to turn money concepts into practical decisions.",
+      features: [
+        "Milo’s Bank financial literacy lessons",
+        "Milo’s Business Builder",
+        "Exclusive Exchange finance lessons",
+        "Early access to selected property launches",
+        "Additional property upgrades and development options",
+        "Finance progression and achievements",
+      ],
+    },
+    {
+      key: "full",
+      eyebrow: "Complete Dreamscape",
+      name: "Full Access",
+      price: "Price coming soon",
+      suffix: "",
+      badge: "Coming Soon",
+      accent: "#ffbd73",
+      comingSoon: true,
+      description:
+        "The complete Dreamscape membership, combining NOVA+, Science and Milo Finance in one connected academic and real-world learning experience.",
+      features: [
+        "Everything in NOVA+",
+        "Primary 1–6 Science Learning Missions",
+        "Science topic quizzes and mixed assessments",
+        "Science mastery tracking",
+        "Everything in Milo Finance",
+        "Complete academic + real-world learning access",
+      ],
+    },
+  ];
+
+  function openPricingPage() {
     onClose();
     window.location.href = "/pricing";
   }
 
   return (
     <div
+      role="presentation"
+      onClick={onClose}
       style={{
         position: "fixed",
         inset: 0,
         zIndex: 120,
         display: "flex",
-        alignItems: "center",
+        alignItems: isMobile ? "flex-start" : "center",
         justifyContent: "center",
-        padding: isMobile ? "14px" : "26px",
-        background: "rgba(2, 8, 19, 0.56)",
+        padding: isMobile ? "10px" : "26px",
+        background: "rgba(2,8,19,0.68)",
         backdropFilter: "blur(14px)",
       }}
     >
       <div
+        onClick={(event) => event.stopPropagation()}
         style={{
           position: "relative",
-          width: "min(1160px, 94vw)",
-          maxHeight: isMobile ? "88dvh" : "92vh",
+          width: "min(1280px, 96vw)",
+          maxHeight: isMobile ? "calc(100dvh - 20px)" : "92vh",
           overflowY: "auto",
           borderRadius: isMobile ? "22px" : "30px",
-          border: "1px solid rgba(126, 221, 255, 0.62)",
+          border: "1px solid rgba(126,221,255,0.46)",
           background:
-            "linear-gradient(145deg, rgba(15, 48, 88, 0.96), rgba(9, 24, 56, 0.98))",
+            "radial-gradient(circle at 10% 0%, rgba(83,215,255,0.13), transparent 32%), radial-gradient(circle at 90% 100%, rgba(197,140,255,0.12), transparent 32%), linear-gradient(145deg, rgba(12,37,72,0.98), rgba(5,15,38,0.99))",
           boxShadow:
-            "0 0 45px rgba(85, 215, 255, 0.35), 0 30px 90px rgba(0, 0, 0, 0.55)",
-          padding: isMobile ? "28px 18px 24px" : "34px 46px 38px",
+            "0 0 45px rgba(85,215,255,0.24), 0 30px 90px rgba(0,0,0,0.62)",
+          padding: isMobile ? "62px 16px 22px" : "68px 34px 34px",
           color: "white",
         }}
       >
         <button
           type="button"
           onClick={onClose}
+          aria-label="Close membership portal"
           style={{
             position: "absolute",
-            top: isMobile ? "14px" : "22px",
-            right: isMobile ? "14px" : "22px",
-            width: isMobile ? "38px" : "44px",
-            height: isMobile ? "38px" : "44px",
+            top: isMobile ? "12px" : "18px",
+            right: isMobile ? "12px" : "18px",
+            width: isMobile ? "40px" : "44px",
+            height: isMobile ? "40px" : "44px",
             borderRadius: "999px",
-            border: "1px solid rgba(150, 231, 255, 0.7)",
-            background: "rgba(255, 255, 255, 0.08)",
+            border: "1px solid rgba(150,231,255,0.56)",
+            background: "rgba(255,255,255,0.08)",
             color: "white",
             fontSize: isMobile ? "24px" : "28px",
             lineHeight: 1,
             cursor: "pointer",
-            boxShadow: "0 0 18px rgba(83, 215, 255, 0.22)",
           }}
         >
           ×
         </button>
 
-        <div
-          style={{
-            textAlign: "center",
-            padding: isMobile ? "0 42px" : "0 70px",
-          }}
-        >
+        <div style={{ textAlign: "center", padding: isMobile ? "0 8px" : "0 70px" }}>
           <p
             style={{
               margin: 0,
-              color: "#7ee8ff",
-              fontSize: "13px",
+              color: "#8ee8ff",
+              fontSize: "12px",
               letterSpacing: "0.22em",
               textTransform: "uppercase",
-              fontWeight: 700,
+              fontWeight: 800,
             }}
           >
-            Dreamscape One
+            Dreamscape One Memberships
           </p>
 
           <h2
             style={{
-              margin: "10px 0 0",
-              fontSize: isMobile ? "32px" : "44px",
-              fontWeight: 600,
-              letterSpacing: "-0.03em",
-              textShadow: "0 0 24px rgba(126, 221, 255, 0.35)",
+              margin: "12px 0 0",
+              fontFamily: 'Georgia, "Times New Roman", serif',
+              fontSize: isMobile ? "34px" : "48px",
+              fontWeight: 400,
+              lineHeight: 1.06,
             }}
           >
-            Membership Portal
+            Choose how far you want to go.
           </h2>
 
           <p
             style={{
-              margin: "10px 0 0",
-              fontSize: isMobile ? "16px" : "20px",
-              color: "#7ee8ff",
-              fontWeight: 300,
+              margin: "14px auto 0",
+              maxWidth: "820px",
+              color: "rgba(255,255,255,0.72)",
+              fontSize: isMobile ? "14px" : "16px",
+              lineHeight: 1.65,
             }}
           >
-            Choose your Nova’s World access level.
+            Start with Core Missions, add NOVA+ learning intelligence, explore real-world
+            learning with Milo Finance, or choose Full Access for the complete Dreamscape
+            experience.
           </p>
-
-          <div
-            style={{
-              width: "210px",
-              maxWidth: "70%",
-              height: "1px",
-              margin: "20px auto 0",
-              background:
-                "linear-gradient(90deg, transparent, rgba(126,232,255,0.9), transparent)",
-            }}
-          />
         </div>
 
         <div
           style={{
             marginTop: isMobile ? "26px" : "38px",
             display: "grid",
-            gridTemplateColumns: isDesktop ? "0.9fr 1.1fr" : "1fr",
-            gap: isMobile ? "16px" : "24px",
+            gridTemplateColumns: isDesktop ? "repeat(4, minmax(0, 1fr))" : "1fr",
+            gap: isMobile ? "14px" : "18px",
             alignItems: "stretch",
           }}
         >
-          <article
-            style={{
-              minHeight: isDesktop ? "540px" : "auto",
-              borderRadius: "26px",
-              padding: isMobile ? "28px 22px" : "34px 30px",
-              border: "1px solid rgba(150, 220, 255, 0.38)",
-              background:
-                "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
-              boxShadow:
-                "inset 0 0 24px rgba(255,255,255,0.03), 0 18px 42px rgba(0,0,0,0.22)",
-              display: "flex",
-              flexDirection: "column",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background:
-                  "radial-gradient(circle at top left, rgba(126,232,255,0.13), transparent 42%)",
-                pointerEvents: "none",
-              }}
-            />
-
-            <div style={{ position: "relative", zIndex: 1 }}>
-              <p
-                style={{
-                  margin: 0,
-                  color: "#7ee8ff",
-                  fontSize: "13px",
-                  letterSpacing: "0.18em",
-                  textTransform: "uppercase",
-                  fontWeight: 700,
-                }}
-              >
-                Basic Access
-              </p>
-
-              <h3
-                style={{
-                  margin: "24px 0 0",
-                  fontSize: isMobile ? "36px" : "48px",
-                  lineHeight: 1.04,
-                  fontWeight: 800,
-                  letterSpacing: "-0.05em",
-                }}
-              >
-                Explore Nova’s World
-              </h3>
-
-              <p
-                style={{
-                  margin: "28px 0 0",
-                  fontSize: isMobile ? "58px" : "78px",
-                  lineHeight: 0.95,
-                  fontWeight: 800,
-                  color: "#7ee8ff",
-                  textShadow: "0 0 24px rgba(126,232,255,0.22)",
-                }}
-              >
-                $0
-              </p>
-
-              <p
-                style={{
-                  margin: "22px 0 0",
-                  color: "rgba(255,255,255,0.78)",
-                  fontSize: "16px",
-                  lineHeight: 1.6,
-                }}
-              >
-                Basic access lets students enter Nova’s World and preview
-                selected parts of the Dreamscape experience.
-              </p>
-
-              <ul
-                style={{
-                  listStyle: "none",
-                  padding: 0,
-                  margin: "32px 0 0",
-                  display: "grid",
-                  gap: "16px",
-                }}
-              >
-                {[
-                  "Explore selected Nova zones",
-                  "Preview selected learning areas",
-                  "Access basic Dreamscape Token features",
-                  "Upgrade anytime to Student Access",
-                ].map((feature) => (
-                  <li
-                    key={feature}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "28px 1fr",
-                      gap: "12px",
-                      alignItems: "start",
-                      color: "rgba(255,255,255,0.84)",
-                      fontSize: "15px",
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: "22px",
-                        height: "22px",
-                        borderRadius: "999px",
-                        border: "1px solid rgba(126,232,255,0.65)",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#7ee8ff",
-                        fontSize: "13px",
-                        fontWeight: 900,
-                        background: "rgba(126,232,255,0.1)",
-                        boxShadow: "0 0 12px rgba(126,232,255,0.24)",
-                      }}
-                    >
-                      ✓
-                    </span>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <button
-              type="button"
-              disabled
+          {plans.map((plan) => (
+            <article
+              key={plan.key}
               style={{
                 position: "relative",
-                zIndex: 1,
-                marginTop: "48px",
-                width: "100%",
-                height: "56px",
-                borderRadius: "16px",
-                border: "1px solid rgba(126,232,255,0.16)",
-                background: "rgba(255,255,255,0.06)",
-                color: "rgba(255,255,255,0.42)",
-                fontSize: "16px",
-                fontWeight: 700,
-                cursor: "not-allowed",
-              }}
-            >
-              Current Plan
-            </button>
-          </article>
-
-          <article
-            onMouseEnter={() => setStudentHovered(true)}
-            onMouseLeave={() => setStudentHovered(false)}
-            onTouchStart={() => setStudentHovered((current) => !current)}
-            onClick={openStudentAccessPage}
-            style={{
-              position: "relative",
-              minHeight: isDesktop ? "560px" : isMobile ? "610px" : "560px",
-              borderRadius: "26px",
-              overflow: "hidden",
-              border: "1px solid rgba(99, 232, 255, 0.85)",
-              background:
-                "linear-gradient(180deg, rgba(17, 82, 136, 0.94), rgba(7, 27, 68, 0.98))",
-              boxShadow:
-                "0 0 34px rgba(83, 215, 255, 0.42), 0 26px 74px rgba(0,0,0,0.34)",
-              cursor: "pointer",
-            }}
-          >
-            <img
-              src={STUDENT_COVER_IMAGE}
-              alt="Nova Student Access"
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                objectPosition: "30% center",
-                display: "block",
-                transform: studentHovered ? "scale(1.035)" : "scale(1)",
-                transition: "transform 320ms ease",
-              }}
-              draggable={false}
-            />
-
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background: studentHovered
-                  ? "linear-gradient(180deg, rgba(2,8,19,0.22), rgba(2,8,19,0.84))"
-                  : "linear-gradient(180deg, rgba(2,8,19,0.02), rgba(2,8,19,0.16))",
-                transition: "background 260ms ease",
-              }}
-            />
-
-            <div
-              style={{
-                position: "absolute",
-                top: "22px",
-                left: "22px",
-                right: "22px",
+                minHeight: isDesktop ? "560px" : "auto",
+                padding: isMobile ? "24px 20px" : "28px 24px",
                 display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: "16px",
-                zIndex: 2,
+                flexDirection: "column",
+                borderRadius: "24px",
+                border: `1px solid ${plan.accent}55`,
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.022))",
+                boxShadow: `0 18px 48px rgba(0,0,0,0.24), 0 0 24px ${plan.accent}10`,
+                overflow: "hidden",
               }}
             >
               <div
+                aria-hidden="true"
                 style={{
-                  minHeight: "34px",
-                  padding: "0 16px",
-                  borderRadius: "999px",
-                  border: "1px solid rgba(255,255,255,0.42)",
-                  color: "white",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "13px",
-                  fontWeight: 900,
-                  background: "rgba(53,197,255,0.82)",
-                  boxShadow: "0 10px 24px rgba(0,0,0,0.14)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
+                  position: "absolute",
+                  inset: 0,
+                  pointerEvents: "none",
+                  background: `radial-gradient(circle at 12% 0%, ${plan.accent}18, transparent 34%)`,
                 }}
-              >
-                ✦ Recommended
-              </div>
+              />
 
-              <div
-                style={{
-                  minHeight: "34px",
-                  padding: "0 16px",
-                  borderRadius: "999px",
-                  border: "1px solid rgba(255,255,255,0.38)",
-                  color: "white",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "13px",
-                  fontWeight: 900,
-                  background: "rgba(0,0,0,0.34)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                }}
-              >
-                SGD 24.90/month
-              </div>
-            </div>
-
-            <div
-              style={{
-                position: "absolute",
-                left: "24px",
-                right: "24px",
-                bottom: "24px",
-                zIndex: 2,
-                transform:
-                  studentHovered || isMobile
-                    ? "translateY(0)"
-                    : "translateY(18px)",
-                opacity: studentHovered || isMobile ? 1 : 0,
-                transition: "opacity 240ms ease, transform 240ms ease",
-              }}
-            >
-              <div
-                style={{
-                  borderRadius: "22px",
-                  border: "1px solid rgba(255,255,255,0.22)",
-                  background: "rgba(4,16,38,0.78)",
-                  backdropFilter: "blur(14px)",
-                  WebkitBackdropFilter: "blur(14px)",
-                  padding: isMobile ? "20px" : "24px",
-                  color: "white",
-                  boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
-                }}
-              >
-                <p
+              <div style={{ position: "relative", zIndex: 1 }}>
+                <div
                   style={{
-                    margin: 0,
-                    color: "#7ee8ff",
-                    fontSize: "12px",
-                    letterSpacing: "0.18em",
-                    textTransform: "uppercase",
-                    fontWeight: 900,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: "12px",
                   }}
                 >
-                  Student Access Includes
-                </p>
+                  <p
+                    style={{
+                      margin: 0,
+                      color: plan.accent,
+                      fontSize: "10px",
+                      fontWeight: 900,
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {plan.eyebrow}
+                  </p>
+
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      padding: "6px 9px",
+                      borderRadius: "999px",
+                      border: `1px solid ${plan.accent}55`,
+                      background: `${plan.accent}12`,
+                      color: plan.accent,
+                      fontSize: "8px",
+                      fontWeight: 900,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {plan.badge}
+                  </span>
+                </div>
 
                 <h3
                   style={{
-                    margin: "10px 0 0",
-                    fontSize: isMobile ? "27px" : "34px",
+                    margin: "14px 0 0",
+                    fontSize: isMobile ? "29px" : "31px",
                     lineHeight: 1.08,
                     fontWeight: 900,
                     letterSpacing: "-0.04em",
                   }}
                 >
-                  Complete Missions for SGD 24.90/month.
+                  {plan.name}
                 </h3>
-
-                <p
-                  style={{
-                    margin: "12px 0 0",
-                    color: "rgba(255,255,255,0.74)",
-                    fontSize: isMobile ? "13px" : "14px",
-                    lineHeight: 1.55,
-                  }}
-                >
-                  Full Nova Student Access across English, Mathematics, and
-                  Science, with Milo’s Business Builder included when it
-                  launches.
-                </p>
-
-                <ul
-                  style={{
-                    listStyle: "none",
-                    padding: 0,
-                    margin: "18px 0 0",
-                    display: "grid",
-                    gap: "10px",
-                  }}
-                >
-                  {[
-                    "Full English Learning Missions",
-                    "Full Mathematics Learning Missions",
-                    "Full Science Learning Missions",
-                    "Topic quizzes and mixed assessments",
-                    "Progress, Dream Token, and Dream Gem rewards",
-                    "Milo’s Business Builder included when launched",
-                  ].map((feature) => (
-                    <li
-                      key={feature}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "22px 1fr",
-                        gap: "10px",
-                        alignItems: "start",
-                        color: "rgba(255,255,255,0.88)",
-                        fontSize: "14px",
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      <span style={{ color: "#7ee8ff", fontWeight: 900 }}>
-                        ✓
-                      </span>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
 
                 <div
                   style={{
                     marginTop: "20px",
-                    height: "52px",
-                    borderRadius: "14px",
-                    border: "1px solid rgba(255,255,255,0.32)",
-                    background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
-                    color: "white",
-                    fontSize: "16px",
-                    fontWeight: 900,
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    boxShadow: "0 14px 28px rgba(83,215,255,0.2)",
+                    alignItems: "flex-end",
+                    gap: "7px",
+                    flexWrap: "wrap",
                   }}
                 >
-                  View Student Access Plans ›
+                  <strong
+                    style={{
+                      color: "white",
+                      fontSize: plan.key === "full" ? "23px" : isMobile ? "34px" : "36px",
+                      lineHeight: 1,
+                      fontWeight: 900,
+                    }}
+                  >
+                    {plan.price}
+                  </strong>
+                  {plan.suffix && (
+                    <span
+                      style={{
+                        paddingBottom: "3px",
+                        color: "rgba(255,255,255,0.48)",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {plan.suffix}
+                    </span>
+                  )}
                 </div>
-              </div>
-            </div>
 
-            {!studentHovered && !isMobile && (
+                <p
+                  style={{
+                    margin: "18px 0 0",
+                    minHeight: isDesktop ? "104px" : "auto",
+                    color: "rgba(255,255,255,0.68)",
+                    fontSize: "13px",
+                    lineHeight: 1.62,
+                  }}
+                >
+                  {plan.description}
+                </p>
+              </div>
+
               <div
                 style={{
-                  position: "absolute",
-                  left: "24px",
-                  right: "24px",
-                  bottom: "24px",
-                  zIndex: 2,
-                  borderRadius: "18px",
-                  background: "rgba(255,255,255,0.88)",
-                  border: "1px solid rgba(126,232,255,0.24)",
-                  padding: "16px 18px",
-                  color: "#061632",
-                  boxShadow: "0 18px 40px rgba(0,0,0,0.12)",
+                  position: "relative",
+                  zIndex: 1,
+                  marginTop: "22px",
+                  paddingTop: "20px",
+                  borderTop: "1px solid rgba(255,255,255,0.1)",
+                  display: "grid",
+                  gap: "11px",
+                  flex: 1,
                 }}
               >
-                <p
-                  style={{
-                    margin: 0,
-                    color: "#256d91",
-                    fontSize: "12px",
-                    letterSpacing: "0.16em",
-                    textTransform: "uppercase",
-                    fontWeight: 900,
-                  }}
-                >
-                  Student Access
-                </p>
-
-                <h3
-                  style={{
-                    margin: "6px 0 0",
-                    fontSize: "24px",
-                    lineHeight: 1.08,
-                    fontWeight: 900,
-                    letterSpacing: "-0.03em",
-                  }}
-                >
-                  SGD 24.90/month
-                </h3>
-
-                <p
-                  style={{
-                    margin: "8px 0 0",
-                    color: "rgba(6,22,50,0.62)",
-                    fontSize: "13px",
-                    lineHeight: 1.45,
-                  }}
-                >
-                  Complete English, Mathematics, and Science missions. Milo’s
-                  Business Builder is included when launched.
-                </p>
+                {plan.features.map((feature) => (
+                  <div
+                    key={feature}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "20px minmax(0,1fr)",
+                      gap: "9px",
+                      alignItems: "start",
+                      color: "rgba(255,255,255,0.82)",
+                      fontSize: "12px",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    <span style={{ color: plan.accent, fontWeight: 900 }}>✓</span>
+                    <span>{feature}</span>
+                  </div>
+                ))}
               </div>
-            )}
-          </article>
+
+              <button
+                type="button"
+                onClick={openPricingPage}
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                  marginTop: "24px",
+                  minHeight: "50px",
+                  width: "100%",
+                  borderRadius: "14px",
+                  border: `1px solid ${plan.accent}66`,
+                  background: plan.comingSoon
+                    ? "rgba(255,255,255,0.055)"
+                    : `linear-gradient(135deg, ${plan.accent}36, rgba(30,61,120,0.86))`,
+                  color: "white",
+                  fontSize: "11px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {plan.comingSoon ? "View Coming Soon Plan" : "View Plan & Pricing"} →
+              </button>
+            </article>
+          ))}
         </div>
 
-        <p
+        <div
           style={{
-            margin: "22px 0 0",
-            color: "rgba(255,255,255,0.66)",
-            fontSize: "13px",
-            lineHeight: 1.6,
-            textAlign: "center",
+            marginTop: "24px",
+            padding: isMobile ? "16px" : "18px 22px",
+            borderRadius: "18px",
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.04)",
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            alignItems: isMobile ? "flex-start" : "center",
+            justifyContent: "space-between",
+            gap: "12px",
           }}
         >
-          View the pricing page for all current monthly and annual options.
-        </p>
+          <div>
+            <p
+              style={{
+                margin: 0,
+                color: "#ffbd73",
+                fontSize: "10px",
+                fontWeight: 900,
+                letterSpacing: "0.15em",
+                textTransform: "uppercase",
+              }}
+            >
+              Complete Membership
+            </p>
+            <p
+              style={{
+                margin: "6px 0 0",
+                color: "white",
+                fontSize: "14px",
+                fontWeight: 800,
+                lineHeight: 1.45,
+              }}
+            >
+              Full Access includes both NOVA+ and Milo Finance, plus Science.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={openPricingPage}
+            style={{
+              minHeight: "44px",
+              padding: "0 16px",
+              borderRadius: "999px",
+              border: "1px solid rgba(255,189,115,0.42)",
+              background: "rgba(255,189,115,0.1)",
+              color: "#ffd18a",
+              fontSize: "10px",
+              fontWeight: 900,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              fontFamily: "inherit",
+            }}
+          >
+            Compare All Plans →
+          </button>
+        </div>
       </div>
     </div>
   );

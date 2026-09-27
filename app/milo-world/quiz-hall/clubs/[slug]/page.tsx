@@ -1136,7 +1136,7 @@ export default function CreatorClubPage() {
       style={clubUpgradeBackdropStyle(clubAppearance.club_theme_key)}
     >
       <img
-        src={club.cover_image_url || "/milo-world/quiz-hall/quiz-hall-bg.png"}
+        src={club.cover_image_url || "/milo-world/quiz-hall/backgrounds/dreamscape-core-glow.png"}
         alt=""
         aria-hidden="true"
         className="absolute inset-0 h-full w-full object-cover opacity-[0.20]"
@@ -1165,12 +1165,6 @@ export default function CreatorClubPage() {
                 </strong>
               </div>
             </div>
-
-            {hallAccess?.isAdmin && !hallAccess.publicAccessEnabled && (
-              <span className="rounded-full border border-violet-200/18 bg-violet-400/[0.08] px-3 py-2 text-[8px] font-black uppercase tracking-[0.1em] text-violet-100">
-                Admin Preview
-              </span>
-            )}
           </div>
         </header>
 
@@ -1284,7 +1278,7 @@ export default function CreatorClubPage() {
 
                 {hallAccess?.isAdmin ? (
                   <div className="mt-4 rounded-xl border border-violet-200/14 bg-violet-400/[0.07] px-3 py-3 text-center text-[9px] font-black uppercase tracking-[0.09em] text-violet-100">
-                    Admin Preview Access
+                    Admin Access
                   </div>
                 ) : club.is_member ? (
                   <>
