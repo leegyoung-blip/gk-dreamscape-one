@@ -431,10 +431,80 @@ export default function CreatorClubPage() {
         };
 
         setClub(officialClub);
-        setQuizzes([]);
-        setClubLeaderboard([]);
+
+        const [
+          officialQuizResponse,
+          officialLeaderboardResponse,
+          officialHistoryResponse,
+        ] = await Promise.all([
+          supabase.rpc("get_creator_official_quiz_catalog_v1", {
+            p_club_slug: slug,
+          }),
+          supabase.rpc("get_creator_engine_club_leaderboard_v2", {
+            p_club_id: officialClub.club_id,
+            p_limit: 100,
+          }),
+          currentUser
+            ? supabase.rpc("get_my_creator_engine_history_v2", {
+                p_club_id: officialClub.club_id,
+              })
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+
+        setQuizzes(
+          officialQuizResponse.error
+            ? []
+            : ((officialQuizResponse.data || []) as QuizCatalogRow[]).map(
+                (quiz) => ({
+                  ...quiz,
+                  quiz_id: String(quiz.quiz_id),
+                  quiz_slug: String(quiz.quiz_slug),
+                  title: String(quiz.title),
+                  total_completed_attempts: Number(
+                    quiz.total_completed_attempts || 0,
+                  ),
+                  user_attempt_count: Number(quiz.user_attempt_count || 0),
+                  user_best_percent: Number(quiz.user_best_percent || 0),
+                  user_best_points: Number(quiz.user_best_points || 0),
+                  is_current_challenge: Boolean(
+                    quiz.is_current_challenge,
+                  ),
+                }),
+              ),
+        );
+
+        setClubLeaderboard(
+          officialLeaderboardResponse.error
+            ? []
+            : (
+                (officialLeaderboardResponse.data || []) as ClubLeaderboardRow[]
+              ).map((row) => ({
+                ...row,
+                rank: Number(row.rank || 0),
+                quizzes_completed: Number(row.quizzes_completed || 0),
+                total_points: Number(row.total_points || 0),
+                average_percent: Number(row.average_percent || 0),
+              })),
+        );
+
+        setHistory(
+          officialHistoryResponse.error
+            ? []
+            : ((officialHistoryResponse.data || []) as HistoryRow[]).map(
+                (row) => ({
+                  ...row,
+                  attempt_number: Number(row.attempt_number || 0),
+                  correct_count: Number(row.correct_count || 0),
+                  score_percent: Number(row.score_percent || 0),
+                  total_points: Number(row.total_points || 0),
+                  question_timer_seconds: Number(
+                    row.question_timer_seconds || 0,
+                  ),
+                }),
+              ),
+        );
+
         setChallengeLeaderboard([]);
-        setHistory([]);
         setCycle(null);
         setPlayRoomAccess(null);
         setPulseNotices([]);
@@ -1306,13 +1376,12 @@ export default function CreatorClubPage() {
             {club.is_official && (
               <section className="mt-4 rounded-[22px] border border-cyan-200/12 bg-cyan-300/[0.035] px-4 py-4">
                 <p className="text-[8px] font-black uppercase tracking-[0.13em] text-cyan-100/58">
-                  Dreamscape Original · Launch Setup
+                  Dreamscape Original
                 </p>
                 <p className="mt-2 text-[10px] leading-5 text-white/38">
-                  This official community is live and can accept genuine members.
-                  Its first Dreamscape-created challenge pack will be added in the
-                  next content phase. No member counts, plays, reactions or
-                  creator rewards are pre-filled.
+                  {quizzes.length > 0
+                    ? `${quizzes.length} official Dreamscape challenges are live. Scores, members, reactions and leaderboards come only from real user activity.`
+                    : "This official community is live and can accept genuine members. Its first Dreamscape-created challenges are still being prepared."}
                 </p>
               </section>
             )}
@@ -1535,7 +1604,8 @@ function HomeTab({
           <section className="rounded-[28px] border border-white/9 bg-white/[0.03] p-6 text-center">
             <h2 className="text-2xl font-black">No live club challenge.</h2>
             <p className="mt-2 text-xs text-white/38">
-              Browse the published challenges while the creator prepares the next
+              Browse the published challenges while{" "}
+              {club.is_official ? "Dreamscape" : "the creator"} prepares the next
               featured cycle.
             </p>
           </section>
@@ -1556,7 +1626,9 @@ function HomeTab({
 
           {quizzes.length === 0 ? (
             <p className="mt-4 rounded-2xl border border-white/8 bg-black/14 p-5 text-center text-xs text-white/38">
-              This creator is still preparing the club’s first challenge.
+              {club.is_official
+              ? "Dreamscape is still preparing this club’s first challenge."
+              : "This creator is still preparing the club’s first challenge."}
             </p>
           ) : (
             <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -1695,7 +1767,9 @@ function ChallengesTab({
         <div className="mt-5 rounded-[24px] border border-white/8 bg-black/14 p-8 text-center">
           <h3 className="text-xl font-black">No challenges published yet.</h3>
           <p className="mt-2 text-xs text-white/38">
-            Check back when the creator publishes the first one.
+            {club.is_official
+              ? "Check back when Dreamscape publishes the first one."
+              : "Check back when the creator publishes the first one."}
           </p>
         </div>
       ) : (

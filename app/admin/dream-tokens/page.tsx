@@ -11,6 +11,7 @@ import CreatorPartnersPanel from "@/components/admin/CreatorPartnersPanel";
 import ObjectivesAdminPanel from "@/components/admin/ObjectivesAdminPanel";
 import SchoolworkAiAdminPanel from "@/components/admin/SchoolworkAiAdminPanel";
 import NovaPlusAccessAdminPanel from "@/components/admin/NovaPlusAccessAdminPanel";
+import MiloFinanceAccessAdminPanel from "@/components/admin/MiloFinanceAccessAdminPanel";
 
 type AdminUser = {
   id: string;
@@ -35,7 +36,8 @@ type AdminSection =
   | "objectives"
   | "affiliates"
   | "schoolwork-ai"
-  | "nova-plus-access";
+  | "nova-plus-access"
+  | "milo-finance-access";
 
 type AdminGroup =
   | "overview"
@@ -54,7 +56,8 @@ function adminGroupForSection(
     section === "roles" ||
     section === "student-access" ||
     section === "teachers" ||
-    section === "nova-plus-access"
+    section === "nova-plus-access" ||
+    section === "milo-finance-access"
   ) {
     return "users-access";
   }
@@ -616,7 +619,7 @@ export default function DreamTokensAdminPage() {
 
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/62">
             Monitor Dreamscape at a glance, then manage the economy, users,
-            access, partners, learning systems, Schoolwork AI and NOVA+.
+            access, partners, learning systems, Schoolwork AI, NOVA+ and Milo Finance.
           </p>
 
           {pageMessage && (
@@ -726,6 +729,13 @@ export default function DreamTokensAdminPage() {
                     onClick={() => setActiveSection("nova-plus-access")}
                   >
                     NOVA+ Access
+                  </AdminSubTab>
+
+                  <AdminSubTab
+                    active={activeSection === "milo-finance-access"}
+                    onClick={() => setActiveSection("milo-finance-access")}
+                  >
+                    Milo Finance Access
                   </AdminSubTab>
                 </>
               )}
@@ -1175,6 +1185,8 @@ export default function DreamTokensAdminPage() {
           <SchoolworkAiAdminPanel />
         ) : activeSection === "nova-plus-access" ? (
           <NovaPlusAccessAdminPanel />
+        ) : activeSection === "milo-finance-access" ? (
+          <MiloFinanceAccessAdminPanel />
         ) : (
           <AffiliateManagementPanel />
         )}
@@ -1376,7 +1388,7 @@ function AdminOverview({
           <div className="mt-5 grid gap-2">
             <OverviewLink
               title="Users & Access"
-              detail="Roles, student access, teacher rosters and NOVA+."
+              detail="Roles, student access, teacher rosters, NOVA+ and Milo Finance."
               onClick={() => onNavigate("roles")}
             />
             <OverviewLink

@@ -92,14 +92,15 @@ export default function BankHomeDashboard({
           background:
             "radial-gradient(circle at 8% 0%, rgba(83,215,255,0.10), transparent 30%), radial-gradient(circle at 96% 8%, rgba(157,111,255,0.09), transparent 28%), linear-gradient(145deg, rgba(5,21,40,0.86), rgba(5,10,27,0.92))",
           boxShadow: "0 24px 70px rgba(0,0,0,0.22)",
-          padding: isDesktop ? "15px 18px" : isMobile ? "18px" : "20px",
+          minHeight: isDesktop ? "184px" : undefined,
+          padding: isDesktop ? "22px 24px" : isMobile ? "20px" : "24px",
         }}
       >
         <div
           style={{
             display: "grid",
             gridTemplateColumns: isDesktop ? "1.15fr 0.85fr" : "1fr",
-            gap: isDesktop ? "20px" : "14px",
+            gap: isDesktop ? "28px" : "16px",
             alignItems: "center",
           }}
         >
@@ -110,7 +111,7 @@ export default function BankHomeDashboard({
                 margin: "6px 0 0",
                 maxWidth: "900px",
                 fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isDesktop ? "30px" : isMobile ? "29px" : "36px",
+                fontSize: isDesktop ? "34px" : isMobile ? "29px" : "38px",
                 lineHeight: 1.03,
                 fontWeight: 500,
                 letterSpacing: "-0.03em",
@@ -133,7 +134,7 @@ export default function BankHomeDashboard({
             )}
             <div
               style={{
-                marginTop: isDesktop ? "10px" : "13px",
+                marginTop: isDesktop ? "15px" : "13px",
                 display: "flex",
                 gap: "7px",
                 flexWrap: "wrap",
@@ -153,16 +154,17 @@ export default function BankHomeDashboard({
 
           <div
             style={{
-              borderRadius: "17px",
-              border: "1px solid rgba(126,232,255,0.12)",
-              background: "rgba(3,12,29,0.50)",
-              padding: isDesktop ? "12px 13px" : "15px",
+              borderRadius: "20px",
+              border: "1px solid rgba(255,209,138,0.20)",
+              background: "linear-gradient(145deg, rgba(7,18,38,0.78), rgba(7,10,26,0.86))",
+              padding: isDesktop ? "18px 20px" : "17px",
+              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.018), 0 16px 38px rgba(0,0,0,0.16)",
             }}
           >
             <div
               style={{
                 color: "rgba(255,255,255,0.38)",
-                fontSize: "8px",
+                fontSize: "9px",
                 fontWeight: 900,
                 letterSpacing: "0.13em",
                 textTransform: "uppercase",
@@ -173,21 +175,24 @@ export default function BankHomeDashboard({
             <strong
               style={{
                 display: "block",
-                marginTop: "4px",
+                marginTop: "7px",
+                color: "#ffd18a",
                 fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isDesktop ? "28px" : "32px",
-                fontWeight: 500,
-                letterSpacing: "-0.03em",
+                fontSize: isDesktop ? "39px" : "34px",
+                lineHeight: 1,
+                fontWeight: 600,
+                letterSpacing: "-0.035em",
+                textShadow: "0 10px 26px rgba(255,190,90,0.10)",
               }}
             >
               {loading ? "—" : formatDt(account.total)}
             </strong>
             <div
               style={{
-                marginTop: "8px",
+                marginTop: "14px",
                 display: "grid",
                 gridTemplateColumns: "repeat(3, minmax(0,1fr))",
-                gap: "6px",
+                gap: "8px",
               }}
             >
               <Metric label="Available" value={loading ? "—" : formatDt(account.available)} />
@@ -362,16 +367,16 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div
       style={{
         minWidth: 0,
-        borderRadius: "10px",
-        border: "1px solid rgba(255,255,255,0.05)",
-        background: "rgba(255,255,255,0.024)",
-        padding: "8px",
+        borderRadius: "12px",
+        border: "1px solid rgba(255,209,138,0.085)",
+        background: "rgba(255,255,255,0.026)",
+        padding: "10px 11px",
       }}
     >
       <div
         style={{
           color: "rgba(255,255,255,0.32)",
-          fontSize: "7px",
+          fontSize: "8px",
           fontWeight: 900,
           letterSpacing: "0.075em",
           textTransform: "uppercase",
@@ -382,9 +387,10 @@ function Metric({ label, value }: { label: string; value: string }) {
       <strong
         style={{
           display: "block",
-          marginTop: "3px",
-          color: "rgba(255,255,255,0.82)",
-          fontSize: "9px",
+          marginTop: "5px",
+          color: "#ffd18a",
+          fontSize: "12px",
+          fontWeight: 900,
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",

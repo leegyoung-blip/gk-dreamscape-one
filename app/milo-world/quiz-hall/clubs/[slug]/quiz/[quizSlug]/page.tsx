@@ -22,6 +22,7 @@ type QuizPayload = {
   challenge_id: string | null;
   challenge_ends_at: string | null;
   is_current_challenge: boolean;
+  is_official?: boolean;
   questions: CreatorEngineQuestion[];
 };
 
@@ -159,13 +160,29 @@ export default function CreatorQuizEngineV2PlayPage() {
       return;
     }
 
-    const { data, error } = await supabase.rpc(
-      "get_creator_engine_quiz_for_play_v2",
+    const officialResponse = await supabase.rpc(
+      "get_creator_official_engine_quiz_for_play_v1",
       {
         p_club_slug: clubSlug,
         p_quiz_slug: quizSlug,
       },
     );
+
+    let data = officialResponse.data;
+    let error = officialResponse.error;
+
+    if (!data && !error) {
+      const standardResponse = await supabase.rpc(
+        "get_creator_engine_quiz_for_play_v2",
+        {
+          p_club_slug: clubSlug,
+          p_quiz_slug: quizSlug,
+        },
+      );
+
+      data = standardResponse.data;
+      error = standardResponse.error;
+    }
 
     if (error) {
       setErrorMessage(error.message || "Challenge could not be opened.");
@@ -201,6 +218,7 @@ export default function CreatorQuizEngineV2PlayPage() {
         ? String(row.challenge_ends_at)
         : null,
       is_current_challenge: Boolean(row.is_current_challenge),
+      is_official: Boolean(row.is_official),
       questions: ((row.questions || []) as CreatorEngineQuestion[]).map(
         (question) => ({
           ...question,
@@ -234,13 +252,21 @@ export default function CreatorQuizEngineV2PlayPage() {
     setCurrentValue(initialValue(normalized.questions[0]));
     questionStartedAt.current = Date.now();
 
-    const sessionResponse = await supabase.rpc(
-      "creator_engine_begin_play_session_v2",
-      {
-        p_club_slug: normalized.club_slug,
-        p_quiz_slug: normalized.quiz_slug,
-      },
-    );
+    const sessionResponse = normalized.is_official
+      ? await supabase.rpc(
+          "creator_official_engine_begin_play_session_v1",
+          {
+            p_club_slug: normalized.club_slug,
+            p_quiz_slug: normalized.quiz_slug,
+          },
+        )
+      : await supabase.rpc(
+          "creator_engine_begin_play_session_v2",
+          {
+            p_club_slug: normalized.club_slug,
+            p_quiz_slug: normalized.quiz_slug,
+          },
+        );
 
     if (!sessionResponse.error && sessionResponse.data) {
       setPlaySessionId(String(sessionResponse.data));
@@ -290,14 +316,23 @@ export default function CreatorQuizEngineV2PlayPage() {
     setIsSubmitting(true);
     setErrorMessage("");
 
-    const { data, error } = await supabase.rpc(
-      "creator_engine_submit_attempt_v2",
-      {
-        p_club_slug: quiz.club_slug,
-        p_quiz_slug: quiz.quiz_slug,
-        p_answers: nextAnswers,
-      },
-    );
+    const { data, error } = quiz.is_official
+      ? await supabase.rpc(
+          "creator_official_engine_submit_attempt_v1",
+          {
+            p_club_slug: quiz.club_slug,
+            p_quiz_slug: quiz.quiz_slug,
+            p_answers: nextAnswers,
+          },
+        )
+      : await supabase.rpc(
+          "creator_engine_submit_attempt_v2",
+          {
+            p_club_slug: quiz.club_slug,
+            p_quiz_slug: quiz.quiz_slug,
+            p_answers: nextAnswers,
+          },
+        );
 
     if (error) {
       setErrorMessage(
@@ -392,7 +427,9 @@ export default function CreatorQuizEngineV2PlayPage() {
 
           <section className="mt-5 rounded-[32px] border border-cyan-200/13 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_35%),linear-gradient(145deg,rgba(5,26,48,0.94),rgba(2,7,17,0.98))] p-6 text-center sm:p-8">
             <p className="text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/58">
-              Creator Engine V2 · Challenge Complete
+              {quiz.is_official
+                ? "Dreamscape Original · Challenge Complete"
+                : "Creator Engine V2 · Challenge Complete"}
             </p>
             <h1 className="mt-3 font-serif text-4xl font-normal sm:text-6xl">
               {quiz.title}

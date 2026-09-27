@@ -6,6 +6,41 @@ import type { BankScreenMode } from "../lib/bank-types";
 import FinancialCoursePanel from "./FinancialCoursePanel";
 import MiloFinanceBadge from "./MiloFinanceBadge";
 
+
+function AccessLabel({ kind }: { kind: "free" | "mixed" | "paid" }) {
+  const free = kind === "free";
+  const mixed = kind === "mixed";
+  return (
+    <span
+      style={{
+        minHeight: "24px",
+        padding: "0 8px",
+        borderRadius: "999px",
+        border: free
+          ? "1px solid rgba(159,255,210,0.26)"
+          : mixed
+            ? "1px solid rgba(126,232,255,0.24)"
+            : "1px solid rgba(255,209,138,0.28)",
+        background: free
+          ? "rgba(96,255,182,0.07)"
+          : mixed
+            ? "linear-gradient(90deg, rgba(96,255,182,0.06), rgba(255,190,90,0.07))"
+            : "rgba(255,190,90,0.075)",
+        color: free ? "#a9ffd4" : mixed ? "#bdefff" : "#ffd18a",
+        display: "inline-flex",
+        alignItems: "center",
+        whiteSpace: "nowrap",
+        fontSize: "7px",
+        fontWeight: 950,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+      }}
+    >
+      {free ? "Free for all" : mixed ? "Free start · paid content" : "Paid · Milo Finance"}
+    </span>
+  );
+}
+
 export default function LearnSection({
   screenMode,
   isLoggedIn,
@@ -34,9 +69,14 @@ export default function LearnSection({
           </div>
           {!accessLoading && hasMiloFinanceAccess && <MiloFinanceBadge active />}
         </div>
-        <p style={{ margin: "11px 0 0", maxWidth: "820px", color: "rgba(255,255,255,0.54)", fontSize: "12px", lineHeight: 1.65 }}>
-          Learn finance through decisions, calculations and simulations inside Dreamscape. Financial Foundations and the opening Money Decisions lessons are free; Banking & Growth and Markets & Investing extend into Milo Finance.
+        <p style={{ margin: "11px 0 0", maxWidth: "880px", color: "rgba(255,255,255,0.54)", fontSize: "12px", lineHeight: 1.65 }}>
+          Learn finance through decisions, calculations and simulations inside Dreamscape. Every pathway is labelled clearly so learners can see what is free for everyone and what requires Milo Finance.
         </p>
+        <div style={{ marginTop: "13px", display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <AccessLabel kind="free" />
+          <AccessLabel kind="mixed" />
+          <AccessLabel kind="paid" />
+        </div>
       </section>
 
       <section style={{ marginTop: "14px" }}>
@@ -53,7 +93,11 @@ export default function LearnSection({
             const available = pathway.status === "available";
             const selected = selectedCourseId === pathway.id;
             const premiumOnly = pathway.accessTier === "milo_finance";
-            const showFinanceBadge = premiumOnly || pathway.includesPremium;
+            const accessKind: "free" | "mixed" | "paid" = premiumOnly
+              ? "paid"
+              : pathway.includesPremium
+                ? "mixed"
+                : "free";
 
             return (
               <button
@@ -64,7 +108,7 @@ export default function LearnSection({
                 style={{ minHeight: compact ? "172px" : "190px", borderRadius: "18px", border: selected ? `1px solid ${pathway.accent}66` : available ? `1px solid ${pathway.accent}38` : "1px solid rgba(255,255,255,0.06)", background: selected ? `linear-gradient(145deg, ${pathway.accent}17, rgba(4,13,29,0.86))` : available ? `linear-gradient(145deg, ${pathway.accent}0f, rgba(4,13,29,0.78))` : "rgba(4,13,29,0.58)", padding: "15px", display: "flex", flexDirection: "column", opacity: available ? 1 : 0.62, color: "white", textAlign: "left", cursor: available ? "pointer" : "default", fontFamily: "inherit" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "flex-start", flexWrap: "wrap" }}>
                   <span style={{ color: available ? pathway.accent : "rgba(255,255,255,0.30)", fontSize: "8px", fontWeight: 900, letterSpacing: "0.11em", textTransform: "uppercase" }}>Course {String(pathway.order).padStart(2, "0")} · {available ? "Available" : "Planned"}</span>
-                  {showFinanceBadge && <MiloFinanceBadge active={hasMiloFinanceAccess} compact />}
+                  <AccessLabel kind={accessKind} />
                 </div>
                 <strong style={{ display: "block", marginTop: "8px", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "20px", lineHeight: 1.08, fontWeight: 500 }}>{pathway.title}</strong>
                 <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.44)", fontSize: "10px", lineHeight: 1.5 }}>{pathway.description}</p>

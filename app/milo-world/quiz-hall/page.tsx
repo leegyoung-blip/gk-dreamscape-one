@@ -21,7 +21,7 @@ type CreatorJourneyStep = {
   title: string;
   description: string;
   accent: string;
-  status: "live" | "preview" | "future";
+  status: "live" | "locked";
   href?: string;
 };
 
@@ -119,7 +119,7 @@ export default function MiloQuizHallPage() {
       label: "Compete",
       title: "Categories Hub",
       description:
-        "Jump into Dreamscape’s official category challenges, test what you know and compete in single or multiplayer.",
+        "Play Dreamscape’s official category challenges, build mastery and compete in single or multiplayer.",
       accent: "#8dfcff",
       status: "live",
       href: "/milo-world/categories",
@@ -129,37 +129,40 @@ export default function MiloQuizHallPage() {
       label: "Join",
       title: "Creator Clubs",
       description:
-        "Discover communities built around topics people love, join niche challenges and follow creators.",
+        "Explore Dreamscape Originals and community clubs built around football, K-pop and other interests.",
       accent: "#ffd18a",
-      status: clubsCanEnter ? "live" : "preview",
+      status: clubsCanEnter ? "live" : "locked",
       href: clubsCanEnter ? "/milo-world/quiz-hall/communities" : undefined,
     },
     {
       number: "03",
       label: "Create",
-      title: "Build a Club",
+      title: "Build Challenges",
       description:
-        "Turn something you know into your own club, create challenges and start building a community.",
+        "Create your own club and build mixed challenges with Classic Choice, grids, multi-select and estimate questions.",
       accent: "#d8b4fe",
-      status: "future",
+      status: clubsCanEnter ? "live" : "locked",
+      href: clubsCanEnter ? "/milo-world/quiz-hall/communities" : undefined,
     },
     {
       number: "04",
       label: "Grow",
-      title: "Creator Studio",
+      title: "Build a Community",
       description:
-        "Grow your audience, improve your club, track participation and build your creator reputation.",
+        "Grow Club Level and Creator Reputation through genuine members, repeat play, weekly challenges and Club Play Rooms.",
       accent: "#86efac",
-      status: "future",
+      status: clubsCanEnter ? "live" : "locked",
+      href: clubsCanEnter ? "/milo-world/quiz-hall/creator-studio" : undefined,
     },
     {
       number: "05",
-      label: "Earn",
+      label: "Reinvest",
       title: "Creator Rewards",
       description:
-        "Strong communities can eventually unlock Dream Token rewards and creator milestones.",
+        "Earn Dream Tokens from qualified creator activity, then reinvest them in better tools, club style and discovery opportunities.",
       accent: "#fde68a",
-      status: "future",
+      status: clubsCanEnter ? "live" : "locked",
+      href: clubsCanEnter ? "/milo-world/quiz-hall/creator-studio" : undefined,
     },
   ];
 
@@ -484,9 +487,9 @@ export default function MiloQuizHallPage() {
           }}
         >
           {[
-            ["KNOW", "Bring what you know"],
-            ["BUILD", "Turn it into a community"],
-            ["VALUE", "Grow reputation and rewards"],
+            ["KNOW", "Turn knowledge into challenges"],
+            ["BUILD", "Grow a club and community"],
+            ["VALUE", "Earn reputation and reinvest DT"],
           ].map(([title, text], index) => (
             <div
               key={title}
@@ -577,7 +580,7 @@ export default function MiloQuizHallPage() {
                 textTransform: "uppercase",
               }}
             >
-              Two live today · more coming next
+              Play · Create · Grow · Reinvest
             </span>
           )}
         </div>
@@ -592,9 +595,7 @@ export default function MiloQuizHallPage() {
           }}
         >
           {creatorJourney.map((step) => {
-            const isFuture = step.status === "future";
-            const isLocked =
-              step.title === "Creator Clubs" && !clubsCanEnter;
+            const isLocked = step.status === "locked";
 
             const content = (
               <>
@@ -621,37 +622,22 @@ export default function MiloQuizHallPage() {
                     style={{
                       padding: "4px 7px",
                       borderRadius: "999px",
-                      border:
-                        step.status === "live"
-                          ? "1px solid rgba(110,231,183,0.28)"
-                          : step.status === "preview"
-                            ? "1px solid rgba(255,209,138,0.26)"
-                            : "1px solid rgba(196,181,253,0.24)",
-                      background:
-                        step.status === "live"
-                          ? "rgba(16,185,129,0.09)"
-                          : step.status === "preview"
-                            ? "rgba(255,209,138,0.08)"
-                            : "rgba(124,58,237,0.08)",
-                      color:
-                        step.status === "live"
-                          ? "#a7f3d0"
-                          : step.status === "preview"
-                            ? "#ffd18a"
-                            : "#ddd6fe",
+                      border: step.status === "live"
+                        ? "1px solid rgba(110,231,183,0.28)"
+                        : "1px solid rgba(255,209,138,0.26)",
+                      background: step.status === "live"
+                        ? "rgba(16,185,129,0.09)"
+                        : "rgba(255,209,138,0.08)",
+                      color: step.status === "live"
+                        ? "#a7f3d0"
+                        : "#ffd18a",
                       fontSize: "8px",
                       fontWeight: 900,
                       letterSpacing: "0.08em",
                       textTransform: "uppercase",
                     }}
                   >
-                    {step.status === "live"
-                      ? "Open"
-                      : step.status === "preview"
-                        ? isAdmin
-                          ? "Admin Preview"
-                          : "Preparing"
-                        : "Coming Soon"}
+                    {step.status === "live" ? "Open" : "Closed"}
                   </span>
                 </div>
 
@@ -695,24 +681,14 @@ export default function MiloQuizHallPage() {
                   style={{
                     marginTop: "auto",
                     paddingTop: "18px",
-                    color: isFuture
-                      ? "rgba(255,255,255,0.38)"
-                      : isLocked
-                        ? "#ffd18a"
-                        : step.accent,
+                    color: isLocked ? "#ffd18a" : step.accent,
                     fontSize: "10px",
                     fontWeight: 900,
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
                   }}
                 >
-                  {isFuture
-                    ? "Roadmap Feature"
-                    : isLocked
-                      ? "Public Access Closed"
-                      : step.title === "Creator Clubs" && isAdmin && !clubsPublic
-                        ? "Enter Admin Preview →"
-                        : "Enter →"}
+                  {isLocked ? "Public Access Closed" : "Enter →"}
                 </div>
               </>
             );
@@ -721,14 +697,12 @@ export default function MiloQuizHallPage() {
               minHeight: tablet ? "250px" : "300px",
               borderRadius: "22px",
               border: `1px solid ${step.accent}33`,
-              background:
-                step.status === "future"
-                  ? "linear-gradient(145deg, rgba(12,16,32,0.82), rgba(3,9,22,0.9))"
-                  : "linear-gradient(145deg, rgba(9,27,47,0.91), rgba(3,10,24,0.95))",
-              boxShadow:
-                step.status === "live"
-                  ? `0 18px 46px rgba(0,0,0,0.34), 0 0 24px ${step.accent}12`
-                  : "0 18px 44px rgba(0,0,0,0.3)",
+              background: isLocked
+                ? "linear-gradient(145deg, rgba(12,16,32,0.82), rgba(3,9,22,0.9))"
+                : "linear-gradient(145deg, rgba(9,27,47,0.91), rgba(3,10,24,0.95))",
+              boxShadow: isLocked
+                ? "0 18px 44px rgba(0,0,0,0.3)"
+                : `0 18px 46px rgba(0,0,0,0.34), 0 0 24px ${step.accent}12`,
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               padding: "18px",
@@ -736,7 +710,7 @@ export default function MiloQuizHallPage() {
               flexDirection: "column",
               color: "white",
               textDecoration: "none",
-              opacity: isFuture ? 0.74 : 1,
+              opacity: isLocked ? 0.72 : 1,
             };
 
             if (step.href) {
@@ -827,10 +801,11 @@ export default function MiloQuizHallPage() {
                 lineHeight: 1.6,
               }}
             >
-              In Milo’s World, you learn how money moves through banks,
-              businesses, stocks and property. Quiz Hall adds another idea:
-              people can create value by sharing knowledge, building an
-              audience and bringing a community together.
+              In Milo’s World, you learn how value moves through banks,
+              businesses, stocks and property. Quiz Hall adds another path:
+              turn knowledge into challenges, grow a genuine community, build
+              reputation and reinvest what you earn into creating something
+              better.
             </p>
           </div>
 
@@ -880,7 +855,7 @@ export default function MiloQuizHallPage() {
               textTransform: "uppercase",
             }}
           >
-            What changes here
+            The creator system
           </p>
 
           <div
@@ -891,9 +866,9 @@ export default function MiloQuizHallPage() {
             }}
           >
             {[
-              "Official quizzes become the entry point, not the whole page.",
-              "Creator Clubs become part of a larger creator journey.",
-              "Future creation, reputation and rewards are visible from day one.",
+              "Build mixed Creator Engine V2 challenges instead of being limited to simple four-option quizzes.",
+              "Grow Club Level and Creator Reputation through genuine participation, return play and community activity.",
+              "Earn qualified creator DT and reinvest it in tools, club customisation and discovery opportunities.",
             ].map((text, index) => (
               <div
                 key={text}

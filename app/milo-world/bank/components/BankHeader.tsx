@@ -54,11 +54,10 @@ export default function BankHeader({
         top: 0,
         zIndex: 50,
         width: "100%",
-        borderBottom: "1px solid rgba(126,232,255,0.055)",
-        background:
-          "linear-gradient(180deg, rgba(2,8,19,0.93), rgba(2,8,19,0.76))",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
+        borderBottom: "none",
+        background: "transparent",
+        backdropFilter: "none",
+        WebkitBackdropFilter: "none",
       }}
     >
       <div

@@ -15,6 +15,7 @@ type IngredientKey =
   | "chopped-tomato"
   | "raw-chicken"
   | "cooked-chicken"
+  | "sliced-chicken"
   | "ham"
   | "cheese-slice"
   | "bacon";
@@ -115,8 +116,9 @@ const INGREDIENTS: IngredientDef[] = [
   { key: "lettuce", label: "Lettuce", image: `${ASSET_BASE}/ingredients/ingredient-lettuce.png`, supply: true },
   { key: "whole-tomato", label: "Whole Tomato", image: `${ASSET_BASE}/ingredients/ingredient-whole-tomato.png`, supply: true },
   { key: "chopped-tomato", label: "Chopped Tomato", image: `${ASSET_BASE}/ingredients/ingredient-tomato.png` },
-  { key: "raw-chicken", label: "Chicken", image: `${ASSET_BASE}/ingredients/ingredient-chicken.png`, supply: true },
+  { key: "raw-chicken", label: "Raw Chicken", image: `${ASSET_BASE}/ingredients/ingredient-raw-chicken.png`, supply: true },
   { key: "cooked-chicken", label: "Cooked Chicken", image: `${ASSET_BASE}/ingredients/ingredient-chicken.png` },
+  { key: "sliced-chicken", label: "Sliced Chicken", image: `${ASSET_BASE}/ingredients/ingredient-sliced-chicken.png` },
   { key: "ham", label: "Ham", image: `${ASSET_BASE}/ingredients/ingredient-ham.png`, supply: true },
   { key: "cheese-slice", label: "Cheese", image: `${ASSET_BASE}/ingredients/ingredient-cheese-slice.png`, supply: true },
   { key: "bacon", label: "Bacon", image: `${ASSET_BASE}/ingredients/ingredient-bacon.png`, supply: true },
@@ -203,14 +205,14 @@ const SALAD_RECIPES: RecipeDef[] = [
     label: "Chicken Salad",
     image: `${ASSET_BASE}/dishes/dish-salad-tier-3-chicken-salad.png`,
     tier: 3,
-    ingredients: ["lettuce", "chopped-tomato", "cooked-chicken"],
+    ingredients: ["lettuce", "chopped-tomato", "sliced-chicken"],
   },
   {
     key: "dish-salad-tier-4-chef-salad",
     label: "Chef Salad",
     image: `${ASSET_BASE}/dishes/dish-salad-tier-4-chef-salad.png`,
     tier: 4,
-    ingredients: ["lettuce", "chopped-tomato", "cooked-chicken", "ham"],
+    ingredients: ["lettuce", "chopped-tomato", "sliced-chicken", "ham"],
   },
 ];
 
@@ -586,8 +588,8 @@ export default function MilosMixAndServe({
     return () => window.clearInterval(timer);
   }, [running, paused, stageResult, orderTimersStarted]);
 
-  // Workstation processing loop. Both raw patties and whole tomatoes take 5 seconds.
-  // Patties remain in their pan until the player removes them; chopped tomatoes auto-return.
+  // Workstation processing loop. Pan-frying and chopping both take 5 seconds.
+  // Cooked patties/chicken stay in their pan until the player removes them; chopped ingredients auto-return.
   useEffect(() => {
     if (!running || paused || stageResult) return;
 
@@ -614,10 +616,12 @@ export default function MilosMixAndServe({
           const boardCopy = [...boardRef.current];
           const empty = boardCopy.findIndex((item) => item === null);
           if (empty !== -1) {
-            boardCopy[empty] = createIngredient(++nextItemId.current, "chopped-tomato");
+            const outputKey: IngredientKey = job.kind === "chicken" ? "sliced-chicken" : "chopped-tomato";
+            const outputLabel = job.kind === "chicken" ? "Sliced chicken" : "Chopped tomato";
+            boardCopy[empty] = createIngredient(++nextItemId.current, outputKey);
             boardRef.current = boardCopy;
             setBoard(boardCopy);
-            setStatus("Chopped tomato returned to the prep counter.");
+            setStatus(`${outputLabel} returned to the prep counter.`);
             return null;
           }
         }
@@ -891,10 +895,25 @@ export default function MilosMixAndServe({
     if (!running || paused) return;
     const item = boardRef.current[fromIndex];
     if (!item) return;
-    if (item.type !== "ingredient" || item.key !== "whole-tomato") {
-      setStatus(`Only a whole tomato uses the chopping board in ${stationName}.`);
+    if (item.type !== "ingredient") {
+      setStatus(`Only prepped ingredients use the chopping board in ${stationName}.`);
       return;
     }
+
+    let jobKind: WorkstationJob["kind"] | null = null;
+    let label = "";
+
+    if (item.key === "whole-tomato") {
+      jobKind = "tomato";
+      label = "Tomato";
+    } else if (activeStation === "salad" && item.key === "cooked-chicken") {
+      jobKind = "chicken";
+      label = "Cooked chicken";
+    } else {
+      setStatus(`Use the chopping board for whole tomato${activeStation === "salad" ? " or cooked chicken" : ""} in ${stationName}.`);
+      return;
+    }
+
     if (choppingJob) {
       setStatus("The chopping board is already in use.");
       return;
@@ -903,9 +922,9 @@ export default function MilosMixAndServe({
     current[fromIndex] = null;
     boardRef.current = current;
     setBoard(current);
-    setChoppingJob({ id: nextJobId.current++, kind: "tomato", status: "processing", elapsedTicks: 0 });
+    setChoppingJob({ id: nextJobId.current++, kind: jobKind, status: "processing", elapsedTicks: 0 });
     setSelectedIndex(null);
-    setStatus("Tomato chopping · 5 seconds.");
+    setStatus(`${label} chopping · 5 seconds.`);
   }
 
   function shiftOrderQueue(orderId: number, servedCount: number) {
@@ -1389,7 +1408,7 @@ export default function MilosMixAndServe({
         <img src={WORKSTATION_ASSETS.choppingBoard} alt="" draggable={false} style={{ width: mobile ? 86 : 98, height: mobile ? 76 : 88, objectFit: "contain", pointerEvents: "none" }} />
         {job && (
           <img
-            src={ingredientDef("whole-tomato").image}
+            src={ingredientDef(job.kind === "chicken" ? "cooked-chicken" : "whole-tomato").image}
             alt=""
             draggable={false}
             style={{
@@ -1397,8 +1416,8 @@ export default function MilosMixAndServe({
               left: "50%",
               top: "48%",
               transform: "translate(-50%,-50%)",
-              width: 36,
-              height: 36,
+              width: job.kind === "chicken" ? 46 : 36,
+              height: job.kind === "chicken" ? 46 : 36,
               objectFit: "contain",
               pointerEvents: "none",
             }}

@@ -47,6 +47,33 @@ const ACTIVITIES: Array<{
   },
 ];
 
+
+function PracticeAccessLabel({ premium }: { premium: boolean }) {
+  return (
+    <span
+      style={{
+        minHeight: "24px",
+        padding: "0 8px",
+        borderRadius: "999px",
+        border: premium
+          ? "1px solid rgba(255,209,138,0.28)"
+          : "1px solid rgba(159,255,210,0.26)",
+        background: premium ? "rgba(255,190,90,0.075)" : "rgba(96,255,182,0.07)",
+        color: premium ? "#ffd18a" : "#a9ffd4",
+        display: "inline-flex",
+        alignItems: "center",
+        whiteSpace: "nowrap",
+        fontSize: "7px",
+        fontWeight: 950,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+      }}
+    >
+      {premium ? "Paid · Milo Finance" : "Free for all"}
+    </span>
+  );
+}
+
 export default function PractiseSection({
   screenMode,
   hasMiloFinanceAccess,
@@ -82,9 +109,13 @@ export default function PractiseSection({
           </div>
           {!accessLoading && hasMiloFinanceAccess && <MiloFinanceBadge active />}
         </div>
-        <p style={{ margin: "11px 0 0", maxWidth: "780px", color: "rgba(255,255,255,0.52)", fontSize: "12px", lineHeight: 1.65 }}>
-          Financial ideas become decisions here. Core practice remains free; deeper simulations and case work are part of Milo Finance.
+        <p style={{ margin: "11px 0 0", maxWidth: "820px", color: "rgba(255,255,255,0.52)", fontSize: "12px", lineHeight: 1.65 }}>
+          Financial ideas become decisions here. Access is shown on every activity before you open it.
         </p>
+        <div style={{ marginTop: "13px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <PracticeAccessLabel premium={false} />
+          <PracticeAccessLabel premium />
+        </div>
       </section>
 
       <section style={{ marginTop: "14px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : screenMode === "compact" ? "repeat(2, minmax(0,1fr))" : "repeat(3, minmax(0,1fr))", gap: "12px" }}>
@@ -108,7 +139,10 @@ export default function PractiseSection({
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
                 <span style={{ color: "#b8a8ff", fontSize: "9px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{activity.tag}</span>
-                {premium ? <MiloFinanceBadge active={hasMiloFinanceAccess} compact /> : <span style={{ color: "rgba(255,255,255,0.24)", fontSize: "10px", fontWeight: 900 }}>0{index + 1}</span>}
+                <div style={{ display: "flex", gap: "7px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <PracticeAccessLabel premium={premium} />
+                  <span style={{ color: "rgba(255,255,255,0.24)", fontSize: "9px", fontWeight: 900 }}>0{index + 1}</span>
+                </div>
               </div>
               <h3 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "25px", lineHeight: 1.05, fontWeight: 500 }}>{activity.title}</h3>
               <p style={{ margin: "11px 0 0", color: "rgba(255,255,255,0.48)", fontSize: "11px", lineHeight: 1.58 }}>{activity.description}</p>
@@ -120,11 +154,11 @@ export default function PractiseSection({
                     disabled={accessLoading}
                     style={{ minHeight: "34px", padding: "0 11px", borderRadius: "10px", border: "1px solid rgba(255,209,138,0.22)", background: "rgba(255,190,90,0.055)", color: "#ffd18a", cursor: accessLoading ? "wait" : "pointer", fontFamily: "inherit", fontSize: "8px", fontWeight: 900, letterSpacing: "0.07em", textTransform: "uppercase" }}
                   >
-                    {accessLoading ? "Checking access…" : "Milo Finance access →"}
+                    {accessLoading ? "Checking access…" : "Unlock Milo Finance →"}
                   </button>
                 ) : (
                   <span style={{ minHeight: "29px", padding: "0 10px", borderRadius: "999px", border: "1px solid rgba(184,168,255,0.16)", background: "rgba(184,168,255,0.055)", color: "rgba(219,211,255,0.68)", display: "inline-flex", alignItems: "center", fontSize: "8px", fontWeight: 900, letterSpacing: "0.09em", textTransform: "uppercase" }}>
-                    {premium ? "Included · Planned" : "Free · Planned"}
+                    {premium ? "Included with Milo Finance · Planned" : "Free for all · Planned"}
                   </span>
                 )}
               </div>
