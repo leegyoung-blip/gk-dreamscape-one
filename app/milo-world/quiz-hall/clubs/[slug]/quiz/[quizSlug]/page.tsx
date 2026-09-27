@@ -199,6 +199,29 @@ export default function CreatorQuizEngineV2PlayPage() {
     }
 
     const row = data as unknown as QuizPayload;
+
+    // Creator clubs now have one background identity shared by the club page
+    // and every challenge. Official Dreamscape quizzes keep their own
+    // dedicated background asset.
+    let creatorClubBackground: string | null = null;
+
+    if (!Boolean(row.is_official)) {
+      const clubBackgroundResponse = await supabase.rpc(
+        "get_creator_club_by_slug",
+        { p_slug: clubSlug },
+      );
+
+      if (!clubBackgroundResponse.error) {
+        const clubBackgroundRow = Array.isArray(clubBackgroundResponse.data)
+          ? clubBackgroundResponse.data[0]
+          : clubBackgroundResponse.data;
+
+        creatorClubBackground = clubBackgroundRow?.cover_image_url
+          ? String(clubBackgroundRow.cover_image_url)
+          : null;
+      }
+    }
+
     const normalized: QuizPayload = {
       ...row,
       club_id: String(row.club_id || ""),
@@ -208,9 +231,12 @@ export default function CreatorQuizEngineV2PlayPage() {
       quiz_slug: String(row.quiz_slug || quizSlug),
       title: String(row.title || "Creator Challenge"),
       description: row.description ? String(row.description) : null,
-      cover_image_url: row.cover_image_url
-        ? String(row.cover_image_url)
-        : null,
+      cover_image_url: Boolean(row.is_official)
+        ? row.cover_image_url
+          ? String(row.cover_image_url)
+          : null
+        : creatorClubBackground ||
+          "/milo-world/quiz-hall/quiz-hall-bg.png",
       challenge_id: row.challenge_id
         ? String(row.challenge_id)
         : null,
@@ -556,10 +582,10 @@ export default function CreatorQuizEngineV2PlayPage() {
         <img
           src={quiz.cover_image_url}
           alt=""
-          className="absolute inset-0 h-full w-full object-cover opacity-[0.10]"
+          className="absolute inset-0 h-full w-full object-cover opacity-[0.30]"
         />
       )}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.10),transparent_30%),linear-gradient(180deg,rgba(2,7,17,0.95),rgba(2,7,17,0.99))]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.10),transparent_30%),linear-gradient(180deg,rgba(2,7,17,0.78),rgba(2,7,17,0.94))]" />
 
       <div className="relative z-10 flex h-full min-h-0 flex-col">
         <header className="shrink-0 border-b border-white/8 bg-[#020711]/72 px-4 py-3 backdrop-blur-xl sm:px-6">

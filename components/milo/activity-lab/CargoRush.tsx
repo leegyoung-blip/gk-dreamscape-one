@@ -1808,21 +1808,15 @@ export default function CargoRush({
                       M
                     </div>
                     <strong style={{ display: "block", marginTop: "9px", fontSize: mobile ? "11px" : "13px" }}>Milo</strong>
-                    <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.68)", fontSize: mobile ? "10px" : "11px", lineHeight: 1.5, textAlign: "left" }}>
-                      “I’m aiming to become a quadrillionaire, so I need to understand more than finance. I need to know how real industries actually operate.”
-                    </p>
-                    <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.52)", fontSize: mobile ? "9.5px" : "10.5px", lineHeight: 1.5, textAlign: "left" }}>
-                      “Cargo Rush is my logistics training. Global businesses move food, technology, fashion and energy every day — and one wrong route can slow everything down. Here I practise sorting quickly, staying accurate and keeping a supply chain moving under pressure.”
-                    </p>
-                    <p style={{ margin: "7px 0 0", color: "#9fffd2", fontSize: mobile ? "9.5px" : "10.5px", lineHeight: 1.45, textAlign: "left", fontWeight: 850 }}>
-                      “If I want to build companies around the world, I need to master how things move. Let’s train.”
+                    <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.64)", fontSize: mobile ? "10px" : "11px", lineHeight: 1.5, textAlign: "left" }}>
+                      “Sort cargo quickly and accurately to train logistics and supply-chain thinking. Let’s keep the warehouse moving.”
                     </p>
                   </div>
 
                   <div style={{ display: "grid", gap: "8px" }}>
                     <div style={{ borderRadius: 14, border: "1px solid rgba(126,232,255,.12)", background: "rgba(83,215,255,.04)", padding: "9px 11px" }}>
                       <p style={{ margin: 0, color: "#9aecff", fontSize: "8px", fontWeight: 950, letterSpacing: ".12em" }}>TRAINING FOCUS</p>
-                      <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,.52)", fontSize: mobile ? "9px" : "10px", lineHeight: 1.4 }}>Logistics · Warehousing · Supply Chains · Speed · Accuracy</p>
+                      <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,.52)", fontSize: mobile ? "9px" : "10px", lineHeight: 1.4 }}>Logistics · Speed · Accuracy</p>
                     </div>
                     {[
                       ["1", "Watch the lanes", mobile ? "Packages rise upward on three vertical conveyor belts." : "Packages enter automatically on three conveyor lanes."],

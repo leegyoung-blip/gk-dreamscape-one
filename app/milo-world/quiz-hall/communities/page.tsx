@@ -190,7 +190,12 @@ type ClubCreateForm = {
   tagline: string;
   description: string;
   logoFile: File | null;
-  coverFile: File | null;
+
+  // User-facing semantic: one club background used across the club and
+  // all creator challenges. It is still stored in the legacy
+  // `cover_image_url` database field to avoid a schema migration.
+  backgroundFile: File | null;
+  backgroundPresetUrl: string;
 };
 
 const EMPTY_CLUB: ClubCreateForm = {
@@ -200,7 +205,8 @@ const EMPTY_CLUB: ClubCreateForm = {
   tagline: "",
   description: "",
   logoFile: null,
-  coverFile: null,
+  backgroundFile: null,
+  backgroundPresetUrl: "",
 };
 
 const CREATOR_CLUB_MEDIA_BUCKET = "creator-club-media";
@@ -210,6 +216,16 @@ const CREATOR_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/webp",
 ]);
+
+type CreatorBackgroundPreset = {
+  key: string;
+  label: string;
+  imageUrl: string;
+};
+
+// Preset-ready by design. We will populate this with the generic Dreamscape
+// themes in the next asset pass without changing the creation flow again.
+const CREATOR_BACKGROUND_PRESETS: CreatorBackgroundPreset[] = [];
 
 function safeFileExtension(file: File) {
   const fromName = file.name.split(".").pop()?.toLowerCase().trim() || "";
@@ -225,7 +241,7 @@ function safeFileExtension(file: File) {
 async function uploadCreatorClubMedia(
   file: File,
   clubSlug: string,
-  kind: "logo" | "cover",
+  kind: "logo" | "background",
 ) {
   if (!CREATOR_IMAGE_TYPES.has(file.type)) {
     throw new Error("Use a PNG, JPG or WebP image.");
@@ -685,7 +701,10 @@ export default function CreatorClubsPage() {
     setErrorMessage("");
 
     let logoImageUrl = "";
-    let coverImageUrl = "";
+
+    // `coverImageUrl` is the legacy API/database field name.
+    // Product/UI semantics are now "Club Background".
+    let backgroundImageUrl = clubForm.backgroundPresetUrl.trim();
 
     try {
       if (clubForm.logoFile) {
@@ -696,11 +715,11 @@ export default function CreatorClubsPage() {
         );
       }
 
-      if (clubForm.coverFile) {
-        coverImageUrl = await uploadCreatorClubMedia(
-          clubForm.coverFile,
+      if (clubForm.backgroundFile) {
+        backgroundImageUrl = await uploadCreatorClubMedia(
+          clubForm.backgroundFile,
           cleanSlug,
-          "cover",
+          "background",
         );
       }
     } catch (error) {
@@ -718,7 +737,7 @@ export default function CreatorClubsPage() {
       tagline: clubForm.tagline,
       description: clubForm.description,
       logoImageUrl,
-      coverImageUrl,
+      coverImageUrl: backgroundImageUrl,
     });
 
     if (result.error) {
@@ -1876,15 +1895,23 @@ function CreateView({
           />
         </Field>
 
-        <Field label="Cover image · optional">
-          <DeviceImagePicker
-            kind="cover"
-            file={clubForm.coverFile}
-            recommended="Wide image · PNG, JPG or WebP · max 5 MB"
-            onChange={(file) =>
+        <Field label="Club background · optional">
+          <CreatorBackgroundPicker
+            file={clubForm.backgroundFile}
+            presetUrl={clubForm.backgroundPresetUrl}
+            presets={CREATOR_BACKGROUND_PRESETS}
+            onFileChange={(file) =>
               setClubForm((current) => ({
                 ...current,
-                coverFile: file,
+                backgroundFile: file,
+                backgroundPresetUrl: file ? "" : current.backgroundPresetUrl,
+              }))
+            }
+            onPresetChange={(imageUrl) =>
+              setClubForm((current) => ({
+                ...current,
+                backgroundPresetUrl: imageUrl,
+                backgroundFile: imageUrl ? null : current.backgroundFile,
               }))
             }
           />
@@ -1929,13 +1956,114 @@ function CreateView({
   );
 }
 
+function CreatorBackgroundPicker({
+  file,
+  presetUrl,
+  presets,
+  onFileChange,
+  onPresetChange,
+}: {
+  file: File | null;
+  presetUrl: string;
+  presets: CreatorBackgroundPreset[];
+  onFileChange: (file: File | null) => void;
+  onPresetChange: (imageUrl: string) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-[#07152d] p-3">
+      <div className="flex flex-col gap-3">
+        <div className="flex min-h-[54px] items-center gap-3">
+          <label className="inline-flex min-h-10 shrink-0 cursor-pointer items-center rounded-xl border border-cyan-200/18 bg-cyan-300/[0.06] px-4 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100 transition hover:border-cyan-200/30 hover:bg-cyan-300/[0.09]">
+            Upload Background
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(event) => {
+                const nextFile = event.target.files?.[0] || null;
+                onFileChange(nextFile);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+
+          <div className="min-w-0 flex-1">
+            <strong className="block truncate text-[10px] text-white/78">
+              {file
+                ? file.name
+                : presetUrl
+                  ? "Dreamscape background selected"
+                  : "Dreamscape Default"}
+            </strong>
+            <small className="mt-1 block text-[8px] leading-4 text-white/28">
+              16:9 recommended · PNG, JPG or WebP · max 5 MB. This background
+              appears behind your club and all of its quizzes.
+            </small>
+          </div>
+
+          {(file || presetUrl) && (
+            <button
+              type="button"
+              onClick={() => {
+                onFileChange(null);
+                onPresetChange("");
+              }}
+              className="min-h-9 shrink-0 rounded-xl border border-white/10 bg-white/[0.035] px-3 text-[7px] font-black uppercase tracking-[0.07em] text-white/42"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+
+        {presets.length > 0 ? (
+          <div className="border-t border-white/8 pt-3">
+            <p className="mb-2 text-[7px] font-black uppercase tracking-[0.08em] text-white/30">
+              Or choose a Dreamscape theme
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {presets.map((preset) => (
+                <button
+                  key={preset.key}
+                  type="button"
+                  onClick={() => onPresetChange(preset.imageUrl)}
+                  className={`relative min-h-[82px] overflow-hidden rounded-xl border text-left ${
+                    presetUrl === preset.imageUrl
+                      ? "border-cyan-200/34"
+                      : "border-white/9"
+                  }`}
+                >
+                  <img
+                    src={preset.imageUrl}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover opacity-54"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-black/10" />
+                  <span className="relative z-10 flex min-h-[82px] items-end p-3 text-[8px] font-black uppercase tracking-[0.07em] text-white">
+                    {preset.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="border-t border-white/8 pt-3 text-[8px] leading-4 text-white/25">
+            If you skip the upload, Dreamscape Default is used. Additional
+            Dreamscape background themes are ready to plug into this picker
+            once their images are added.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DeviceImagePicker({
   kind,
   file,
   recommended,
   onChange,
 }: {
-  kind: "logo" | "cover";
+  kind: "logo";
   file: File | null;
   recommended: string;
   onChange: (file: File | null) => void;

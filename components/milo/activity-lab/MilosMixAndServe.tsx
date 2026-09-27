@@ -682,6 +682,7 @@ export default function MilosMixAndServe({
 
       if (userId) {
         const { error: saveError } = await supabase.rpc("record_milo_mix_serve_run", {
+          p_station_key: activeStation,
           p_run_key: runKey,
           p_score: result.finalScore,
           p_orders_served: ordersServed,
@@ -707,7 +708,10 @@ export default function MilosMixAndServe({
         recordedLeaderboardRuns.current.add(runKey);
       }
 
-      const { data, error } = await supabase.rpc("get_milo_mix_serve_leaderboard", { p_limit: 10 });
+      const { data, error } = await supabase.rpc("get_milo_mix_serve_leaderboard", {
+        p_station_key: activeStation,
+        p_limit: 10,
+      });
       if (cancelled) return;
       if (error) {
         console.warn("Could not load Mix & Serve leaderboard:", error.message, error.details, error.hint);
@@ -729,7 +733,7 @@ export default function MilosMixAndServe({
 
     void saveAndLoadLeaderboard();
     return () => { cancelled = true; };
-  }, [stageResult, userId, ordersServed, basePointsEarned, speedBonusEarned, discardPenaltyTotal, expiredOrders]);
+  }, [activeStation, stageResult, userId, ordersServed, basePointsEarned, speedBonusEarned, discardPenaltyTotal, expiredOrders]);
 
   function dispenseIngredient(key: IngredientKey) {
     if (!running || paused) return;
@@ -1284,16 +1288,20 @@ export default function MilosMixAndServe({
 
       const rootRect = root.getBoundingClientRect();
       const rect = target.getBoundingClientRect();
+      const rawTop = Math.max(4, rect.top - rootRect.top - 7);
+      const rawLeft = Math.max(4, rect.left - rootRect.left - 7);
       const spotlight = {
-        top: Math.max(4, rect.top - rootRect.top - 7),
-        left: Math.max(4, rect.left - rootRect.left - 7),
-        width: Math.min(rootRect.width - 8, rect.width + 14),
-        height: Math.min(rootRect.height - 8, rect.height + 14),
+        top: rawTop,
+        left: rawLeft,
+        width: Math.max(20, Math.min(rect.width + 14, rootRect.width - rawLeft - 4)),
+        height: Math.max(20, Math.min(rect.height + 14, rootRect.height - rawTop - 4)),
       };
       setGuideSpotlight(spotlight);
 
       const panelWidth = Math.min(mobile ? 330 : 380, rootRect.width - 24);
-      const estimatedHeight = mobile ? 278 : 250;
+      const panelElement = root.querySelector('[data-mix-guide-panel="true"]') as HTMLElement | null;
+      const measuredHeight = panelElement?.getBoundingClientRect().height || (mobile ? 300 : 270);
+      const panelHeight = Math.min(measuredHeight, rootRect.height - 24);
       const gap = 14;
       const rightSpace = rootRect.width - (spotlight.left + spotlight.width);
       const leftSpace = spotlight.left;
@@ -1302,12 +1310,15 @@ export default function MilosMixAndServe({
       else if (leftSpace >= panelWidth + gap) left = spotlight.left - panelWidth - gap;
       else left = Math.max(12, Math.min(rootRect.width - panelWidth - 12, spotlight.left + spotlight.width / 2 - panelWidth / 2));
 
-      let top = spotlight.top + spotlight.height / 2 - estimatedHeight / 2;
-      top = Math.max(12, Math.min(rootRect.height - estimatedHeight - 12, top));
+      let top = spotlight.top + spotlight.height / 2 - panelHeight / 2;
+      top = Math.max(12, Math.min(rootRect.height - panelHeight - 12, top));
       setGuidePanelPosition({ top, left, width: panelWidth });
     };
 
-    const frame = window.requestAnimationFrame(positionGuide);
+    const frame = window.requestAnimationFrame(() => {
+      positionGuide();
+      window.requestAnimationFrame(positionGuide);
+    });
     window.addEventListener("resize", positionGuide);
     return () => {
       window.cancelAnimationFrame(frame);
@@ -1446,10 +1457,13 @@ export default function MilosMixAndServe({
 
     return (
       <div
+        className="mixServeNoSelect"
         style={{
           position: "relative",
           width: "100%",
           height: "100%",
+          userSelect: "none",
+          WebkitUserSelect: "none",
           minHeight: 0,
           overflow: "hidden",
           borderRadius: mobile ? 14 : 18,
@@ -1460,6 +1474,8 @@ export default function MilosMixAndServe({
         }}
       >
         <style>{`
+          .mixServeNoSelect, .mixServeNoSelect * { -webkit-user-select:none !important; user-select:none !important; }
+          .mixServeNoSelect img { -webkit-user-drag:none; }
           @keyframes mixServeLandingGlow {
             0%,100% { opacity:.55; transform:scale(1); }
             50% { opacity:.9; transform:scale(1.04); }
@@ -1561,16 +1577,10 @@ export default function MilosMixAndServe({
               <div style={{ position: "absolute", zIndex: 4, top: mobile ? 18 : "12%", left: mobile ? 6 : "5%", right: "auto", width: mobile ? "min(68%,420px)" : "min(56%,650px)", borderRadius: mobile ? 22 : 30, padding: mobile ? 18 : 28, border: "1px solid rgba(255,211,142,.28)", background: "linear-gradient(145deg,rgba(50,31,19,.96),rgba(7,15,24,.97))", boxShadow: "0 30px 80px rgba(0,0,0,.46)" }}>
                 <button type="button" onClick={() => setLandingPhase("choose")} style={{ position: "absolute", top: 13, right: 13, minHeight: 34, padding: "0 13px", borderRadius: 999, border: "1px solid rgba(255,255,255,.12)", background: "rgba(255,255,255,.05)", color: "rgba(255,255,255,.72)", fontSize: mobile ? 11 : 12, fontWeight: 900, cursor: "pointer" }}>Skip</button>
                 <p style={{ margin: 0, color: "#ffc36f", fontSize: mobile ? 11 : 13, fontWeight: 950, letterSpacing: ".15em", textTransform: "uppercase" }}>Milo says</p>
-                <h3 style={{ margin: "9px 0 0", maxWidth: "90%", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : 38, lineHeight: 1.04, fontWeight: 400 }}>Welcome to my industry training kitchen!</h3>
-                <div style={{ marginTop: mobile ? 10 : 14, maxHeight: mobile ? "42vh" : "none", overflowY: mobile ? "auto" : "visible", paddingRight: mobile ? 4 : 0 }}>
-                  <p style={{ margin: 0, color: "rgba(255,255,255,.74)", fontSize: mobile ? 11.5 : 15, lineHeight: 1.52 }}>
-                    “My goal is to become a quadrillionaire. But to get there, I can’t only learn about money — I need to understand how different industries actually work from the inside.”
-                  </p>
-                  <p style={{ margin: mobile ? "7px 0 0" : "9px 0 0", color: "rgba(255,255,255,.6)", fontSize: mobile ? 10.5 : 13, lineHeight: 1.5 }}>
-                    “Restaurants are a perfect training ground. Every order depends on planning, preparation, timing, customer service and controlling waste. The Activity Lab lets me practise those skills instead of just reading about them.”
-                  </p>
-                  <p style={{ margin: mobile ? "7px 0 0" : "9px 0 0", color: "#ffd58d", fontSize: mobile ? 10.5 : 13, lineHeight: 1.5, fontWeight: 850 }}>
-                    “The faster and smarter we work, the more dishes we can serve in 2 minutes 30 seconds. Choose a station and let’s see how well we can run this kitchen.”
+                <h3 style={{ margin: "9px 0 0", maxWidth: "90%", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : 38, lineHeight: 1.04, fontWeight: 400 }}>Welcome to my training kitchen!</h3>
+                <div style={{ marginTop: mobile ? 10 : 14 }}>
+                  <p style={{ margin: 0, color: "rgba(255,255,255,.7)", fontSize: mobile ? 11.5 : 14, lineHeight: 1.52 }}>
+                    “This kitchen trains planning, timing and waste control. Pick a dish, prepare it correctly and serve as much as you can in 2:30.”
                   </p>
                 </div>
                 <button type="button" onClick={() => setLandingPhase("choose")} style={{ width: "100%", minHeight: mobile ? 44 : 50, marginTop: mobile ? 12 : 16, borderRadius: 14, border: "1px solid rgba(255,213,126,.46)", background: "linear-gradient(135deg,#ffd06b,#f1a340)", color: "#281700", fontSize: mobile ? 13 : 14, fontWeight: 950, cursor: "pointer", boxShadow: "0 14px 34px rgba(228,140,40,.18)" }}>Choose a Dish</button>
@@ -1649,10 +1659,13 @@ export default function MilosMixAndServe({
   return (
     <div
       ref={rootRef}
+      className="mixServeNoSelect"
       style={{
         position: "relative",
         width: "100%",
         height: "100%",
+        userSelect: "none",
+        WebkitUserSelect: "none",
         minHeight: 0,
         overflow: "hidden",
         borderRadius: mobile ? 14 : 18,
@@ -2004,6 +2017,7 @@ export default function MilosMixAndServe({
           )}
 
           <aside
+            data-mix-guide-panel="true"
             style={{
               ...panel,
               position: "absolute",
@@ -2011,6 +2025,8 @@ export default function MilosMixAndServe({
               top: guidePanelPosition.top,
               left: guidePanelPosition.left,
               width: guidePanelPosition.width,
+              maxHeight: "calc(100% - 24px)",
+              overflowY: "auto",
               borderRadius: 20,
               padding: mobile ? 14 : 16,
               border: "1px solid rgba(255,208,112,.28)",
@@ -2114,7 +2130,7 @@ export default function MilosMixAndServe({
               </details>
 
               <details style={{ borderRadius: 15, border: "1px solid rgba(255,211,104,.14)", background: "rgba(255,196,64,.025)", padding: "10px 12px" }}>
-                <summary style={{ cursor: "pointer", color: "#ffd98a", fontSize: 14, fontWeight: 950 }}>Mix & Serve Leaderboard</summary>
+                <summary style={{ cursor: "pointer", color: "#ffd98a", fontSize: 14, fontWeight: 950 }}>{stationName} Leaderboard</summary>
                 <div style={{ marginTop: 10 }}>
                   {leaderboardLoading ? (
                     <p style={{ margin: 0, color: "rgba(255,255,255,.5)", fontSize: 11 }}>Loading leaderboard…</p>

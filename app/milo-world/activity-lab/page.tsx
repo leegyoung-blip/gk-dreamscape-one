@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 import MasteryCodeQuickPlay from "@/components/milo/activity-lab/MasteryCodeQuickPlay";
@@ -37,21 +37,21 @@ const ACTIVITY_ITEMS: Array<{
     id: "mastery",
     eyebrow: "Word Challenge",
     title: "Mastery Code",
-    description: "Quick Play and Survival now live together in one game tab.",
+    description: "Logic, patterns and strategy.",
     icon: "⌨",
   },
   {
     id: "cargo",
     eyebrow: "New Activity",
     title: "Cargo Rush",
-    description: "Sort incoming cargo across Milo’s futuristic logistics network.",
+    description: "Logistics, sorting and supply chains.",
     icon: "▣",
   },
   {
     id: "merge",
     eyebrow: "New Activity",
     title: "Milo’s Mix & Serve",
-    description: "Cook, assemble and serve Burger Basics orders. Stage 2 is coming soon.",
+    description: "Kitchen operations, timing and waste control.",
     icon: "◇",
   },
 ];
@@ -66,6 +66,7 @@ function ActivityMenu({
 }: ActivityMenuProps) {
   return (
     <div
+      data-lab-guide-target="games-area"
       style={{
         height: drawer ? "auto" : "100%",
         minHeight: 0,
@@ -112,6 +113,7 @@ function ActivityMenu({
           <button
             key={item.id}
             type="button"
+            data-lab-guide-target={item.id}
             title={collapsed ? item.title : undefined}
             aria-label={collapsed ? item.title : undefined}
             onClick={() => {
@@ -338,6 +340,46 @@ function ComingSoonPanel({
   );
 }
 
+type LabGuideStep = {
+  target?: "games-area" | ActivityMode;
+  eyebrow: string;
+  title: string;
+  body: string;
+};
+
+const ACTIVITY_LAB_GUIDE_KEY = "milo-activity-lab-guide-v1";
+const ACTIVITY_LAB_GUIDE_STEPS: LabGuideStep[] = [
+  {
+    eyebrow: "Milo’s Big Dream",
+    title: "Why I built the Activity Lab",
+    body: "I’ve got a ridiculous dream: becoming a gazillionaire. But I can’t get there by only learning about money. I need to think better, understand how different industries work and keep building useful skills. This is where I train.",
+  },
+  {
+    target: "games-area",
+    eyebrow: "Training Rooms",
+    title: "Pick a skill to train",
+    body: "Each game trains a different part of how businesses and industries work. You can jump between them from the games area whenever you want.",
+  },
+  {
+    target: "mastery",
+    eyebrow: "Thinking Skills",
+    title: "Mastery Code",
+    body: "Crack word codes to train logic, pattern recognition and strategy — the same kind of thinking I need when I’m solving problems and making decisions.",
+  },
+  {
+    target: "cargo",
+    eyebrow: "Logistics Skills",
+    title: "Cargo Rush",
+    body: "Sort moving cargo quickly and accurately while learning how logistics, warehousing and supply chains keep businesses moving.",
+  },
+  {
+    target: "merge",
+    eyebrow: "Industry Skills",
+    title: "Milo’s Mix & Serve",
+    body: "Run a busy kitchen to practise planning, preparation, timing, customer service and waste control. It’s my way of learning how a food business works from the inside.",
+  },
+];
+
 function useViewport() {
   const [viewport, setViewport] = useState({ width: 1440, height: 900 });
 
@@ -373,6 +415,11 @@ export default function ActivityLabPage() {
   const [batteryPanelOpen, setBatteryPanelOpen] = useState(false);
   const [topUpOpen, setTopUpOpen] = useState(false);
   const [masteryRunActive, setMasteryRunActive] = useState(false);
+  const [labGuideOpen, setLabGuideOpen] = useState(false);
+  const [labGuideStep, setLabGuideStep] = useState(0);
+  const [labGuideSpotlight, setLabGuideSpotlight] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const [labGuidePanel, setLabGuidePanel] = useState<{ top: number; left: number; width: number }>({ top: 18, left: 18, width: 380 });
+  const guidePanelRef = useRef<HTMLDivElement | null>(null);
 
   const battery = useActivityLabBattery({ userId, unlimited: isAdmin });
   const batteryReadyForNewRun = !userId || isAdmin || (
@@ -564,6 +611,100 @@ export default function ActivityLabPage() {
     syncUrl("mastery", mode);
   }
 
+  function closeLabGuide() {
+    setLabGuideOpen(false);
+    setLabGuideSpotlight(null);
+    if (mobile) setMenuOpen(false);
+    try {
+      window.localStorage.setItem(ACTIVITY_LAB_GUIDE_KEY, "1");
+    } catch {
+      // Local persistence is optional.
+    }
+  }
+
+  function openLabGuide() {
+    setLabGuideStep(0);
+    setLabGuideOpen(true);
+  }
+
+  useEffect(() => {
+    try {
+      if (!window.localStorage.getItem(ACTIVITY_LAB_GUIDE_KEY)) {
+        const timer = window.setTimeout(() => setLabGuideOpen(true), 450);
+        return () => window.clearTimeout(timer);
+      }
+    } catch {
+      // The guide can still be opened manually.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!labGuideOpen) {
+      setLabGuideSpotlight(null);
+      return;
+    }
+
+    const step = ACTIVITY_LAB_GUIDE_STEPS[labGuideStep];
+    if (mobile && step.target) setMenuOpen(true);
+
+    const positionGuide = () => {
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const panelWidth = Math.min(mobile ? 336 : 390, viewportWidth - 24);
+      const panelHeight = Math.min(guidePanelRef.current?.getBoundingClientRect().height || 260, viewportHeight - 24);
+      const target = step.target
+        ? document.querySelector(`[data-lab-guide-target="${step.target}"]`) as HTMLElement | null
+        : null;
+
+      if (!target) {
+        setLabGuideSpotlight(null);
+        setLabGuidePanel({
+          width: panelWidth,
+          left: Math.max(12, (viewportWidth - panelWidth) / 2),
+          top: Math.max(12, (viewportHeight - panelHeight) / 2),
+        });
+        return;
+      }
+
+      const rect = target.getBoundingClientRect();
+      const pad = 7;
+      const spotlight = {
+        top: Math.max(4, rect.top - pad),
+        left: Math.max(4, rect.left - pad),
+        width: Math.max(20, Math.min(viewportWidth - Math.max(4, rect.left - pad) - 4, rect.width + pad * 2)),
+        height: Math.max(20, Math.min(viewportHeight - Math.max(4, rect.top - pad) - 4, rect.height + pad * 2)),
+      };
+      setLabGuideSpotlight(spotlight);
+
+      const gap = 14;
+      let left = rect.right + gap;
+      let top = rect.top + rect.height / 2 - panelHeight / 2;
+
+      if (mobile || left + panelWidth > viewportWidth - 12) {
+        left = Math.max(12, Math.min(viewportWidth - panelWidth - 12, rect.left + rect.width / 2 - panelWidth / 2));
+        if (rect.bottom + gap + panelHeight <= viewportHeight - 12) top = rect.bottom + gap;
+        else if (rect.top - gap - panelHeight >= 12) top = rect.top - gap - panelHeight;
+        else top = viewportHeight - panelHeight - 12;
+      }
+
+      setLabGuidePanel({
+        width: panelWidth,
+        left: Math.max(12, Math.min(viewportWidth - panelWidth - 12, left)),
+        top: Math.max(12, Math.min(viewportHeight - panelHeight - 12, top)),
+      });
+    };
+
+    const first = window.requestAnimationFrame(() => {
+      positionGuide();
+      window.requestAnimationFrame(positionGuide);
+    });
+    window.addEventListener("resize", positionGuide);
+    return () => {
+      window.cancelAnimationFrame(first);
+      window.removeEventListener("resize", positionGuide);
+    };
+  }, [labGuideOpen, labGuideStep, mobile, menuOpen]);
+
   const navButtonStyle: CSSProperties = {
     minHeight: mobile ? "36px" : "40px",
     padding: mobile ? "0 11px" : "0 17px",
@@ -681,6 +822,15 @@ export default function ActivityLabPage() {
             <span>←</span>
             {mobile ? "Milo" : "Milo’s World"}
           </Link>
+
+          <button
+            type="button"
+            onClick={openLabGuide}
+            style={{ ...navButtonStyle, cursor: "pointer", border: "1px solid rgba(255,211,104,.24)", color: "#ffe09b" }}
+          >
+            <span>✦</span>
+            {mobile ? "Guide" : "Milo Guide"}
+          </button>
         </div>
 
         {!mobile && (
@@ -913,32 +1063,12 @@ export default function ActivityLabPage() {
                 {!masteryRunActive ? (
                   <div style={{ height: "100%", minHeight: 320, display: "grid", placeItems: "center", padding: mobile ? 10 : 16 }}>
                     <div style={{ width: "min(780px,100%)", maxHeight: "100%", overflowY: "auto", borderRadius: 22, border: "1px solid rgba(126,232,255,.18)", background: "linear-gradient(145deg,rgba(8,27,46,.94),rgba(4,13,27,.97))", padding: mobile ? 16 : 22 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "112px minmax(0,1fr)", gap: mobile ? 12 : 20, alignItems: "center" }}>
-                        <div style={{ textAlign: "center" }}>
-                          <div style={{ width: mobile ? 72 : 96, height: mobile ? 72 : 96, margin: "0 auto", borderRadius: 24, overflow: "hidden", border: "1px solid rgba(126,232,255,.26)", background: "radial-gradient(circle at 50% 20%,rgba(126,232,255,.16),rgba(5,17,31,.9))" }}>
-                            <img src="/milo-world/milo-character.png" alt="Milo" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 16%" }} />
-                          </div>
-                          <p style={{ margin: "7px 0 0", color: "#8ee8ff", fontSize: 9, fontWeight: 950, letterSpacing: ".14em" }}>MILO SAYS</p>
-                        </div>
-
-                        <div>
-                          <h3 style={{ margin: 0, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 27 : 34, fontWeight: 400 }}>Train the way I think</h3>
-                          <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,.72)", fontSize: mobile ? 11 : 12.5, lineHeight: 1.58 }}>
-                            “My goal is to become a quadrillionaire — but that means I need a lot more than money. I need to keep learning new skills, understand how different industries work, and get better at solving problems.”
-                          </p>
-                          <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.6)", fontSize: mobile ? 10.5 : 11.5, lineHeight: 1.55 }}>
-                            “That’s why I come to the Activity Lab. Mastery Code trains me to recognise patterns, test ideas and change strategy when something doesn’t work. Those are the same thinking skills I’ll need when I’m building companies, analysing opportunities and making big decisions.”
-                          </p>
-                          <p style={{ margin: "7px 0 0", color: "#9fffd2", fontSize: mobile ? 10.5 : 11.5, lineHeight: 1.5, fontWeight: 850 }}>
-                            “Every code I crack makes me a sharper problem-solver. Ready to train with me?”
-                          </p>
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 6 }}>
-                        {["Logic", "Pattern Recognition", "Strategy", "Decision-Making"].map((skill) => (
-                          <span key={skill} style={{ padding: "6px 9px", borderRadius: 999, border: "1px solid rgba(126,232,255,.14)", background: "rgba(83,215,255,.05)", color: "rgba(215,248,255,.72)", fontSize: 8.5, fontWeight: 900 }}>{skill}</span>
-                        ))}
+                      <div style={{ textAlign: "center" }}>
+                        <p style={{ margin: 0, color: "#8ee8ff", fontSize: 9, fontWeight: 950, letterSpacing: ".15em" }}>MASTERY CODE</p>
+                        <h3 style={{ margin: "7px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 29 : 38, fontWeight: 400 }}>Train your thinking</h3>
+                        <p style={{ margin: "9px auto 0", maxWidth: 560, color: "rgba(255,255,255,.64)", fontSize: mobile ? 11 : 12.5, lineHeight: 1.5 }}>
+                          Crack codes to practise logic, pattern recognition and strategy.
+                        </p>
                       </div>
 
                       <div style={{ marginTop: 14, padding: "10px 12px", borderRadius: 13, border: "1px solid rgba(255,255,255,.07)", background: "rgba(255,255,255,.025)", textAlign: "center" }}>
@@ -1134,6 +1264,81 @@ export default function ActivityLabPage() {
               ← Return to Milo’s World
             </Link>
           </aside>
+        </div>
+      )}
+
+      {labGuideOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 240, pointerEvents: "none" }}>
+          {labGuideSpotlight ? (
+            <div
+              style={{
+                position: "fixed",
+                top: labGuideSpotlight.top,
+                left: labGuideSpotlight.left,
+                width: labGuideSpotlight.width,
+                height: labGuideSpotlight.height,
+                borderRadius: 16,
+                border: "2px solid rgba(255,211,104,.82)",
+                boxShadow: "0 0 0 9999px rgba(0,4,12,.74), 0 0 34px rgba(255,211,104,.28)",
+                pointerEvents: "none",
+              }}
+            />
+          ) : (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,4,12,.74)" }} />
+          )}
+
+          <div
+            ref={guidePanelRef}
+            style={{
+              position: "fixed",
+              top: labGuidePanel.top,
+              left: labGuidePanel.left,
+              width: labGuidePanel.width,
+              maxHeight: "calc(100dvh - 24px)",
+              overflowY: "auto",
+              pointerEvents: "auto",
+              borderRadius: 22,
+              border: "1px solid rgba(255,211,104,.3)",
+              background: "linear-gradient(155deg,rgba(18,28,42,.98),rgba(5,12,24,.99))",
+              boxShadow: "0 28px 90px rgba(0,0,0,.58)",
+              padding: mobile ? 16 : 19,
+            }}
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "58px minmax(0,1fr)", gap: 12, alignItems: "center" }}>
+              <div style={{ width: 58, height: 58, borderRadius: 18, overflow: "hidden", border: "1px solid rgba(126,232,255,.24)", background: "rgba(83,215,255,.06)" }}>
+                <img src="/milo-world/milo-character.png" alt="Milo" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 16%" }} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: 0, color: "#ffd98a", fontSize: 9, fontWeight: 950, letterSpacing: ".13em" }}>{ACTIVITY_LAB_GUIDE_STEPS[labGuideStep].eyebrow.toUpperCase()}</p>
+                <h3 style={{ margin: "4px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 23 : 27, fontWeight: 400 }}>{ACTIVITY_LAB_GUIDE_STEPS[labGuideStep].title}</h3>
+              </div>
+            </div>
+
+            <p style={{ margin: "12px 0 0", color: "rgba(255,255,255,.7)", fontSize: mobile ? 11.5 : 12.5, lineHeight: 1.55 }}>
+              {ACTIVITY_LAB_GUIDE_STEPS[labGuideStep].body}
+            </p>
+
+            <div style={{ marginTop: 13, display: "grid", gridTemplateColumns: `repeat(${ACTIVITY_LAB_GUIDE_STEPS.length},minmax(0,1fr))`, gap: 4 }}>
+              {ACTIVITY_LAB_GUIDE_STEPS.map((_, index) => (
+                <span key={index} style={{ height: 5, borderRadius: 999, background: index <= labGuideStep ? "#ffd16a" : "rgba(255,255,255,.09)" }} />
+              ))}
+            </div>
+
+            <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 7 }}>
+              <button
+                type="button"
+                disabled={labGuideStep === 0}
+                onClick={() => setLabGuideStep((value) => Math.max(0, value - 1))}
+                style={{ minHeight: 40, padding: "0 13px", borderRadius: 11, border: "1px solid rgba(126,232,255,.15)", background: "rgba(83,215,255,.04)", color: labGuideStep === 0 ? "rgba(255,255,255,.24)" : "white", fontWeight: 900, cursor: labGuideStep === 0 ? "default" : "pointer" }}
+              >Back</button>
+              <button type="button" onClick={closeLabGuide} style={{ minHeight: 40, borderRadius: 11, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.035)", color: "rgba(255,255,255,.62)", fontWeight: 900, cursor: "pointer" }}>Skip Guide</button>
+              {labGuideStep < ACTIVITY_LAB_GUIDE_STEPS.length - 1 ? (
+                <button type="button" onClick={() => setLabGuideStep((value) => Math.min(ACTIVITY_LAB_GUIDE_STEPS.length - 1, value + 1))} style={{ minHeight: 40, padding: "0 15px", borderRadius: 11, border: "1px solid rgba(255,211,104,.35)", background: "rgba(255,190,65,.09)", color: "#ffd98a", fontWeight: 950, cursor: "pointer" }}>Next</button>
+              ) : (
+                <button type="button" onClick={closeLabGuide} style={{ minHeight: 40, padding: "0 15px", borderRadius: 11, border: "1px solid rgba(126,232,255,.3)", background: "linear-gradient(135deg,#71e1ff,#56c9e8)", color: "#03101a", fontWeight: 950, cursor: "pointer" }}>Start Training</button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </main>

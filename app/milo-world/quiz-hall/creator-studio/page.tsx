@@ -427,7 +427,8 @@ export default function CreatorStudioPage() {
 
       description: selectedQuiz.description || "",
 
-      coverImageUrl: selectedQuiz.cover_image_url || "",
+      // Challenge backgrounds now come from the parent club.
+      coverImageUrl: "",
 
     });
 
@@ -875,7 +876,8 @@ export default function CreatorStudioPage() {
 
       p_description: createForm.description.trim() || null,
 
-      p_cover_image_url: createForm.coverImageUrl.trim() || null,
+      // Background is inherited from the club.
+      p_cover_image_url: null,
 
     });
 
@@ -959,7 +961,8 @@ export default function CreatorStudioPage() {
 
       p_description: editForm.description.trim() || null,
 
-      p_cover_image_url: editForm.coverImageUrl.trim() || null,
+      // Background is inherited from the club.
+      p_cover_image_url: null,
 
     });
 
@@ -1556,24 +1559,11 @@ export default function CreatorStudioPage() {
                       className={textareaClass}
 
                     />
-
-
-
-                    <input
-
-                      value={createForm.coverImageUrl}
-
-                      onChange={(event) =>
-
-                        updateCreate("coverImageUrl", event.target.value)
-
-                      }
-
-                      placeholder="Cover image URL (optional)"
-
-                      className={inputClass}
-
-                    />
+                    <div className="rounded-2xl border border-cyan-200/10 bg-cyan-300/[0.035] px-4 py-3 text-[9px] leading-4 text-cyan-50/48">
+                      Challenge background: inherited from this club’s Background
+                      Image. Change the club background from Creator Clubs, not
+                      from individual quizzes.
+                    </div>
 
 
 
@@ -1874,26 +1864,9 @@ export default function CreatorStudioPage() {
                           className={inputClass}
 
                         />
-
-
-
-                        <input
-
-                          value={editForm.coverImageUrl}
-
-                          onChange={(event) =>
-
-                            updateEdit("coverImageUrl", event.target.value)
-
-                          }
-
-                          disabled={!canEditSelected}
-
-                          placeholder="Cover image URL"
-
-                          className={inputClass}
-
-                        />
+                        <div className="flex min-h-[44px] items-center rounded-xl border border-cyan-200/10 bg-cyan-300/[0.035] px-4 text-[9px] leading-4 text-cyan-50/42">
+                          Background inherited from the club.
+                        </div>
 
                       </div>
 
