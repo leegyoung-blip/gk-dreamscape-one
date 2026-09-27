@@ -672,12 +672,13 @@ export default function MilosMixAndServe({
     const result = stageResult;
     const runKey = currentStageRunKey.current || `local-${result.runId}`;
     if (recordedLeaderboardRuns.current.has(runKey)) return;
-    recordedLeaderboardRuns.current.add(runKey);
 
     let cancelled = false;
     async function saveAndLoadLeaderboard() {
       setLeaderboardLoading(true);
       setLeaderboardMessage("");
+
+      let saveSucceeded = !userId;
 
       if (userId) {
         const { error: saveError } = await supabase.rpc("record_milo_mix_serve_run", {
@@ -691,17 +692,27 @@ export default function MilosMixAndServe({
           p_expired_orders: expiredOrders,
           p_success: result.success,
         });
+
         if (saveError) {
-          console.warn("Could not save Mix & Serve leaderboard run:", saveError.message);
+          console.warn("Could not save Mix & Serve leaderboard run:", saveError.message, saveError.details, saveError.hint);
+          if (!cancelled) {
+            setLeaderboardMessage(`This run could not be recorded: ${saveError.message}`);
+          }
+        } else {
+          saveSucceeded = true;
         }
+      }
+
+      if (saveSucceeded) {
+        recordedLeaderboardRuns.current.add(runKey);
       }
 
       const { data, error } = await supabase.rpc("get_milo_mix_serve_leaderboard", { p_limit: 10 });
       if (cancelled) return;
       if (error) {
-        console.warn("Could not load Mix & Serve leaderboard:", error.message);
+        console.warn("Could not load Mix & Serve leaderboard:", error.message, error.details, error.hint);
         setLeaderboardRows([]);
-        setLeaderboardMessage("Leaderboard unavailable until the Mix & Serve leaderboard SQL is installed.");
+        setLeaderboardMessage((current) => current || `Leaderboard could not load: ${error.message}`);
         setLeaderboardLoading(false);
         return;
       }
@@ -1550,9 +1561,19 @@ export default function MilosMixAndServe({
               <div style={{ position: "absolute", zIndex: 4, top: mobile ? 18 : "12%", left: mobile ? 6 : "5%", right: "auto", width: mobile ? "min(68%,420px)" : "min(56%,650px)", borderRadius: mobile ? 22 : 30, padding: mobile ? 18 : 28, border: "1px solid rgba(255,211,142,.28)", background: "linear-gradient(145deg,rgba(50,31,19,.96),rgba(7,15,24,.97))", boxShadow: "0 30px 80px rgba(0,0,0,.46)" }}>
                 <button type="button" onClick={() => setLandingPhase("choose")} style={{ position: "absolute", top: 13, right: 13, minHeight: 34, padding: "0 13px", borderRadius: 999, border: "1px solid rgba(255,255,255,.12)", background: "rgba(255,255,255,.05)", color: "rgba(255,255,255,.72)", fontSize: mobile ? 11 : 12, fontWeight: 900, cursor: "pointer" }}>Skip</button>
                 <p style={{ margin: 0, color: "#ffc36f", fontSize: mobile ? 11 : 13, fontWeight: 950, letterSpacing: ".15em", textTransform: "uppercase" }}>Milo says</p>
-                <h3 style={{ margin: "9px 0 0", maxWidth: "90%", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 27 : 42, lineHeight: 1.04, fontWeight: 400 }}>Welcome to my kitchen!</h3>
-                <p style={{ margin: mobile ? "12px 0 0" : "17px 0 0", color: "rgba(255,255,255,.72)", fontSize: mobile ? 13 : 18, lineHeight: 1.55 }}>Pick a dish you want to cook and I’ll guide you through the kitchen step by step. Burger Station and Salad Station are both open now.</p>
-                <button type="button" onClick={() => setLandingPhase("choose")} style={{ width: "100%", minHeight: mobile ? 44 : 52, marginTop: mobile ? 15 : 22, borderRadius: 14, border: "1px solid rgba(255,213,126,.46)", background: "linear-gradient(135deg,#ffd06b,#f1a340)", color: "#281700", fontSize: mobile ? 13 : 15, fontWeight: 950, cursor: "pointer", boxShadow: "0 14px 34px rgba(228,140,40,.18)" }}>Choose a Dish</button>
+                <h3 style={{ margin: "9px 0 0", maxWidth: "90%", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : 38, lineHeight: 1.04, fontWeight: 400 }}>Welcome to my industry training kitchen!</h3>
+                <div style={{ marginTop: mobile ? 10 : 14, maxHeight: mobile ? "42vh" : "none", overflowY: mobile ? "auto" : "visible", paddingRight: mobile ? 4 : 0 }}>
+                  <p style={{ margin: 0, color: "rgba(255,255,255,.74)", fontSize: mobile ? 11.5 : 15, lineHeight: 1.52 }}>
+                    “My goal is to become a quadrillionaire. But to get there, I can’t only learn about money — I need to understand how different industries actually work from the inside.”
+                  </p>
+                  <p style={{ margin: mobile ? "7px 0 0" : "9px 0 0", color: "rgba(255,255,255,.6)", fontSize: mobile ? 10.5 : 13, lineHeight: 1.5 }}>
+                    “Restaurants are a perfect training ground. Every order depends on planning, preparation, timing, customer service and controlling waste. The Activity Lab lets me practise those skills instead of just reading about them.”
+                  </p>
+                  <p style={{ margin: mobile ? "7px 0 0" : "9px 0 0", color: "#ffd58d", fontSize: mobile ? 10.5 : 13, lineHeight: 1.5, fontWeight: 850 }}>
+                    “The faster and smarter we work, the more dishes we can serve in 2 minutes 30 seconds. Choose a station and let’s see how well we can run this kitchen.”
+                  </p>
+                </div>
+                <button type="button" onClick={() => setLandingPhase("choose")} style={{ width: "100%", minHeight: mobile ? 44 : 50, marginTop: mobile ? 12 : 16, borderRadius: 14, border: "1px solid rgba(255,213,126,.46)", background: "linear-gradient(135deg,#ffd06b,#f1a340)", color: "#281700", fontSize: mobile ? 13 : 14, fontWeight: 950, cursor: "pointer", boxShadow: "0 14px 34px rgba(228,140,40,.18)" }}>Choose a Dish</button>
               </div>
             ) : (
               <div style={{ position: "absolute", zIndex: 4, top: mobile ? 12 : "5%", left: mobile ? 2 : "3%", right: mobile ? "31%" : "29%", bottom: mobile ? 8 : "3%", display: "grid", alignContent: "start", animation: "mixServeDishRise .35s ease-out" }}>

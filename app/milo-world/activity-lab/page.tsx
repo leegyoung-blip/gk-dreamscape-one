@@ -910,22 +910,54 @@ export default function ActivityLabPage() {
                   overflow: needsVerticalScroll ? "visible" : "hidden",
                 }}
               >
-                {userId && !masteryRunActive ? (
-                  <div style={{ height: "100%", minHeight: 320, display: "grid", placeItems: "center", padding: 16 }}>
-                    <div style={{ width: "min(620px,100%)", borderRadius: 22, border: "1px solid rgba(126,232,255,.18)", background: "linear-gradient(145deg,rgba(8,27,46,.88),rgba(4,13,27,.94))", padding: mobile ? 18 : 24, textAlign: "center" }}>
-                      <div style={{ width: 58, height: 58, margin: "0 auto", borderRadius: 18, display: "grid", placeItems: "center", border: "1px solid rgba(126,232,255,.22)", background: "rgba(83,215,255,.06)", color: "#8ee8ff", fontSize: 24 }}>⚡</div>
-                      <p style={{ margin: "14px 0 0", color: "#8ee8ff", fontSize: 9, fontWeight: 950, letterSpacing: ".14em" }}>ACTIVITY BATTERY</p>
-                      <h3 style={{ margin: "6px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 28 : 36, fontWeight: 400 }}>Start a Mastery Code run</h3>
-                      <p style={{ margin: "9px auto 0", maxWidth: 490, color: "rgba(255,255,255,.48)", fontSize: 11, lineHeight: 1.55 }}>
-                        {isAdmin
-                          ? "Admin access is unlimited. Start as many Mastery Code runs as you need with no Bolt charge."
-                          : "Every Mastery Code run costs 5 Bolts. Bolts are charged once when you start; the battery does not drain while you play."}
-                      </p>
-                      <button type="button" onClick={startMasteryBatteryRun} style={{ minHeight: 44, marginTop: 16, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(126,232,255,.3)", background: batteryReadyForNewRun ? "linear-gradient(135deg,#71e1ff,#56c9e8)" : "rgba(255,255,255,.05)", color: batteryReadyForNewRun ? "#03101a" : "rgba(255,255,255,.42)", fontSize: 11, fontWeight: 950, cursor: "pointer" }}>
+                {!masteryRunActive ? (
+                  <div style={{ height: "100%", minHeight: 320, display: "grid", placeItems: "center", padding: mobile ? 10 : 16 }}>
+                    <div style={{ width: "min(780px,100%)", maxHeight: "100%", overflowY: "auto", borderRadius: 22, border: "1px solid rgba(126,232,255,.18)", background: "linear-gradient(145deg,rgba(8,27,46,.94),rgba(4,13,27,.97))", padding: mobile ? 16 : 22 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "112px minmax(0,1fr)", gap: mobile ? 12 : 20, alignItems: "center" }}>
+                        <div style={{ textAlign: "center" }}>
+                          <div style={{ width: mobile ? 72 : 96, height: mobile ? 72 : 96, margin: "0 auto", borderRadius: 24, overflow: "hidden", border: "1px solid rgba(126,232,255,.26)", background: "radial-gradient(circle at 50% 20%,rgba(126,232,255,.16),rgba(5,17,31,.9))" }}>
+                            <img src="/milo-world/milo-character.png" alt="Milo" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 16%" }} />
+                          </div>
+                          <p style={{ margin: "7px 0 0", color: "#8ee8ff", fontSize: 9, fontWeight: 950, letterSpacing: ".14em" }}>MILO SAYS</p>
+                        </div>
+
+                        <div>
+                          <h3 style={{ margin: 0, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 27 : 34, fontWeight: 400 }}>Train the way I think</h3>
+                          <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,.72)", fontSize: mobile ? 11 : 12.5, lineHeight: 1.58 }}>
+                            “My goal is to become a quadrillionaire — but that means I need a lot more than money. I need to keep learning new skills, understand how different industries work, and get better at solving problems.”
+                          </p>
+                          <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.6)", fontSize: mobile ? 10.5 : 11.5, lineHeight: 1.55 }}>
+                            “That’s why I come to the Activity Lab. Mastery Code trains me to recognise patterns, test ideas and change strategy when something doesn’t work. Those are the same thinking skills I’ll need when I’m building companies, analysing opportunities and making big decisions.”
+                          </p>
+                          <p style={{ margin: "7px 0 0", color: "#9fffd2", fontSize: mobile ? 10.5 : 11.5, lineHeight: 1.5, fontWeight: 850 }}>
+                            “Every code I crack makes me a sharper problem-solver. Ready to train with me?”
+                          </p>
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 6 }}>
+                        {["Logic", "Pattern Recognition", "Strategy", "Decision-Making"].map((skill) => (
+                          <span key={skill} style={{ padding: "6px 9px", borderRadius: 999, border: "1px solid rgba(126,232,255,.14)", background: "rgba(83,215,255,.05)", color: "rgba(215,248,255,.72)", fontSize: 8.5, fontWeight: 900 }}>{skill}</span>
+                        ))}
+                      </div>
+
+                      <div style={{ marginTop: 14, padding: "10px 12px", borderRadius: 13, border: "1px solid rgba(255,255,255,.07)", background: "rgba(255,255,255,.025)", textAlign: "center" }}>
+                        <span style={{ color: "rgba(255,255,255,.48)", fontSize: 10.5 }}>
+                          {!userId
+                            ? "Guest preview · log in to earn Dream Tokens."
+                            : isAdmin
+                              ? "Admin access is unlimited."
+                              : `This run costs ${battery.runCostBolts} Bolts.`}
+                        </span>
+                      </div>
+
+                      <button type="button" onClick={startMasteryBatteryRun} style={{ width: "100%", minHeight: 46, marginTop: 12, padding: "0 22px", borderRadius: 13, border: "1px solid rgba(126,232,255,.3)", background: batteryReadyForNewRun ? "linear-gradient(135deg,#71e1ff,#56c9e8)" : "rgba(255,255,255,.05)", color: batteryReadyForNewRun ? "#03101a" : "rgba(255,255,255,.42)", fontSize: 11, fontWeight: 950, cursor: "pointer" }}>
                         {batteryReadyForNewRun
-                          ? isAdmin
-                            ? "Start Mastery Run · Unlimited"
-                            : `Start Mastery Run · ${battery.runCostBolts} Bolts`
+                          ? !userId
+                            ? "Start Mastery Code"
+                            : isAdmin
+                              ? "Start Mastery Run · Unlimited"
+                              : `Start Mastery Run · ${battery.runCostBolts} Bolts`
                           : "Need More Bolts"}
                       </button>
                     </div>

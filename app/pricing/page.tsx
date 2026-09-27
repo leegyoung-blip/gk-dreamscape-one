@@ -1,29 +1,23 @@
 "use client";
-
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 import { isPublicPreviewActive } from "@/lib/public-preview";
-
 type PricingView = "monthly" | "annual";
-type PublicPlanKey = "core" | "nova" | "full";
-
+type PublicPlanKey = "core" | "nova" | "full" | "milo_finance";
 const STAFF_CHECKOUT_ROLES = new Set([
   "admin",
   "teacher",
   "curriculum_lead",
 ]);
-
 const STANDARD_TRIAL_DAYS = 7;
-
 function normaliseRole(role: string | null | undefined) {
   return String(role || "")
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, "_");
 }
-
 type Plan = {
   key: PublicPlanKey;
   name: string;
@@ -40,7 +34,6 @@ type Plan = {
   regularAnnualPrice?: number;
   trialEligible?: boolean;
 };
-
 const plans: Plan[] = [
   {
     key: "core",
@@ -105,71 +98,105 @@ const plans: Plan[] = [
     badge: "Coming Soon",
     comingSoon: true,
   },
+  {
+    key: "milo_finance",
+    name: "Milo Finance",
+    eyebrow: "Financial Literacy + Business + Markets",
+    monthlyPrice: 12.9,
+    description:
+      "A hands-on financial literacy membership where learners study money skills in Milo's Bank, build businesses, explore markets and apply what they learn across Dreamscape.",
+    features: [
+      "Interactive financial literacy lessons in Milo's Bank",
+      "Business Builder access",
+      "Exclusive finance lessons inside Milo's Exchange",
+      "Early access to selected property launches",
+      "Additional property upgrade and development options",
+      "Finance progression, milestones and achievements",
+    ],
+    accent: "#7ee7a8",
+    badge: "Coming Soon",
+    comingSoon: true,
+  },
 ];
-
 const comparisonRows = [
   {
     feature: "Primary English missions",
     core: true,
     nova: true,
     full: true,
+    milo_finance: false,
   },
   {
     feature: "Primary Mathematics missions",
     core: true,
     nova: true,
     full: true,
+    milo_finance: false,
   },
   {
     feature: "Primary Science missions",
     core: false,
     nova: false,
     full: true,
+    milo_finance: false,
   },
   {
     feature: "Think Lab and Knowledge Arena",
     core: true,
     nova: true,
     full: true,
+    milo_finance: false,
   },
   {
     feature: "Topic mastery and progress insights",
     core: true,
     nova: true,
     full: true,
+    milo_finance: false,
   },
   {
     feature: "NOVA+ My Learning",
     core: false,
     nova: true,
     full: true,
+    milo_finance: false,
   },
   {
     feature: "Concept-level Strengths & Gaps",
     core: false,
     nova: true,
     full: true,
+    milo_finance: false,
   },
   {
     feature: "Curriculum Mastery Map",
     core: false,
     nova: true,
     full: true,
+    milo_finance: false,
   },
   {
     feature: "Personalised recommendations",
     core: false,
     nova: true,
     full: true,
+    milo_finance: false,
   },
   {
     feature: "Downloadable learning reports",
     core: false,
     nova: true,
     full: true,
+    milo_finance: false,
   },
-];
 
+  { feature: "Milo's Bank financial literacy lessons", core: false, nova: false, full: false, milo_finance: true },
+  { feature: "Business Builder", core: false, nova: false, full: false, milo_finance: true },
+  { feature: "Exclusive Milo's Exchange finance lessons", core: false, nova: false, full: false, milo_finance: true },
+  { feature: "Early access to selected property launches", core: false, nova: false, full: false, milo_finance: true },
+  { feature: "Additional property upgrades", core: false, nova: false, full: false, milo_finance: true },
+  { feature: "Finance progression and achievements", core: false, nova: false, full: false, milo_finance: true },
+];
 const faqItems = [
   {
     question: "How does the 7-day free trial work?",
@@ -207,92 +234,81 @@ const faqItems = [
       "Full Access will combine English, Mathematics, Science and NOVA+ in one complete membership. It is Coming Soon and no public price is being displayed yet.",
   },
   {
+    question: "What is Milo Finance?",
+    answer:
+      "Milo Finance is Dreamscape's financial literacy membership. It combines interactive lessons in Milo's Bank with Business Builder access, exclusive finance lessons in Milo's Exchange, selected early property-launch access, additional property upgrade options and a dedicated finance progression pathway.",
+  },
+  {
+    question: "What will Milo Finance cost?",
+    answer:
+      "Milo Finance is planned at SGD 12.90 per month at launch. It is currently labelled Coming Soon and is not yet available for public checkout.",
+  },
+  {
     question: "How are payments processed?",
     answer:
       "Dreamscape subscriptions are processed securely by Stripe. Checkout shows the selected plan, billing cycle, applicable trial terms, first billing date and available payment methods before confirmation.",
   },
 ];
-
 function dreamscapeSubscriptionHref(
   planKey: "core" | "nova",
   billingCycle: PricingView,
 ) {
   return `/dreamscape/subscribe?plan=${planKey}&cycle=${billingCycle}`;
 }
-
 function money(value: number) {
   return value.toFixed(value % 1 === 0 ? 0 : 2);
 }
-
 export default function PricingPage() {
   const [pricingView, setPricingView] =
     useState<PricingView>("annual");
-
   const [showSubscriptionComingSoon, setShowSubscriptionComingSoon] =
     useState(false);
-
   const [checkoutRole, setCheckoutRole] =
     useState<string | null>(null);
-
   const [isSignedIn, setIsSignedIn] =
     useState(false);
-
   const [checkoutAccessLoading, setCheckoutAccessLoading] =
     useState(true);
-
   const [viewportWidth, setViewportWidth] =
     useState(1440);
-
   const [publicPreviewActive, setPublicPreviewActive] =
     useState(() => isPublicPreviewActive());
-
   useEffect(() => {
     const update = () => setViewportWidth(window.innerWidth);
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
-
   useEffect(() => {
     const update = () =>
       setPublicPreviewActive(isPublicPreviewActive());
-
     update();
     const interval = window.setInterval(update, 60_000);
     return () => window.clearInterval(interval);
   }, []);
-
   useEffect(() => {
     let isMounted = true;
-
     async function loadCheckoutAccess() {
       setCheckoutAccessLoading(true);
-
       const {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
-
       if (!isMounted) return;
-
       if (userError || !user) {
         setIsSignedIn(false);
         setCheckoutRole(null);
         setCheckoutAccessLoading(false);
         return;
       }
-
       setIsSignedIn(true);
-
       const { data: profile, error: profileError } =
         await supabase
           .from("profiles")
           .select("role")
           .eq("id", user.id)
           .maybeSingle();
-
       if (!isMounted) return;
-
       if (profileError) {
         console.warn(
           "Could not load pricing checkout role:",
@@ -304,18 +320,14 @@ export default function PricingPage() {
           normaliseRole(profile?.role),
         );
       }
-
       setCheckoutAccessLoading(false);
     }
-
     void loadCheckoutAccess();
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!isMounted) return;
-
         if (
           event === "SIGNED_OUT" ||
           !session?.user
@@ -325,9 +337,7 @@ export default function PricingPage() {
           setCheckoutAccessLoading(false);
           return;
         }
-
         setIsSignedIn(true);
-
         window.setTimeout(() => {
           if (isMounted) {
             void loadCheckoutAccess();
@@ -335,36 +345,29 @@ export default function PricingPage() {
         }, 0);
       },
     );
-
     return () => {
       isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
-
   const canOpenSubscriptionCheckout =
     !publicPreviewActive ||
     (
       checkoutRole !== null &&
       STAFF_CHECKOUT_ROLES.has(checkoutRole)
     );
-
   function handleSubscriptionClick(
     checkoutHref: string,
   ) {
     if (checkoutAccessLoading) return;
-
     if (canOpenSubscriptionCheckout) {
       window.location.assign(checkoutHref);
       return;
     }
-
     setShowSubscriptionComingSoon(true);
   }
-
   const isMobile = viewportWidth <= 700;
   const isCompact = viewportWidth <= 1180;
-
   const launchSavings = useMemo(
     () => ({
       core:
@@ -378,7 +381,6 @@ export default function PricingPage() {
     }),
     [pricingView],
   );
-
   const pageStyle: CSSProperties = {
     minHeight: "100vh",
     background:
@@ -386,13 +388,11 @@ export default function PricingPage() {
     color: "white",
     fontFamily: "Arial, Helvetica, sans-serif",
   };
-
   const smallLinkStyle: CSSProperties = {
     color: "rgba(255,255,255,0.72)",
     textDecoration: "none",
     fontSize: "14px",
   };
-
   return (
     <main style={pageStyle}>
       <header
@@ -432,7 +432,6 @@ export default function PricingPage() {
               borderRadius: "999px",
             }}
           />
-
           <div>
             <p
               style={{
@@ -444,7 +443,6 @@ export default function PricingPage() {
             >
               DREAMSCAPE ONE
             </p>
-
             <p
               style={{
                 margin: "6px 0 0",
@@ -458,7 +456,6 @@ export default function PricingPage() {
             </p>
           </div>
         </Link>
-
         <nav
           style={{
             display: "flex",
@@ -471,7 +468,6 @@ export default function PricingPage() {
               <Link href="/" style={smallLinkStyle}>
                 Home
               </Link>
-
               <Link
                 href="/education-licence"
                 style={smallLinkStyle}
@@ -480,7 +476,6 @@ export default function PricingPage() {
               </Link>
             </>
           )}
-
           <Link
             href={
               isSignedIn
@@ -511,7 +506,6 @@ export default function PricingPage() {
           </Link>
         </nav>
       </header>
-
       <section
         style={{
           padding:
@@ -533,7 +527,6 @@ export default function PricingPage() {
         >
           Dreamscape Student Access
         </p>
-
         <h1
           style={{
             margin: "22px auto 0",
@@ -548,7 +541,6 @@ export default function PricingPage() {
         >
           Choose how far learning goes.
         </h1>
-
         <p
           style={{
             margin: "26px auto 0",
@@ -561,10 +553,9 @@ export default function PricingPage() {
           }}
         >
           Start with English and Mathematics in Core Missions,
-          add deeper learning intelligence with NOVA+, or look
-          ahead to the complete three-subject Full Access plan.
+          add deeper learning intelligence with NOVA+, look ahead
+          to Full Access, or build real-world money skills with Milo Finance.
         </p>
-
         <div
           style={{
             margin: "30px auto 0",
@@ -580,6 +571,7 @@ export default function PricingPage() {
             "NOVA+ from SGD 24.90",
             "Annual launch savings",
             "Full Access coming soon",
+            "Milo Finance SGD 12.90 · coming soon",
           ].map((item) => (
             <span
               key={item}
@@ -602,7 +594,6 @@ export default function PricingPage() {
             </span>
           ))}
         </div>
-
         <div
           style={{
             margin: "32px auto 0",
@@ -628,7 +619,6 @@ export default function PricingPage() {
           ).map(([view, label]) => {
             const active =
               pricingView === view;
-
             return (
               <button
                 key={view}
@@ -663,7 +653,6 @@ export default function PricingPage() {
           })}
         </div>
       </section>
-
       <section
         style={{
           padding:
@@ -705,7 +694,6 @@ export default function PricingPage() {
             controlled by the Dreamscape checkout switch.
           </div>
         )}
-
         <div
           style={{
             maxWidth: "1420px",
@@ -714,7 +702,9 @@ export default function PricingPage() {
             gridTemplateColumns:
               isMobile
                 ? "1fr"
-                : "repeat(3, minmax(0, 1fr))",
+                : isCompact
+                  ? "repeat(2, minmax(0, 1fr))"
+                  : "repeat(4, minmax(0, 1fr))",
             gap:
               isMobile
                 ? "22px"
@@ -727,18 +717,14 @@ export default function PricingPage() {
               pricingView === "monthly"
                 ? plan.monthlyPrice
                 : plan.annualPrice;
-
             const regularPrice =
               pricingView === "monthly"
                 ? plan.regularMonthlyPrice
                 : plan.regularAnnualPrice;
-
             const hasPrice =
               typeof price === "number";
-
             const hasRegularPrice =
               typeof regularPrice === "number";
-
             const checkoutHref =
               !plan.comingSoon &&
               (plan.key === "core" ||
@@ -748,13 +734,11 @@ export default function PricingPage() {
                     pricingView,
                   )
                 : null;
-
             const saving =
               plan.key === "core" ||
               plan.key === "nova"
                 ? launchSavings[plan.key]
                 : null;
-
             return (
               <article
                 key={plan.key}
@@ -778,9 +762,11 @@ export default function PricingPage() {
                     : "1px solid rgba(142,232,255,0.22)",
                   background: plan.featured
                     ? "radial-gradient(circle at 50% 0%, rgba(83,215,255,0.16), transparent 34%), linear-gradient(145deg, rgba(255,255,255,0.09), rgba(255,255,255,0.025))"
-                    : plan.comingSoon
-                      ? "radial-gradient(circle at 85% 0%, rgba(255,174,92,0.11), transparent 32%), linear-gradient(145deg, rgba(255,255,255,0.058), rgba(255,255,255,0.018))"
-                      : "linear-gradient(145deg, rgba(255,255,255,0.065), rgba(255,255,255,0.02))",
+                    : plan.key === "milo_finance"
+                      ? "radial-gradient(circle at 85% 0%, rgba(126,231,168,0.13), transparent 32%), linear-gradient(145deg, rgba(255,255,255,0.058), rgba(255,255,255,0.018))"
+                      : plan.comingSoon
+                        ? "radial-gradient(circle at 85% 0%, rgba(255,174,92,0.11), transparent 32%), linear-gradient(145deg, rgba(255,255,255,0.058), rgba(255,255,255,0.018))"
+                        : "linear-gradient(145deg, rgba(255,255,255,0.065), rgba(255,255,255,0.02))",
                   boxShadow: plan.featured
                     ? "0 30px 90px rgba(0,0,0,0.42), 0 0 35px rgba(83,215,255,0.1)"
                     : "0 25px 70px rgba(0,0,0,0.3)",
@@ -795,10 +781,7 @@ export default function PricingPage() {
                       zIndex: 2,
                       padding: "8px 11px",
                       borderRadius: "999px",
-                      background:
-                        plan.comingSoon
-                          ? "#ffae5c"
-                          : plan.accent,
+                      background: plan.accent,
                       color: "#1b0c26",
                       fontSize: "10px",
                       fontWeight: 900,
@@ -812,7 +795,6 @@ export default function PricingPage() {
                     {plan.badge}
                   </span>
                 )}
-
                 <p
                   style={{
                     margin: 0,
@@ -826,7 +808,6 @@ export default function PricingPage() {
                 >
                   {plan.eyebrow}
                 </p>
-
                 <h2
                   style={{
                     margin: "16px 0 0",
@@ -837,7 +818,6 @@ export default function PricingPage() {
                 >
                   {plan.name}
                 </h2>
-
                 {plan.comingSoon ? (
                   <div
                     style={{
@@ -852,7 +832,7 @@ export default function PricingPage() {
                     <p
                       style={{
                         margin: 0,
-                        color: "#ffbd73",
+                        color: plan.accent,
                         fontSize:
                           isMobile
                             ? "30px"
@@ -863,7 +843,6 @@ export default function PricingPage() {
                     >
                       Coming Soon
                     </p>
-
                     <p
                       style={{
                         margin: "9px 0 0",
@@ -873,7 +852,9 @@ export default function PricingPage() {
                         lineHeight: 1.5,
                       }}
                     >
-                      Pricing will be announced closer to release.
+                      {plan.key === "milo_finance"
+                        ? "SGD 12.90 per month at launch."
+                        : "Pricing will be announced closer to release."}
                     </p>
                   </div>
                 ) : (
@@ -899,7 +880,6 @@ export default function PricingPage() {
                         >
                           Regular
                         </span>
-
                         <span
                           style={{
                             fontSize:
@@ -917,7 +897,6 @@ export default function PricingPage() {
                         </span>
                       </div>
                     )}
-
                     {hasPrice && (
                       <div
                         style={{
@@ -940,7 +919,6 @@ export default function PricingPage() {
                         >
                           SGD
                         </span>
-
                         <span
                           style={{
                             fontSize:
@@ -955,7 +933,6 @@ export default function PricingPage() {
                         </span>
                       </div>
                     )}
-
                     <p
                       style={{
                         margin: "9px 0 0",
@@ -968,7 +945,6 @@ export default function PricingPage() {
                         ? "per month"
                         : "per year, paid upfront"}
                     </p>
-
                     {saving !== null && (
                       <p
                         style={{
@@ -983,7 +959,6 @@ export default function PricingPage() {
                     )}
                   </>
                 )}
-
                 {plan.trialEligible &&
                   !plan.comingSoon && (
                     <div
@@ -1009,7 +984,6 @@ export default function PricingPage() {
                       >
                         First {STANDARD_TRIAL_DAYS} days free
                       </p>
-
                       <p
                         style={{
                           margin: "7px 0 0",
@@ -1024,7 +998,6 @@ export default function PricingPage() {
                       </p>
                     </div>
                   )}
-
                 <p
                   style={{
                     margin: "24px 0 0",
@@ -1037,7 +1010,6 @@ export default function PricingPage() {
                 >
                   {plan.description}
                 </p>
-
                 <div
                   style={{
                     marginTop: "26px",
@@ -1070,7 +1042,6 @@ export default function PricingPage() {
                         >
                           ✓
                         </span>
-
                         <span
                           style={{
                             color:
@@ -1085,7 +1056,6 @@ export default function PricingPage() {
                     ),
                   )}
                 </div>
-
                 <button
                   type="button"
                   onClick={() => {
@@ -1150,7 +1120,9 @@ export default function PricingPage() {
                 >
                   <span>
                     {plan.comingSoon
-                      ? "Full Access Coming Soon"
+                      ? plan.key === "milo_finance"
+                        ? "Milo Finance Coming Soon"
+                        : "Full Access Coming Soon"
                       : checkoutAccessLoading
                         ? "Checking access..."
                         : plan.key === "core" &&
@@ -1158,7 +1130,6 @@ export default function PricingPage() {
                           ? `Start ${STANDARD_TRIAL_DAYS}-Day Free Trial`
                           : `Choose ${plan.name}`}
                   </span>
-
                   <span
                     aria-hidden="true"
                     style={{
@@ -1180,7 +1151,6 @@ export default function PricingPage() {
                     {plan.comingSoon ? "…" : "→"}
                   </span>
                 </button>
-
                 {!plan.comingSoon && (
                   <p
                     style={{
@@ -1203,7 +1173,6 @@ export default function PricingPage() {
           })}
         </div>
       </section>
-
       <section
         style={{
           padding:
@@ -1235,7 +1204,6 @@ export default function PricingPage() {
           >
             Compare Plans
           </p>
-
           <h2
             style={{
               margin: "18px auto 0",
@@ -1249,7 +1217,6 @@ export default function PricingPage() {
           >
             Find the access that fits.
           </h2>
-
           <div
             style={{
               marginTop: "40px",
@@ -1262,7 +1229,7 @@ export default function PricingPage() {
             <table
               style={{
                 width: "100%",
-                minWidth: "720px",
+                minWidth: "920px",
                 borderCollapse: "collapse",
                 background:
                   "rgba(255,255,255,0.03)",
@@ -1275,6 +1242,7 @@ export default function PricingPage() {
                     "Core Missions",
                     "NOVA+",
                     "Full Access",
+                    "Milo Finance",
                   ].map((heading) => (
                     <th
                       key={heading}
@@ -1296,7 +1264,6 @@ export default function PricingPage() {
                   ))}
                 </tr>
               </thead>
-
               <tbody>
                 {comparisonRows.map(
                   (row) => (
@@ -1312,12 +1279,12 @@ export default function PricingPage() {
                       >
                         {row.feature}
                       </td>
-
                       {(
                         [
                           "core",
                           "nova",
                           "full",
+                          "milo_finance",
                         ] as const
                       ).map((key) => (
                         <td
@@ -1348,7 +1315,6 @@ export default function PricingPage() {
           </div>
         </div>
       </section>
-
       <section
         style={{
           padding:
@@ -1376,7 +1342,6 @@ export default function PricingPage() {
           >
             Questions
           </p>
-
           <h2
             style={{
               margin: "18px 0 0",
@@ -1389,7 +1354,6 @@ export default function PricingPage() {
           >
             Before you subscribe.
           </h2>
-
           <div
             style={{
               marginTop: "38px",
@@ -1423,7 +1387,6 @@ export default function PricingPage() {
                 >
                   {item.question}
                 </summary>
-
                 <p
                   style={{
                     margin: 0,
@@ -1440,7 +1403,6 @@ export default function PricingPage() {
               </details>
             ))}
           </div>
-
           <p
             style={{
               margin: "34px auto 0",
@@ -1453,11 +1415,10 @@ export default function PricingPage() {
           >
             All prices are in Singapore dollars. Dreamscape
             subscription payments are processed securely by
-            Stripe. Core Missions introductory trial eligibility
+            Stripe. Milo Finance is currently Coming Soon at a planned launch price of SGD 12.90 per month. Core Missions introductory trial eligibility
             and all subscriptions remain subject to the applicable
             Terms & Conditions.
           </p>
-
           <div
             style={{
               marginTop: "24px",
@@ -1473,14 +1434,12 @@ export default function PricingPage() {
             >
               Terms & Conditions
             </Link>
-
             <Link
               href="/privacy"
               style={smallLinkStyle}
             >
               Privacy Policy
             </Link>
-
             <a
               href="mailto:admin@gurukidspro.com"
               style={smallLinkStyle}
@@ -1490,7 +1449,6 @@ export default function PricingPage() {
           </div>
         </div>
       </section>
-
       {showSubscriptionComingSoon && (
         <div
           role="dialog"
@@ -1564,7 +1522,6 @@ export default function PricingPage() {
             >
               ×
             </button>
-
             <p
               style={{
                 margin: 0,
@@ -1577,7 +1534,6 @@ export default function PricingPage() {
             >
               Dreamscape One Public Preview
             </p>
-
             <h2
               id="subscription-coming-soon-title"
               style={{
@@ -1594,7 +1550,6 @@ export default function PricingPage() {
             >
               Subscriptions are still in preview
             </h2>
-
             <p
               style={{
                 margin:
@@ -1613,7 +1568,6 @@ export default function PricingPage() {
               controlled during preview. Authorised staff accounts
               can continue testing the Stripe subscription flow.
             </p>
-
             <button
               type="button"
               onClick={() =>
