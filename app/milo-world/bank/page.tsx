@@ -15,7 +15,6 @@ import { useBankAchievements } from "./hooks/useBankAchievements";
 import { useBankResponsive } from "./hooks/useBankResponsive";
 import { useFinancialProgress } from "./hooks/useFinancialProgress";
 import { useMiloFinanceAccess } from "./hooks/useMiloFinanceAccess";
-import MiloFinanceBadge from "./components/MiloFinanceBadge";
 import MiloFinanceUpgradeModal from "./components/MiloFinanceUpgradeModal";
 import type { BankSection } from "./lib/bank-types";
 
@@ -109,115 +108,39 @@ export default function MiloBankPage() {
           height: overviewDesktop ? "calc(100dvh - 73px)" : undefined,
           overflow: overviewDesktop ? "hidden" : "visible",
           padding: overviewDesktop
-            ? "14px 0 14px"
+            ? "4px 0 12px"
             : isMobile
-              ? "18px 0 56px"
-              : "28px 0 64px",
+              ? "5px 0 48px"
+              : "6px 0 56px",
         }}
       >
-        <div
-          style={{
-            textAlign: "center",
-            marginBottom: overviewDesktop ? "12px" : isMobile ? "18px" : "22px",
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              color: "#8ee8ff",
-              fontSize: "10px",
-              fontWeight: 900,
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-            }}
-          >
-            Milo’s World · Financial Learning Centre
-          </p>
-
-          <button
-            type="button"
-            onClick={() => setActiveSection(null)}
-            aria-label="Return to Milo’s Bank overview"
-            style={{
-              display: "block",
-              margin: overviewDesktop ? "7px auto 0" : "11px auto 0",
-              padding: 0,
-              border: 0,
-              background: "transparent",
-              color: "white",
-              cursor: activeSection ? "pointer" : "default",
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontSize: isMobile
-                ? "clamp(42px, 13vw, 60px)"
-                : overviewDesktop
-                  ? "clamp(54px, 5vw, 72px)"
-                  : "clamp(62px, 6vw, 84px)",
-              lineHeight: 0.92,
-              fontWeight: 400,
-              letterSpacing: "-0.055em",
-              textShadow: "0 24px 70px rgba(0,0,0,0.46)",
-            }}
-          >
-            Milo’s Bank
-          </button>
-
-          <p
-            style={{
-              margin: overviewDesktop ? "8px auto 0" : "12px auto 0",
-              maxWidth: "740px",
-              color: "rgba(255,255,255,0.58)",
-              fontSize: isMobile ? "12px" : overviewDesktop ? "13px" : "14px",
-              lineHeight: 1.6,
-            }}
-          >
-            Learn how money works. Put it into practice. See how your decisions improve.
-          </p>
-
-          {!financeAccess.loading && (
-<div style={{ marginTop: overviewDesktop ? "7px" : "10px" }}>
-              {financeAccess.hasAccess ? (
-                <MiloFinanceBadge active />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setFinanceUpgradeOpen(true)}
-                  style={{
-                    border: 0,
-                    background: "transparent",
-                    padding: 0,
-                    cursor: "pointer",
-                  }}
-                >
-                  <MiloFinanceBadge />
-                </button>
-              )}
-            </div>
-          )}
-
-          {activeSection && (
+        {activeSection && (
+          <div style={{ marginBottom: "5px" }}>
             <button
               type="button"
               onClick={() => setActiveSection(null)}
+              aria-label="Return to Bank overview"
               style={{
-                marginTop: "12px",
-                minHeight: "34px",
-                padding: "0 12px",
+                minHeight: isMobile ? "30px" : "32px",
+                padding: "0 11px",
                 borderRadius: "999px",
                 border: "1px solid rgba(126,232,255,0.14)",
-                background: "rgba(3,12,29,0.42)",
+                background: "rgba(3,12,29,0.56)",
                 color: "rgba(255,255,255,0.58)",
                 cursor: "pointer",
                 fontFamily: "inherit",
                 fontSize: "9px",
                 fontWeight: 850,
-                letterSpacing: "0.06em",
+                letterSpacing: "0.05em",
                 textTransform: "uppercase",
+                backdropFilter: "blur(14px)",
+                WebkitBackdropFilter: "blur(14px)",
               }}
             >
-              ← Bank Overview
+              ← Overview
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         <BankNavigation
           activeSection={activeSection}

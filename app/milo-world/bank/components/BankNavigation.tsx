@@ -30,7 +30,7 @@ export default function BankNavigation({
     <nav
       aria-label="Milo’s Bank areas"
       style={{
-        marginTop: "16px",
+        marginTop: "0",
         display: "grid",
         gridTemplateColumns: isMobile
           ? "repeat(2, minmax(0, 1fr))"

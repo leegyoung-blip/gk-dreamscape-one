@@ -4,12 +4,13 @@ import { useState } from "react";
 import type { BankAccountSnapshot, BankScreenMode, MyMoneyTab } from "../lib/bank-types";
 import BankOverview from "./BankOverview";
 import BondsPanel from "./BondsPanel";
+import MyMoneyTrendChart from "./MyMoneyTrendChart";
 import SavingsGoalsPanel from "./SavingsGoalsPanel";
 import StatementPanel from "./StatementPanel";
 import WalletPanel from "./WalletPanel";
 
 const MONEY_TABS: Array<{ id: MyMoneyTab; label: string; icon: string; description: string }> = [
-  { id: "wallet", label: "Wallet", icon: "✦", description: "Available DT and monthly movement" },
+  { id: "wallet", label: "Wallet", icon: "✦", description: "Available DT and money overview" },
   { id: "savings", label: "Savings Goals", icon: "◎", description: "Set DT aside for a purpose" },
   { id: "bonds", label: "Bank Bonds", icon: "◆", description: "Fixed-term Dreamscape Bonds" },
   { id: "statement", label: "Statement", icon: "≡", description: "Review your DT history" },
@@ -33,46 +34,21 @@ export default function MyMoneyPanel({
   onOpenUpgrade: () => void;
 }) {
   const isMobile = screenMode === "mobile";
+  const isDesktop = screenMode === "desktop";
   const [activeTab, setActiveTab] = useState<MyMoneyTab>("wallet");
 
   return (
-    <div style={{ marginTop: "18px" }}>
-      <section
-        style={{
-          marginBottom: "14px",
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "space-between",
-          gap: "16px",
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <p style={{ margin: 0, color: "#9fffd2", fontSize: "9px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>
-            Personal Finance
-          </p>
-          <h2 style={{ margin: "7px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "38px" : "48px", lineHeight: 0.98, fontWeight: 500, letterSpacing: "-0.035em" }}>
-            My Money
-          </h2>
-          <p style={{ margin: "10px 0 0", maxWidth: "720px", color: "rgba(255,255,255,0.50)", fontSize: "12px", lineHeight: 1.6 }}>
-            Your practical Bank tools live here. Manage available DT, set money aside, use Bank Bonds and review your statement.
-          </p>
-        </div>
-      </section>
-
-      <BankOverview account={account} loading={loading} screenMode={screenMode} />
-
+    <div style={{ marginTop: "8px" }}>
       <nav
         aria-label="My Money sections"
         style={{
-          marginTop: "12px",
           display: "grid",
           gridTemplateColumns: "repeat(4, minmax(0,1fr))",
           gap: isMobile ? "5px" : "8px",
           padding: isMobile ? "5px" : "7px",
           borderRadius: "18px",
           border: "1px solid rgba(126,232,255,0.10)",
-          background: "rgba(3,12,29,0.60)",
+          background: "rgba(3,12,29,0.68)",
           backdropFilter: "blur(16px)",
           WebkitBackdropFilter: "blur(16px)",
         }}
@@ -87,7 +63,7 @@ export default function MyMoneyPanel({
               aria-pressed={active}
               title={tab.description}
               style={{
-                minHeight: isMobile ? "52px" : "54px",
+                minHeight: isMobile ? "50px" : "54px",
                 padding: isMobile ? "6px 3px" : "0 12px",
                 borderRadius: "13px",
                 border: active ? "1px solid rgba(159,255,210,0.34)" : "1px solid transparent",
@@ -112,12 +88,33 @@ export default function MyMoneyPanel({
       </nav>
 
       {activeTab === "wallet" && (
-        <WalletPanel
-          account={account}
-          loading={loading}
-          isLoggedIn={isLoggedIn}
-          screenMode={screenMode}
-        />
+        <>
+          <div
+            style={{
+              marginTop: "14px",
+              display: "grid",
+              gridTemplateColumns: isDesktop
+                ? "minmax(0,0.88fr) minmax(0,1.12fr)"
+                : "1fr",
+              gap: "14px",
+              alignItems: "stretch",
+            }}
+          >
+            <BankOverview account={account} loading={loading} screenMode={screenMode} />
+            <MyMoneyTrendChart
+              account={account}
+              isLoggedIn={isLoggedIn}
+              screenMode={screenMode}
+            />
+          </div>
+
+          <WalletPanel
+            account={account}
+            loading={loading}
+            isLoggedIn={isLoggedIn}
+            screenMode={screenMode}
+          />
+        </>
       )}
 
       {activeTab === "savings" && (
