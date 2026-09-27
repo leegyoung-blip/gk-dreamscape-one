@@ -183,15 +183,92 @@ const EMPTY_CREATOR = {
   rulesAccepted: false,
 };
 
-const EMPTY_CLUB = {
+type ClubCreateForm = {
+  name: string;
+  slug: string;
+  topic: string;
+  tagline: string;
+  description: string;
+  logoFile: File | null;
+  coverFile: File | null;
+};
+
+const EMPTY_CLUB: ClubCreateForm = {
   name: "",
   slug: "",
   topic: INTERESTS[0],
   tagline: "",
   description: "",
-  logoImageUrl: "",
-  coverImageUrl: "",
+  logoFile: null,
+  coverFile: null,
 };
+
+const CREATOR_CLUB_MEDIA_BUCKET = "creator-club-media";
+const MAX_CREATOR_IMAGE_BYTES = 5 * 1024 * 1024;
+const CREATOR_IMAGE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+]);
+
+function safeFileExtension(file: File) {
+  const fromName = file.name.split(".").pop()?.toLowerCase().trim() || "";
+  if (["png", "jpg", "jpeg", "webp"].includes(fromName)) {
+    return fromName === "jpeg" ? "jpg" : fromName;
+  }
+
+  if (file.type === "image/png") return "png";
+  if (file.type === "image/webp") return "webp";
+  return "jpg";
+}
+
+async function uploadCreatorClubMedia(
+  file: File,
+  clubSlug: string,
+  kind: "logo" | "cover",
+) {
+  if (!CREATOR_IMAGE_TYPES.has(file.type)) {
+    throw new Error("Use a PNG, JPG or WebP image.");
+  }
+
+  if (file.size > MAX_CREATOR_IMAGE_BYTES) {
+    throw new Error("Image files must be 5 MB or smaller.");
+  }
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    throw new Error("Log in again before uploading club images.");
+  }
+
+  const extension = safeFileExtension(file);
+  const path = `${user.id}/${clubSlug}/${kind}-${Date.now()}.${extension}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(CREATOR_CLUB_MEDIA_BUCKET)
+    .upload(path, file, {
+      cacheControl: "3600",
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message || "Image upload failed.");
+  }
+
+  const { data } = supabase.storage
+    .from(CREATOR_CLUB_MEDIA_BUCKET)
+    .getPublicUrl(path);
+
+  if (!data.publicUrl) {
+    throw new Error("Image uploaded but its public URL could not be created.");
+  }
+
+  return data.publicUrl;
+}
 
 export default function CreatorClubsPage() {
   const router = useRouter();
@@ -607,14 +684,41 @@ export default function CreatorClubsPage() {
     setMessage("");
     setErrorMessage("");
 
+    let logoImageUrl = "";
+    let coverImageUrl = "";
+
+    try {
+      if (clubForm.logoFile) {
+        logoImageUrl = await uploadCreatorClubMedia(
+          clubForm.logoFile,
+          cleanSlug,
+          "logo",
+        );
+      }
+
+      if (clubForm.coverFile) {
+        coverImageUrl = await uploadCreatorClubMedia(
+          clubForm.coverFile,
+          cleanSlug,
+          "cover",
+        );
+      }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Club image upload failed.",
+      );
+      setIsSaving(false);
+      return;
+    }
+
     const result = await selfCreateCreatorClub({
       name: clubForm.name,
       slug: cleanSlug,
       topic: clubForm.topic,
       tagline: clubForm.tagline,
       description: clubForm.description,
-      logoImageUrl: clubForm.logoImageUrl,
-      coverImageUrl: clubForm.coverImageUrl,
+      logoImageUrl,
+      coverImageUrl,
     });
 
     if (result.error) {
@@ -648,30 +752,40 @@ export default function CreatorClubsPage() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.12),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.10),transparent_32%),linear-gradient(115deg,rgba(2,7,17,0.98)_0%,rgba(2,7,17,0.94)_58%,rgba(2,7,17,0.88)_100%)]" />
 
       <div className="relative z-10 flex h-full min-h-0 flex-col">
-        <header className="shrink-0 border-b border-white/8 bg-[#020711]/62 px-4 py-3 backdrop-blur-xl sm:px-6 sm:py-4">
-          <div className="mx-auto flex max-w-[1360px] items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <Link
-                href="/milo-world/quiz-hall"
-                className="inline-flex min-h-[40px] shrink-0 items-center rounded-full border border-white/12 bg-white/[0.04] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-white/62 no-underline"
-              >
-                ← Quiz Hall
-              </Link>
+        <header className="shrink-0 border-b border-white/8 bg-[#020711]/72 px-4 py-3 backdrop-blur-xl sm:px-6">
+          <div className="flex w-full flex-wrap items-center gap-3">
+            <Link
+              href="/milo-world/quiz-hall"
+              className="inline-flex min-h-[40px] shrink-0 items-center rounded-full border border-white/12 bg-white/[0.04] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-white/62 no-underline"
+            >
+              ← Quiz Hall
+            </Link>
 
-              <div className="min-w-0">
-                <p className="truncate text-[8px] font-black uppercase tracking-[0.18em] text-amber-100/60">
-                  Milo’s Creator Economy
-                </p>
-                <h1 className="truncate font-serif text-2xl font-normal sm:text-3xl">
-                  Creator Clubs
-                </h1>
-              </div>
+            <div className="mr-auto min-w-0">
+              <p className="truncate text-[8px] font-black uppercase tracking-[0.18em] text-amber-100/60">
+                Milo’s Creator Economy
+              </p>
+              <h1 className="truncate font-serif text-2xl font-normal sm:text-3xl">
+                Creator Clubs
+              </h1>
             </div>
+
+            <nav className="flex shrink-0 gap-2 overflow-x-auto">
+              <TopTab active={view === "discover"} onClick={() => selectView("discover")}>
+                Discover
+              </TopTab>
+              <TopTab active={view === "my"} onClick={() => selectView("my")}>
+                My Clubs
+              </TopTab>
+              <TopTab active={view === "create"} onClick={() => selectView("create")}>
+                Create
+              </TopTab>
+            </nav>
 
             {creator && ownedClubs.length > 0 && (
               <Link
                 href="/milo-world/quiz-hall/creator-studio"
-                className="hidden min-h-[40px] items-center rounded-full border border-amber-200/20 bg-amber-300/[0.08] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-amber-100 no-underline sm:inline-flex"
+                className="hidden min-h-[40px] items-center rounded-full border border-amber-200/20 bg-amber-300/[0.08] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-amber-100 no-underline lg:inline-flex"
               >
                 Creator Studio →
               </Link>
@@ -679,40 +793,8 @@ export default function CreatorClubsPage() {
           </div>
         </header>
 
-        <section className="mx-auto w-full max-w-[1360px] shrink-0 px-4 pt-4 sm:px-6 sm:pt-5">
-          <div className="rounded-[26px] border border-white/10 bg-white/[0.035] p-4 backdrop-blur-xl sm:p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/62">
-                  Know something · Build something
-                </p>
-                <h2 className="mt-2 max-w-3xl font-serif text-[clamp(32px,4vw,54px)] font-normal leading-[0.98]">
-                  Find your people. Build something worth following.
-                </h2>
-                <p className="mt-3 max-w-3xl text-xs leading-6 text-white/48 sm:text-sm">
-                  Join communities around the things you enjoy, compete in
-                  creator challenges, or build one club of your own and grow it
-                  over time.
-                </p>
-              </div>
-
-              <nav className="flex shrink-0 gap-2 overflow-x-auto">
-                <TopTab active={view === "discover"} onClick={() => selectView("discover")}>
-                  Discover
-                </TopTab>
-                <TopTab active={view === "my"} onClick={() => selectView("my")}>
-                  My Clubs
-                </TopTab>
-                <TopTab active={view === "create"} onClick={() => selectView("create")}>
-                  Create
-                </TopTab>
-              </nav>
-            </div>
-          </div>
-        </section>
-
         {(message || errorMessage) && (
-          <div className="mx-auto mt-3 w-full max-w-[1360px] shrink-0 px-4 sm:px-6">
+          <div className="mt-3 w-full shrink-0 px-4 sm:px-6">
             {message && (
               <p className="rounded-2xl border border-emerald-200/16 bg-emerald-400/[0.07] px-4 py-3 text-xs text-emerald-100">
                 {message}
@@ -726,7 +808,7 @@ export default function CreatorClubsPage() {
           </div>
         )}
 
-        <section className="dream-club-scroll mx-auto min-h-0 w-full max-w-[1360px] flex-1 overflow-y-auto px-4 pb-8 pt-4 sm:px-6">
+        <section className="dream-club-scroll min-h-0 w-full flex-1 overflow-y-auto px-4 pb-8 pt-4 sm:px-6">
           {hallAccess?.isAdmin && (
             <div className="mb-4 grid gap-3">
               <CreatorOfficialClubsAdminPanel onChanged={() => void loadPage()} />
@@ -1523,12 +1605,12 @@ function CreateView({
   ownedClubs: OwnedCreatorClub[];
   creatorForm: typeof EMPTY_CREATOR;
   creatorSlugTouched: boolean;
-  clubForm: typeof EMPTY_CLUB;
+  clubForm: ClubCreateForm;
   clubSlugTouched: boolean;
   isSaving: boolean;
   setCreatorForm: React.Dispatch<React.SetStateAction<typeof EMPTY_CREATOR>>;
   setCreatorSlugTouched: React.Dispatch<React.SetStateAction<boolean>>;
-  setClubForm: React.Dispatch<React.SetStateAction<typeof EMPTY_CLUB>>;
+  setClubForm: React.Dispatch<React.SetStateAction<ClubCreateForm>>;
   setClubSlugTouched: React.Dispatch<React.SetStateAction<boolean>>;
   onCreatorSubmit: () => void;
   onClubSubmit: () => void;
@@ -1560,7 +1642,7 @@ function CreateView({
 
   if (!creator) {
     return (
-      <section className="mx-auto max-w-4xl rounded-[30px] border border-violet-200/14 bg-[linear-gradient(145deg,rgba(52,31,90,0.24),rgba(4,15,32,0.93))] p-6 sm:p-8">
+      <section className="w-full rounded-[30px] border border-violet-200/14 bg-[linear-gradient(145deg,rgba(52,31,90,0.24),rgba(4,15,32,0.93))] p-6 sm:p-8 lg:px-10">
         <StepHeader
           number="01"
           eyebrow="Creator Identity"
@@ -1568,7 +1650,7 @@ function CreateView({
           text="This is the public identity attached to the challenges and club you build. It is separate from your login name."
         />
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Field label="Creator display name">
             <input
               value={creatorForm.displayName}
@@ -1669,7 +1751,7 @@ function CreateView({
   if (ownedClubs.length > 0) {
     const club = ownedClubs[0];
     return (
-      <section className="mx-auto max-w-4xl rounded-[30px] border border-emerald-200/14 bg-[linear-gradient(145deg,rgba(17,71,58,0.20),rgba(4,15,32,0.93))] p-7 sm:p-9">
+      <section className="w-full rounded-[30px] border border-emerald-200/14 bg-[linear-gradient(145deg,rgba(17,71,58,0.20),rgba(4,15,32,0.93))] p-7 sm:p-9 lg:px-10">
         <StepHeader
           number="02"
           eyebrow="Club Ownership"
@@ -1704,12 +1786,12 @@ function CreateView({
   }
 
   return (
-    <section className="mx-auto max-w-5xl rounded-[30px] border border-amber-200/14 bg-[linear-gradient(145deg,rgba(73,43,12,0.22),rgba(4,15,32,0.93))] p-6 sm:p-8">
+    <section className="w-full rounded-[30px] border border-amber-200/14 bg-[linear-gradient(145deg,rgba(73,43,12,0.22),rgba(4,15,32,0.93))] p-6 sm:p-8 lg:px-10 lg:py-9">
       <StepHeader
         number="02"
         eyebrow={`Creator · ${creator.display_name}`}
-        title="Now build your first club."
-        text="Choose one subject you genuinely care about. Your first challenges, members and creator reputation will all grow from this club."
+        title="Build your first club."
+        text="Set up the club people will discover, join and return to."
       />
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -1780,31 +1862,31 @@ function CreateView({
           />
         </Field>
 
-        <Field label="Club logo URL · optional">
-          <input
-            value={clubForm.logoImageUrl}
-            onChange={(event) =>
+        <Field label="Club logo · optional">
+          <DeviceImagePicker
+            kind="logo"
+            file={clubForm.logoFile}
+            recommended="Square image · PNG, JPG or WebP · max 5 MB"
+            onChange={(file) =>
               setClubForm((current) => ({
                 ...current,
-                logoImageUrl: event.target.value,
+                logoFile: file,
               }))
             }
-            placeholder="https://..."
-            className={inputClass}
           />
         </Field>
 
-        <Field label="Cover image URL · optional">
-          <input
-            value={clubForm.coverImageUrl}
-            onChange={(event) =>
+        <Field label="Cover image · optional">
+          <DeviceImagePicker
+            kind="cover"
+            file={clubForm.coverFile}
+            recommended="Wide image · PNG, JPG or WebP · max 5 MB"
+            onChange={(file) =>
               setClubForm((current) => ({
                 ...current,
-                coverImageUrl: event.target.value,
+                coverFile: file,
               }))
             }
-            placeholder="https://..."
-            className={inputClass}
           />
         </Field>
 
@@ -1827,11 +1909,11 @@ function CreateView({
 
       <div className="mt-5 rounded-2xl border border-cyan-200/12 bg-cyan-300/[0.035] p-4">
         <p className="text-[8px] font-black uppercase tracking-[0.13em] text-cyan-100/58">
-          Phase 2 launch rule
+          Before publishing
         </p>
         <p className="mt-2 text-xs leading-5 text-white/46">
-          Your club is created as a draft. Build its first challenge in Creator
-          Studio before it is submitted for public review.
+          Your club starts as a draft. Add its first challenge in Creator Studio,
+          then submit it for Dreamscape review when it is ready.
         </p>
       </div>
 
@@ -1839,11 +1921,62 @@ function CreateView({
         type="button"
         disabled={isSaving}
         onClick={onClubSubmit}
-        className={primaryButton}
+        className={`${primaryButton} w-full justify-center sm:w-auto`}
       >
-        {isSaving ? "Creating..." : "Create Draft Club →"}
+        {isSaving ? "Uploading & Creating..." : "Create Draft Club →"}
       </button>
     </section>
+  );
+}
+
+function DeviceImagePicker({
+  kind,
+  file,
+  recommended,
+  onChange,
+}: {
+  kind: "logo" | "cover";
+  file: File | null;
+  recommended: string;
+  onChange: (file: File | null) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-[#07152d] p-3">
+      <div className="flex min-h-[54px] items-center gap-3">
+        <label className="inline-flex min-h-10 shrink-0 cursor-pointer items-center rounded-xl border border-cyan-200/18 bg-cyan-300/[0.06] px-4 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100 transition hover:border-cyan-200/30 hover:bg-cyan-300/[0.09]">
+          Choose File
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(event) => {
+              const nextFile = event.target.files?.[0] || null;
+              onChange(nextFile);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+
+        <div className="min-w-0 flex-1">
+          <strong className="block truncate text-[10px] text-white/78">
+            {file ? file.name : `No ${kind} selected`}
+          </strong>
+          <small className="mt-1 block text-[8px] leading-4 text-white/28">
+            {recommended}
+          </small>
+        </div>
+
+        {file && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="min-h-9 shrink-0 rounded-xl border border-white/10 bg-white/[0.035] px-3 text-[7px] font-black uppercase tracking-[0.07em] text-white/42"
+          >
+            Remove
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

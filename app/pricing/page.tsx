@@ -81,24 +81,6 @@ const plans: Plan[] = [
     trialEligible: true,
   },
   {
-    key: "full",
-    name: "Full Access",
-    eyebrow: "English + Mathematics + Science + NOVA+",
-    description:
-      "The complete Dreamscape learning membership, bringing all three Primary subjects together with the full NOVA+ learning-intelligence experience.",
-    features: [
-      "Everything in NOVA+",
-      "Primary 1–6 Science Learning Missions",
-      "Science topic quizzes and mixed assessments",
-      "Science mastery tracking",
-      "Three-subject learning profile",
-      "NOVA+ intelligence across the complete profile",
-    ],
-    accent: "#ffae5c",
-    badge: "Coming Soon",
-    comingSoon: true,
-  },
-  {
     key: "milo_finance",
     name: "Milo Finance",
     eyebrow: "Financial Literacy + Business + Markets",
@@ -114,6 +96,24 @@ const plans: Plan[] = [
       "Finance progression, milestones and achievements",
     ],
     accent: "#7ee7a8",
+    badge: "Coming Soon",
+    comingSoon: true,
+  },
+  {
+    key: "full",
+    name: "Full Access",
+    eyebrow: "NOVA+ + Milo Finance + Science",
+    description:
+      "The complete Dreamscape membership, combining the full NOVA+ academic experience, Milo Finance real-world learning and Primary 1–6 Science in one plan.",
+    features: [
+      "Everything in NOVA+",
+      "Everything in Milo Finance",
+      "Primary 1–6 Science Learning Missions",
+      "Science topic quizzes and mixed assessments",
+      "Science mastery and three-subject learning profile",
+      "Complete academic + real-world learning ecosystem",
+    ],
+    accent: "#ffae5c",
     badge: "Coming Soon",
     comingSoon: true,
   },
@@ -190,12 +190,12 @@ const comparisonRows = [
     milo_finance: false,
   },
 
-  { feature: "Milo's Bank financial literacy lessons", core: false, nova: false, full: false, milo_finance: true },
-  { feature: "Business Builder", core: false, nova: false, full: false, milo_finance: true },
-  { feature: "Exclusive Milo's Exchange finance lessons", core: false, nova: false, full: false, milo_finance: true },
-  { feature: "Early access to selected property launches", core: false, nova: false, full: false, milo_finance: true },
-  { feature: "Additional property upgrades", core: false, nova: false, full: false, milo_finance: true },
-  { feature: "Finance progression and achievements", core: false, nova: false, full: false, milo_finance: true },
+  { feature: "Milo's Bank financial literacy lessons", core: false, nova: false, full: true, milo_finance: true },
+  { feature: "Business Builder", core: false, nova: false, full: true, milo_finance: true },
+  { feature: "Exclusive Milo's Exchange finance lessons", core: false, nova: false, full: true, milo_finance: true },
+  { feature: "Early access to selected property launches", core: false, nova: false, full: true, milo_finance: true },
+  { feature: "Additional property upgrades", core: false, nova: false, full: true, milo_finance: true },
+  { feature: "Finance progression and achievements", core: false, nova: false, full: true, milo_finance: true },
 ];
 const faqItems = [
   {
@@ -229,11 +229,6 @@ const faqItems = [
       "NOVA+ is SGD 24.90 per month or SGD 249 per year at launch. Its regular prices are SGD 29.90 per month and SGD 299 per year.",
   },
   {
-    question: "What is Full Access?",
-    answer:
-      "Full Access will combine English, Mathematics, Science and NOVA+ in one complete membership. It is Coming Soon and no public price is being displayed yet.",
-  },
-  {
     question: "What is Milo Finance?",
     answer:
       "Milo Finance is Dreamscape's financial literacy membership. It combines interactive lessons in Milo's Bank with Business Builder access, exclusive finance lessons in Milo's Exchange, selected early property-launch access, additional property upgrade options and a dedicated finance progression pathway.",
@@ -242,6 +237,11 @@ const faqItems = [
     question: "What will Milo Finance cost?",
     answer:
       "Milo Finance is planned at SGD 12.90 per month at launch. It is currently labelled Coming Soon and is not yet available for public checkout.",
+  },
+  {
+    question: "What is Full Access?",
+    answer:
+      "Full Access will be Dreamscape's complete membership: everything in NOVA+, everything in Milo Finance, plus Primary 1–6 Science learning and mastery tracking. It is Coming Soon and no public price is being displayed yet.",
   },
   {
     question: "How are payments processed?",
@@ -553,50 +553,13 @@ export default function PricingPage() {
           }}
         >
           Start with English and Mathematics in Core Missions,
-          add deeper learning intelligence with NOVA+, look ahead
-          to Full Access, or build real-world money skills with Milo Finance.
+          add deeper learning intelligence with NOVA+, expand into
+          real-world money skills with Milo Finance, or bring everything
+          together with Full Access.
         </p>
         <div
           style={{
-            margin: "30px auto 0",
-            maxWidth: "940px",
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            gap: "10px",
-          }}
-        >
-          {[
-            "Core from SGD 19.90",
-            "NOVA+ from SGD 24.90",
-            "Annual launch savings",
-            "Full Access coming soon",
-            "Milo Finance SGD 12.90 · coming soon",
-          ].map((item) => (
-            <span
-              key={item}
-              style={{
-                padding: "10px 14px",
-                borderRadius: "999px",
-                border:
-                  "1px solid rgba(142,232,255,0.22)",
-                background:
-                  "rgba(255,255,255,0.045)",
-                color:
-                  "rgba(255,255,255,0.82)",
-                fontSize:
-                  isMobile ? "11px" : "12px",
-                fontWeight: 800,
-                lineHeight: 1.25,
-              }}
-            >
-              {item}
-            </span>
-          ))}
-        </div>
-        <div
-          style={{
-            margin: "32px auto 0",
+            margin: "34px auto 0",
             width:
               isMobile ? "100%" : "fit-content",
             maxWidth: "470px",
@@ -1085,17 +1048,17 @@ export default function PricingPage() {
                     borderRadius: "999px",
                     border:
                       plan.comingSoon
-                        ? "1px solid rgba(255,174,92,0.24)"
+                        ? `1px solid ${plan.accent}3d`
                         : "none",
                     background:
                       plan.comingSoon
-                        ? "rgba(255,174,92,0.07)"
+                        ? `${plan.accent}12`
                         : plan.featured
                           ? "linear-gradient(90deg, #8ee8ff, #c58cff 58%, #ffae5c)"
                           : "rgba(255,255,255,0.94)",
                     color:
                       plan.comingSoon
-                        ? "#ffbd73"
+                        ? plan.accent
                         : "#18082e",
                     fontFamily: "inherit",
                     fontSize:
@@ -1241,8 +1204,8 @@ export default function PricingPage() {
                     "Feature",
                     "Core Missions",
                     "NOVA+",
-                    "Full Access",
                     "Milo Finance",
+                    "Full Access",
                   ].map((heading) => (
                     <th
                       key={heading}
@@ -1283,8 +1246,8 @@ export default function PricingPage() {
                         [
                           "core",
                           "nova",
-                          "full",
                           "milo_finance",
+                          "full",
                         ] as const
                       ).map((key) => (
                         <td

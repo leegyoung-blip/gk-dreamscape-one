@@ -324,7 +324,7 @@ function WorldPanel({
               </Link>
 
               <Link
-                href="/explore/milo-finance"
+                href="/explore/learning-money-and-business"
                 style={{
                   color: "rgba(255,255,255,0.78)",
                   textDecoration: "none",
