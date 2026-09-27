@@ -169,7 +169,7 @@ function WorldPanel({
             textTransform: "uppercase",
           }}
         >
-          {isNova ? "Ages 6–12 · Nova’s World" : "Designed for Ages 12+ · Milo’s World"}
+          {isNova ? "Ages 6–12 · Nova’s World" : "Real-World Skills · Milo’s World"}
         </p>
 
         <h1
@@ -288,7 +288,7 @@ function WorldPanel({
                 fontWeight: 400,
               }}
             >
-              Designed mainly for ages 12+, while confident younger learners can explore earlier.
+              Explore money, business and decision-making at a pace that grows with each learner.
             </p>
 
             <div
@@ -324,7 +324,7 @@ function WorldPanel({
               </Link>
 
               <Link
-                href="/explore/learning-money-and-business"
+                href="/explore/milo-finance"
                 style={{
                   color: "rgba(255,255,255,0.78)",
                   textDecoration: "none",
@@ -333,7 +333,7 @@ function WorldPanel({
                   lineHeight: 1.4,
                 }}
               >
-                Why money & business? →
+                Milo Finance · Coming Soon →
               </Link>
             </div>
           </>
@@ -702,6 +702,7 @@ export default function Home() {
               {[
                 { label: "HOW IT WORKS", href: "/how-it-works" },
                 { label: "NOVA+ FOR PARENTS", href: "/explore/nova-plus" },
+                { label: "MILO FINANCE", href: "/explore/milo-finance" },
                 { label: "EXPLORE DREAMSCAPE", href: "/explore" },
                 { label: "PRICING", href: "/pricing" },
                 { label: "FOR TUITION CENTRES", href: "/education-licence" },
@@ -1279,6 +1280,201 @@ export default function Home() {
           </section>
 
           <section
+            id="milo-finance"
+            aria-labelledby="milo-finance-heading"
+            style={{
+              position: "relative",
+              marginTop: isMobile ? "88px" : "120px",
+              width: "100vw",
+              marginLeft: "calc(50% - 50vw)",
+              marginRight: "calc(50% - 50vw)",
+              padding: isMobile ? "78px 20px 82px" : "104px 6vw 112px",
+              overflow: "hidden",
+              scrollMarginTop: isMobile ? "92px" : "108px",
+              background:
+                "radial-gradient(circle at 12% 12%, rgba(44,205,139,0.18), transparent 28%), radial-gradient(circle at 88% 78%, rgba(255,204,92,0.15), transparent 30%), linear-gradient(145deg, #061713 0%, #071b20 48%, #151523 100%)",
+              borderTop: "1px solid rgba(123,243,183,0.16)",
+              borderBottom: "1px solid rgba(255,211,110,0.13)",
+            }}
+          >
+            <div
+              style={{
+                position: "relative",
+                zIndex: 2,
+                width: "100%",
+                maxWidth: "1450px",
+                margin: "0 auto",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "9px",
+                  padding: "9px 13px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(123,243,183,0.28)",
+                  background: "rgba(44,205,139,0.08)",
+                }}
+              >
+                <span aria-hidden="true" style={{ width: "7px", height: "7px", borderRadius: "999px", background: "#7bf3b7", boxShadow: "0 0 16px rgba(123,243,183,0.6)" }} />
+                <span style={{ color: "#9cf6c9", fontSize: "11px", fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+                  Milo Finance · Coming Soon
+                </span>
+              </div>
+
+              <h2
+                id="milo-finance-heading"
+                style={{
+                  margin: "22px 0 0",
+                  maxWidth: "1080px",
+                  fontFamily: 'Georgia, "Times New Roman", serif',
+                  fontSize: isMobile ? "42px" : "64px",
+                  fontWeight: 400,
+                  lineHeight: 1.06,
+                  color: "white",
+                }}
+              >
+                Learn money by actually using it.
+              </h2>
+
+              <p
+                style={{
+                  margin: "23px 0 0",
+                  maxWidth: "920px",
+                  color: "rgba(255,255,255,0.73)",
+                  fontSize: isMobile ? "17px" : "20px",
+                  fontWeight: 300,
+                  lineHeight: 1.72,
+                }}
+              >
+                Milo Finance turns financial literacy into something learners can practise. Learn money skills in Milo’s Bank, build a business, explore markets and make property decisions across one connected Dreamscape experience.
+              </p>
+
+              <div
+                style={{
+                  marginTop: isMobile ? "36px" : "46px",
+                  width: "100%",
+                  display: "grid",
+                  gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))",
+                  gap: isMobile ? "18px" : "20px",
+                  alignItems: "stretch",
+                }}
+              >
+                {[
+                  {
+                    eyebrow: "Learn",
+                    title: "Milo’s Bank",
+                    text: "Interactive financial literacy lessons covering saving, spending, budgeting, interest, risk and smarter money decisions.",
+                    accent: "#7bf3b7",
+                  },
+                  {
+                    eyebrow: "Build",
+                    title: "Business Builder",
+                    text: "Create and grow a Dreamscape business through pricing, costs, products, customers and entrepreneurship decisions.",
+                    accent: "#ffd36e",
+                  },
+                  {
+                    eyebrow: "Apply",
+                    title: "Milo’s Exchange",
+                    text: "Unlock exclusive finance lessons that connect investing and market concepts directly to the simulated Dreamscape economy.",
+                    accent: "#8ee8ff",
+                  },
+                  {
+                    eyebrow: "Own & Manage",
+                    title: "Property Benefits",
+                    text: "Get early access to selected property launches plus additional development and upgrade options inside the Property Exchange.",
+                    accent: "#c9a2ff",
+                  },
+                ].map((feature) => (
+                  <article
+                    key={feature.title}
+                    style={{
+                      minHeight: isMobile ? "auto" : "292px",
+                      padding: isMobile ? "27px 23px" : "31px 27px",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      textAlign: "left",
+                      borderRadius: "26px",
+                      border: `1px solid ${feature.accent}33`,
+                      background: "linear-gradient(145deg, rgba(255,255,255,0.065), rgba(255,255,255,0.018))",
+                      boxShadow: "0 24px 64px rgba(0,0,0,0.24)",
+                    }}
+                  >
+                    <p style={{ margin: 0, color: feature.accent, fontSize: "11px", fontWeight: 900, letterSpacing: "0.17em", textTransform: "uppercase" }}>
+                      {feature.eyebrow}
+                    </p>
+                    <h3 style={{ margin: "15px 0 0", color: "white", fontSize: isMobile ? "27px" : "30px", fontWeight: 800, lineHeight: 1.16 }}>
+                      {feature.title}
+                    </h3>
+                    <p style={{ margin: "17px 0 0", color: "rgba(255,255,255,0.67)", fontSize: "15px", fontWeight: 300, lineHeight: 1.68 }}>
+                      {feature.text}
+                    </p>
+                  </article>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  marginTop: isMobile ? "32px" : "40px",
+                  width: "100%",
+                  maxWidth: "960px",
+                  padding: isMobile ? "22px 20px" : "23px 28px",
+                  display: "flex",
+                  flexDirection: isMobile ? "column" : "row",
+                  alignItems: isMobile ? "stretch" : "center",
+                  justifyContent: "space-between",
+                  gap: isMobile ? "18px" : "26px",
+                  borderRadius: "24px",
+                  border: "1px solid rgba(123,243,183,0.24)",
+                  background: "linear-gradient(100deg, rgba(44,205,139,0.1), rgba(255,211,110,0.07))",
+                  textAlign: "left",
+                }}
+              >
+                <div>
+                  <p style={{ margin: 0, color: "#7bf3b7", fontSize: "10px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>
+                    One Milo Finance Membership
+                  </p>
+                  <div style={{ marginTop: "7px", display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap" }}>
+                    <span style={{ color: "white", fontSize: isMobile ? "31px" : "36px", fontWeight: 900, lineHeight: 1 }}>
+                      SGD 12.90
+                    </span>
+                    <span style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", fontWeight: 700 }}>/month</span>
+                    <span style={{ color: "#ffd36e", fontSize: "11px", fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase" }}>Coming Soon</span>
+                  </div>
+                </div>
+
+                <Link
+                  href="/explore/milo-finance"
+                  style={{
+                    minHeight: "52px",
+                    padding: "13px 22px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "999px",
+                    background: "linear-gradient(90deg, #7bf3b7, #ffd36e)",
+                    color: "#071511",
+                    textDecoration: "none",
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    letterSpacing: "0.09em",
+                    textTransform: "uppercase",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Explore Milo Finance →
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          <section
             id="quality-trust"
             aria-labelledby="trust-heading"
             style={{
@@ -1613,7 +1809,7 @@ export default function Home() {
                 lineHeight: 1.7,
               }}
             >
-              Eligible first-time Dreamscape learners can begin with one 7-day introductory trial. Core focuses on English and Mathematics. NOVA+ adds the parent learning-intelligence layer. Full Access, including Science and NOVA+, is coming soon.
+              Eligible first-time Dreamscape learners can begin with one 7-day introductory trial on current academic plans. Core focuses on English and Mathematics, while NOVA+ adds the parent learning-intelligence layer. Full Access and Milo Finance are both coming soon.
             </p>
 
             <div
@@ -1829,29 +2025,60 @@ export default function Home() {
                 marginTop: "22px",
                 width: "100%",
                 maxWidth: "1120px",
-                padding: isMobile ? "20px" : "20px 26px",
-                borderRadius: "22px",
-                border: "1px solid rgba(255,174,92,0.2)",
-                background: "rgba(255,174,92,0.055)",
-                display: "flex",
-                flexDirection: isMobile ? "column" : "row",
-                alignItems: isMobile ? "flex-start" : "center",
-                justifyContent: "space-between",
-                gap: "12px",
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                gap: "16px",
                 textAlign: "left",
               }}
             >
-              <div>
+              <article
+                style={{
+                  padding: isMobile ? "20px" : "22px 24px",
+                  borderRadius: "22px",
+                  border: "1px solid rgba(255,174,92,0.22)",
+                  background: "rgba(255,174,92,0.055)",
+                }}
+              >
                 <p style={{ margin: 0, color: "#ffbd73", fontSize: "10px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>
-                  Coming Soon
+                  Coming Soon · Academic Expansion
                 </p>
-                <p style={{ margin: "6px 0 0", color: "white", fontSize: "17px", fontWeight: 800 }}>
-                  Full Access · English + Mathematics + Science + NOVA+
+                <p style={{ margin: "7px 0 0", color: "white", fontSize: "17px", fontWeight: 800, lineHeight: 1.4 }}>
+                  Full Access
                 </p>
-              </div>
-              <span style={{ color: "rgba(255,255,255,0.52)", fontSize: "13px", lineHeight: 1.5 }}>
-                No public price shown until launch.
-              </span>
+                <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,0.6)", fontSize: "13px", lineHeight: 1.55 }}>
+                  English + Mathematics + Science + NOVA+
+                </p>
+                <p style={{ margin: "12px 0 0", color: "rgba(255,255,255,0.46)", fontSize: "12px", lineHeight: 1.5 }}>
+                  Public pricing will be announced closer to launch.
+                </p>
+              </article>
+
+              <article
+                style={{
+                  padding: isMobile ? "20px" : "22px 24px",
+                  borderRadius: "22px",
+                  border: "1px solid rgba(123,243,183,0.26)",
+                  background: "linear-gradient(135deg, rgba(32,185,122,0.08), rgba(255,211,110,0.055))",
+                }}
+              >
+                <p style={{ margin: 0, color: "#7bf3b7", fontSize: "10px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>
+                  Coming Soon · Real-World Learning
+                </p>
+                <div style={{ marginTop: "7px", display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "14px", flexWrap: "wrap" }}>
+                  <p style={{ margin: 0, color: "white", fontSize: "17px", fontWeight: 800, lineHeight: 1.4 }}>
+                    Milo Finance
+                  </p>
+                  <span style={{ color: "#ffd36e", fontSize: "15px", fontWeight: 900, whiteSpace: "nowrap" }}>
+                    SGD 12.90/month
+                  </span>
+                </div>
+                <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,0.6)", fontSize: "13px", lineHeight: 1.55 }}>
+                  Financial literacy · Business Builder · Exchange lessons · Property benefits
+                </p>
+                <Link href="/explore/milo-finance" style={{ display: "inline-flex", marginTop: "12px", color: "#7bf3b7", textDecoration: "none", fontSize: "12px", fontWeight: 900 }}>
+                  Explore Milo Finance →
+                </Link>
+              </article>
             </div>
 
             <p
@@ -1993,6 +2220,7 @@ export default function Home() {
               <Link href="/how-it-works" style={footerLinkStyle}>How Dreamscape Works</Link>
               <Link href="/explore/parents-guide" style={footerLinkStyle}>Parent’s Guide</Link>
               <Link href="/explore/nova-plus" style={footerLinkStyle}>NOVA+ for Parents</Link>
+              <Link href="/explore/milo-finance" style={footerLinkStyle}>Milo Finance</Link>
               <Link href="/explore/learning-missions" style={footerLinkStyle}>Learning Missions</Link>
             </div>
           </div>
@@ -2420,7 +2648,7 @@ function GrowthJourney({ isMobile }: { isMobile: boolean }) {
       <JourneyWorld
         world="milo"
         imageSrc="/milo-world/milo-character.png"
-        audience="Designed for ages 12+"
+        audience="Real-World Skills"
         title="Milo’s World"
         skills={miloSkills}
         summary="Apply what you have learned to money, business, entrepreneurship and real-world choices."
