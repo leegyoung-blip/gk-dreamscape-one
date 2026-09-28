@@ -16,7 +16,7 @@ type BondProductRow = {
   term_days: number | string;
   return_rate_bps: number | string;
   min_investment: number | string;
-  max_investment: number | string;
+  max_investment: number | string | null;
   badge: string | null;
   sort_order: number | string;
   is_active: boolean;
@@ -71,7 +71,10 @@ function toBondProduct(row: BondProductRow): BondProduct {
     termDays: Number(row.term_days || 0),
     returnRateBps: Number(row.return_rate_bps || 0),
     minInvestment: Number(row.min_investment || 0),
-    maxInvestment: Number(row.max_investment || 0),
+    maxInvestment:
+      row.max_investment === null || row.max_investment === undefined
+        ? null
+        : Number(row.max_investment),
     badge: row.badge,
     sortOrder: Number(row.sort_order || 0),
     isActive: Boolean(row.is_active),

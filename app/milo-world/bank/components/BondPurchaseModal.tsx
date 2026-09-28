@@ -53,8 +53,15 @@ export default function BondPurchaseModal({
   }, [open, product]);
 
   const numericAmount = Math.floor(Number(amount || 0));
+  const productMaximum = product?.maxInvestment ?? null;
   const maxAllowed = product
-    ? Math.max(0, Math.min(product.maxInvestment, Math.floor(eligibleDt)))
+    ? Math.max(
+        0,
+        Math.min(
+          productMaximum ?? Number.MAX_SAFE_INTEGER,
+          Math.floor(eligibleDt),
+        ),
+      )
     : 0;
   const interest = product
     ? calculateBondInterest(numericAmount, product.returnRateBps)
@@ -346,7 +353,7 @@ export default function BondPurchaseModal({
                 lineHeight: 1.45,
               }}
             >
-              Investment range: {formatDt(selectedProduct.minInvestment)}–{formatDt(selectedProduct.maxInvestment)}. Only eligible earned/reward DT can be placed into Bank Bonds.
+              Minimum investment: {formatDt(selectedProduct.minInvestment)}. No product maximum applies; you can invest up to your eligible earned/reward DT balance.
             </p>
 
             <div
@@ -402,7 +409,7 @@ export default function BondPurchaseModal({
                   lineHeight: 1.45,
                 }}
               >
-                Enter an amount between {formatDt(selectedProduct.minInvestment)} and {formatDt(maxAllowed)}.
+                Enter at least {formatDt(selectedProduct.minInvestment)} and no more than your current eligible balance of {formatDt(maxAllowed)}.
               </p>
             )}
           </>

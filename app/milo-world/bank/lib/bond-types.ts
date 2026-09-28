@@ -9,7 +9,7 @@ export type BondProduct = {
   termDays: number;
   returnRateBps: number;
   minInvestment: number;
-  maxInvestment: number;
+  maxInvestment: number | null;
   badge: string | null;
   sortOrder: number;
   isActive: boolean;

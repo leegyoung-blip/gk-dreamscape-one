@@ -165,11 +165,14 @@ type ViewMode = "discover" | "my" | "create";
 const CREATOR_CLUBS_GUIDE_STORAGE_KEY =
   "dreamscape:creator-clubs-milo-guide-v1";
 
+type CreatorGuideTarget = "discover" | "my" | "create" | "studio";
+
 type CreatorClubsGuideStep = {
   eyebrow: string;
   title: string;
   text: string;
   view?: ViewMode;
+  target?: CreatorGuideTarget;
   actionLabel?: string;
 };
 
@@ -186,6 +189,7 @@ const CREATOR_CLUBS_GUIDE_STEPS: CreatorClubsGuideStep[] = [
     text:
       "Start with Dreamscape Originals, browse community clubs, search by interest and join the ones you want to follow.",
     view: "discover",
+    target: "discover",
     actionLabel: "Show Discover",
   },
   {
@@ -194,6 +198,7 @@ const CREATOR_CLUBS_GUIDE_STEPS: CreatorClubsGuideStep[] = [
     text:
       "My Clubs keeps the clubs you have joined together with clubs you own, so you can get back to them quickly.",
     view: "my",
+    target: "my",
     actionLabel: "Show My Clubs",
   },
   {
@@ -202,6 +207,7 @@ const CREATOR_CLUBS_GUIDE_STEPS: CreatorClubsGuideStep[] = [
     text:
       "Create your public creator identity, choose a club topic and background, then build challenges for your community.",
     view: "create",
+    target: "create",
     actionLabel: "Show Create",
   },
   {
@@ -209,6 +215,7 @@ const CREATOR_CLUBS_GUIDE_STEPS: CreatorClubsGuideStep[] = [
     title: "Build, grow and reinvest.",
     text:
       "Once you own a club, Creator Studio is where you build challenges, monitor engagement, grow Club Level and Creator Reputation, and use creator rewards.",
+    target: "studio",
     actionLabel: "Open Creator Studio",
   },
 ];
@@ -893,8 +900,21 @@ export default function CreatorClubsPage() {
     setView("my");
   }
 
+  useEffect(() => {
+    if (!guideOpen) return;
+
+    const current = CREATOR_CLUBS_GUIDE_STEPS[
+      Math.min(Math.max(guideStep, 0), CREATOR_CLUBS_GUIDE_STEPS.length - 1)
+    ];
+
+    if (current?.target && window.innerWidth < 768) {
+      setMobileNavOpen(true);
+    }
+  }, [guideOpen, guideStep]);
+
   function closeGuide() {
     setGuideOpen(false);
+    setMobileNavOpen(false);
     try {
       window.localStorage.setItem(CREATOR_CLUBS_GUIDE_STORAGE_KEY, "true");
     } catch {
@@ -2498,6 +2518,7 @@ function CreatorClubsSideNavigation({
             label="Discover"
             description="Find communities"
             active={view === "discover"}
+            guideTarget="discover"
             onClick={() => onSelect("discover")}
           />
           <CreatorSideButton
@@ -2505,6 +2526,7 @@ function CreatorClubsSideNavigation({
             label="My Clubs"
             description="Joined & owned"
             active={view === "my"}
+            guideTarget="my"
             onClick={() => onSelect("my")}
           />
           <CreatorSideButton
@@ -2512,6 +2534,7 @@ function CreatorClubsSideNavigation({
             label="Create"
             description="Build your club"
             active={view === "create"}
+            guideTarget="create"
             onClick={() => onSelect("create")}
           />
         </div>
@@ -2523,6 +2546,7 @@ function CreatorClubsSideNavigation({
             </p>
             <Link
               href="/milo-world/quiz-hall/creator-studio"
+              data-creator-guide-target="studio"
               className="flex min-h-[54px] items-center gap-3 rounded-2xl border border-amber-200/14 bg-amber-300/[0.045] px-3 text-white no-underline transition hover:border-amber-200/28 hover:bg-amber-300/[0.07]"
             >
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-300/[0.08] text-sm text-amber-100">
@@ -2573,17 +2597,20 @@ function CreatorSideButton({
   label,
   description,
   active,
+  guideTarget,
   onClick,
 }: {
   icon: string;
   label: string;
   description: string;
   active: boolean;
+  guideTarget: CreatorGuideTarget;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      data-creator-guide-target={guideTarget}
       onClick={onClick}
       className={`flex min-h-[58px] w-full items-center gap-3 rounded-2xl border px-3 text-left transition ${
         active
@@ -2685,6 +2712,87 @@ function CreatorClubsMiloGuide({
   const current = CREATOR_CLUBS_GUIDE_STEPS[safeStep];
   const isLast = safeStep === CREATOR_CLUBS_GUIDE_STEPS.length - 1;
 
+  const [targetRect, setTargetRect] = useState<{
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [viewport, setViewport] = useState({
+    width: 1280,
+    height: 800,
+  });
+
+  const effectiveTarget =
+    current.target === "studio" && !hasCreatorStudio
+      ? undefined
+      : current.target;
+
+  useEffect(() => {
+    function locateTarget() {
+      setViewport({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+
+      if (!effectiveTarget) {
+        setTargetRect(null);
+        return;
+      }
+
+      const nodes = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          `[data-creator-guide-target="${effectiveTarget}"]`,
+        ),
+      );
+
+      const visibleNode = nodes.find((node) => {
+        const rect = node.getBoundingClientRect();
+        const style = window.getComputedStyle(node);
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          style.display !== "none" &&
+          style.visibility !== "hidden"
+        );
+      });
+
+      if (!visibleNode) {
+        setTargetRect(null);
+        return;
+      }
+
+      visibleNode.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+      });
+
+      const rect = visibleNode.getBoundingClientRect();
+      const padding = 7;
+
+      setTargetRect({
+        left: Math.max(4, rect.left - padding),
+        top: Math.max(4, rect.top - padding),
+        right: Math.min(window.innerWidth - 4, rect.right + padding),
+        bottom: Math.min(window.innerHeight - 4, rect.bottom + padding),
+        width: rect.width + padding * 2,
+        height: rect.height + padding * 2,
+      });
+    }
+
+    const frame = window.requestAnimationFrame(locateTarget);
+    const settle = window.setTimeout(locateTarget, 120);
+    window.addEventListener("resize", locateTarget);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(settle);
+      window.removeEventListener("resize", locateTarget);
+    };
+  }, [effectiveTarget, safeStep]);
+
   function handlePrimaryAction() {
     if (current.view) {
       onNavigate(current.view);
@@ -2703,21 +2811,67 @@ function CreatorClubsMiloGuide({
     onStepChange(safeStep + 1);
   }
 
+  const isDesktopTarget = Boolean(targetRect && viewport.width >= 768);
+  const guideWidth = Math.min(520, Math.max(340, viewport.width - 280));
+
+  const desktopLeft = targetRect
+    ? Math.min(
+        Math.max(targetRect.right + 18, 248),
+        Math.max(12, viewport.width - guideWidth - 18),
+      )
+    : 0;
+
+  const desktopTop = targetRect
+    ? Math.max(
+        82,
+        Math.min(
+          targetRect.top - 18,
+          Math.max(82, viewport.height - 350),
+        ),
+      )
+    : 0;
+
   return (
-    <div className="fixed inset-0 z-[110]">
-      <div className="absolute inset-0 bg-[#01040b]/72 backdrop-blur-[3px]" />
+    <div className="fixed inset-0 z-[110] pointer-events-none">
+      {targetRect ? (
+        <div
+          aria-hidden="true"
+          className="fixed z-[111] rounded-[20px] border-2 border-cyan-200/75 bg-transparent shadow-[0_0_0_9999px_rgba(1,4,11,0.78),0_0_34px_rgba(34,211,238,0.34)] transition-all duration-200"
+          style={{
+            left: targetRect.left,
+            top: targetRect.top,
+            width: targetRect.width,
+            height: targetRect.height,
+          }}
+        />
+      ) : (
+        <div className="fixed inset-0 z-[111] bg-[#01040b]/72 backdrop-blur-[3px]" />
+      )}
 
       <section
         role="dialog"
         aria-modal="true"
         aria-label="Milo Creator Clubs guide"
-        className="absolute bottom-4 left-1/2 w-[min(680px,calc(100vw-24px))] -translate-x-1/2 rounded-[28px] border border-cyan-200/28 bg-[linear-gradient(145deg,rgba(4,20,39,0.99),rgba(3,9,24,0.995))] px-5 pb-5 pt-6 shadow-[0_34px_100px_rgba(0,0,0,0.68),0_0_44px_rgba(34,211,238,0.13)] sm:bottom-7 sm:px-7 sm:pb-6 sm:pl-[190px] sm:pt-7"
+        className={`fixed z-[112] pointer-events-auto rounded-[26px] border border-cyan-200/28 bg-[linear-gradient(145deg,rgba(4,20,39,0.99),rgba(3,9,24,0.995))] px-5 pb-5 pt-5 shadow-[0_34px_100px_rgba(0,0,0,0.68),0_0_44px_rgba(34,211,238,0.13)] sm:px-6 sm:pb-6 sm:pl-[156px] sm:pt-6 ${
+          isDesktopTarget
+            ? ""
+            : "bottom-4 left-1/2 w-[min(650px,calc(100vw-24px))] -translate-x-1/2"
+        }`}
+        style={
+          isDesktopTarget
+            ? {
+                left: desktopLeft,
+                top: desktopTop,
+                width: guideWidth,
+              }
+            : undefined
+        }
       >
         <button
           type="button"
           aria-label="Close Milo guide"
           onClick={onClose}
-          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-white/[0.045] text-lg text-white/56"
+          className="absolute right-3.5 top-3.5 flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-white/[0.045] text-lg text-white/56"
         >
           ×
         </button>
@@ -2725,20 +2879,20 @@ function CreatorClubsMiloGuide({
         <img
           src="/milo-world/milo-character.png"
           alt="Milo"
-          className="mx-auto mb-3 h-[116px] w-auto object-contain sm:absolute sm:bottom-[-8px] sm:left-6 sm:mb-0 sm:h-[190px]"
+          className="mx-auto mb-2 h-[100px] w-auto object-contain sm:absolute sm:bottom-[-6px] sm:left-4 sm:mb-0 sm:h-[158px]"
         />
 
         <p className="pr-10 text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/58">
           {current.eyebrow}
         </p>
-        <h2 className="mt-2 max-w-xl font-serif text-[clamp(28px,4vw,42px)] font-normal leading-[1.02]">
+        <h2 className="mt-2 max-w-xl font-serif text-[clamp(25px,3vw,36px)] font-normal leading-[1.02]">
           {current.title}
         </h2>
-        <p className="mt-3 max-w-xl text-[11px] leading-6 text-white/48 sm:text-xs">
+        <p className="mt-3 max-w-xl text-[10px] leading-5 text-white/48 sm:text-[11px]">
           {current.text}
         </p>
 
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-4">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-4">
           <div
             aria-label={`Guide step ${safeStep + 1} of ${CREATOR_CLUBS_GUIDE_STEPS.length}`}
             className="flex items-center gap-1.5"
@@ -2760,7 +2914,7 @@ function CreatorClubsMiloGuide({
               <button
                 type="button"
                 onClick={() => onStepChange(safeStep - 1)}
-                className="min-h-10 rounded-full border border-white/12 bg-white/[0.035] px-4 text-[8px] font-black uppercase tracking-[0.08em] text-white/52"
+                className="min-h-9 rounded-full border border-white/12 bg-white/[0.035] px-4 text-[8px] font-black uppercase tracking-[0.08em] text-white/52"
               >
                 Back
               </button>
@@ -2768,7 +2922,7 @@ function CreatorClubsMiloGuide({
             <button
               type="button"
               onClick={handlePrimaryAction}
-              className="min-h-10 rounded-full border border-cyan-200/22 bg-cyan-300/[0.08] px-5 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100"
+              className="min-h-9 rounded-full border border-cyan-200/22 bg-cyan-300/[0.08] px-5 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100"
             >
               {isLast
                 ? hasCreatorStudio
