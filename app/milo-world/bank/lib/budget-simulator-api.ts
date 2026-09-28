@@ -68,7 +68,7 @@ function normaliseState(
     scenarioSeed: Number(source.scenarioSeed ?? fallback.scenarioSeed) || 1,
     data:
       source.data && typeof source.data === "object" && !Array.isArray(source.data)
-        ? (source.data as Record<string, unknown>)
+        ? (source.data as BudgetSimulationState["data"])
         : {},
   };
 }

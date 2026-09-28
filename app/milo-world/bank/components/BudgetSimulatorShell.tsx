@@ -1,12 +1,26 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import type { BankScreenMode } from "../lib/bank-types";
+import {
+  createInitialBudgetAllocation,
+  generateBudgetFinancialProfile,
+  normaliseBudgetAllocation,
+} from "../lib/budget-simulator-financial-model";
 import {
   BUDGET_STAGES,
   getBudgetDifficulty,
   getBudgetScenario,
 } from "../lib/budget-simulator-scenarios";
-import type { BudgetSimulationRun } from "../lib/budget-simulator-types";
+import type {
+  BudgetAllocation,
+  BudgetSimulationRun,
+  BudgetSimulationState,
+  BudgetStageKey,
+} from "../lib/budget-simulator-types";
+import BudgetBriefingStage from "./BudgetBriefingStage";
+import BudgetFinancialDeskStage from "./BudgetFinancialDeskStage";
+import BudgetBuildStage from "./BudgetBuildStage";
 
 export default function BudgetSimulatorShell({
   run,
@@ -15,6 +29,7 @@ export default function BudgetSimulatorShell({
   error,
   onExit,
   onAbandon,
+  onSaveCheckpoint,
 }: {
   run: BudgetSimulationRun;
   screenMode: BankScreenMode;
@@ -22,14 +37,95 @@ export default function BudgetSimulatorShell({
   error: string | null;
   onExit: () => void;
   onAbandon: () => Promise<void>;
+  onSaveCheckpoint: (input: {
+    currentStage: BudgetStageKey;
+    currentDay: number;
+    state: BudgetSimulationState;
+  }) => Promise<BudgetSimulationRun | null>;
 }) {
   const isMobile = screenMode === "mobile";
   const scenario = getBudgetScenario(run.scenarioKey);
   const difficulty = getBudgetDifficulty(run.difficulty);
+  const profile = useMemo(
+    () =>
+      generateBudgetFinancialProfile({
+        scenarioKey: run.scenarioKey,
+        difficulty: run.difficulty,
+        scenarioSeed: run.scenarioSeed,
+      }),
+    [run.scenarioKey, run.difficulty, run.scenarioSeed],
+  );
+
+  const [draftState, setDraftState] = useState<BudgetSimulationState>(() =>
+    hydrateState(run, profile),
+  );
+
+  useEffect(() => {
+    setDraftState(hydrateState(run, profile));
+  }, [run.id, run.checkpointVersion, profile]);
+
   const activeIndex = Math.max(
     0,
     BUDGET_STAGES.findIndex((stage) => stage.id === run.currentStage),
   );
+
+  const inspectedItems = draftState.data.inspectedItems ?? [];
+  const pinnedItems = draftState.data.pinnedItems ?? [];
+  const allocation = normaliseBudgetAllocation(
+    draftState.data.allocation,
+    profile,
+  );
+
+  function patchData(patch: Partial<BudgetSimulationState["data"]>) {
+    setDraftState((current) => ({
+      ...current,
+      data: {
+        ...current.data,
+        ...patch,
+      },
+    }));
+  }
+
+  async function advance(nextStage: BudgetStageKey, extra?: Partial<BudgetSimulationState["data"]>) {
+    const nextState: BudgetSimulationState = {
+      ...draftState,
+      stage: nextStage,
+      currentDay: run.currentDay,
+      completedStages: uniqueStages([
+        ...draftState.completedStages,
+        run.currentStage,
+      ]),
+      data: {
+        ...draftState.data,
+        ...extra,
+      },
+    };
+
+    const saved = await onSaveCheckpoint({
+      currentStage: nextStage,
+      currentDay: run.currentDay,
+      state: nextState,
+    });
+    if (saved) setDraftState(saved.state);
+  }
+
+  async function saveCurrent() {
+    const currentState: BudgetSimulationState = {
+      ...draftState,
+      stage: run.currentStage,
+      currentDay: run.currentDay,
+    };
+    return onSaveCheckpoint({
+      currentStage: run.currentStage,
+      currentDay: run.currentDay,
+      state: currentState,
+    });
+  }
+
+  async function exitAndSave() {
+    const saved = await saveCurrent();
+    if (saved) onExit();
+  }
 
   async function abandon() {
     const confirmed = window.confirm(
@@ -51,44 +147,27 @@ export default function BudgetSimulatorShell({
       >
         <header
           style={{
-            padding: isMobile ? "13px" : "14px 18px",
+            padding: isMobile ? "12px" : "13px 16px",
             display: "flex",
             flexDirection: isMobile ? "column" : "row",
             alignItems: isMobile ? "stretch" : "center",
             justifyContent: "space-between",
-            gap: "10px",
+            gap: "9px",
             borderBottom: "1px solid rgba(255,255,255,0.07)",
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                flexWrap: "wrap",
-              }}
-            >
-              <span
-                style={{
-                  color: "#8ee8ff",
-                  fontSize: "8px",
-                  fontWeight: 950,
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Budget Simulator
-              </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "7px", flexWrap: "wrap" }}>
+              <span style={eyebrowStyle}>Budget Simulator</span>
               <span style={badgeStyle}>{difficulty.title}</span>
               <span style={badgeStyle}>{scenario.title}</span>
             </div>
             <h2
               style={{
-                margin: "5px 0 0",
+                margin: "4px 0 0",
                 fontFamily: 'Georgia, "Times New Roman", serif',
                 fontWeight: 500,
-                fontSize: isMobile ? "24px" : "30px",
+                fontSize: isMobile ? "22px" : "28px",
               }}
             >
               Build a Budget That Survives
@@ -96,8 +175,13 @@ export default function BudgetSimulatorShell({
           </div>
 
           <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
-            <button type="button" onClick={onExit} style={secondaryButtonStyle}>
-              Exit & save
+            <button
+              type="button"
+              onClick={() => void exitAndSave()}
+              disabled={saving}
+              style={secondaryButtonStyle}
+            >
+              {saving ? "Saving..." : "Exit & save"}
             </button>
             <button
               type="button"
@@ -117,7 +201,7 @@ export default function BudgetSimulatorShell({
         <div
           aria-label="Budget Simulator stages"
           style={{
-            padding: isMobile ? "9px" : "10px 14px",
+            padding: isMobile ? "8px" : "9px 12px",
             display: "grid",
             gridTemplateColumns: isMobile
               ? "repeat(7, minmax(42px, 1fr))"
@@ -129,7 +213,7 @@ export default function BudgetSimulatorShell({
         >
           {BUDGET_STAGES.map((stage, index) => {
             const active = index === activeIndex;
-            const complete = index < activeIndex;
+            const complete = draftState.completedStages.includes(stage.id) || index < activeIndex;
             return (
               <div
                 key={stage.id}
@@ -144,7 +228,7 @@ export default function BudgetSimulatorShell({
                     : complete
                       ? "rgba(99,255,183,0.05)"
                       : "rgba(255,255,255,0.018)",
-                  padding: "7px 5px",
+                  padding: "6px 5px",
                   textAlign: "center",
                 }}
               >
@@ -159,15 +243,13 @@ export default function BudgetSimulatorShell({
                     fontSize: "8px",
                   }}
                 >
-                  {stage.number}
+                  {complete && !active ? "✓" : stage.number}
                 </strong>
                 <span
                   style={{
                     display: "block",
                     marginTop: "2px",
-                    color: active
-                      ? "rgba(255,255,255,0.82)"
-                      : "rgba(255,255,255,0.34)",
+                    color: active ? "rgba(255,255,255,0.82)" : "rgba(255,255,255,0.34)",
                     fontSize: isMobile ? "6px" : "7px",
                     fontWeight: 850,
                     whiteSpace: "nowrap",
@@ -180,130 +262,151 @@ export default function BudgetSimulatorShell({
           })}
         </div>
 
-        <div
-          style={{
-            minHeight: isMobile ? "310px" : "360px",
-            padding: isMobile ? "18px 14px" : "28px",
-            display: "grid",
-            placeItems: "center",
-          }}
-        >
-          <div style={{ maxWidth: "680px", textAlign: "center" }}>
-            <div
-              style={{
-                width: "58px",
-                height: "58px",
-                margin: "0 auto",
-                borderRadius: "18px",
-                border: "1px solid rgba(126,232,255,0.2)",
-                background:
-                  "radial-gradient(circle at 35% 30%, rgba(126,232,255,0.22), rgba(83,100,255,0.06) 55%, rgba(0,0,0,0.06))",
-                display: "grid",
-                placeItems: "center",
-                color: "#a9f1ff",
-                fontSize: "24px",
-              }}
-            >
-              ◇
-            </div>
+        <div style={{ padding: isMobile ? "13px" : "16px" }}>
+          {run.currentStage === "briefing" ? (
+            <BudgetBriefingStage
+              run={run}
+              profile={profile}
+              screenMode={screenMode}
+              saving={saving}
+              onContinue={() => advance("financial_desk")}
+            />
+          ) : run.currentStage === "financial_desk" ? (
+            <BudgetFinancialDeskStage
+              profile={profile}
+              screenMode={screenMode}
+              inspectedItems={inspectedItems}
+              pinnedItems={pinnedItems}
+              saving={saving}
+              onInspectedChange={(next) => patchData({ inspectedItems: next })}
+              onPinnedChange={(next) => patchData({ pinnedItems: next })}
+              onContinue={() => advance("build_budget", { allocation })}
+            />
+          ) : run.currentStage === "build_budget" ? (
+            <BudgetBuildStage
+              profile={profile}
+              screenMode={screenMode}
+              allocation={allocation}
+              pinnedItems={pinnedItems}
+              saving={saving}
+              onAllocationChange={(next: BudgetAllocation) => patchData({ allocation: next })}
+              onPinnedChange={(next) => patchData({ pinnedItems: next })}
+              onContinue={() =>
+                advance("forecast", {
+                  allocation,
+                  firstPlan: { ...allocation },
+                })
+              }
+            />
+          ) : (
+            <ComingNextStage
+              stage={run.currentStage}
+              screenMode={screenMode}
+              allocation={draftState.data.firstPlan ?? allocation}
+            />
+          )}
+
+          {error && (
             <p
+              role="alert"
               style={{
-                margin: "14px 0 0",
-                color: "#8ee8ff",
+                margin: "10px 0 0",
+                borderRadius: "12px",
+                border: "1px solid rgba(255,130,130,.15)",
+                background: "rgba(255,90,90,.05)",
+                padding: "9px 11px",
+                color: "#ffc1c1",
                 fontSize: "8px",
-                fontWeight: 950,
-                letterSpacing: "0.13em",
-                textTransform: "uppercase",
               }}
             >
-              Stage 1 · Briefing
+              {error}
             </p>
-            <h3
-              style={{
-                margin: "6px 0 0",
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isMobile ? "26px" : "33px",
-                fontWeight: 500,
-              }}
-            >
-              Your simulation run is ready.
-            </h3>
-            <p
-              style={{
-                margin: "10px auto 0",
-                maxWidth: "540px",
-                color: "rgba(255,255,255,0.46)",
-                fontSize: "11px",
-                lineHeight: 1.6,
-              }}
-            >
-              This run has its own persistent scenario seed and checkpoint. You can
-              leave now and resume the same month later. The interactive financial
-              briefing and planning desk are added in 4A-2.
-            </p>
-
-            <div
-              style={{
-                marginTop: "17px",
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : "repeat(3, minmax(0,1fr))",
-                gap: "8px",
-              }}
-            >
-              <FoundationMetric label="Current day" value={`Day ${run.currentDay}`} />
-              <FoundationMetric label="Difficulty" value={difficulty.title} />
-              <FoundationMetric label="Checkpoint" value={`v${run.checkpointVersion}`} />
-            </div>
-
-            {error && (
-              <p
-                role="alert"
-                style={{
-                  margin: "12px 0 0",
-                  color: "#ffc1c1",
-                  fontSize: "9px",
-                }}
-              >
-                {error}
-              </p>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </section>
   );
 }
 
-function FoundationMetric({ label, value }: { label: string; value: string }) {
+function ComingNextStage({
+  stage,
+  screenMode,
+  allocation,
+}: {
+  stage: BudgetStageKey;
+  screenMode: BankScreenMode;
+  allocation: BudgetAllocation;
+}) {
+  const isMobile = screenMode === "mobile";
+  const stageLabel = BUDGET_STAGES.find((item) => item.id === stage)?.label ?? "Next stage";
   return (
     <div
       style={{
-        borderRadius: "14px",
-        border: "1px solid rgba(255,255,255,0.065)",
-        background: "rgba(255,255,255,0.022)",
-        padding: "10px 12px",
+        minHeight: isMobile ? "280px" : "330px",
+        display: "grid",
+        placeItems: "center",
+        borderRadius: "20px",
+        border: "1px solid rgba(184,168,255,.12)",
+        background: "radial-gradient(circle at 50% 35%,rgba(184,168,255,.10),transparent 38%),rgba(5,11,27,.68)",
+        padding: "20px",
+        textAlign: "center",
       }}
     >
-      <span
-        style={{
-          display: "block",
-          color: "rgba(255,255,255,0.32)",
-          fontSize: "7px",
-          fontWeight: 900,
-          letterSpacing: "0.09em",
-          textTransform: "uppercase",
-        }}
-      >
-        {label}
-      </span>
-      <strong style={{ display: "block", marginTop: "4px", fontSize: "12px" }}>
-        {value}
-      </strong>
+      <div style={{ maxWidth: "620px" }}>
+        <p style={{ ...eyebrowStyle, color: "#c3b5ff" }}>First budget saved</p>
+        <h3
+          style={{
+            margin: "6px 0 0",
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontSize: isMobile ? "27px" : "34px",
+            fontWeight: 500,
+          }}
+        >
+          {stageLabel} is ready for 4A-3.
+        </h3>
+        <p style={{ margin: "9px auto 0", color: "rgba(255,255,255,.42)", fontSize: "9px", lineHeight: 1.6 }}>
+          Your initial allocation is stored with this run. Phase 4A-3 will turn it into a 30-day cash-flow forecast, day scrubber and stress-test system.
+        </p>
+        <div style={{ marginTop: "14px", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "6px" }}>
+          {Object.entries(allocation).map(([key, value]) => (
+            <span key={key} style={miniAllocationStyle}>
+              {key.replaceAll("_", " ")} · {Number(value).toLocaleString()} DT
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
+
+function hydrateState(run: BudgetSimulationRun, profile: ReturnType<typeof generateBudgetFinancialProfile>) {
+  return {
+    ...run.state,
+    stage: run.currentStage,
+    currentDay: run.currentDay,
+    data: {
+      ...run.state.data,
+      inspectedItems: run.state.data.inspectedItems ?? [],
+      pinnedItems: run.state.data.pinnedItems ?? [],
+      allocation: normaliseBudgetAllocation(
+        run.state.data.allocation ?? createInitialBudgetAllocation(profile),
+        profile,
+      ),
+    },
+  } satisfies BudgetSimulationState;
+}
+
+function uniqueStages(items: BudgetStageKey[]) {
+  return Array.from(new Set(items));
+}
+
+const eyebrowStyle = {
+  color: "#8ee8ff",
+  fontSize: "7px",
+  fontWeight: 950,
+  letterSpacing: "0.12em",
+  textTransform: "uppercase" as const,
+};
 
 const badgeStyle = {
   minHeight: "20px",
@@ -333,4 +436,14 @@ const secondaryButtonStyle = {
   fontWeight: 900,
   letterSpacing: "0.07em",
   textTransform: "uppercase" as const,
+};
+
+const miniAllocationStyle = {
+  borderRadius: "999px",
+  border: "1px solid rgba(255,255,255,.07)",
+  background: "rgba(255,255,255,.02)",
+  padding: "6px 8px",
+  color: "rgba(255,255,255,.46)",
+  fontSize: "7px",
+  textTransform: "capitalize" as const,
 };
