@@ -279,7 +279,7 @@ export default function CreatorChallengeCyclePanel() {
     return (
       <section className="shrink-0 rounded-[24px] border border-white/10 bg-white/[0.035] p-5">
         <p className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/58">
-          Phase 3 · Challenge Cycle
+          Featured Challenge
         </p>
         <h2 className="mt-2 text-xl font-black">Create your club first.</h2>
       </section>
@@ -291,10 +291,10 @@ export default function CreatorChallengeCyclePanel() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-[8px] font-black uppercase tracking-[0.16em] text-amber-100/62">
-            Phase 3 · Club Challenge
+            Featured Challenge
           </p>
           <h2 className="mt-1 text-xl font-black sm:text-2xl">
-            Choose what the club is competing in now.
+            Choose the challenge your club is featuring now.
           </h2>
           <p className="mt-2 max-w-3xl text-[10px] leading-5 text-white/42">
             Only published challenges can be featured. One challenge cycle can
@@ -402,7 +402,7 @@ export default function CreatorChallengeCyclePanel() {
       {publishedForClub.length === 0 && (
         <p className="mt-3 rounded-xl border border-cyan-200/12 bg-cyan-300/[0.035] px-3 py-2 text-[10px] leading-5 text-cyan-100/68">
           This club has no published challenges yet. Finish a 10-question
-          challenge and pass Dreamscape review first.
+          challenge and submit it for approval first.
         </p>
       )}
 

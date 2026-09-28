@@ -33,10 +33,9 @@ export const FINANCIAL_LEARNING_PATHWAYS: FinancialLearningPathway[] = [
     description:
       "Go deeper into banks, liquidity, interest, compound growth and bonds through applied Dreamscape decisions.",
     status: "available",
-    meta: "8 lessons · first 2 free",
+    meta: "8 lessons · Milo Finance",
     accent: "#9fffd2",
-    accessTier: "free",
-    includesPremium: true,
+    accessTier: "milo_finance",
   },
   {
     id: "markets-investing",
@@ -56,10 +55,9 @@ export const FINANCIAL_LEARNING_PATHWAYS: FinancialLearningPathway[] = [
     description:
       "Work through realistic Dreamscape choices where timing, value, flexibility and trade-offs matter more than finding one simplistic answer.",
     status: "available",
-    meta: "8 lessons · first 2 free",
+    meta: "8 lessons · Milo Finance",
     accent: "#ffd18a",
-    accessTier: "free",
-    includesPremium: true,
+    accessTier: "milo_finance",
   },
   {
     id: "business-enterprise",
@@ -68,9 +66,8 @@ export const FINANCIAL_LEARNING_PATHWAYS: FinancialLearningPathway[] = [
     description:
       "Learn revenue, cost, profit, pricing, cash flow and business growth before using Business Builder.",
     status: "available",
-    meta: "11 lessons · first 2 free",
+    meta: "11 lessons · Milo Finance",
     accent: "#ffb98e",
-    accessTier: "free",
-    includesPremium: true,
+    accessTier: "milo_finance",
   },
 ];

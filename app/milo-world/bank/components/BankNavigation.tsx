@@ -10,7 +10,7 @@ const SECTIONS: Array<{
   icon: string;
 }> = [
   { id: "learn", label: "Learn", shortLabel: "Learn", kicker: "Courses", icon: "▦" },
-  { id: "practise", label: "Practise", shortLabel: "Practise", kicker: "Simulations", icon: "◇" },
+  { id: "practise", label: "Practice", shortLabel: "Practice", kicker: "Simulations", icon: "◇" },
   { id: "money", label: "My Money", shortLabel: "Money", kicker: "Wallet & tools", icon: "◆" },
   { id: "progress", label: "My Progress", shortLabel: "Progress", kicker: "Skills & milestones", icon: "◎" },
 ];

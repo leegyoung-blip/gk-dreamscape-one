@@ -412,7 +412,7 @@ export default function CreatorClubUpgradeStore() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-[8px] font-black uppercase tracking-[0.16em] text-amber-100/58">
-            Phase 7 · DT Reinvestment
+            Club Upgrade Store
           </p>
           <h2 className="mt-1 text-2xl font-black">Club Upgrade Store</h2>
           <p className="mt-2 max-w-3xl text-[10px] leading-5 text-white/36">
@@ -643,7 +643,7 @@ export default function CreatorClubUpgradeStore() {
         </>
       )}
 
-      {isAdmin && (
+      {false && isAdmin && (
         <div className="mt-5 border-t border-white/8 pt-4">
           <button
             type="button"

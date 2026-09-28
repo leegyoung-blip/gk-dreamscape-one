@@ -19,6 +19,7 @@ export const FINANCIAL_ADVISORS: Record<FinancialAdvisorId, FinancialAdvisor> = 
     description: "Calm, analytical guidance that helps you examine the numbers and the reasoning behind a decision.",
     accent: "#8ee8ff",
     glow: "rgba(83,215,255,0.18)",
+    // public/milo-world/nova/nova-character.png
     imageSrc: "/milo-world/nova/nova-character.png",
     fallbackInitial: "N",
   },

@@ -103,7 +103,7 @@ export default function CreatorClubProgressionPanel() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/58">
-              Phase 7 · Club Progression
+              Club Progression
             </p>
             <h2 className="mt-1 text-2xl font-black">
               Grow the community, not just the creator.

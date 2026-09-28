@@ -98,10 +98,10 @@ export default function CreatorClubPlaySettings() {
   return (
     <section className="shrink-0 rounded-[26px] border border-fuchsia-200/12 bg-[linear-gradient(145deg,rgba(83,26,85,0.13),rgba(3,13,29,0.90))] p-4 sm:p-5">
       <p className="text-[8px] font-black uppercase tracking-[0.16em] text-fuchsia-100/58">
-        Phase 6 · Club Play Rooms
+        Club Play Rooms
       </p>
       <h2 className="mt-1 text-2xl font-black">
-        Let your community host its own games.
+        Member-hosted games unlock as your community grows.
       </h2>
       <p className="mt-2 max-w-3xl text-[10px] leading-5 text-white/38">
         Play Rooms unlock at 100 club members. Reaching the milestone unlocks

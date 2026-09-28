@@ -279,7 +279,7 @@ export default function CreatorRewardsPanel() {
     return (
       <section className="shrink-0 rounded-[26px] border border-red-200/12 bg-red-400/[0.035] p-5">
         <p className="text-xs text-red-100">
-          {errorMessage || "Creator Rewards are unavailable."}
+          Creator Rewards are temporarily unavailable. Try again after your creator activity has been calculated.
         </p>
       </section>
     );
@@ -298,7 +298,7 @@ export default function CreatorRewardsPanel() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <p className="text-[8px] font-black uppercase tracking-[0.16em] text-emerald-100/62">
-              Phase 5 · Creator Rewards
+              Creator Rewards
             </p>
             <h2 className="mt-1 text-2xl font-black sm:text-3xl">
               Turn genuine engagement into Dream Tokens.

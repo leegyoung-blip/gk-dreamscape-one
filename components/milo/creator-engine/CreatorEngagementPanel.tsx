@@ -363,7 +363,7 @@ export default function CreatorEngagementPanel() {
             </>
           ) : (
             <p className="mt-3 text-[10px] leading-5 text-white/30">
-              Publish and play Engine V2 challenges to build this view.
+              Publish challenges and let members play to build this view.
             </p>
           )}
 

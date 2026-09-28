@@ -4,42 +4,14 @@ import { useState } from "react";
 import { FINANCIAL_LEARNING_PATHWAYS } from "../lib/financial-learning";
 import type { BankScreenMode } from "../lib/bank-types";
 import FinancialCoursePanel from "./FinancialCoursePanel";
-import MiloFinanceBadge from "./MiloFinanceBadge";
 
-
-function AccessLabel({ kind }: { kind: "free" | "mixed" | "paid" }) {
-  const free = kind === "free";
-  const mixed = kind === "mixed";
-  return (
-    <span
-      style={{
-        minHeight: "24px",
-        padding: "0 8px",
-        borderRadius: "999px",
-        border: free
-          ? "1px solid rgba(159,255,210,0.26)"
-          : mixed
-            ? "1px solid rgba(126,232,255,0.24)"
-            : "1px solid rgba(255,209,138,0.28)",
-        background: free
-          ? "rgba(96,255,182,0.07)"
-          : mixed
-            ? "linear-gradient(90deg, rgba(96,255,182,0.06), rgba(255,190,90,0.07))"
-            : "rgba(255,190,90,0.075)",
-        color: free ? "#a9ffd4" : mixed ? "#bdefff" : "#ffd18a",
-        display: "inline-flex",
-        alignItems: "center",
-        whiteSpace: "nowrap",
-        fontSize: "7px",
-        fontWeight: 950,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-      }}
-    >
-      {free ? "Free for all" : mixed ? "Free start · paid content" : "Paid · Milo Finance"}
-    </span>
-  );
-}
+const COURSE_SUMMARIES: Record<string, string> = {
+  "financial-foundations": "Saving, interest, bonds, priorities and risk.",
+  "banking-growth": "Banking, liquidity, compounding and growth.",
+  "markets-investing": "Investing, markets, diversification and risk.",
+  "money-decisions": "Trade-offs, value, timing and financial choices.",
+  "business-enterprise": "Revenue, costs, cash flow, pricing and growth.",
+};
 
 export default function LearnSection({
   screenMode,
@@ -57,63 +29,166 @@ export default function LearnSection({
   const isMobile = screenMode === "mobile";
   const compact = screenMode !== "desktop";
   const [selectedCourseId, setSelectedCourseId] = useState("financial-foundations");
-  const availablePathways = FINANCIAL_LEARNING_PATHWAYS.filter((pathway) => pathway.status === "available").length;
+
+  function selectCourse(courseId: string, premium: boolean) {
+    if (premium) {
+      if (accessLoading) return;
+      if (!hasMiloFinanceAccess) {
+        onOpenUpgrade();
+        return;
+      }
+    }
+    setSelectedCourseId(courseId);
+  }
 
   return (
-    <div style={{ marginTop: "18px" }}>
-      <section style={{ borderRadius: isMobile ? "22px" : "26px", border: "1px solid rgba(126,232,255,0.14)", background: "linear-gradient(145deg, rgba(7,25,47,0.82), rgba(5,10,27,0.92))", padding: isMobile ? "19px" : "22px 24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "14px", alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div>
-            <p style={eyebrowStyle}>Financial Learning</p>
-            <h2 style={{ margin: "7px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "38px" : "48px", lineHeight: 0.98, fontWeight: 500, letterSpacing: "-0.035em" }}>Learn</h2>
-          </div>
-          {!accessLoading && hasMiloFinanceAccess && <MiloFinanceBadge active />}
-        </div>
-        <p style={{ margin: "11px 0 0", maxWidth: "880px", color: "rgba(255,255,255,0.54)", fontSize: "12px", lineHeight: 1.65 }}>
-          Learn finance through decisions, calculations and simulations inside Dreamscape. Every pathway is labelled clearly so learners can see what is free for everyone and what requires Milo Finance.
-        </p>
-        <div style={{ marginTop: "13px", display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-          <AccessLabel kind="free" />
-          <AccessLabel kind="mixed" />
-          <AccessLabel kind="paid" />
-        </div>
-      </section>
-
-      <section style={{ marginTop: "14px" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "14px", flexWrap: "wrap", marginBottom: "10px" }}>
-          <div>
-            <p style={{ ...eyebrowStyle, color: "rgba(255,255,255,0.38)" }}>Learning pathways</p>
-            <h3 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "28px", fontWeight: 500 }}>Start with the fundamentals. Go deeper over time.</h3>
-          </div>
-          <span style={{ color: "rgba(255,255,255,0.34)", fontSize: "9px", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>{availablePathways} pathways available</span>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : compact ? "repeat(2, minmax(0,1fr))" : "repeat(5, minmax(0,1fr))", gap: "9px" }}>
+    <div style={{ marginTop: isMobile ? "7px" : "9px" }}>
+      <section aria-label="Milo Finance courses">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: isMobile
+              ? "1fr"
+              : compact
+                ? "repeat(2, minmax(0,1fr))"
+                : "repeat(5, minmax(0,1fr))",
+            gap: "9px",
+          }}
+        >
           {FINANCIAL_LEARNING_PATHWAYS.map((pathway) => {
             const available = pathway.status === "available";
             const selected = selectedCourseId === pathway.id;
-            const premiumOnly = pathway.accessTier === "milo_finance";
-            const accessKind: "free" | "mixed" | "paid" = premiumOnly
-              ? "paid"
-              : pathway.includesPremium
-                ? "mixed"
-                : "free";
+            const premium = pathway.accessTier === "milo_finance";
+            const locked = premium && !accessLoading && !hasMiloFinanceAccess;
+            const loadingLock = premium && accessLoading;
+
+            const accessText = premium
+              ? hasMiloFinanceAccess
+                ? "Milo Finance · Included"
+                : "Milo Finance · Paid"
+              : isLoggedIn
+                ? "Free"
+                : "Free · Log in";
 
             return (
               <button
                 type="button"
                 key={pathway.id}
-                onClick={() => available && setSelectedCourseId(pathway.id)}
-                disabled={!available}
-                style={{ minHeight: compact ? "172px" : "190px", borderRadius: "18px", border: selected ? `1px solid ${pathway.accent}66` : available ? `1px solid ${pathway.accent}38` : "1px solid rgba(255,255,255,0.06)", background: selected ? `linear-gradient(145deg, ${pathway.accent}17, rgba(4,13,29,0.86))` : available ? `linear-gradient(145deg, ${pathway.accent}0f, rgba(4,13,29,0.78))` : "rgba(4,13,29,0.58)", padding: "15px", display: "flex", flexDirection: "column", opacity: available ? 1 : 0.62, color: "white", textAlign: "left", cursor: available ? "pointer" : "default", fontFamily: "inherit" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "flex-start", flexWrap: "wrap" }}>
-                  <span style={{ color: available ? pathway.accent : "rgba(255,255,255,0.30)", fontSize: "8px", fontWeight: 900, letterSpacing: "0.11em", textTransform: "uppercase" }}>Course {String(pathway.order).padStart(2, "0")} · {available ? "Available" : "Planned"}</span>
-                  <AccessLabel kind={accessKind} />
+                onClick={() => available && selectCourse(pathway.id, premium)}
+                disabled={!available || loadingLock}
+                aria-pressed={selected}
+                aria-label={`${pathway.order}. ${pathway.title}. ${premium ? "Milo Finance paid course" : "Free course"}`}
+                style={{
+                  minHeight: isMobile ? "132px" : compact ? "148px" : "166px",
+                  borderRadius: "18px",
+                  border: selected
+                    ? `1px solid ${pathway.accent}78`
+                    : locked
+                      ? "1px solid rgba(255,209,138,0.20)"
+                      : `1px solid ${pathway.accent}35`,
+                  background: selected
+                    ? `linear-gradient(145deg, ${pathway.accent}19, rgba(4,13,29,0.90))`
+                    : locked
+                      ? "linear-gradient(145deg, rgba(255,190,90,0.055), rgba(4,13,29,0.86))"
+                      : `linear-gradient(145deg, ${pathway.accent}0d, rgba(4,13,29,0.82))`,
+                  padding: isMobile ? "14px 15px" : "15px",
+                  display: "flex",
+                  flexDirection: "column",
+                  color: "white",
+                  textAlign: "left",
+                  cursor: !available ? "default" : loadingLock ? "wait" : "pointer",
+                  fontFamily: "inherit",
+                  opacity: available ? 1 : 0.55,
+                  boxShadow: selected ? `0 0 28px ${pathway.accent}10` : "none",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: "10px",
+                  }}
+                >
+                  <span
+                    style={{
+                      color: pathway.accent,
+                      fontFamily: 'Georgia, "Times New Roman", serif',
+                      fontSize: isMobile ? "28px" : "32px",
+                      lineHeight: 0.9,
+                      fontWeight: 600,
+                      letterSpacing: "-0.04em",
+                    }}
+                  >
+                    {pathway.order}
+                  </span>
+
+                  <span
+                    style={{
+                      minHeight: "24px",
+                      borderRadius: "999px",
+                      border: premium
+                        ? "1px solid rgba(255,209,138,0.26)"
+                        : "1px solid rgba(159,255,210,0.26)",
+                      background: premium
+                        ? "rgba(255,190,90,0.075)"
+                        : "rgba(96,255,182,0.07)",
+                      color: premium ? "#ffd18a" : "#a9ffd4",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "0 8px",
+                      whiteSpace: "nowrap",
+                      fontSize: "7px",
+                      fontWeight: 950,
+                      letterSpacing: "0.07em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {locked ? "🔒 " : ""}{accessText}
+                  </span>
                 </div>
-                <strong style={{ display: "block", marginTop: "8px", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "20px", lineHeight: 1.08, fontWeight: 500 }}>{pathway.title}</strong>
-                <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.44)", fontSize: "10px", lineHeight: 1.5 }}>{pathway.description}</p>
-                <div style={{ marginTop: "auto", paddingTop: "12px", color: selected ? pathway.accent : "rgba(255,255,255,0.36)", fontSize: "8px", fontWeight: 850, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  {selected ? "Viewing course · " : ""}{pathway.meta}
+
+                <strong
+                  style={{
+                    display: "block",
+                    marginTop: "10px",
+                    fontFamily: 'Georgia, "Times New Roman", serif',
+                    fontSize: isMobile ? "21px" : "20px",
+                    lineHeight: 1.06,
+                    fontWeight: 500,
+                  }}
+                >
+                  {pathway.title}
+                </strong>
+
+                <p
+                  style={{
+                    margin: "7px 0 0",
+                    color: "rgba(255,255,255,0.46)",
+                    fontSize: "10px",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {COURSE_SUMMARIES[pathway.id] ?? pathway.description}
+                </p>
+
+                <div
+                  style={{
+                    marginTop: "auto",
+                    paddingTop: "10px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "8px",
+                    color: selected ? pathway.accent : "rgba(255,255,255,0.34)",
+                    fontSize: "8px",
+                    fontWeight: 850,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  <span>{pathway.meta}</span>
+                  <span>{selected ? "Selected" : locked ? "Unlock →" : "Open →"}</span>
                 </div>
               </button>
             );
@@ -121,9 +196,13 @@ export default function LearnSection({
         </div>
       </section>
 
-      <FinancialCoursePanel courseId={selectedCourseId} screenMode={screenMode} isLoggedIn={isLoggedIn} hasMiloFinanceAccess={hasMiloFinanceAccess} onOpenUpgrade={onOpenUpgrade} />
+      <FinancialCoursePanel
+        courseId={selectedCourseId}
+        screenMode={screenMode}
+        isLoggedIn={isLoggedIn}
+        hasMiloFinanceAccess={hasMiloFinanceAccess}
+        onOpenUpgrade={onOpenUpgrade}
+      />
     </div>
   );
 }
-
-const eyebrowStyle = { margin: 0, color: "#8ee8ff", fontSize: "9px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" } as const;

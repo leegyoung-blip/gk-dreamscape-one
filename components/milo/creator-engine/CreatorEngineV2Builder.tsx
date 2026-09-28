@@ -617,7 +617,7 @@ export default function CreatorEngineV2Builder({
       return;
     }
 
-    setMessage(`Question ${selectedOrder} saved in Creator Engine V2.`);
+    setMessage(`Question ${selectedOrder} saved in Challenge Builder.`);
     await load();
     onQuizChanged?.();
     setIsSaving(false);
@@ -810,7 +810,7 @@ export default function CreatorEngineV2Builder({
   async function submitForReview() {
     if (
       !window.confirm(
-        `Submit "${quizTitle}" for Dreamscape review? All 10 Engine V2 questions will be locked while it is under review.`,
+        `Submit "${quizTitle}" for approval? All 10 questions will be locked while it is pending approval.`,
       )
     ) {
       return;
@@ -831,7 +831,7 @@ export default function CreatorEngineV2Builder({
       return;
     }
 
-    setMessage("Challenge submitted for Dreamscape review.");
+    setMessage("Challenge submitted for approval.");
     await load();
     onQuizChanged?.();
     setIsSaving(false);
@@ -876,7 +876,7 @@ export default function CreatorEngineV2Builder({
   if (isLoading) {
     return (
       <section className="mt-5 rounded-[24px] border border-cyan-200/12 bg-cyan-300/[0.035] p-5 text-xs text-white/42">
-        Opening Creator Engine V2...
+        Opening Challenge Builder...
       </section>
     );
   }
@@ -886,15 +886,15 @@ export default function CreatorEngineV2Builder({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/58">
-            Creator Quiz Engine V2
+            Challenge Builder
           </p>
           <h3 className="mt-1 text-2xl font-black">
             Mix interaction types inside one challenge.
           </h3>
           <p className="mt-2 max-w-3xl text-[10px] leading-5 text-white/38">
-            Existing A–D creator quizzes migrate automatically into Classic
-            Choice. New questions can use grids or estimation engines when the
-            creator has unlocked them.
+            Build a 10-question challenge using classic choices, grids,
+            multi-select and estimation. Unlock extra creator tools with DT as
+            your club grows.
           </p>
         </div>
 
@@ -907,7 +907,7 @@ export default function CreatorEngineV2Builder({
             onClick={() => setStoreOpen((value) => !value)}
             className="min-h-9 rounded-full border border-amber-200/18 bg-amber-300/[0.06] px-4 text-[8px] font-black uppercase tracking-[0.08em] text-amber-100"
           >
-            Engine Store · {walletDt.toLocaleString()} DT
+            Question Types · {walletDt.toLocaleString()} DT
           </button>
           <button
             type="button"
@@ -1003,7 +1003,7 @@ export default function CreatorEngineV2Builder({
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-[8px] font-black uppercase tracking-[0.13em] text-violet-100/58">
-                Phase 7 Creator Tools
+                Creator Tools
               </p>
               <h4 className="mt-1 text-lg font-black">Build faster without changing the game.</h4>
               <p className="mt-1 max-w-3xl text-[9px] leading-4 text-white/30">
@@ -1527,10 +1527,10 @@ export default function CreatorEngineV2Builder({
       <div className="mt-4 flex flex-col gap-3 rounded-[20px] border border-violet-200/12 bg-violet-300/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[8px] font-black uppercase tracking-[0.12em] text-violet-100/56">
-            Dreamscape Review
+            Approval
           </p>
           <p className="mt-1 text-[10px] leading-5 text-white/36">
-            Creator challenges currently require exactly 10 saved Engine V2
+            Creator challenges currently require exactly 10 saved challenge builder
             questions before submission. Mixed question types are allowed.
           </p>
         </div>
@@ -1548,7 +1548,15 @@ export default function CreatorEngineV2Builder({
 
         {!canEdit && (
           <span className="rounded-full border border-white/9 bg-white/[0.03] px-4 py-2 text-[8px] font-black uppercase tracking-[0.08em] text-white/34">
-            {quizStatus}
+            {quizStatus === "submitted"
+              ? "Pending Approval"
+              : quizStatus === "rejected"
+                ? "Changes Needed"
+                : quizStatus === "published"
+                  ? "Published"
+                  : quizStatus === "archived"
+                    ? "Archived"
+                    : "Draft"}
           </span>
         )}
       </div>

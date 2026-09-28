@@ -14,6 +14,7 @@ import FinancialAdvisorSelector from "./FinancialAdvisorSelector";
 import FinancialLessonCard from "./FinancialLessonCard";
 import FinancialLessonPlayer from "./FinancialLessonPlayer";
 import FinancialCourseSummary from "./FinancialCourseSummary";
+import { FINANCIAL_LEARNING_PATHWAYS } from "../lib/financial-learning";
 
 export default function FinancialCoursePanel({
   courseId,
@@ -29,9 +30,13 @@ export default function FinancialCoursePanel({
   onOpenUpgrade: () => void;
 }) {
   const isMobile = screenMode === "mobile";
+  const pathway = FINANCIAL_LEARNING_PATHWAYS.find((item) => item.id === courseId);
+  const premiumCourse = pathway?.accessTier === "milo_finance";
+  const canAccessCourse = !premiumCourse || hasMiloFinanceAccess;
+  const courseEnabled = isLoggedIn && canAccessCourse;
   const advisor = useFinancialAdvisor(isLoggedIn);
-  const course = useFinancialCourse(courseId, isLoggedIn);
-  const courseCompletion = useFinancialCourseCompletion(courseId, isLoggedIn);
+  const course = useFinancialCourse(courseId, courseEnabled);
+  const courseCompletion = useFinancialCourseCompletion(courseId, courseEnabled);
   const [selectedLesson, setSelectedLesson] = useState<FinancialLessonDefinition | null>(null);
   const [opening, setOpening] = useState(false);
 
@@ -74,17 +79,48 @@ export default function FinancialCoursePanel({
     );
   }
 
-  return (
-    <section style={{ marginTop: 14 }}>
-      <div style={{ borderRadius: isMobile ? 22 : 26, border: "1px solid rgba(126,232,255,.14)", background: "radial-gradient(circle at 85% 0%,rgba(133,98,230,.09),transparent 34%),linear-gradient(145deg,rgba(7,28,50,.88),rgba(5,11,28,.94))", padding: isMobile ? 19 : "22px 24px" }}>
-        <p style={{ margin: 0, color: "#8ee8ff", fontSize: 9, fontWeight: 900, letterSpacing: ".16em", textTransform: "uppercase" }}>Interactive course</p>
-        <h2 style={{ margin: "7px 0 0", fontFamily: 'Georgia,"Times New Roman",serif', fontSize: isMobile ? 34 : 42, lineHeight: 1, fontWeight: 500 }}>{selectedCourse?.title ?? "Milo Finance"}</h2>
-        <p style={{ margin: "10px 0 0", maxWidth: 820, color: "rgba(255,255,255,.52)", fontSize: 12, lineHeight: 1.6 }}>{selectedCourse?.description ?? "Interactive financial learning inside Dreamscape."}</p>
+  if (premiumCourse && !hasMiloFinanceAccess) {
+    return (
+      <section
+        style={{
+          marginTop: 12,
+          minHeight: isMobile ? 180 : 210,
+          borderRadius: isMobile ? 20 : 24,
+          border: "1px solid rgba(255,209,138,.20)",
+          background: "linear-gradient(145deg,rgba(66,43,10,.18),rgba(5,11,28,.92))",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 18,
+          padding: isMobile ? 20 : "22px 24px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ maxWidth: 720 }}>
+          <p style={{ margin: 0, color: "#ffd18a", fontSize: 9, fontWeight: 900, letterSpacing: ".14em", textTransform: "uppercase" }}>Milo Finance course</p>
+          <h2 style={{ margin: "7px 0 0", fontFamily: 'Georgia,"Times New Roman",serif', fontSize: isMobile ? 30 : 38, lineHeight: 1, fontWeight: 500 }}>{pathway?.title ?? "Milo Finance"}</h2>
+          <p style={{ margin: "10px 0 0", color: "rgba(255,255,255,.50)", fontSize: 12, lineHeight: 1.55 }}>Courses 2–5 are included with Milo Finance.</p>
+        </div>
+        <button type="button" onClick={onOpenUpgrade} style={{ minHeight: 44, padding: "0 18px", borderRadius: 999, border: "1px solid rgba(255,209,138,.34)", background: "rgba(255,190,90,.11)", color: "#ffe0a3", cursor: "pointer", fontFamily: "inherit", fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>View Milo Finance</button>
+      </section>
+    );
+  }
 
-        <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.4fr repeat(2,minmax(0,.7fr))", gap: 9 }}>
-          <div style={summaryCard}><div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><div><div style={summaryLabel}>Course progress</div><div style={summaryValue}>{course.completedCount} / {plannedLessons} lessons</div></div><strong style={{ color: "#8ee8ff", fontSize: 19 }}>{completionPercent}%</strong></div><div style={{ marginTop: 10, height: 6, borderRadius: 999, background: "rgba(255,255,255,.07)", overflow: "hidden" }}><div style={{ width: `${completionPercent}%`, height: "100%", background: "linear-gradient(90deg,#58d8ff,#8cf0ca)" }} /></div></div>
+  return (
+    <section style={{ marginTop: 12 }}>
+      <div style={{ borderRadius: isMobile ? 20 : 24, border: "1px solid rgba(126,232,255,.14)", background: "radial-gradient(circle at 85% 0%,rgba(133,98,230,.08),transparent 34%),linear-gradient(145deg,rgba(7,28,50,.86),rgba(5,11,28,.92))", padding: isMobile ? 17 : "19px 22px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+          <div>
+            <p style={{ margin: 0, color: pathway?.accent ?? "#8ee8ff", fontSize: 9, fontWeight: 900, letterSpacing: ".14em", textTransform: "uppercase" }}>Course {pathway?.order ?? ""} of 5 · {premiumCourse ? "Milo Finance" : "Free"}</p>
+            <h2 style={{ margin: "6px 0 0", fontFamily: 'Georgia,"Times New Roman",serif', fontSize: isMobile ? 31 : 38, lineHeight: 1, fontWeight: 500 }}>{selectedCourse?.title ?? pathway?.title ?? "Milo Finance"}</h2>
+          </div>
+          <span style={{ minHeight: 28, display: "inline-flex", alignItems: "center", padding: "0 10px", borderRadius: 999, border: premiumCourse ? "1px solid rgba(255,209,138,.22)" : "1px solid rgba(159,255,210,.22)", background: premiumCourse ? "rgba(255,190,90,.07)" : "rgba(96,255,182,.06)", color: premiumCourse ? "#ffd18a" : "#a9ffd4", fontSize: 8, fontWeight: 900, letterSpacing: ".07em", textTransform: "uppercase" }}>{premiumCourse ? "Paid access" : "Free for logged-in users"}</span>
+        </div>
+
+        <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.4fr repeat(2,minmax(0,.7fr))", gap: 9 }}>
+          <div style={summaryCard}><div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><div><div style={summaryLabel}>Progress</div><div style={summaryValue}>{course.completedCount} / {plannedLessons} lessons</div></div><strong style={{ color: "#8ee8ff", fontSize: 19 }}>{completionPercent}%</strong></div><div style={{ marginTop: 10, height: 6, borderRadius: 999, background: "rgba(255,255,255,.07)", overflow: "hidden" }}><div style={{ width: `${completionPercent}%`, height: "100%", background: "linear-gradient(90deg,#58d8ff,#8cf0ca)" }} /></div></div>
           <div style={summaryCard}><div style={summaryLabel}>DT earned</div><div style={{ ...summaryValue, color: "#9af3c3" }}>{course.rewardEarned.toLocaleString("en-SG")} DT</div></div>
-          <div style={summaryCard}><div style={summaryLabel}>{partialRollout ? "Live lesson rewards" : "Course rewards"}</div><div style={{ ...summaryValue, color: "#ffd18a" }}>{course.maxReward} DT {partialRollout ? "available now" : "max"}</div></div>
+          <div style={summaryCard}><div style={summaryLabel}>Rewards</div><div style={{ ...summaryValue, color: "#ffd18a" }}>{course.maxReward} DT</div></div>
         </div>
       </div>
 
