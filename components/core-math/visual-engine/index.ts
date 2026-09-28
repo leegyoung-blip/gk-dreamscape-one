@@ -7,3 +7,4 @@ export type {
 export * from "./MathVisualTypes";
 export * from "./MathVisualState";
 export * from "./MathVisualValidator";
+export * from "./MathVisualCompatibility";

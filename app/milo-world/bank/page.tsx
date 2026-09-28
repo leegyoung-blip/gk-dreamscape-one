@@ -175,6 +175,7 @@ export default function MiloBankPage() {
         {activeSection === "practise" && (
           <PractiseSection
             screenMode={screenMode}
+            isLoggedIn={isLoggedIn}
             hasMiloFinanceAccess={financeAccess.hasAccess}
             accessLoading={financeAccess.loading}
             onOpenUpgrade={() => setFinanceUpgradeOpen(true)}

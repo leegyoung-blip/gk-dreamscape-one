@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import type {
   MathCircleObject,
   MathPolygonObject,
@@ -43,7 +44,7 @@ export default function ShadePrimitive({
     pointerEvents: "none" as const,
   };
 
-  let shape: JSX.Element | null = null;
+  let shape: ReactElement | null = null;
   let anchor = { x: 0, y: 0 };
 
   if (explicitPoints && explicitPoints.length >= 3) {

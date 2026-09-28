@@ -2,6 +2,8 @@
 
 import type { BankScreenMode } from "../lib/bank-types";
 import type { MiloFinanceAccessTier } from "../lib/milo-finance-access";
+import { useState } from "react";
+import BudgetSimulator from "./BudgetSimulator";
 
 const ACTIVITIES: Array<{
   title: string;
@@ -79,13 +81,26 @@ export default function PractiseSection({
   hasMiloFinanceAccess,
   accessLoading,
   onOpenUpgrade,
+  isLoggedIn,
 }: {
   screenMode: BankScreenMode;
   hasMiloFinanceAccess: boolean;
   accessLoading: boolean;
   onOpenUpgrade: () => void;
+  isLoggedIn: boolean;
 }) {
   const isMobile = screenMode === "mobile";
+  const [activeSimulation, setActiveSimulation] = useState<"budget" | null>(null);
+
+  if (activeSimulation === "budget") {
+    return (
+      <BudgetSimulator
+        screenMode={screenMode}
+        isLoggedIn={isLoggedIn}
+        onExit={() => setActiveSimulation(null)}
+      />
+    );
+  }
 
   return (
     <section
@@ -188,7 +203,34 @@ export default function PractiseSection({
             </p>
 
             <div style={{ marginTop: "auto", paddingTop: "15px" }}>
-              {locked ? (
+              {activity.title === "Budget Simulator" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isLoggedIn) {
+                      if (typeof window !== "undefined") window.location.href = "/login";
+                      return;
+                    }
+                    setActiveSimulation("budget");
+                  }}
+                  style={{
+                    minHeight: "34px",
+                    padding: "0 11px",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(126,232,255,0.24)",
+                    background: "rgba(83,215,255,0.08)",
+                    color: "#a9f1ff",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: "8px",
+                    fontWeight: 900,
+                    letterSpacing: "0.07em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {isLoggedIn ? "Open Simulator →" : "Sign in to start →"}
+                </button>
+              ) : locked ? (
                 <button
                   type="button"
                   onClick={onOpenUpgrade}
