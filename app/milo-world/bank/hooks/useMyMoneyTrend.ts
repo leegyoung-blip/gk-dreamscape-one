@@ -9,6 +9,8 @@ export type MoneyTrendRange = "30d" | "90d" | "1y";
 export type MoneyTrendPoint = {
   timestamp: number;
   label: string;
+  total: number;
+  available: number;
   savings: number;
   portfolio: number;
 };
@@ -24,6 +26,11 @@ type BondHoldingRow = {
   purchased_at: string | null;
   settled_at: string | null;
   status: string | null;
+};
+
+type TokenTransactionRow = {
+  amount: number | string | null;
+  created_at: string | null;
 };
 
 type TrendEvent = {
@@ -61,7 +68,7 @@ function messageFrom(error: unknown) {
 }
 
 export function useMyMoneyTrend(
-  account: Pick<BankAccountSnapshot, "savings" | "bonds">,
+  account: Pick<BankAccountSnapshot, "available" | "savings" | "bonds" | "total">,
   isLoggedIn: boolean,
   range: MoneyTrendRange,
 ) {
@@ -93,7 +100,7 @@ export function useMyMoneyTrend(
     const start = startForRange(range);
     const startIso = start.toISOString();
 
-    const [savingsResult, bondsResult] = await Promise.all([
+    const [savingsResult, bondsResult, transactionsResult] = await Promise.all([
       supabase
         .from("milo_bank_savings_movements")
         .select("movement_type,amount,created_at")
@@ -107,11 +114,19 @@ export function useMyMoneyTrend(
         .eq("user_id", user.id)
         .order("purchased_at", { ascending: true })
         .limit(1000),
+      supabase
+        .from("dream_token_transactions")
+        .select("amount,created_at")
+        .eq("user_id", user.id)
+        .eq("token_kind", "virtual")
+        .gte("created_at", startIso)
+        .order("created_at", { ascending: true })
+        .limit(5000),
     ]);
 
-    if (savingsResult.error || bondsResult.error) {
+    if (savingsResult.error || bondsResult.error || transactionsResult.error) {
       setError(
-        messageFrom(savingsResult.error || bondsResult.error),
+        messageFrom(savingsResult.error || bondsResult.error || transactionsResult.error),
       );
       setLoading(false);
       return;
@@ -148,8 +163,18 @@ export function useMyMoneyTrend(
       }
     }
 
+    const totalEvents: TrendEvent[] = (
+      (transactionsResult.data ?? []) as TokenTransactionRow[]
+    )
+      .map((row) => ({
+        at: row.created_at ? new Date(row.created_at).getTime() : NaN,
+        amount: Number(row.amount || 0),
+      }))
+      .filter((event) => Number.isFinite(event.at) && event.amount !== 0);
+
     savingsEvents.sort((a, b) => a.at - b.at);
     bondEvents.sort((a, b) => a.at - b.at);
+    totalEvents.sort((a, b) => a.at - b.at);
 
     const savingsNetInRange = savingsEvents.reduce(
       (sum, event) => sum + event.amount,
@@ -159,9 +184,15 @@ export function useMyMoneyTrend(
       (sum, event) => sum + event.amount,
       0,
     );
+    const totalNetInRange = totalEvents.reduce(
+      (sum, event) => sum + event.amount,
+      0,
+    );
 
+    let runningTotal = Math.max(0, Number(account.total || 0) - totalNetInRange);
     let runningSavings = Math.max(0, Number(account.savings || 0) - savingsNetInRange);
     let runningBonds = Math.max(0, Number(account.bonds || 0) - bondNetInRange);
+    let totalIndex = 0;
     let savingsIndex = 0;
     let bondIndex = 0;
 
@@ -174,6 +205,14 @@ export function useMyMoneyTrend(
       const dayEnd = new Date(cursor);
       dayEnd.setHours(23, 59, 59, 999);
       const cutoff = dayEnd.getTime();
+
+      while (
+        totalIndex < totalEvents.length &&
+        totalEvents[totalIndex].at <= cutoff
+      ) {
+        runningTotal = Math.max(0, runningTotal + totalEvents[totalIndex].amount);
+        totalIndex += 1;
+      }
 
       while (
         savingsIndex < savingsEvents.length &&
@@ -194,11 +233,14 @@ export function useMyMoneyTrend(
         bondIndex += 1;
       }
 
+      const portfolio = runningSavings + runningBonds;
       nextPoints.push({
         timestamp: cursor.getTime(),
         label: formatPointLabel(cursor, range),
+        total: runningTotal,
+        available: Math.max(0, runningTotal - portfolio),
         savings: runningSavings,
-        portfolio: runningSavings + runningBonds,
+        portfolio,
       });
 
       cursor.setDate(cursor.getDate() + 1);
@@ -206,7 +248,7 @@ export function useMyMoneyTrend(
 
     setPoints(nextPoints);
     setLoading(false);
-  }, [account.bonds, account.savings, isLoggedIn, range]);
+  }, [account.bonds, account.savings, account.total, isLoggedIn, range]);
 
   useEffect(() => {
     void load();

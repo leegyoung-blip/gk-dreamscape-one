@@ -5,17 +5,30 @@ import {
   archiveSavingsGoal,
   createSavingsGoal,
   depositToSavings,
+  getSavingsInterestSummary,
   listSavingsGoals,
   listSavingsMovements,
+  settleSavingsInterest,
   updateSavingsGoal,
   withdrawFromSavings,
 } from "../lib/savings-api";
 import type {
   CreateSavingsGoalInput,
   SavingsGoal,
+  SavingsInterestSummary,
   SavingsMovement,
   UpdateSavingsGoalInput,
 } from "../lib/savings-types";
+
+const EMPTY_INTEREST: SavingsInterestSummary = {
+  annualRateBps: 0,
+  annualRatePercent: 0,
+  calculationMethod: "daily_closing_balance",
+  creditFrequency: "monthly",
+  yearToDateInterest: 0,
+  lifetimeInterest: 0,
+  lastCreditedAt: null,
+};
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -28,6 +41,7 @@ function getErrorMessage(error: unknown) {
 export function useSavingsGoals(enabled = true) {
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [movements, setMovements] = useState<SavingsMovement[]>([]);
+  const [interest, setInterest] = useState<SavingsInterestSummary>(EMPTY_INTEREST);
   const [loading, setLoading] = useState(enabled);
   const [mutating, setMutating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +50,7 @@ export function useSavingsGoals(enabled = true) {
     if (!enabled) {
       setGoals([]);
       setMovements([]);
+      setInterest(EMPTY_INTEREST);
       setLoading(false);
       setError(null);
       return;
@@ -45,12 +60,21 @@ export function useSavingsGoals(enabled = true) {
     setError(null);
 
     try {
-      const [nextGoals, nextMovements] = await Promise.all([
+      const settlement = await settleSavingsInterest();
+      const [nextGoals, nextMovements, nextInterest] = await Promise.all([
         listSavingsGoals(),
         listSavingsMovements(),
+        getSavingsInterestSummary(),
       ]);
+
       setGoals(nextGoals);
       setMovements(nextMovements);
+      setInterest(nextInterest);
+
+      if (settlement.creditedInterest > 0 && typeof window !== "undefined") {
+        window.dispatchEvent(new Event("milo-bank-savings-updated"));
+        window.dispatchEvent(new Event("dream-tokens-updated"));
+      }
     } catch (nextError) {
       setError(getErrorMessage(nextError));
     } finally {
@@ -59,7 +83,7 @@ export function useSavingsGoals(enabled = true) {
   }, [enabled]);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
 
   const runMutation = useCallback(
@@ -105,6 +129,7 @@ export function useSavingsGoals(enabled = true) {
   return {
     goals,
     movements,
+    interest,
     loading,
     mutating,
     error,

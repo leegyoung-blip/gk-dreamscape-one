@@ -122,6 +122,7 @@ export default function MyMoneyPanel({
           screenMode={screenMode}
           isLoggedIn={isLoggedIn}
           availableDt={account.available}
+          onOpenStatement={() => setActiveTab("statement")}
         />
       )}
 

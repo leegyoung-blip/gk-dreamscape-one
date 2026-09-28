@@ -7,7 +7,7 @@ export type SavingsGoalLinkedType =
   | "upgrade"
   | "business";
 
-export type SavingsMovementType = "deposit" | "withdrawal";
+export type SavingsMovementType = "deposit" | "withdrawal" | "interest";
 
 export type SavingsGoal = {
   id: string;
@@ -33,6 +33,21 @@ export type SavingsMovement = {
   balanceAfter: number;
   title: string;
   createdAt: string;
+};
+
+export type SavingsInterestSummary = {
+  annualRateBps: number;
+  annualRatePercent: number;
+  calculationMethod: "daily_closing_balance";
+  creditFrequency: "monthly";
+  yearToDateInterest: number;
+  lifetimeInterest: number;
+  lastCreditedAt: string | null;
+};
+
+export type SavingsInterestSettlement = {
+  creditedInterest: number;
+  creditedPeriods: number;
 };
 
 export type CreateSavingsGoalInput = {

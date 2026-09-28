@@ -23,6 +23,11 @@ function compactDt(value: number) {
   }).format(Math.round(value));
 }
 
+function signedDt(value: number) {
+  const rounded = Math.round(value);
+  return `${rounded > 0 ? "+" : ""}${rounded.toLocaleString("en-SG")} DT`;
+}
+
 function linePath(
   points: MoneyTrendPoint[],
   valueFor: (point: MoneyTrendPoint) => number,
@@ -38,10 +43,89 @@ function linePath(
         PAD.left +
         (points.length <= 1 ? 0 : (index / (points.length - 1)) * innerWidth);
       const y =
-        PAD.top + innerHeight - (Math.max(0, valueFor(point)) / maxValue) * innerHeight;
+        PAD.top +
+        innerHeight -
+        (Math.max(0, valueFor(point)) / maxValue) * innerHeight;
       return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
     })
     .join(" ");
+}
+
+function miloInsight(
+  account: BankAccountSnapshot,
+  points: MoneyTrendPoint[],
+  range: MoneyTrendRange,
+) {
+  const total = Math.max(0, account.total);
+  const available = Math.max(0, account.available);
+  const savings = Math.max(0, account.savings);
+  const bonds = Math.max(0, account.bonds);
+
+  if (total <= 0) {
+    return {
+      title: "Start by building your base",
+      body: "You do not have enough DT history yet for a useful pattern. Start with a savings goal, then I can compare how much stays available and how much is being put to work.",
+    };
+  }
+
+  const availableRatio = available / total;
+  const savingsRatio = savings / total;
+  const bondsRatio = bonds / total;
+  const first = points[0];
+  const last = points[points.length - 1];
+  const savingsChange = first && last ? last.savings - first.savings : 0;
+  const availableChange = first && last ? last.available - first.available : 0;
+  const rangeLabel = range === "30d" ? "30 days" : range === "90d" ? "90 days" : "year";
+  const trend = points.length > 1
+    ? ` Over the last ${rangeLabel}, savings changed by ${signedDt(savingsChange)} and available DT by ${signedDt(availableChange)}.`
+    : "";
+
+  if (availableRatio < 0.12) {
+    return {
+      title: "Keep more DT within reach",
+      body: `Only about ${Math.round(availableRatio * 100)}% of your DT is currently available. I would rebuild some liquidity before locking more into Bonds or other longer-term uses.${trend}`,
+    };
+  }
+
+  if (savingsRatio < 0.1 && availableRatio > 0.5) {
+    return {
+      title: "Give more of your DT a purpose",
+      body: `Most of your DT is still sitting available while only about ${Math.round(savingsRatio * 100)}% is in Savings. I would strengthen a savings goal first, then consider investing DT you will not need soon.${trend}`,
+    };
+  }
+
+  if (bondsRatio > 0.4 && savingsRatio < 0.15) {
+    return {
+      title: "Rebuild Savings before adding more Bonds",
+      body: `A large share of your DT is locked in Bonds compared with your Savings balance. I would build a stronger savings buffer before increasing the amount you lock away.${trend}`,
+    };
+  }
+
+  if (availableRatio > 0.65) {
+    return {
+      title: "You have a lot of DT sitting available",
+      body: `About ${Math.round(availableRatio * 100)}% of your DT is still liquid. Keep what you need for near-term plans, then consider directing part of the rest toward a savings goal or a suitable Bank Bond.${trend}`,
+    };
+  }
+
+  if (savingsRatio >= 0.25 && bondsRatio < 0.12 && availableRatio >= 0.2) {
+    return {
+      title: "Your savings base looks healthy",
+      body: `You have meaningful Savings and still keep enough DT available. If part of that money is not needed soon, this may be a good time to explore putting a little more to work in Bonds rather than only adding to Savings.${trend}`,
+    };
+  }
+
+  if (savingsChange > 0 && availableChange < 0 && availableRatio >= 0.18) {
+    return {
+      title: "Your saving momentum is moving in the right direction",
+      body: `You have been shifting DT from available funds into longer-term goals without leaving yourself too tight. I would keep that balance rather than rushing to lock much more away.${trend}`,
+    };
+  }
+
+  return {
+    title: "Your balance is fairly well spread",
+    body: `You currently have DT available for flexibility, money reserved in Savings, and some money working in Bonds. I would focus next on whichever goal has the clearest deadline rather than changing the mix just for the sake of it.${trend}`,
+  };
 }
 
 export default function MyMoneyTrendChart({
@@ -59,12 +143,17 @@ export default function MyMoneyTrendChart({
 
   const maxValue = useMemo(() => {
     const highest = points.reduce(
-      (max, point) => Math.max(max, point.portfolio, point.savings),
-      Math.max(account.savings + account.bonds, account.savings, 1),
+      (max, point) =>
+        Math.max(max, point.available, point.portfolio, point.savings),
+      Math.max(account.available, account.savings + account.bonds, account.savings, 1),
     );
     return Math.max(1, highest * 1.12);
-  }, [account.bonds, account.savings, points]);
+  }, [account.available, account.bonds, account.savings, points]);
 
+  const availablePath = useMemo(
+    () => linePath(points, (point) => point.available, maxValue),
+    [maxValue, points],
+  );
   const savingsPath = useMemo(
     () => linePath(points, (point) => point.savings, maxValue),
     [maxValue, points],
@@ -79,6 +168,11 @@ export default function MyMoneyTrendChart({
     const indexes = [0, Math.floor((points.length - 1) / 2), points.length - 1];
     return indexes.map((index) => ({ index, label: points[index]?.label ?? "" }));
   }, [points]);
+
+  const insight = useMemo(
+    () => miloInsight(account, points, range),
+    [account, points, range],
+  );
 
   const innerHeight = HEIGHT - PAD.top - PAD.bottom;
   const innerWidth = WIDTH - PAD.left - PAD.right;
@@ -128,7 +222,7 @@ export default function MyMoneyTrendChart({
               letterSpacing: "-0.025em",
             }}
           >
-            Savings & portfolio
+            Available, savings & portfolio
           </h3>
         </div>
 
@@ -170,54 +264,36 @@ export default function MyMoneyTrendChart({
         style={{
           marginTop: "15px",
           display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0,1fr))",
+          gridTemplateColumns: isMobile
+            ? "1fr"
+            : "repeat(3, minmax(0,1fr))",
           gap: "8px",
         }}
       >
-        <div
-          style={{
-            borderRadius: "14px",
-            border: "1px solid rgba(159,255,210,0.12)",
-            background: "rgba(93,255,181,0.045)",
-            padding: "10px 12px",
-          }}
-        >
-          <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "9px" }}>
-            Savings
-          </span>
-          <strong
-            style={{
-              display: "block",
-              marginTop: "4px",
-              color: "#9fffd2",
-              fontSize: isMobile ? "16px" : "18px",
-            }}
-          >
-            {formatDt(account.savings)}
-          </strong>
-        </div>
-        <div
-          style={{
-            borderRadius: "14px",
-            border: "1px solid rgba(255,209,138,0.14)",
-            background: "rgba(255,209,138,0.045)",
-            padding: "10px 12px",
-          }}
-        >
-          <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "9px" }}>
-            Portfolio · savings + bonds
-          </span>
-          <strong
-            style={{
-              display: "block",
-              marginTop: "4px",
-              color: "#ffd18a",
-              fontSize: isMobile ? "16px" : "18px",
-            }}
-          >
-            {formatDt(currentPortfolio)}
-          </strong>
-        </div>
+        <MoneyMetric
+          label="Available"
+          value={account.available}
+          color="#8ee8ff"
+          border="rgba(126,232,255,0.14)"
+          background="rgba(83,215,255,0.045)"
+          isMobile={isMobile}
+        />
+        <MoneyMetric
+          label="Savings"
+          value={account.savings}
+          color="#9fffd2"
+          border="rgba(159,255,210,0.12)"
+          background="rgba(93,255,181,0.045)"
+          isMobile={isMobile}
+        />
+        <MoneyMetric
+          label="Portfolio · savings + bonds"
+          value={currentPortfolio}
+          color="#ffd18a"
+          border="rgba(255,209,138,0.14)"
+          background="rgba(255,209,138,0.045)"
+          isMobile={isMobile}
+        />
       </div>
 
       <div
@@ -232,52 +308,25 @@ export default function MyMoneyTrendChart({
         }}
       >
         {!isLoggedIn ? (
-          <div
-            style={{
-              minHeight: isMobile ? "205px" : "235px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "rgba(255,255,255,0.40)",
-              fontSize: "11px",
-            }}
-          >
-            Log in to view your trend.
-          </div>
+          <ChartState text="Log in to view your trend." isMobile={isMobile} />
         ) : loading ? (
-          <div
-            style={{
-              minHeight: isMobile ? "205px" : "235px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "rgba(255,255,255,0.40)",
-              fontSize: "11px",
-            }}
-          >
-            Loading trend…
-          </div>
+          <ChartState text="Loading trend…" isMobile={isMobile} />
         ) : error || points.length === 0 ? (
-          <div
-            style={{
-              minHeight: isMobile ? "205px" : "235px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "rgba(255,255,255,0.40)",
-              fontSize: "11px",
-              textAlign: "center",
-              padding: "20px",
-            }}
-          >
-            {error ? "Trend data is unavailable." : "No history yet."}
-          </div>
+          <ChartState
+            text={error ? "Trend data is unavailable." : "No history yet."}
+            isMobile={isMobile}
+          />
         ) : (
           <svg
             viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
             role="img"
-            aria-label="Savings and Bank portfolio trend"
-            style={{ display: "block", width: "100%", height: "100%", minHeight: isMobile ? "205px" : "235px" }}
+            aria-label="Available Dream Tokens, Savings and Bank portfolio trend"
+            style={{
+              display: "block",
+              width: "100%",
+              height: "100%",
+              minHeight: isMobile ? "205px" : "235px",
+            }}
             preserveAspectRatio="none"
           >
             {[0, 1, 2, 3, 4].map((step) => {
@@ -318,7 +367,13 @@ export default function MyMoneyTrendChart({
                   key={`${index}-${label}`}
                   x={x}
                   y={HEIGHT - 12}
-                  textAnchor={index === 0 ? "start" : index === points.length - 1 ? "end" : "middle"}
+                  textAnchor={
+                    index === 0
+                      ? "start"
+                      : index === points.length - 1
+                        ? "end"
+                        : "middle"
+                  }
                   fill="rgba(255,255,255,0.34)"
                   fontSize="11"
                 >
@@ -327,6 +382,15 @@ export default function MyMoneyTrendChart({
               );
             })}
 
+            <path
+              d={availablePath}
+              fill="none"
+              stroke="#8ee8ff"
+              strokeWidth="3"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
             <path
               d={portfolioPath}
               fill="none"
@@ -361,15 +425,148 @@ export default function MyMoneyTrendChart({
           fontWeight: 800,
         }}
       >
-        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-          <i style={{ width: "16px", height: "2px", background: "#9fffd2", display: "inline-block" }} />
-          Savings
-        </span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-          <i style={{ width: "16px", height: "2px", background: "#ffd18a", display: "inline-block" }} />
-          Portfolio
-        </span>
+        <Legend color="#8ee8ff" label="Available" />
+        <Legend color="#9fffd2" label="Savings" />
+        <Legend color="#ffd18a" label="Portfolio" />
       </div>
+
+      {isLoggedIn && !loading && !error && points.length > 0 && (
+        <div
+          style={{
+            marginTop: "14px",
+            display: "grid",
+            gridTemplateColumns: isMobile ? "52px minmax(0,1fr)" : "64px minmax(0,1fr)",
+            gap: isMobile ? "10px" : "14px",
+            alignItems: "center",
+            borderRadius: "18px",
+            border: "1px solid rgba(255,209,138,0.15)",
+            background:
+              "linear-gradient(135deg, rgba(255,209,138,0.065), rgba(83,215,255,0.035))",
+            padding: isMobile ? "12px" : "14px 16px",
+          }}
+        >
+          <img
+            src="/milo-world/milo-character.png"
+            alt="Milo"
+            style={{
+              width: isMobile ? "52px" : "64px",
+              height: isMobile ? "52px" : "64px",
+              objectFit: "contain",
+              filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.28))",
+            }}
+          />
+          <div style={{ minWidth: 0 }}>
+            <p
+              style={{
+                margin: 0,
+                color: "#ffd18a",
+                fontSize: "9px",
+                fontWeight: 900,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+              }}
+            >
+              Milo’s view
+            </p>
+            <strong
+              style={{
+                display: "block",
+                marginTop: "4px",
+                color: "white",
+                fontSize: isMobile ? "13px" : "14px",
+              }}
+            >
+              {insight.title}
+            </strong>
+            <p
+              style={{
+                margin: "5px 0 0",
+                color: "rgba(255,255,255,0.58)",
+                fontSize: isMobile ? "10px" : "11px",
+                lineHeight: 1.55,
+              }}
+            >
+              {insight.body}
+            </p>
+          </div>
+        </div>
+      )}
     </section>
+  );
+}
+
+function MoneyMetric({
+  label,
+  value,
+  color,
+  border,
+  background,
+  isMobile,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  border: string;
+  background: string;
+  isMobile: boolean;
+}) {
+  return (
+    <div
+      style={{
+        borderRadius: "14px",
+        border: `1px solid ${border}`,
+        background,
+        padding: "10px 12px",
+      }}
+    >
+      <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "9px" }}>
+        {label}
+      </span>
+      <strong
+        style={{
+          display: "block",
+          marginTop: "4px",
+          color,
+          fontSize: isMobile ? "16px" : "18px",
+        }}
+      >
+        {formatDt(value)}
+      </strong>
+    </div>
+  );
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+      <i
+        style={{
+          width: "16px",
+          height: "2px",
+          background: color,
+          display: "inline-block",
+        }}
+      />
+      {label}
+    </span>
+  );
+}
+
+function ChartState({ text, isMobile }: { text: string; isMobile: boolean }) {
+  return (
+    <div
+      style={{
+        minHeight: isMobile ? "205px" : "235px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "rgba(255,255,255,0.40)",
+        fontSize: "11px",
+        textAlign: "center",
+        padding: "20px",
+      }}
+    >
+      {text}
+    </div>
   );
 }

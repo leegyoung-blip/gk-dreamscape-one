@@ -2,6 +2,8 @@ import { supabase } from "@/lib/supabase";
 import type {
   CreateSavingsGoalInput,
   SavingsGoal,
+  SavingsInterestSettlement,
+  SavingsInterestSummary,
   SavingsMovement,
   SavingsGoalLinkedType,
   SavingsGoalStatus,
@@ -33,6 +35,16 @@ type SavingsMovementRow = {
   balance_after: number | string;
   title: string;
   created_at: string;
+};
+
+type SavingsInterestSummaryRow = {
+  annual_rate_bps: number | string;
+  annual_rate_percent: number | string;
+  calculation_method: string;
+  credit_frequency: string;
+  year_to_date_interest: number | string;
+  lifetime_interest: number | string;
+  last_credited_at: string | null;
 };
 
 function toSavingsGoal(row: SavingsGoalRow): SavingsGoal {
@@ -72,6 +84,38 @@ function makeRequestId() {
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
 }
 
+export async function settleSavingsInterest(): Promise<SavingsInterestSettlement> {
+  const { data, error } = await supabase.rpc("settle_milo_bank_savings_interest");
+  if (error) throw error;
+
+  const value = (data ?? {}) as {
+    credited_interest?: number | string;
+    credited_periods?: number | string;
+  };
+
+  return {
+    creditedInterest: Number(value.credited_interest || 0),
+    creditedPeriods: Number(value.credited_periods || 0),
+  };
+}
+
+export async function getSavingsInterestSummary(): Promise<SavingsInterestSummary> {
+  const { data, error } = await supabase.rpc("get_milo_bank_savings_interest_summary");
+  if (error) throw error;
+
+  const row = ((Array.isArray(data) ? data[0] : data) ?? {}) as Partial<SavingsInterestSummaryRow>;
+
+  return {
+    annualRateBps: Number(row.annual_rate_bps || 0),
+    annualRatePercent: Number(row.annual_rate_percent || 0),
+    calculationMethod: "daily_closing_balance",
+    creditFrequency: "monthly",
+    yearToDateInterest: Number(row.year_to_date_interest || 0),
+    lifetimeInterest: Number(row.lifetime_interest || 0),
+    lastCreditedAt: row.last_credited_at ?? null,
+  };
+}
+
 export async function listSavingsGoals() {
   const { data, error } = await supabase
     .from("milo_bank_savings_goals")
@@ -86,7 +130,7 @@ export async function listSavingsGoals() {
   return ((data || []) as SavingsGoalRow[]).map(toSavingsGoal);
 }
 
-export async function listSavingsMovements(limit = 50) {
+export async function listSavingsMovements(limit = 80) {
   const { data, error } = await supabase
     .from("milo_bank_savings_movements")
     .select(

@@ -2,28 +2,53 @@
 
 import type { BankScreenMode } from "../lib/bank-types";
 import { getSavingsGoalPurpose } from "../lib/savings-goal-presets";
-import type { SavingsGoal } from "../lib/savings-types";
+import type { SavingsGoal, SavingsMovement } from "../lib/savings-types";
 
 function formatDt(value: number) {
   return `${Math.round(value).toLocaleString("en-SG")} DT`;
 }
 
-function milestone(progress: number) {
-  if (progress >= 100) return "Goal reached";
-  if (progress >= 75) return "Nearly there";
-  if (progress >= 50) return "Halfway there";
-  if (progress >= 25) return "Building up";
-  return "Getting started";
+function goalPace(goal: SavingsGoal, movements: SavingsMovement[]) {
+  if (goal.status === "completed") return "Goal reached";
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const relevant = movements.filter(
+    (movement) =>
+      movement.savingsGoalId === goal.id &&
+      new Date(movement.createdAt).getTime() >= cutoff &&
+      movement.movementType !== "interest",
+  );
+
+  const net = relevant.reduce((sum, movement) => {
+    if (movement.movementType === "deposit") return sum + movement.amount;
+    if (movement.movementType === "withdrawal") return sum - movement.amount;
+    return sum;
+  }, 0);
+
+  if (net <= 0) return "No recent net saving pace";
+  const earliest = relevant.reduce(
+    (value, movement) => Math.min(value, new Date(movement.createdAt).getTime()),
+    Date.now(),
+  );
+  const elapsedDays = Math.max(1, Math.min(30, (Date.now() - earliest) / (24 * 60 * 60 * 1000)));
+  const perDay = net / elapsedDays;
+  const remaining = Math.max(goal.targetAmount - goal.savedAmount, 0);
+  const days = Math.ceil(remaining / Math.max(perDay, 1));
+  if (days <= 1) return "At your pace: about 1 day to go";
+  if (days <= 60) return `At your pace: about ${days} days to go`;
+  const months = Math.max(1, Math.round(days / 30));
+  return `At your pace: about ${months} months to go`;
 }
 
 export default function SavingsGoalCard({
   goal,
+  movements,
   screenMode,
   onDeposit,
   onWithdraw,
   onEdit,
 }: {
   goal: SavingsGoal;
+  movements: SavingsMovement[];
   screenMode: BankScreenMode;
   onDeposit: () => void;
   onWithdraw: () => void;
@@ -31,353 +56,189 @@ export default function SavingsGoalCard({
 }) {
   const isMobile = screenMode === "mobile";
   const completed = goal.status === "completed";
-  const liveProgress = Math.min(
+  const progress = Math.min(
     100,
     Math.max(0, (goal.savedAmount / Math.max(goal.targetAmount, 1)) * 100),
   );
-  const displayProgress = completed ? 100 : liveProgress;
-  const remaining = Math.max(goal.targetAmount - goal.savedAmount, 0);
   const purpose = getSavingsGoalPurpose(goal.linkedType);
+  const interestEarned = movements
+    .filter(
+      (movement) =>
+        movement.savingsGoalId === goal.id && movement.movementType === "interest",
+    )
+    .reduce((sum, movement) => sum + movement.amount, 0);
 
   return (
     <article
       style={{
-        position: "relative",
-        overflow: "hidden",
-        borderRadius: isMobile ? "22px" : "25px",
+        minWidth: 0,
+        borderRadius: isMobile ? "20px" : "22px",
         border: completed
-          ? "1px solid rgba(116,255,190,0.30)"
-          : "1px solid rgba(126,232,255,0.18)",
+          ? "1px solid rgba(159,255,210,0.24)"
+          : "1px solid rgba(126,232,255,0.16)",
         background: completed
-          ? "linear-gradient(145deg, rgba(8,49,43,0.74), rgba(5,19,31,0.94))"
-          : "linear-gradient(145deg, rgba(8,29,52,0.88), rgba(5,12,29,0.94))",
-        boxShadow: completed
-          ? "0 22px 55px rgba(0,0,0,0.24), 0 0 28px rgba(93,255,181,0.06)"
-          : "0 22px 55px rgba(0,0,0,0.24)",
-        padding: isMobile ? "18px" : "22px",
+          ? "linear-gradient(145deg, rgba(10,48,42,0.74), rgba(4,14,29,0.90))"
+          : "linear-gradient(145deg, rgba(7,28,50,0.86), rgba(4,13,29,0.91))",
+        padding: isMobile ? "17px" : "18px",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          width: "220px",
-          height: "220px",
-          right: "-90px",
-          top: "-110px",
-          borderRadius: "999px",
-          background: completed
-            ? "rgba(93,255,181,0.08)"
-            : "rgba(83,215,255,0.06)",
-          filter: "blur(4px)",
-          pointerEvents: "none",
-        }}
-      />
-
-      <div
-        style={{
-          position: "relative",
-          display: "grid",
-          gridTemplateColumns: "54px minmax(0,1fr) auto",
-          gap: "13px",
-          alignItems: "center",
-        }}
-      >
-        <div
-          aria-hidden="true"
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "11px" }}>
+        <span
           style={{
-            width: "54px",
-            height: "54px",
-            borderRadius: "17px",
+            width: "42px",
+            height: "42px",
+            borderRadius: "14px",
+            border: "1px solid rgba(126,232,255,0.17)",
+            background: "rgba(83,215,255,0.07)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            border: completed
-              ? "1px solid rgba(116,255,190,0.32)"
-              : "1px solid rgba(126,232,255,0.24)",
-            background: completed
-              ? "rgba(93,255,181,0.10)"
-              : "rgba(83,215,255,0.08)",
-            fontSize: "24px",
+            fontSize: "20px",
+            flexShrink: 0,
           }}
         >
           {goal.icon}
-        </div>
+        </span>
 
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "7px",
-              flexWrap: "wrap",
-            }}
-          >
-            <h3
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: "flex", gap: "7px", alignItems: "center", flexWrap: "wrap" }}>
+            <strong
               style={{
-                margin: 0,
                 color: "white",
-                fontSize: isMobile ? "18px" : "20px",
+                fontSize: "15px",
                 lineHeight: 1.2,
-                letterSpacing: "-0.02em",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
+                maxWidth: "100%",
               }}
             >
               {goal.name}
-            </h3>
-
+            </strong>
             <span
               style={{
-                minHeight: "23px",
-                padding: "0 8px",
                 borderRadius: "999px",
-                display: "inline-flex",
-                alignItems: "center",
-                border: "1px solid rgba(126,232,255,0.16)",
-                background: "rgba(83,215,255,0.055)",
-                color: "#bdf6ff",
+                border: "1px solid rgba(126,232,255,0.14)",
+                background: "rgba(83,215,255,0.05)",
+                color: "rgba(255,255,255,0.52)",
+                padding: "3px 7px",
                 fontSize: "8px",
                 fontWeight: 900,
-                letterSpacing: "0.08em",
                 textTransform: "uppercase",
+                letterSpacing: "0.08em",
               }}
             >
-              {purpose.shortLabel}
+              {purpose.label}
             </span>
-
-            {completed && (
-              <span
-                style={{
-                  minHeight: "23px",
-                  padding: "0 8px",
-                  borderRadius: "999px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  border: "1px solid rgba(116,255,190,0.30)",
-                  background: "rgba(93,255,181,0.08)",
-                  color: "#9fffd2",
-                  fontSize: "8px",
-                  fontWeight: 900,
-                  letterSpacing: "0.09em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Reached
-              </span>
-            )}
           </div>
-
-          <p
-            style={{
-              margin: "5px 0 0",
-              color: "rgba(255,255,255,0.48)",
-              fontSize: "11px",
-              lineHeight: 1.4,
-            }}
-          >
-            {completed
-              ? `Target reached · ${formatDt(goal.savedAmount)} still set aside`
-              : `${formatDt(remaining)} left to save`}
-          </p>
+          <small style={{ display: "block", marginTop: "5px", color: "rgba(255,255,255,0.38)", fontSize: "9px" }}>
+            {completed ? "Goal reached" : `${formatDt(Math.max(goal.targetAmount - goal.savedAmount, 0))} to go`}
+          </small>
         </div>
 
         <button
           type="button"
-          onClick={onEdit}
           aria-label={`Edit ${goal.name}`}
+          onClick={onEdit}
           style={{
-            width: "38px",
-            height: "38px",
+            width: "36px",
+            height: "36px",
             borderRadius: "12px",
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.045)",
-            color: "rgba(255,255,255,0.72)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(255,255,255,0.035)",
+            color: "rgba(255,255,255,0.62)",
             cursor: "pointer",
-            fontFamily: "inherit",
-            fontSize: "17px",
+            flexShrink: 0,
           }}
         >
-          ⋯
+          ···
         </button>
       </div>
 
-      <div
-        style={{
-          position: "relative",
-          marginTop: "20px",
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "12px",
-          alignItems: "end",
-        }}
-      >
+      <div style={{ marginTop: "17px", display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "end" }}>
         <div>
-          <p
-            style={{
-              margin: 0,
-              color: completed ? "#9fffd2" : "#8ee8ff",
-              fontSize: "10px",
-              fontWeight: 900,
-              letterSpacing: "0.13em",
-              textTransform: "uppercase",
-            }}
-          >
-            {completed ? "Still set aside" : "Saved"}
-          </p>
-          <strong
-            style={{
-              display: "block",
-              marginTop: "5px",
-              color: "white",
-              fontSize: isMobile ? "27px" : "31px",
-              lineHeight: 1,
-              letterSpacing: "-0.04em",
-            }}
-          >
+          <small style={{ color: "rgba(255,255,255,0.38)", fontSize: "8px", textTransform: "uppercase", letterSpacing: "0.09em" }}>
+            Saved
+          </small>
+          <strong style={{ display: "block", marginTop: "4px", color: "white", fontSize: isMobile ? "26px" : "28px", lineHeight: 1, letterSpacing: "-0.04em" }}>
             {formatDt(goal.savedAmount)}
           </strong>
         </div>
-
         <div style={{ textAlign: "right" }}>
-          <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "10px" }}>
-            Target
-          </span>
-          <strong
-            style={{
-              display: "block",
-              marginTop: "4px",
-              color: "rgba(255,255,255,0.74)",
-              fontSize: "14px",
-            }}
-          >
+          <small style={{ color: "rgba(255,255,255,0.34)", fontSize: "8px" }}>Target</small>
+          <strong style={{ display: "block", marginTop: "3px", color: "rgba(255,255,255,0.68)", fontSize: "12px" }}>
             {formatDt(goal.targetAmount)}
           </strong>
         </div>
       </div>
 
-      <div
-        style={{
-          position: "relative",
-          marginTop: "15px",
-          height: "10px",
-          overflow: "hidden",
-          borderRadius: "999px",
-          background: "rgba(255,255,255,0.07)",
-          border: "1px solid rgba(255,255,255,0.045)",
-        }}
-      >
+      <div style={{ marginTop: "12px", height: "8px", borderRadius: "999px", background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
         <div
           style={{
-            width: `${displayProgress}%`,
             height: "100%",
+            width: `${progress}%`,
             borderRadius: "999px",
             background: completed
-              ? "linear-gradient(90deg, #5dffb5, #9fffd2)"
-              : "linear-gradient(90deg, #53d7ff, #8f7cff)",
-            boxShadow: completed
-              ? "0 0 18px rgba(93,255,181,0.28)"
-              : "0 0 18px rgba(83,215,255,0.22)",
-            transition: "width 320ms ease",
+              ? "linear-gradient(90deg,#5dffb5,#9fffd2)"
+              : "linear-gradient(90deg,#53d7ff,#8f7cff)",
           }}
         />
       </div>
 
-      <div
-        style={{
-          position: "relative",
-          marginTop: "10px",
-          display: "flex",
-          justifyContent: "space-between",
-          color: "rgba(255,255,255,0.42)",
-          fontSize: "10px",
-          fontWeight: 800,
-        }}
-      >
-        <span>{milestone(displayProgress)}</span>
-        <span>{completed ? "100% reached" : `${Math.round(liveProgress)}%`}</span>
+      <div style={{ marginTop: "8px", display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+        <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "9px" }}>{goalPace(goal, movements)}</span>
+        <strong style={{ color: completed ? "#9fffd2" : "rgba(255,255,255,0.58)", fontSize: "9px" }}>{Math.round(progress)}%</strong>
       </div>
 
-      <div
-        style={{
-          position: "relative",
-          marginTop: "18px",
-          display: "grid",
-          gridTemplateColumns:
-            !completed && goal.savedAmount > 0 ? "1fr 1fr" : "1fr",
-          gap: "9px",
-        }}
-      >
-        {!completed && (
-          <button
-            type="button"
-            onClick={onDeposit}
-            style={{
-              minHeight: "46px",
-              borderRadius: "13px",
-              border: "1px solid rgba(126,232,255,0.38)",
-              background:
-                "linear-gradient(135deg, rgba(83,215,255,0.18), rgba(92,80,210,0.14))",
-              color: "white",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              fontWeight: 900,
-              fontSize: "11px",
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-            }}
-          >
-            + Add DT
-          </button>
-        )}
+      {interestEarned > 0 && (
+        <div style={{ marginTop: "10px", borderRadius: "11px", background: "rgba(255,209,138,0.055)", padding: "8px 10px", color: "rgba(255,255,255,0.48)", fontSize: "9px" }}>
+          Interest earned <strong style={{ color: "#ffd18a" }}>+{formatDt(interestEarned)}</strong>
+        </div>
+      )}
 
-        {goal.savedAmount > 0 && (
-          <button
-            type="button"
-            onClick={onWithdraw}
-            style={{
-              minHeight: "46px",
-              borderRadius: "13px",
-              border: completed
-                ? "1px solid rgba(116,255,190,0.24)"
-                : "1px solid rgba(255,255,255,0.10)",
-              background: completed
-                ? "rgba(93,255,181,0.07)"
-                : "rgba(255,255,255,0.045)",
-              color: completed ? "#9fffd2" : "rgba(255,255,255,0.76)",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              fontWeight: 850,
-              fontSize: "11px",
-              letterSpacing: "0.05em",
-              textTransform: "uppercase",
-            }}
-          >
-            {completed ? "Use DT · Move to Wallet" : "Withdraw"}
-          </button>
-        )}
-
-        {completed && goal.savedAmount === 0 && (
-          <div
-            style={{
-              minHeight: "46px",
-              borderRadius: "13px",
-              border: "1px solid rgba(116,255,190,0.18)",
-              background: "rgba(93,255,181,0.05)",
-              color: "#9fffd2",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "10px",
-              fontWeight: 900,
-              letterSpacing: "0.07em",
-              textTransform: "uppercase",
-            }}
-          >
-            ✓ Goal completed
-          </div>
-        )}
+      <div style={{ marginTop: "auto", paddingTop: "15px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+        <button
+          type="button"
+          onClick={onDeposit}
+          disabled={completed}
+          style={{
+            minHeight: "43px",
+            borderRadius: "12px",
+            border: completed ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(126,232,255,0.28)",
+            background: completed ? "rgba(255,255,255,0.025)" : "linear-gradient(135deg,rgba(83,215,255,0.16),rgba(92,80,210,0.13))",
+            color: completed ? "rgba(255,255,255,0.26)" : "white",
+            cursor: completed ? "not-allowed" : "pointer",
+            fontFamily: "inherit",
+            fontSize: "9px",
+            fontWeight: 900,
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+          }}
+        >
+          + Add DT
+        </button>
+        <button
+          type="button"
+          onClick={onWithdraw}
+          disabled={goal.savedAmount <= 0}
+          style={{
+            minHeight: "43px",
+            borderRadius: "12px",
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(255,255,255,0.035)",
+            color: goal.savedAmount > 0 ? "rgba(255,255,255,0.76)" : "rgba(255,255,255,0.24)",
+            cursor: goal.savedAmount > 0 ? "pointer" : "not-allowed",
+            fontFamily: "inherit",
+            fontSize: "9px",
+            fontWeight: 900,
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+          }}
+        >
+          Withdraw
+        </button>
       </div>
     </article>
   );

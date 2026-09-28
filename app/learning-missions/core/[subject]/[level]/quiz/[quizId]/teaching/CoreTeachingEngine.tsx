@@ -64,6 +64,38 @@ export default function CoreTeachingEngine({
     setTeachingViewed(false);
   }, [question.id]);
 
+  // This hook MUST stay above every conditional return in this component.
+  // Keeping it here prevents React hook-order crashes when feedback appears
+  // after Check Answer or disappears when the learner moves to the next question.
+  const teachingModalRequestedOpen = lessonOpen || teachMeOpen;
+
+  useEffect(() => {
+    if (!teachingModalRequestedOpen || typeof document === "undefined") return;
+
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setLessonOpen(false);
+        setTeachMeOpen(false);
+      }
+    }
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [teachingModalRequestedOpen]);
+
   const teaching = useMemo(
     () => readTeachingConfig(question.content),
     [question.content],
@@ -311,24 +343,6 @@ export default function CoreTeachingEngine({
     (lessonOpen && Boolean(detailLesson)) ||
     (teachMeOpen && Boolean(teachMeLesson));
 
-  useEffect(() => {
-    if (!teachingModalOpen || typeof document === "undefined") return;
-
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousBodyOverscroll = document.body.style.overscrollBehavior;
-
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
-    document.body.style.overscrollBehavior = "none";
-
-    return () => {
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.body.style.overflow = previousBodyOverflow;
-      document.body.style.overscrollBehavior = previousBodyOverscroll;
-    };
-  }, [teachingModalOpen]);
-
   const modalLesson = lessonOpen
     ? detailLesson
     : teachMeOpen
@@ -389,7 +403,55 @@ export default function CoreTeachingEngine({
       )}
 
       {teachingModalOpen && modalLesson && (
-        <div
+        <>
+          <style jsx global>{`
+            .core-teaching-modal-content {
+              font-size: clamp(15px, 1.15vw, 18px);
+              line-height: 1.62;
+            }
+
+            /*
+             * The modal itself already gives the lesson the available space.
+             * Remove older nested max-heights/vertical scrollers so normal
+             * Why?/Teach Me explanations expand naturally instead of becoming
+             * a small scroll box inside a large modal.
+             */
+            .core-teaching-modal-content section,
+            .core-teaching-modal-content article,
+            .core-teaching-modal-content div {
+              max-height: none !important;
+              overflow-y: visible !important;
+            }
+
+            .core-teaching-modal-content p,
+            .core-teaching-modal-content li {
+              font-size: clamp(14px, 1.05vw, 17px) !important;
+              line-height: 1.58 !important;
+            }
+
+            .core-teaching-modal-content h2 {
+              font-size: clamp(20px, 1.8vw, 25px) !important;
+              line-height: 1.2 !important;
+            }
+
+            .core-teaching-modal-content h3,
+            .core-teaching-modal-content strong {
+              line-height: 1.35;
+            }
+
+            @media (max-width: 720px) {
+              .core-teaching-modal-content {
+                font-size: 15px;
+              }
+
+              .core-teaching-modal-content p,
+              .core-teaching-modal-content li {
+                font-size: 14px !important;
+              }
+            }
+          `}</style>
+
+          <div
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeTeachingModal();
@@ -418,11 +480,15 @@ export default function CoreTeachingEngine({
               </button>
             </div>
 
-            <div style={teachingModalBody}>
+            <div
+              className="core-teaching-modal-content"
+              style={teachingModalBody}
+            >
               {renderLesson(modalLesson, modalLabel)}
             </div>
           </section>
         </div>
+        </>
       )}
 
       {quickCheckReady && quickCheck && (
@@ -458,9 +524,8 @@ const teachingModalBackdrop: React.CSSProperties = {
 
 const teachingModalPanel: React.CSSProperties = {
   width: "min(1120px, 96vw)",
-  height: "min(760px, calc(100dvh - 120px))",
-  maxHeight: "calc(100dvh - 120px)",
-  minHeight: 0,
+  height: "auto",
+  maxHeight: "calc(100dvh - 32px)",
   borderRadius: "22px",
   border: "1px solid rgba(126,232,255,0.24)",
   background:
@@ -468,13 +533,17 @@ const teachingModalPanel: React.CSSProperties = {
   boxShadow: "0 30px 90px rgba(0,0,0,0.52)",
   display: "flex",
   flexDirection: "column",
-  overflow: "hidden",
+  overflowX: "hidden",
+  // Only exceptionally long lessons may scroll at the OUTER modal level.
+  // Normal English explanations expand fully with no nested scrollbar.
+  overflowY: "auto",
+  overscrollBehavior: "contain",
 };
 
 const teachingModalHeader: React.CSSProperties = {
   flex: "0 0 auto",
-  minHeight: "70px",
-  padding: "14px 16px 12px 18px",
+  minHeight: "76px",
+  padding: "16px 18px 14px 20px",
   borderBottom: "1px solid rgba(255,255,255,0.08)",
   display: "flex",
   alignItems: "center",
@@ -497,7 +566,7 @@ const teachingModalEyebrow: React.CSSProperties = {
 const teachingModalTitle: React.CSSProperties = {
   margin: "6px 0 0",
   color: "white",
-  fontSize: "clamp(20px, 2.2vw, 28px)",
+  fontSize: "clamp(24px, 2.4vw, 32px)",
   lineHeight: 1.1,
   letterSpacing: "-0.025em",
 };
@@ -517,12 +586,10 @@ const teachingModalClose: React.CSSProperties = {
 };
 
 const teachingModalBody: React.CSSProperties = {
-  flex: 1,
+  flex: "0 1 auto",
   minHeight: 0,
-  overflowY: "auto",
-  overflowX: "hidden",
-  padding: "14px",
+  overflow: "visible",
+  padding: "clamp(16px, 2vw, 24px)",
   boxSizing: "border-box",
-  scrollbarGutter: "stable",
 };
 
