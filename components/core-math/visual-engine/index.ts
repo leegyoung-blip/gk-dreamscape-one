@@ -10,3 +10,5 @@ export * from "./MathVisualValidator";
 export * from "./MathVisualCompatibility";
 
 export * from "./MathVisualTeaching";
+
+export * from "./MathVisualExamples";

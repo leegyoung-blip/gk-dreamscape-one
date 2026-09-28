@@ -7,6 +7,7 @@ import {
   generateBudgetFinancialProfile,
   normaliseBudgetAllocation,
 } from "../lib/budget-simulator-financial-model";
+import { createInitialLiveMonthState } from "../lib/budget-simulator-live-month";
 import {
   BUDGET_STAGES,
   getBudgetDifficulty,
@@ -17,10 +18,13 @@ import type {
   BudgetSimulationRun,
   BudgetSimulationState,
   BudgetStageKey,
+  BudgetStressTestKey,
 } from "../lib/budget-simulator-types";
 import BudgetBriefingStage from "./BudgetBriefingStage";
 import BudgetFinancialDeskStage from "./BudgetFinancialDeskStage";
 import BudgetBuildStage from "./BudgetBuildStage";
+import BudgetForecastStage from "./BudgetForecastStage";
+import BudgetLiveMonthStage from "./BudgetLiveMonthStage";
 
 export default function BudgetSimulatorShell({
   run,
@@ -86,11 +90,15 @@ export default function BudgetSimulatorShell({
     }));
   }
 
-  async function advance(nextStage: BudgetStageKey, extra?: Partial<BudgetSimulationState["data"]>) {
+  async function advance(
+    nextStage: BudgetStageKey,
+    extra?: Partial<BudgetSimulationState["data"]>,
+    nextDay = draftState.currentDay,
+  ) {
     const nextState: BudgetSimulationState = {
       ...draftState,
       stage: nextStage,
-      currentDay: run.currentDay,
+      currentDay: nextDay,
       completedStages: uniqueStages([
         ...draftState.completedStages,
         run.currentStage,
@@ -103,7 +111,7 @@ export default function BudgetSimulatorShell({
 
     const saved = await onSaveCheckpoint({
       currentStage: nextStage,
-      currentDay: run.currentDay,
+      currentDay: nextDay,
       state: nextState,
     });
     if (saved) setDraftState(saved.state);
@@ -113,11 +121,11 @@ export default function BudgetSimulatorShell({
     const currentState: BudgetSimulationState = {
       ...draftState,
       stage: run.currentStage,
-      currentDay: run.currentDay,
+      currentDay: draftState.currentDay,
     };
     return onSaveCheckpoint({
       currentStage: run.currentStage,
-      currentDay: run.currentDay,
+      currentDay: draftState.currentDay,
       state: currentState,
     });
   }
@@ -295,14 +303,111 @@ export default function BudgetSimulatorShell({
                 advance("forecast", {
                   allocation,
                   firstPlan: { ...allocation },
+                  forecastViewedDay: 1,
+                  stressTestsRun: [],
+                  forecastConfirmed: false,
                 })
               }
+            />
+          ) : run.currentStage === "forecast" ? (
+            <BudgetForecastStage
+              profile={profile}
+              allocation={draftState.data.firstPlan ?? allocation}
+              screenMode={screenMode}
+              selectedDay={draftState.data.forecastViewedDay ?? 1}
+              stressTestsRun={draftState.data.stressTestsRun ?? []}
+              saving={saving}
+              onSelectedDayChange={(day) => patchData({ forecastViewedDay: day })}
+              onStressTestsChange={(next: BudgetStressTestKey[]) => patchData({ stressTestsRun: next })}
+              onAdjustPlan={async () => {
+                const nextState: BudgetSimulationState = {
+                  ...draftState,
+                  stage: "build_budget",
+                  currentDay: 1,
+                  completedStages: draftState.completedStages.filter(
+                    (stage) => !["forecast", "live_month", "final_week", "review"].includes(stage),
+                  ),
+                  data: {
+                    ...draftState.data,
+                    forecastViewedDay: 1,
+                    stressTestsRun: [],
+                    forecastConfirmed: false,
+                  },
+                };
+                const saved = await onSaveCheckpoint({
+                  currentStage: "build_budget",
+                  currentDay: 1,
+                  state: nextState,
+                });
+                if (saved) setDraftState(saved.state);
+              }}
+              onConfirm={() =>
+                advance(
+                  "live_month",
+                  { forecastConfirmed: true },
+                  1,
+                )
+              }
+            />
+          ) : run.currentStage === "live_month" ? (
+            <BudgetLiveMonthStage
+              profile={profile}
+              firstPlan={draftState.data.firstPlan ?? allocation}
+              liveState={
+                draftState.data.liveMonth ??
+                createInitialLiveMonthState({
+                  profile,
+                  scenarioKey: run.scenarioKey,
+                  difficulty: run.difficulty,
+                  scenarioSeed: run.scenarioSeed,
+                  allocation: draftState.data.firstPlan ?? allocation,
+                })
+              }
+              currentDay={draftState.currentDay}
+              scenarioSeed={run.scenarioSeed}
+              screenMode={screenMode}
+              saving={saving}
+              onStateChange={(next) => patchData({ liveMonth: next })}
+              onCheckpoint={async (next, day) => {
+                const nextState: BudgetSimulationState = {
+                  ...draftState,
+                  stage: "live_month",
+                  currentDay: day,
+                  data: {
+                    ...draftState.data,
+                    liveMonth: next,
+                  },
+                };
+                const saved = await onSaveCheckpoint({
+                  currentStage: "live_month",
+                  currentDay: day,
+                  state: nextState,
+                });
+                if (saved) setDraftState(saved.state);
+                return Boolean(saved);
+              }}
+              onComplete={async (next) => {
+                await advance(
+                  "final_week",
+                  {
+                    liveMonth: next,
+                    liveMonthCompleted: true,
+                    finalWeekOpeningAllocation: { ...next.allocation },
+                  },
+                  25,
+                );
+              }}
             />
           ) : (
             <ComingNextStage
               stage={run.currentStage}
               screenMode={screenMode}
-              allocation={draftState.data.firstPlan ?? allocation}
+              allocation={
+                draftState.data.finalWeekOpeningAllocation ??
+                draftState.data.liveMonth?.allocation ??
+                draftState.data.firstPlan ??
+                allocation
+              }
             />
           )}
 
@@ -362,10 +467,12 @@ function ComingNextStage({
             fontWeight: 500,
           }}
         >
-          {stageLabel} is ready for 4A-3.
+          {stage === "final_week" ? "Live Month complete." : `${stageLabel} is ready.`}
         </h3>
         <p style={{ margin: "9px auto 0", color: "rgba(255,255,255,.42)", fontSize: "9px", lineHeight: 1.6 }}>
-          Your initial allocation is stored with this run. Phase 4A-3 will turn it into a 30-day cash-flow forecast, day scrubber and stress-test system.
+          {stage === "final_week"
+            ? "Your decisions, rebalancing and linked consequences are saved. Phase 4A-5 will build the final multi-factor challenge from this position."
+            : "Your saved allocation and simulation state will carry into the next stage."}
         </p>
         <div style={{ marginTop: "14px", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "6px" }}>
           {Object.entries(allocation).map(([key, value]) => (
@@ -392,6 +499,27 @@ function hydrateState(run: BudgetSimulationRun, profile: ReturnType<typeof gener
         run.state.data.allocation ?? createInitialBudgetAllocation(profile),
         profile,
       ),
+      forecastViewedDay: run.state.data.forecastViewedDay ?? 1,
+      stressTestsRun: run.state.data.stressTestsRun ?? [],
+      forecastConfirmed: run.state.data.forecastConfirmed ?? false,
+      liveMonth:
+        run.state.data.liveMonth ??
+        (run.currentStage === "live_month" || run.currentStage === "final_week" || run.currentStage === "review"
+          ? createInitialLiveMonthState({
+              profile,
+              scenarioKey: run.scenarioKey,
+              difficulty: run.difficulty,
+              scenarioSeed: run.scenarioSeed,
+              allocation:
+                run.state.data.firstPlan ??
+                normaliseBudgetAllocation(
+                  run.state.data.allocation ?? createInitialBudgetAllocation(profile),
+                  profile,
+                ),
+            })
+          : undefined),
+      liveMonthCompleted: run.state.data.liveMonthCompleted ?? false,
+      finalWeekOpeningAllocation: run.state.data.finalWeekOpeningAllocation,
     },
   } satisfies BudgetSimulationState;
 }

@@ -105,11 +105,137 @@ export type BudgetRadarValues = {
   longTermGrowth: number;
 };
 
+export type BudgetForecastPoint = {
+  day: number;
+  available: number;
+  protected: number;
+  commitmentOutflow: number;
+  commitmentIds: string[];
+};
+
+export type BudgetForecast = {
+  points: BudgetForecastPoint[];
+  openingAvailable: number;
+  protectedTotal: number;
+  minimumAvailable: number;
+  finalAvailable: number;
+  totalKnownPayments: number;
+  firstShortfallDay: number | null;
+};
+
+export type BudgetStressTestKey =
+  | "unexpected_250"
+  | "unexpected_500"
+  | "income_drop_10";
+
+export type BudgetStressTestResult = {
+  key: BudgetStressTestKey;
+  label: string;
+  shortLabel: string;
+  description: string;
+  shockDay: number;
+  impactAmount: number;
+  minimumAvailable: number;
+  finalAvailable: number;
+  liquidityGap: number;
+  commitmentsCoveredWithoutRebalance: boolean;
+  interpretation: string;
+};
+
+export type BudgetLiveEventCategory =
+  | "expense"
+  | "opportunity"
+  | "lifestyle"
+  | "income"
+  | "goal"
+  | "market"
+  | "consequence";
+
+export type BudgetLiveEventChoice = {
+  id: string;
+  label: string;
+  description: string;
+  cashImpact: number;
+  effectSummary: string;
+  riskNote?: string;
+  schedules?: "rover_follow_up" | "equipment_follow_up" | null;
+  allocationMove?: {
+    to: BudgetAllocationKey;
+    amount: number;
+  };
+  release?: {
+    from: BudgetAllocationKey;
+    amount: number;
+  };
+};
+
+export type BudgetLiveEvent = {
+  id: string;
+  day: number;
+  category: BudgetLiveEventCategory;
+  title: string;
+  subtitle: string;
+  briefing: string;
+  analysis: Array<{
+    label: string;
+    value: string;
+    detail: string;
+  }>;
+  choices: BudgetLiveEventChoice[];
+  linkedFrom?: string | null;
+  consequenceKind?: "rover_follow_up" | "equipment_follow_up" | null;
+};
+
+export type BudgetPaidCommitment = {
+  commitmentId: string;
+  day: number;
+  amount: number;
+  title: string;
+};
+
+export type BudgetLiveDecision = {
+  eventId: string;
+  day: number;
+  choiceId: string;
+  choiceLabel: string;
+  cashImpact: number;
+  beforeAllocation: BudgetAllocation;
+  afterAllocation: BudgetAllocation;
+  effectSummary: string;
+};
+
+export type BudgetLiveMonthSnapshot = {
+  day: number;
+  allocation: BudgetAllocation;
+  liquidTotal: number;
+  protectedTotal: number;
+};
+
+export type BudgetLiveMonthState = {
+  events: BudgetLiveEvent[];
+  allocation: BudgetAllocation;
+  paidCommitments: BudgetPaidCommitment[];
+  resolvedEventIds: string[];
+  decisions: BudgetLiveDecision[];
+  snapshots: BudgetLiveMonthSnapshot[];
+  lastOutcome?: {
+    title: string;
+    detail: string;
+    tone: "positive" | "neutral" | "warning";
+  } | null;
+};
+
 export type BudgetSimulationData = {
   inspectedItems?: string[];
   pinnedItems?: string[];
   allocation?: BudgetAllocation;
   firstPlan?: BudgetAllocation;
+  forecastViewedDay?: number;
+  stressTestsRun?: BudgetStressTestKey[];
+  forecastConfirmed?: boolean;
+  liveMonth?: BudgetLiveMonthState;
+  liveMonthCompleted?: boolean;
+  finalWeekOpeningAllocation?: BudgetAllocation;
 };
 
 export type BudgetSimulationState = {

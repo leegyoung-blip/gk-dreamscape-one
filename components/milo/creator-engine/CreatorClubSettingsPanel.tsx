@@ -125,16 +125,19 @@ export default function CreatorClubSettingsPanel({
 
   useEffect(() => {
     if (!selectedClub) return;
-    void load(selectedClub.club_slug);
+    void load(selectedClub.club_id);
   }, [selectedClub?.club_id]);
 
-  async function load(slug: string) {
+  async function load(clubId: string) {
     setLoading(true);
     setErrorMessage("");
 
-    const { data, error } = await supabase.rpc("get_creator_club_by_slug", {
-      p_slug: slug,
-    });
+    const { data, error } = await supabase.rpc(
+      "creator_get_my_club_settings_v1",
+      {
+        p_club_id: clubId,
+      },
+    );
 
     if (error) {
       setErrorMessage("Club settings could not be loaded.");
@@ -144,7 +147,9 @@ export default function CreatorClubSettingsPanel({
 
     const row = (Array.isArray(data) ? data[0] : data) as ClubDetail | null;
     if (!row) {
-      setErrorMessage("Club settings could not be found.");
+      setErrorMessage(
+        "Your club exists, but its editable settings could not be resolved. Refresh once and try again.",
+      );
       setLoading(false);
       return;
     }

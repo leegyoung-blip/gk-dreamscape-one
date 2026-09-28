@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import QuestionMediaEditor from "@/app/curriculum-developer/components/QuestionMediaEditor";
+import MathVisualAuthoringPanel from "@/app/curriculum-developer/components/MathVisualAuthoringPanel";
 import { CropImageButton } from "@/app/curriculum-developer/components/ImageCropEditor";
 import {
   questionMediaDraftFromQuestion,
@@ -16,6 +17,10 @@ import {
 } from "@/app/curriculum-developer/media";
 import type { SupportedQuestionType } from "@/app/curriculum-developer/types";
 import FractionText, { hasRenderableFraction } from "@/components/core-missions/FractionText";
+import {
+  readMathVisualSpec,
+  type MathVisualSpec,
+} from "@/components/core-math/visual-engine";
 import TeachingAuthoringPanel from "./teaching/authoring/TeachingAuthoringPanel";
 import {
   cloneTeaching,
@@ -493,6 +498,17 @@ function SingleQuestionEditor({
   const [teachingDraft, setTeachingDraft] = useState<TeachingDraft>(() =>
     cloneTeaching(question.content?.teaching),
   );
+  const [mathVisualDraft, setMathVisualDraft] = useState<MathVisualSpec | null>(() =>
+    readMathVisualSpec(question.content?.math_visual).spec,
+  );
+  const [mathVisualValid, setMathVisualValid] = useState(() => {
+    const result = readMathVisualSpec(question.content?.math_visual);
+    return result.source === "none" || (result.valid && Boolean(result.spec));
+  });
+  const [mathVisualError, setMathVisualError] = useState<string | undefined>(() => {
+    const result = readMathVisualSpec(question.content?.math_visual);
+    return result.source === "invalid" ? result.issues[0]?.message : undefined;
+  });
 
   const originalOptions = Array.isArray(question.content?.options)
     ? question.content.options
@@ -878,6 +894,16 @@ function SingleQuestionEditor({
       };
     }
 
+    if (subject === "math") {
+      if (!mathVisualValid) {
+        setError(mathVisualError || "Fix the Math Visual V2 authoring errors before saving.");
+        return;
+      }
+
+      if (mathVisualDraft) nextContent.math_visual = mathVisualDraft;
+      else delete nextContent.math_visual;
+    }
+
     if (supportsTeachingAuthoring) {
       const nextTeachingOptions = Array.isArray(nextContent.options)
         ? nextContent.options.map((option: any, index: number) => ({
@@ -898,6 +924,7 @@ function SingleQuestionEditor({
           question.question_type === "true_false" ||
           question.question_type === "listening_comprehension",
         teaching: teachingDraft,
+              mathVisual: subject === "math" ? mathVisualDraft : undefined,
       });
 
       if (teachingErrors.length > 0) {
@@ -1339,6 +1366,21 @@ function SingleQuestionEditor({
           />
           <FractionFieldPreview text={explanation} />
         </label>
+
+        {subject === "math" && (
+          <MathVisualAuthoringPanel
+            value={question.content?.math_visual ?? null}
+            teaching={teachingDraft}
+            disabled={saving}
+            defaultOpen={Boolean(question.content?.math_visual)}
+            onChangeVisual={setMathVisualDraft}
+            onChangeTeaching={setTeachingDraft}
+            onValidityChange={(valid, message) => {
+              setMathVisualValid(valid);
+              setMathVisualError(message);
+            }}
+          />
+        )}
 
         {supportsTeachingAuthoring && (
           <TeachingAuthoringPanel

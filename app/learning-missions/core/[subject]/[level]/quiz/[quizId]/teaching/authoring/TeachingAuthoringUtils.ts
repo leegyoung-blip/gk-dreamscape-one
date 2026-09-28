@@ -1,341 +1,729 @@
+import {
+  readMathVisualSpec,
+  readMathVisualTeachingSteps,
+  validateMathVisualTeachingSteps,
+} from "@/components/core-math/visual-engine";
+
 import type {
+
   TeachingAuthoringOption,
+
   TeachingAuthoringSubject,
+
   TeachingDraft,
+
   TeachingStatus,
+
   TeachingValidationContext,
+
 } from "./TeachingAuthoringTypes";
 
+
+
 export function isRecord(value: unknown): value is Record<string, any> {
+
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
 }
+
+
 
 export function cloneTeaching(value: unknown): TeachingDraft {
+
   if (!isRecord(value)) return {};
+
   try {
+
     return JSON.parse(JSON.stringify(value)) as TeachingDraft;
+
   } catch {
+
     return { ...value };
+
   }
+
 }
+
+
 
 export function textValue(value: unknown) {
+
   return typeof value === "string" ? value : "";
+
 }
+
+
 
 export function blockText(value: unknown) {
+
   if (typeof value === "string") return value;
+
   if (!isRecord(value)) return "";
+
   return textValue(value.text) || textValue(value.summary) || textValue(value.body);
+
 }
+
+
 
 export function normaliseSlug(value: string) {
+
   return value
+
     .trim()
+
     .toLowerCase()
+
     .replace(/[^a-z0-9]+/g, "_")
+
     .replace(/^_+|_+$/g, "");
+
 }
+
+
 
 export function patchTextBlock(
+
   current: unknown,
+
   patch: Record<string, any>,
+
 ): Record<string, any> {
+
   const base = isRecord(current)
+
     ? { ...current }
+
     : typeof current === "string" && current.trim()
+
       ? { text: current }
+
       : {};
+
   return { ...base, ...patch };
+
 }
+
+
 
 export function patchLesson(
+
   current: unknown,
+
   patch: Record<string, any>,
+
 ): Record<string, any> {
+
   return {
+
     ...(isRecord(current) ? current : {}),
+
     ...patch,
+
   };
+
 }
+
+
 
 function hasMeaningfulValue(value: unknown): boolean {
+
   if (value == null) return false;
+
   if (typeof value === "string") return value.trim().length > 0;
+
   if (typeof value === "number" || typeof value === "boolean") return true;
+
   if (Array.isArray(value)) return value.some(hasMeaningfulValue);
+
   if (isRecord(value)) return Object.values(value).some(hasMeaningfulValue);
+
   return false;
+
 }
+
+
 
 export function hasTeachingContent(teaching: TeachingDraft) {
+
   return hasMeaningfulValue(teaching);
+
 }
+
+
 
 export function teachingStatus(
+
   teaching: TeachingDraft,
+
   legacyExplanation: string,
+
 ): TeachingStatus {
+
   const hasLesson = hasMeaningfulValue(teaching.lesson) || hasMeaningfulValue(teaching.teach_me);
+
   const hasMisconception = hasMeaningfulValue(teaching.misconceptions);
+
   const hasQuickCheck = hasMeaningfulValue(teaching.quick_check);
+
   if (hasLesson || hasMisconception || hasQuickCheck) return "full";
 
+
+
   if (
+
     hasMeaningfulValue(teaching.hint) ||
+
     hasMeaningfulValue(teaching.correct) ||
+
     hasMeaningfulValue(teaching.incorrect)
+
   ) {
+
     return "enhanced";
+
   }
+
+
 
   if (legacyExplanation.trim()) return "legacy";
+
   return "empty";
+
 }
+
+
 
 export function mergeTeachingIntoContent(
+
   content: Record<string, any>,
+
   teaching: TeachingDraft,
+
 ) {
+
   const next = { ...(content || {}) };
+
   if (hasTeachingContent(teaching)) next.teaching = teaching;
+
   else delete next.teaching;
+
   return next;
+
 }
+
+
 
 function nthIndexOf(source: string, target: string, occurrence: number) {
+
   const haystack = source.toLocaleLowerCase();
+
   const needle = target.toLocaleLowerCase();
+
   let from = 0;
+
   let index = -1;
+
   for (let count = 0; count < occurrence; count += 1) {
+
     index = haystack.indexOf(needle, from);
+
     if (index < 0) return -1;
+
     from = index + needle.length;
+
   }
+
   return index;
+
 }
+
+
 
 function evidenceErrors(value: unknown, prompt: string, label: string) {
+
   if (!Array.isArray(value)) return [] as string[];
+
   const errors: string[] = [];
+
   value.forEach((item, index) => {
+
     if (!isRecord(item)) return;
+
     const text = textValue(item.text).trim();
+
     if (!text) return;
+
     const occurrence = Math.max(1, Number(item.occurrence) || 1);
+
     if (nthIndexOf(prompt, text, occurrence) < 0) {
+
       errors.push(`${label} clue ${index + 1} (“${text}”) was not found in the current question prompt.`);
+
     }
+
   });
+
   return errors;
+
 }
+
+
 
 function lessonType(value: unknown) {
+
   return isRecord(value) ? textValue(value.type).trim().toLowerCase() : "";
+
 }
 
+
+
 function lessonErrors(
+
   subject: TeachingAuthoringSubject,
+
   raw: unknown,
+
   label: string,
+
   prompt: string,
+
 ) {
+
   if (!isRecord(raw) || !hasMeaningfulValue(raw)) return [] as string[];
+
   const errors: string[] = [];
+
   const type = lessonType(raw) || "simple_explanation";
+
+
 
   errors.push(...evidenceErrors(raw.evidence || raw.clues, textValue(raw.sentence) || prompt, `${label}`));
 
+
+
   if (subject === "english") {
+
     if (type === "rule_matrix") {
+
       const matrix = isRecord(raw.matrix) ? raw.matrix : {};
+
       const rows = Array.isArray(matrix.rows) ? matrix.rows : [];
+
       const columns = Array.isArray(matrix.columns) ? matrix.columns : [];
+
       if (rows.length === 0 || columns.length === 0) {
+
         errors.push(`${label}: a Rule Matrix needs at least one row and one column.`);
+
       }
+
       if (isRecord(matrix.highlight)) {
+
         const row = textValue(matrix.highlight.row);
+
         const column = textValue(matrix.highlight.column);
+
         const rowKeys = rows.map((item: any) => (isRecord(item) ? textValue(item.key) : normaliseSlug(String(item))));
+
         const columnKeys = columns.map((item: any) => (isRecord(item) ? textValue(item.key) : normaliseSlug(String(item))));
+
         if ((row && !rowKeys.includes(row)) || (column && !columnKeys.includes(column))) {
+
           errors.push(`${label}: the highlighted Rule Matrix cell no longer exists.`);
+
         }
+
       }
+
     }
+
     if (type === "vocabulary") {
+
       if (!textValue(raw.word).trim() || !textValue(raw.meaning).trim()) {
+
         errors.push(`${label}: Vocabulary teaching needs both a word and a meaning.`);
+
       }
+
     }
+
     if (type === "editing_correction") {
+
       if (!textValue(raw.original).trim() || !textValue(raw.corrected).trim()) {
+
         errors.push(`${label}: Editing Correction needs both the original and corrected text.`);
+
       }
+
     }
+
   } else {
+
     if (type === "vertical_working") {
+
       const working = isRecord(raw.vertical_working) ? raw.vertical_working : {};
+
       const operands = Array.isArray(working.operands) ? working.operands.filter((item: any) => String(item).trim()) : [];
+
       if (operands.length < 2 || !textValue(working.result).trim()) {
+
         errors.push(`${label}: Vertical Working needs at least two operands and a result.`);
+
       }
+
     }
+
     if (type === "place_value") {
+
       const table = isRecord(raw.place_value) ? raw.place_value : {};
+
       const columns = Array.isArray(table.columns) ? table.columns : [];
+
       const rows = Array.isArray(table.rows) ? table.rows : [];
+
       if (columns.length === 0 || rows.length === 0) {
+
         errors.push(`${label}: Place Value needs columns and at least one row.`);
+
       } else {
+
         rows.forEach((row: any, index: number) => {
+
           const values = isRecord(row) && Array.isArray(row.values) ? row.values : [];
+
           if (values.length !== columns.length) {
+
             errors.push(`${label}: Place Value row ${index + 1} must contain ${columns.length} value(s).`);
+
           }
+
         });
+
       }
+
     }
+
     if (type === "fraction") {
+
       const fraction = isRecord(raw.fraction) ? raw.fraction : {};
+
       if (
+
         !textValue(fraction.working).trim() &&
+
         !textValue(fraction.result).trim() &&
+
         !textValue(fraction.simplified).trim()
+
       ) {
+
         errors.push(`${label}: Fraction teaching needs working or a result.`);
+
       }
+
     }
+
     if (type === "geometry") {
+
       const geometry = isRecord(raw.geometry) ? raw.geometry : {};
+
       if (
+
         !textValue(geometry.rule).trim() &&
+
         !textValue(geometry.working).trim() &&
+
         !textValue(geometry.answer).trim()
+
       ) {
+
         errors.push(`${label}: Geometry teaching needs a rule, working, or answer.`);
+
       }
+
     }
+
     if (type === "unit_conversion") {
+
       const conversion = isRecord(raw.conversion) ? raw.conversion : {};
+
       if (!textValue(conversion.from).trim() || !textValue(conversion.to).trim() || !textValue(conversion.result).trim()) {
+
         errors.push(`${label}: Unit Conversion needs From, To, and Result.`);
+
       }
+
     }
+
     if (type === "word_problem") {
+
       const problem = isRecord(raw.word_problem) ? raw.word_problem : {};
+
       if (!textValue(problem.find).trim() || !textValue(problem.answer).trim()) {
+
         errors.push(`${label}: Word Problem teaching needs “What are we finding?” and an answer.`);
+
       }
+
     }
+
   }
 
+
+
   return errors;
+
 }
+
+
+
+
 
 
 
 function quickCheckErrors(
+
   subject: TeachingAuthoringSubject,
+
   raw: unknown,
+
 ) {
+
   if (!isRecord(raw) || !hasMeaningfulValue(raw)) return [] as string[];
 
+
+
   const errors: string[] = [];
+
   const prompt = textValue(raw.prompt).trim();
+
   const type = textValue(raw.type).trim();
+
   const allowed = subject === "math"
+
     ? new Set(["multiple_choice", "short_text", "numeric", "fraction"])
+
     : new Set(["multiple_choice", "short_text"]);
 
+
+
   if (!prompt) errors.push("Quick Check needs a question prompt.");
+
   if (!allowed.has(type)) {
+
     errors.push(`Quick Check answer type “${type || "unknown"}” is not supported for ${subject === "math" ? "Mathematics" : "English"}.`);
+
     return errors;
+
   }
+
+
 
   if (type === "multiple_choice") {
+
     const options = Array.isArray(raw.options)
+
       ? raw.options.filter((item: any) => isRecord(item) && textValue(item.text).trim())
+
       : [];
+
     const ids = new Set(options.map((item: any) => textValue(item.id).trim()));
+
     const correctId = textValue(raw.correct_option_id).trim();
+
     if (options.length < 2) errors.push("Quick Check Multiple Choice needs at least two answer options.");
+
     if (!correctId || !ids.has(correctId)) errors.push("Quick Check needs a valid correct answer option.");
+
   }
+
+
 
   if (type === "short_text") {
+
     const accepted = Array.isArray(raw.accepted_answers)
+
       ? raw.accepted_answers.map((item: any) => String(item).trim()).filter(Boolean)
+
       : [];
+
     if (accepted.length === 0) errors.push("Quick Check Short Answer needs at least one accepted answer.");
+
   }
+
+
 
   if (type === "numeric") {
+
     const value = Number(raw.value);
+
     const tolerance = Number(raw.tolerance ?? 0);
+
     if (raw.value === "" || raw.value == null || !Number.isFinite(value)) {
+
       errors.push("Quick Check Numeric Answer needs a valid correct value.");
+
     }
+
     if (!Number.isFinite(tolerance) || tolerance < 0) {
+
       errors.push("Quick Check numeric tolerance must be zero or greater.");
+
     }
+
   }
 
+
+
   if (type === "fraction") {
+
     const numerator = Number(raw.numerator);
+
     const denominator = Number(raw.denominator);
+
     if (
+
       raw.numerator === "" ||
+
       raw.denominator === "" ||
+
       raw.numerator == null ||
+
       raw.denominator == null ||
+
       !Number.isInteger(numerator) ||
+
       !Number.isInteger(denominator) ||
+
       denominator === 0
+
     ) {
+
       errors.push("Quick Check Fraction Answer needs a valid numerator and non-zero denominator.");
+
     }
+
+  }
+
+
+
+  return errors;
+
+}
+
+
+
+function mathVisualTeachingErrors(context: TeachingValidationContext) {
+  if (context.subject !== "math") return [] as string[];
+
+  const lessonRows: Array<[string, unknown]> = [
+    ["Main teaching explanation", isRecord(context.teaching.lesson) ? context.teaching.lesson.visual_steps : null],
+    ["Teach Me", isRecord(context.teaching.teach_me) ? context.teaching.teach_me.visual_steps : null],
+  ];
+
+  const hasVisualSteps = lessonRows.some(([, value]) => value != null);
+  if (!hasVisualSteps) return [] as string[];
+
+  const visualRead = readMathVisualSpec(context.mathVisual);
+  const errors: string[] = [];
+
+  for (const [label, rawSteps] of lessonRows) {
+    if (rawSteps == null) continue;
+    const read = readMathVisualTeachingSteps(rawSteps);
+    read.issues.forEach((issue) => {
+      errors.push(`${label}: ${issue.path}: ${issue.message}`);
+    });
+
+    if (read.steps.length === 0) continue;
+    if (!visualRead.spec) {
+      errors.push(`${label}: visual_steps require a valid Math Visual V2 diagram.`);
+      continue;
+    }
+
+    const validation = validateMathVisualTeachingSteps(
+      visualRead.spec,
+      read.steps,
+      `${label}.visual_steps`,
+    );
+    validation.issues
+      .filter((issue) => issue.severity === "error")
+      .forEach((issue) => errors.push(`${issue.path}: ${issue.message}`));
   }
 
   return errors;
 }
 
 export function validateTeachingDraft(context: TeachingValidationContext) {
+
   const { subject, prompt, options, correctOptionIds, allowMisconceptions, teaching } = context;
+
   if (!hasTeachingContent(teaching)) return [] as string[];
 
+
+
   const errors: string[] = [];
+
   const hint = isRecord(teaching.hint) ? teaching.hint : null;
+
   if (hint) errors.push(...evidenceErrors(hint.evidence || hint.clues, prompt, "Hint"));
 
+
+
   if (allowMisconceptions && isRecord(teaching.misconceptions)) {
+
     const optionIds = new Set(options.map((option) => option.id));
+
     const correct = new Set(correctOptionIds);
+
     for (const [key, raw] of Object.entries(teaching.misconceptions)) {
+
       const optionId = key.replace(/^option[_-]/, "");
+
       if (!optionIds.has(optionId)) continue;
+
       if (correct.has(optionId)) {
+
         errors.push(`Answer-specific feedback is attached to correct option ${optionId.toUpperCase()}. Remove that misconception entry.`);
+
       }
+
       if (isRecord(raw) && !blockText(raw).trim()) {
+
         errors.push(`Answer-specific feedback for option ${optionId.toUpperCase()} needs a summary.`);
+
       }
+
     }
+
   }
 
+
+
   errors.push(...lessonErrors(subject, teaching.lesson, "Main teaching explanation", prompt));
+
   errors.push(...lessonErrors(subject, teaching.teach_me, "Teach Me", prompt));
+
   errors.push(...quickCheckErrors(subject, teaching.quick_check));
+
+  errors.push(...mathVisualTeachingErrors(context));
+
   return errors;
+
 }
 
+
+
 export function currentOptionRows(
+
   options: TeachingAuthoringOption[],
+
   correctOptionIds: string[],
+
 ) {
+
   const correct = new Set(correctOptionIds);
+
   return options.map((option) => ({ ...option, correct: correct.has(option.id) }));
+
 }

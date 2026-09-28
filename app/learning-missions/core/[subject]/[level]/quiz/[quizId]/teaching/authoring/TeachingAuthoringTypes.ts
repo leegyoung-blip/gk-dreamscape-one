@@ -15,4 +15,6 @@ export type TeachingValidationContext = {
   correctOptionIds: string[];
   allowMisconceptions: boolean;
   teaching: TeachingDraft;
+  /** Optional V2 Math visual for cross-validating teaching visual_steps. */
+  mathVisual?: unknown;
 };
