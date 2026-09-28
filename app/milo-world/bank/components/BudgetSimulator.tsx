@@ -41,6 +41,7 @@ export default function BudgetSimulator({
         saving={simulation.saving}
         error={simulation.error}
         onSaveCheckpoint={simulation.saveCheckpoint}
+        onRecordEvidence={simulation.recordEvidence}
         onExit={() => {
           setInsideRun(false);
           onExit();

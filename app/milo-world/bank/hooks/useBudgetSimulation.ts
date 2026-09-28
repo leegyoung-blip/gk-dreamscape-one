@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   abandonBudgetSimulation,
   loadActiveBudgetSimulation,
+  recordBudgetSimulationEvidence,
   saveBudgetSimulationCheckpoint,
   startBudgetSimulation,
 } from "../lib/budget-simulator-api";
@@ -103,6 +104,21 @@ export function useBudgetSimulation(isLoggedIn: boolean) {
     [run],
   );
 
+
+  const recordEvidence = useCallback(async (runId: string) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await recordBudgetSimulationEvidence(runId);
+      return true;
+    } catch (caught) {
+      setError(errorMessage(caught));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
   const abandon = useCallback(async () => {
     if (!run) return true;
 
@@ -128,6 +144,7 @@ export function useBudgetSimulation(isLoggedIn: boolean) {
     refresh,
     start,
     saveCheckpoint,
+    recordEvidence,
     abandon,
   };
 }

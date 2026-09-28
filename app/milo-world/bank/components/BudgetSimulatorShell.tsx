@@ -8,6 +8,7 @@ import {
   normaliseBudgetAllocation,
 } from "../lib/budget-simulator-financial-model";
 import { createInitialLiveMonthState } from "../lib/budget-simulator-live-month";
+import { buildBudgetResultsSummary } from "../lib/budget-simulator-results";
 import {
   BUDGET_STAGES,
   getBudgetDifficulty,
@@ -15,6 +16,7 @@ import {
 } from "../lib/budget-simulator-scenarios";
 import type {
   BudgetAllocation,
+  BudgetFinalWeekResult,
   BudgetSimulationRun,
   BudgetSimulationState,
   BudgetStageKey,
@@ -25,6 +27,8 @@ import BudgetFinancialDeskStage from "./BudgetFinancialDeskStage";
 import BudgetBuildStage from "./BudgetBuildStage";
 import BudgetForecastStage from "./BudgetForecastStage";
 import BudgetLiveMonthStage from "./BudgetLiveMonthStage";
+import BudgetFinalWeekStage from "./BudgetFinalWeekStage";
+import BudgetReviewStage from "./BudgetReviewStage";
 
 export default function BudgetSimulatorShell({
   run,
@@ -34,6 +38,7 @@ export default function BudgetSimulatorShell({
   onExit,
   onAbandon,
   onSaveCheckpoint,
+  onRecordEvidence,
 }: {
   run: BudgetSimulationRun;
   screenMode: BankScreenMode;
@@ -46,6 +51,7 @@ export default function BudgetSimulatorShell({
     currentDay: number;
     state: BudgetSimulationState;
   }) => Promise<BudgetSimulationRun | null>;
+  onRecordEvidence: (runId: string) => Promise<boolean>;
 }) {
   const isMobile = screenMode === "mobile";
   const scenario = getBudgetScenario(run.scenarioKey);
@@ -393,10 +399,86 @@ export default function BudgetSimulatorShell({
                     liveMonth: next,
                     liveMonthCompleted: true,
                     finalWeekOpeningAllocation: { ...next.allocation },
+                    finalWeekAllocation: { ...next.allocation },
+                    finalWeekDecisionFactors: [],
+                    finalWeekConfidence: 65,
                   },
                   25,
                 );
               }}
+            />
+          ) : run.currentStage === "final_week" && draftState.data.liveMonth ? (
+            <BudgetFinalWeekStage
+              profile={profile}
+              liveMonth={draftState.data.liveMonth}
+              openingAllocation={
+                draftState.data.finalWeekOpeningAllocation ??
+                draftState.data.liveMonth.allocation
+              }
+              allocation={
+                draftState.data.finalWeekAllocation ??
+                draftState.data.finalWeekOpeningAllocation ??
+                draftState.data.liveMonth.allocation
+              }
+              selectedChoiceId={draftState.data.finalWeekChoiceId ?? null}
+              selectedFactors={draftState.data.finalWeekDecisionFactors ?? []}
+              confidence={draftState.data.finalWeekConfidence ?? 65}
+              scenarioSeed={run.scenarioSeed}
+              scenarioKey={run.scenarioKey}
+              difficulty={run.difficulty}
+              screenMode={screenMode}
+              saving={saving}
+              onAllocationChange={(next) => patchData({ finalWeekAllocation: next })}
+              onChoiceChange={(next) => patchData({ finalWeekChoiceId: next })}
+              onFactorsChange={(next) => patchData({ finalWeekDecisionFactors: next })}
+              onConfidenceChange={(next) => patchData({ finalWeekConfidence: next })}
+              onComplete={async (result: BudgetFinalWeekResult) => {
+                const finalData = {
+                  ...draftState.data,
+                  finalWeekAllocation: { ...result.decisionAllocation },
+                  finalWeekChoiceId: result.choiceId,
+                  finalWeekDecisionFactors: result.selectedFactors,
+                  finalWeekConfidence: result.confidence,
+                  finalWeekResult: result,
+                  finalWeekCompleted: true,
+                };
+                const summary = buildBudgetResultsSummary({
+                  data: finalData,
+                  result,
+                });
+                const nextState: BudgetSimulationState = {
+                  ...draftState,
+                  stage: "review",
+                  currentDay: 30,
+                  completedStages: uniqueStages([
+                    ...draftState.completedStages,
+                    "final_week",
+                  ]),
+                  data: {
+                    ...finalData,
+                    resultsSummary: summary,
+                  },
+                };
+                const saved = await onSaveCheckpoint({
+                  currentStage: "review",
+                  currentDay: 30,
+                  state: nextState,
+                });
+                if (saved) {
+                  setDraftState(saved.state);
+                  await onRecordEvidence(saved.id);
+                }
+              }}
+            />
+          ) : run.currentStage === "review" && draftState.data.finalWeekResult && draftState.data.resultsSummary ? (
+            <BudgetReviewStage
+              firstPlan={
+                draftState.data.firstPlan ??
+                draftState.data.finalWeekResult.openingAllocation
+              }
+              result={draftState.data.finalWeekResult}
+              summary={draftState.data.resultsSummary}
+              screenMode={screenMode}
             />
           ) : (
             <ComingNextStage
@@ -520,6 +602,16 @@ function hydrateState(run: BudgetSimulationRun, profile: ReturnType<typeof gener
           : undefined),
       liveMonthCompleted: run.state.data.liveMonthCompleted ?? false,
       finalWeekOpeningAllocation: run.state.data.finalWeekOpeningAllocation,
+      finalWeekAllocation:
+        run.state.data.finalWeekAllocation ??
+        run.state.data.finalWeekOpeningAllocation ??
+        run.state.data.liveMonth?.allocation,
+      finalWeekChoiceId: run.state.data.finalWeekChoiceId,
+      finalWeekDecisionFactors: run.state.data.finalWeekDecisionFactors ?? [],
+      finalWeekConfidence: run.state.data.finalWeekConfidence ?? 65,
+      finalWeekResult: run.state.data.finalWeekResult,
+      finalWeekCompleted: run.state.data.finalWeekCompleted ?? false,
+      resultsSummary: run.state.data.resultsSummary,
     },
   } satisfies BudgetSimulationState;
 }

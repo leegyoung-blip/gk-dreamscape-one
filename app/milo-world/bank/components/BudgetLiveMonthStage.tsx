@@ -140,7 +140,9 @@ export default function BudgetLiveMonthStage({
     }
 
     onStateChange(result.state);
-    await onCheckpoint(result.state, 24);
+    // Advance to Final Week in one checkpoint. Saving Day 24 and then immediately
+    // saving Day 25 with the same optimistic-lock version can create a false
+    // concurrent-session conflict. onComplete persists the settled state.
     await onComplete(result.state);
   }
 
@@ -443,7 +445,7 @@ function OutcomePanel({
   const colour = outcome.tone === "positive" ? "#80efb8" : outcome.tone === "warning" ? "#ffd18a" : "#8ee8ff";
   return (
     <section style={mainPanelStyle}>
-      <p style={{ ...eyebrowStyle, color }}>Decision recorded</p>
+      <p style={{ ...eyebrowStyle, color: colour }}>Decision recorded</p>
       <h4 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "23px", fontWeight: 500 }}>{outcome.title}</h4>
       <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.48)", fontSize: "8px", lineHeight: 1.6 }}>{outcome.detail}</p>
       <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,.28)", fontSize: "7px" }}>

@@ -30,6 +30,9 @@ function messageFrom(error: unknown) {
     typeof (error as { message?: unknown }).message === "string"
   ) {
     const message = (error as { message: string }).message;
+    if (/record_milo_finance_budget_simulation_evidence/i.test(message)) {
+      return "Budget Simulator evidence setup is missing. Run PHASE-4A5-BUDGET-RESULTS-EVIDENCE.sql.";
+    }
     if (/milo_finance_simulation_runs|milo_finance_budget_simulation/i.test(message)) {
       return "Budget Simulator setup is missing. Run PHASE-4A1-BUDGET-SIMULATOR-FOUNDATION.sql.";
     }
@@ -166,4 +169,15 @@ export async function abandonBudgetSimulation(runId: string) {
   });
 
   if (error) throw new Error(messageFrom(error));
+}
+
+
+export async function recordBudgetSimulationEvidence(runId: string) {
+  const { error } = await supabase.rpc(
+    "record_milo_finance_budget_simulation_evidence",
+    { p_run_id: runId },
+  );
+
+  if (error) throw new Error(messageFrom(error));
+  return true;
 }

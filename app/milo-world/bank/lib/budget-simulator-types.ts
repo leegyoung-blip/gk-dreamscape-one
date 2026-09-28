@@ -225,6 +225,90 @@ export type BudgetLiveMonthState = {
   } | null;
 };
 
+
+export type BudgetDecisionFactorKey =
+  | "available_cash"
+  | "goal_deadline"
+  | "possible_return"
+  | "emergency_reserve"
+  | "upcoming_commitment";
+
+export type BudgetFinalWeekChoiceId =
+  | "protect_position"
+  | "balanced_commitment"
+  | "full_commitment";
+
+export type BudgetFinalWeekChoice = {
+  id: BudgetFinalWeekChoiceId;
+  label: string;
+  description: string;
+  commitmentAmount: number;
+  effectSummary: string;
+  riskNote: string;
+};
+
+export type BudgetFinalWeekChallenge = {
+  day: number;
+  title: string;
+  subtitle: string;
+  briefing: string;
+  opportunityAmount: number;
+  potentialBenefitLow: number;
+  potentialBenefitHigh: number;
+  finalCommitments: BudgetCommitment[];
+  choices: BudgetFinalWeekChoice[];
+};
+
+export type BudgetFinalWeekResult = {
+  challengeDay: number;
+  choiceId: BudgetFinalWeekChoiceId;
+  choiceLabel: string;
+  selectedFactors: BudgetDecisionFactorKey[];
+  confidence: number;
+  opportunityCommitted: number;
+  openingAllocation: BudgetAllocation;
+  decisionAllocation: BudgetAllocation;
+  finalAllocation: BudgetAllocation;
+  paidCommitments: BudgetPaidCommitment[];
+  endingAvailable: number;
+  endingProtected: number;
+  endingTotal: number;
+  finalCommitmentsPaid: number;
+  commitmentsMissed: number;
+  completedAt: string;
+};
+
+export type BudgetEvidenceLevel = "observed" | "applied" | "demonstrated";
+
+export type BudgetSkillEvidenceSummary = {
+  skillKey:
+    | "money_management"
+    | "saving_planning"
+    | "budgeting"
+    | "financial_decisions";
+  title: string;
+  level: BudgetEvidenceLevel;
+  evidencePoints: 1 | 2 | 3;
+  reason: string;
+};
+
+export type BudgetDecisionPattern = {
+  key:
+    | "liquidity_awareness"
+    | "planning"
+    | "goal_discipline"
+    | "adaptability"
+    | "opportunity_cost";
+  label: string;
+  observation: string;
+};
+
+export type BudgetResultsSummary = {
+  skills: BudgetSkillEvidenceSummary[];
+  patterns: BudgetDecisionPattern[];
+  miloInsights: string[];
+};
+
 export type BudgetSimulationData = {
   inspectedItems?: string[];
   pinnedItems?: string[];
@@ -236,6 +320,13 @@ export type BudgetSimulationData = {
   liveMonth?: BudgetLiveMonthState;
   liveMonthCompleted?: boolean;
   finalWeekOpeningAllocation?: BudgetAllocation;
+  finalWeekAllocation?: BudgetAllocation;
+  finalWeekChoiceId?: BudgetFinalWeekChoiceId;
+  finalWeekDecisionFactors?: BudgetDecisionFactorKey[];
+  finalWeekConfidence?: number;
+  finalWeekResult?: BudgetFinalWeekResult;
+  finalWeekCompleted?: boolean;
+  resultsSummary?: BudgetResultsSummary;
 };
 
 export type BudgetSimulationState = {
