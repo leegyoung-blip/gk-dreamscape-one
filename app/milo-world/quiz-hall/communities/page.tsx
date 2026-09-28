@@ -18,7 +18,6 @@ import {
 import {
   creatorSlugify,
   getMyCreatorIdentity,
-  getMyOwnedCreatorClubs,
   selfCreateCreatorClub,
   selfRegisterCreator,
   type CreatorIdentity,
@@ -699,13 +698,32 @@ export default function CreatorClubsPage() {
     );
 
     if (user) {
-      const [creatorResult, ownedResult] = await Promise.all([
+      const [creatorResult, ownedResponse] = await Promise.all([
         getMyCreatorIdentity(),
-        getMyOwnedCreatorClubs(),
+        supabase.rpc("creator_get_my_owned_clubs_v3"),
       ]);
 
       setCreator(creatorResult.creator);
-      setOwnedClubs(ownedResult.clubs);
+
+      if (ownedResponse.error) {
+        setOwnedClubs([]);
+        if (!clubsResponse.error) {
+          setErrorMessage(
+            ownedResponse.error.message || "Your owned clubs could not be loaded.",
+          );
+        }
+      } else {
+        setOwnedClubs(
+          ((ownedResponse.data || []) as OwnedCreatorClub[]).map((club) => ({
+            ...club,
+            club_id: String(club.club_id),
+            club_slug: String(club.club_slug),
+            club_name: String(club.club_name),
+            topic: club.topic ? String(club.topic) : null,
+            status: String(club.status || "draft"),
+          })),
+        );
+      }
 
       if (creatorResult.error && !clubsResponse.error) {
         setErrorMessage(creatorResult.error);
@@ -818,7 +836,7 @@ export default function CreatorClubsPage() {
 
     if (ownedClubs.length >= 1) {
       setErrorMessage(
-        "Phase 2 allows one Creator Club per creator. Open your existing club in Creator Studio.",
+        "You already have a Creator Club. Continue setting it up in Creator Studio.",
       );
       return;
     }
@@ -891,13 +909,13 @@ export default function CreatorClubsPage() {
     }
 
     setMessage(
-      "Club created as a draft. Open Creator Studio to build its first challenge.",
+      "Club created. Continue in Creator Studio to build its first challenge.",
     );
     setClubForm(EMPTY_CLUB);
     setClubSlugTouched(false);
     await loadPage();
     setIsSaving(false);
-    setView("my");
+    router.push("/milo-world/quiz-hall/creator-studio?view=overview");
   }
 
   useEffect(() => {
@@ -1784,7 +1802,7 @@ function MyClubsView({
             title={creator ? "Your club starts here." : "Become a creator first."}
             text={
               creator
-                ? "Phase 2 gives each creator one club to build deliberately."
+                ? "Your owned club will appear here. Continue setup in Creator Studio."
                 : "Create a creator identity, then launch your first club."
             }
           />
@@ -1803,21 +1821,34 @@ function MyClubsView({
                   {club.status}
                 </span>
 
-                <div className="mt-5 flex flex-wrap gap-2 border-t border-white/8 pt-4">
-                  <Link
-                    href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(
-                      club.club_slug,
-                    )}`}
-                    className="rounded-full border border-cyan-200/18 bg-cyan-300/[0.07] px-4 py-2 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100 no-underline"
-                  >
-                    View Club
-                  </Link>
-                  <Link
-                    href="/milo-world/quiz-hall/creator-studio"
-                    className="rounded-full border border-amber-200/18 bg-amber-300/[0.07] px-4 py-2 text-[8px] font-black uppercase tracking-[0.08em] text-amber-100 no-underline"
-                  >
-                    Open Studio →
-                  </Link>
+                <div className="mt-5 border-t border-white/8 pt-4">
+                  <p className="mb-3 text-[9px] leading-4 text-white/34">
+                    {club.status === "draft"
+                      ? "Your club is still being set up. Build its first challenge before publishing."
+                      : "Manage challenges, community growth and club settings in Creator Studio."}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href="/milo-world/quiz-hall/creator-studio?view=overview"
+                      className="rounded-full border border-amber-200/22 bg-amber-300/[0.09] px-4 py-2 text-[8px] font-black uppercase tracking-[0.08em] text-amber-100 no-underline"
+                    >
+                      Continue Setup →
+                    </Link>
+                    <Link
+                      href="/milo-world/quiz-hall/creator-studio?view=challenges"
+                      className="rounded-full border border-cyan-200/18 bg-cyan-300/[0.07] px-4 py-2 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100 no-underline"
+                    >
+                      Create Challenge
+                    </Link>
+                    <Link
+                      href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(
+                        club.club_slug,
+                      )}`}
+                      className="rounded-full border border-white/10 bg-white/[0.035] px-4 py-2 text-[8px] font-black uppercase tracking-[0.08em] text-white/48 no-underline"
+                    >
+                      View Club
+                    </Link>
+                  </div>
                 </div>
               </article>
             ))}

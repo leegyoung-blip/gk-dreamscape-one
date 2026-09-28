@@ -421,7 +421,19 @@ export default function CreatorStudioPage() {
 
     document.documentElement.style.overflow = "hidden";
 
+    const params = new URLSearchParams(window.location.search);
+    const requestedView = params.get("view");
 
+    if (
+      requestedView === "overview" ||
+      requestedView === "challenges" ||
+      requestedView === "community" ||
+      requestedView === "growth" ||
+      requestedView === "rewards" ||
+      requestedView === "settings"
+    ) {
+      setStudioView(requestedView);
+    }
 
     void loadStudio();
 
@@ -622,7 +634,7 @@ export default function CreatorStudioPage() {
 
     const [clubsResponse, quizzesResponse] = await Promise.all([
 
-      supabase.rpc("creator_get_my_clubs"),
+      supabase.rpc("creator_get_my_owned_clubs_v3"),
 
       supabase.rpc("creator_get_my_quizzes"),
 
@@ -1826,10 +1838,10 @@ export default function CreatorStudioPage() {
                           Featured Challenge
                         </p>
                         <h3 className="mt-2 text-xl font-black">
-                          Publish a challenge before featuring one.
+                          There is nothing to choose yet — publish your first challenge first.
                         </h3>
                         <p className="mt-2 text-xs leading-5 text-white/36">
-                          Once a challenge is published, you can choose it here as the club’s featured competition.
+                          Use the Challenge Builder above to create all 10 questions and submit the challenge for approval. After it is published, it will appear here automatically.
                         </p>
                       </section>
                     )}
@@ -1993,12 +2005,12 @@ function CreatorStudioOverview({
           <h2 className="mt-2 font-serif text-[clamp(34px,5vw,58px)] font-normal leading-[0.98]">
             {hasPublished
               ? "Keep building what people come back for."
-              : "Get your club ready for its first players."}
+              : "Finish setting up your club and build its first challenge."}
           </h2>
           <p className="mt-4 max-w-3xl text-sm leading-6 text-white/48">
             {hasPublished
               ? "Your core creator systems are active. Use Challenges to create, Growth to understand what is working, and Rewards to reinvest."
-              : "The fastest path is simple: build one complete challenge, submit it for approval, publish it, then start growing the community."}
+              : "Start in Challenges. Create one challenge, complete all 10 questions, submit it for approval, then publish it for your members."}
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2">

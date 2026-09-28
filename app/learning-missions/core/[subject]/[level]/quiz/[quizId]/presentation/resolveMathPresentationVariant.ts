@@ -1,3 +1,7 @@
+import {
+  readMathVisualSpec,
+  type MathVisualKind,
+} from "@/components/core-math/visual-engine";
 import type { QuizQuestion } from "../CoreQuizTypes";
 import { getQuestionVisualMediaCount } from "../CoreQuizUtils";
 
@@ -32,6 +36,17 @@ function explicitVariant(question: QuizQuestion): MathPresentationVariant | null
     : null;
 }
 
+function promptMathVisualKinds(question: QuizQuestion) {
+  const result = readMathVisualSpec(question.content?.math_visual);
+  const kinds = new Set<MathVisualKind>();
+
+  result.spec?.visuals.forEach((visual) => {
+    if (visual.placement === "prompt") kinds.add(visual.kind);
+  });
+
+  return kinds;
+}
+
 function hasGeometrySignal(question: QuizQuestion) {
   const haystack = `${question.skill ?? ""} ${question.prompt}`.toLowerCase();
   return /\b(geometry|angle|angles|triangle|triangles|quadrilateral|quadrilaterals|rectangle|rectangles|square|squares|polygon|polygons|parallel|perpendicular|symmetry|symmetric|line of symmetry|circle|radius|diameter|perimeter|area of|volume|solid|shape|shapes|cube|cuboid|prism)\b/.test(
@@ -45,7 +60,7 @@ function looksLikeCalculation(prompt: string) {
 
   // Conservative: only classify short prompts that are mostly mathematical
   // notation/numbers, or that clearly ask for a straightforward calculation.
-  const notationOnly = /^[\s\d.,%$¢+\-−×xX÷/*=<>?:()\[\]{}¼½¾⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]+$/u.test(
+  const notationOnly = /^[\s\d.,%$¢+\-−×xX÷/\*=<>?:()\[\]{}¼½¾⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]+$/u.test(
     compact,
   );
 
@@ -69,6 +84,23 @@ export function resolveMathPresentationVariant(
 ): MathPresentationVariant {
   const explicit = explicitVariant(question);
   if (explicit) return explicit;
+
+  // Math Visual V2 is canonical. During migration, a question can temporarily
+  // retain legacy stimulus/assets. Prefer V2 semantic meaning so stale legacy
+  // media cannot force the wrong presentation layout.
+  const visualKinds = promptMathVisualKinds(question);
+
+  if (visualKinds.has("data") || visualKinds.has("table")) {
+    return "data_question";
+  }
+
+  if (visualKinds.has("geometry") || visualKinds.has("solid")) {
+    return "geometry";
+  }
+
+  if (visualKinds.size > 0) {
+    return "visual_math";
+  }
 
   const stimulusType = question.stimulus?.stimulus_type;
 
