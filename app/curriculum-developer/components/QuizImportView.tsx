@@ -8,6 +8,7 @@ import {
   mathImportRowToQuestionDraft,
 } from "@/lib/math-intelligence/MathImportIntelligence";
 import MathIntelligenceBatchView from "./MathIntelligenceBatchView";
+import MathIntelligenceQAView from "./MathIntelligenceQAView";
 import {
   requestMathBatchProposalsInChunks,
 } from "./math-intelligence/requestMathBatchProposals";
@@ -115,7 +116,7 @@ type ParsedCsv = {
   imageRowCount: number;
 };
 
-type ImportWorkspace = "csv" | "existing_bank";
+type ImportWorkspace = "csv" | "existing_bank" | "qa";
 
 type MathImportIntelligencePreview = {
   ok: boolean;
@@ -615,10 +616,19 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
         >
           Math Intelligence Batch
         </button>
+        <button
+          type="button"
+          onClick={() => setWorkspace("qa")}
+          style={workspace === "qa" ? workspaceButtonActive : workspaceButton}
+        >
+          QA Sample
+        </button>
       </div>
 
       {workspace === "existing_bank" ? (
         <MathIntelligenceBatchView />
+      ) : workspace === "qa" ? (
+        <MathIntelligenceQAView />
       ) : (
         <>
       <div style={safeBanner}>

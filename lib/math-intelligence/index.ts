@@ -33,3 +33,5 @@ export * from "./MathAuthoringProposalApply";
 export * from "./MathBatchGenerationTypes";
 export * from "./MathBatchGeneration";
 export * from "./MathImportIntelligence";
+export * from "./MathQATypes";
+export * from "./MathQASampling";

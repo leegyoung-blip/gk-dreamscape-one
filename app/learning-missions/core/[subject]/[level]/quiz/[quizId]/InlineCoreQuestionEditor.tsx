@@ -445,6 +445,7 @@ export default function InlineCoreQuestionEditor({
             subject={subject}
             quizId={quizId}
             primaryLevel={payload.quiz.primary_level}
+            topicTitle={payload.quiz.topic_title}
             question={activeQuestion}
             allQuestions={orderedQuestions}
             questionCount={orderedQuestions.length}
@@ -468,6 +469,7 @@ function SingleQuestionEditor({
   subject,
   quizId,
   primaryLevel,
+  topicTitle,
   question,
   allQuestions,
   questionCount,
@@ -480,6 +482,7 @@ function SingleQuestionEditor({
   subject: CoreSubject;
   quizId: string;
   primaryLevel: number;
+  topicTitle: string;
   question: EditorQuestion;
   allQuestions: EditorQuestion[];
   questionCount: number;
@@ -730,7 +733,7 @@ function SingleQuestionEditor({
       id: question.id,
       subject: "math",
       primary_level: primaryLevel,
-      topic: String(payload?.quiz.topic_title || question.content?.topic || ""),
+      topic: String(topicTitle || question.content?.topic || ""),
       question_type: question.question_type,
       instruction,
       prompt,
@@ -766,7 +769,7 @@ function SingleQuestionEditor({
     numericValue,
     optionTexts,
     originalOptions,
-    payload?.quiz.topic_title,
+    topicTitle,
     primaryLevel,
     prompt,
     question,
