@@ -4,6 +4,10 @@ import {
   CurriculumDeveloperApiAccessError,
   requireCurriculumDeveloperApiAccess,
 } from "@/lib/curriculum-developer/server/CurriculumDeveloperApiAuth";
+import {
+  buildMathAuthoringQuestionFingerprint,
+  buildMathAuthoringSourceFingerprint,
+} from "@/lib/math-intelligence/MathAuthoringFingerprint";
 import { buildMathAuthoringProposal } from "@/lib/math-intelligence/MathAuthoringProposal";
 import type {
   MathAuthoringGenerateErrorCode,
@@ -141,8 +145,13 @@ export async function POST(request: Request) {
       );
     }
 
+    const questionFingerprint = buildMathAuthoringQuestionFingerprint(body.question);
+    const sourceFingerprint = buildMathAuthoringSourceFingerprint(body.question);
     const result = await generateMathVisualAndTeachingForQuestion(body.question);
-    const proposal = buildMathAuthoringProposal(result);
+    const proposal = buildMathAuthoringProposal(result, {
+      questionFingerprint,
+      sourceFingerprint,
+    });
 
     const response: MathAuthoringGenerateSuccessResponse = {
       ok: true,

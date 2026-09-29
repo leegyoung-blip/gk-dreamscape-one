@@ -3,30 +3,45 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
-import { parseUniversalQuizCsv } from "@/lib/curriculum/quizCsv28";
-import type { CurriculumRole, JsonObject } from "../types";
+import {
+  buildMathImportIntelligenceAttachment,
+  mathImportRowToQuestionDraft,
+} from "@/lib/math-intelligence/MathImportIntelligence";
+import MathIntelligenceBatchView from "./MathIntelligenceBatchView";
+import {
+  requestMathBatchProposalsInChunks,
+} from "./math-intelligence/requestMathBatchProposals";
+import type { CoreSubject, CurriculumRole, JsonObject } from "../types";
 
-type ImportSubject = "english" | "math" | "science";
-
-const TEMPLATE_LINKS = [
-  {
-    title: "English & Mathematics",
-    columns: 28,
-    subtitle: "Core quiz CSV",
-    description:
-      "Use this format for English and Mathematics quiz imports.",
-    href: "/curriculum/templates/dreamscape-quiz-import-28-column-template.csv",
-    fileName: "dreamscape-quiz-import-28-column-template.csv",
-  },
-  {
-    title: "Science",
-    columns: 28,
-    subtitle: "Universal quiz CSV",
-    description:
-      "Use the same 28-column authoring format as English and Mathematics. Images remain in Asset Deployment.",
-    href: "/curriculum/templates/dreamscape-science-quiz-import-28-column-template.csv",
-    fileName: "dreamscape-science-quiz-import-28-column-template.csv",
-  },
+const REQUIRED_HEADERS = [
+  "image_flag",
+  "image_reference",
+  "primary_level",
+  "topic_slug",
+  "topic_title",
+  "quiz_id",
+  "quiz_code",
+  "quiz_title",
+  "quiz_type",
+  "quiz_order",
+  "quiz_question_count",
+  "question_id",
+  "question_code",
+  "question_order",
+  "question_type",
+  "difficulty",
+  "marks",
+  "instruction",
+  "prompt",
+  "option_a",
+  "option_b",
+  "option_c",
+  "option_d",
+  "correct_option",
+  "correct_answer",
+  "explanation",
+  "skill",
+  "skill_tags",
 ] as const;
 
 type ImportStatus =
@@ -50,17 +65,15 @@ type ImportSummary = {
   updated_question_count?: number;
   applied_quiz_count?: number;
   applied_question_count?: number;
-  publication_completed?: boolean;
-  published_quiz_count?: number;
-  already_published_count?: number;
-  publication_operation_id?: string;
-  published_at?: string;
-  format?: string;
+  math_intelligence_attached_count?: number;
+  math_intelligence_attachment_skipped_count?: number;
+  math_intelligence_applied_count?: number;
+  math_intelligence_apply_skipped_count?: number;
 };
 
 type ImportBatch = {
   id: string;
-  subject: ImportSubject;
+  subject: CoreSubject;
   primary_level: number;
   file_name: string;
   source_hash: string;
@@ -97,28 +110,37 @@ type ImportRow = {
   messages: ImportMessage[];
 };
 
-type PublishPreview = {
-  ok: boolean;
-  batch_id: string;
-  subject: ImportSubject;
-  primary_level: number;
-  batch_status: string;
-  imported_quiz_count: number;
-  publishable_quiz_count: number;
-  already_published_count: number;
-  archived_quiz_count: number;
-  confirmation: string | null;
+type ParsedCsv = {
+  rows: JsonObject[];
+  imageRowCount: number;
 };
 
+type ImportWorkspace = "csv" | "existing_bank";
 
-const BATCH_SELECT =
-  "id,subject,primary_level,file_name,source_hash,allow_published_updates,status,row_count,valid_row_count,warning_row_count,error_row_count,summary,operation_id,created_at,validated_at,completed_at,error_message";
+type MathImportIntelligencePreview = {
+  ok: boolean;
+  batch_id: string;
+  batch_status: string;
+  attached_count: number;
+  eligible_draft_count: number;
+  published_skipped_count: number;
+  already_applied_count: number;
+  confirmation: string;
+};
 
-const ROW_SELECT =
-  "id,row_number,raw_data,topic_slug,quiz_code,quiz_action,question_code,question_action,validation_status,messages";
+type MathImportIntelligenceReport = {
+  analysed: number;
+  attached: number;
+  no_visual: number;
+  needs_review: number;
+  failed: number;
+  luna_used: number;
+  updates_skipped: number;
+};
 
 export default function QuizImportView({ role }: { role: CurriculumRole }) {
-  const [subject, setSubject] = useState<ImportSubject>("math");
+  const [workspace, setWorkspace] = useState<ImportWorkspace>("csv");
+  const [subject, setSubject] = useState<CoreSubject>("math");
   const [level, setLevel] = useState(1);
   const [allowPublishedUpdates, setAllowPublishedUpdates] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -126,159 +148,134 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
   const [previewRows, setPreviewRows] = useState<ImportRow[]>([]);
   const [recentBatches, setRecentBatches] = useState<ImportBatch[]>([]);
   const [confirmation, setConfirmation] = useState("");
-  const [publishPreview, setPublishPreview] = useState<PublishPreview | null>(null);
-  const [publishConfirmation, setPublishConfirmation] = useState("");
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  const isScience = subject === "science";
-  const batchTable = isScience
-    ? "science_curriculum_import_batches"
-    : "curriculum_import_batches";
-  const rowTable = isScience
-    ? "science_curriculum_import_rows"
-    : "curriculum_import_rows";
+  const [mathIntelligenceBusy, setMathIntelligenceBusy] = useState(false);
+  const [mathIntelligenceProgress, setMathIntelligenceProgress] = useState({
+    completed: 0,
+    total: 0,
+  });
+  const [mathIntelligenceReport, setMathIntelligenceReport] =
+    useState<MathImportIntelligenceReport | null>(null);
+  const [mathIntelligencePreview, setMathIntelligencePreview] =
+    useState<MathImportIntelligencePreview | null>(null);
+  const [mathIntelligenceConfirmation, setMathIntelligenceConfirmation] =
+    useState("");
 
   const loadRecentBatches = useCallback(async () => {
-    const table =
-      subject === "science"
-        ? "science_curriculum_import_batches"
-        : "curriculum_import_batches";
-
-    let query = supabase
-      .from(table)
-      .select(BATCH_SELECT)
+    const { data, error: loadError } = await supabase
+      .from("curriculum_import_batches")
+      .select(
+        "id,subject,primary_level,file_name,source_hash,allow_published_updates,status,row_count,valid_row_count,warning_row_count,error_row_count,summary,operation_id,created_at,validated_at,completed_at,error_message",
+      )
       .order("created_at", { ascending: false })
       .limit(20);
 
-    if (subject !== "science") {
-      query = query.eq("subject", subject);
-    }
-
-    const { data, error: loadError } = await query;
-
     if (loadError) {
-      const phase =
-        subject === "science"
-          ? "Run the Phase 3B Science Quiz Import SQL migration first."
-          : "Run the Curriculum Operations Quiz Import SQL migration first.";
-
-      setError(`${loadError.message}. ${phase}`);
+      setError(
+        `${loadError.message}. Run the Curriculum Operations Phase 3 SQL migration first.`,
+      );
       setRecentBatches([]);
+    } else {
+      setRecentBatches((data || []) as unknown as ImportBatch[]);
+    }
+  }, []);
+
+  const loadBatch = useCallback(async (batchId: string) => {
+    const { data, error: batchError } = await supabase
+      .from("curriculum_import_batches")
+      .select(
+        "id,subject,primary_level,file_name,source_hash,allow_published_updates,status,row_count,valid_row_count,warning_row_count,error_row_count,summary,operation_id,created_at,validated_at,completed_at,error_message",
+      )
+      .eq("id", batchId)
+      .single();
+
+    if (batchError) {
+      setError(batchError.message);
       return;
     }
 
-    setRecentBatches((data || []) as unknown as ImportBatch[]);
-  }, [subject]);
+    const loaded = data as unknown as ImportBatch;
+    setBatch(loaded);
+    setSubject(loaded.subject);
+    setLevel(loaded.primary_level);
+    setAllowPublishedUpdates(loaded.allow_published_updates);
+    setConfirmation("");
 
-  const loadBatch = useCallback(
-    async (batchId: string) => {
-      const { data, error: batchError } = await supabase
-        .from(batchTable)
-        .select(BATCH_SELECT)
-        .eq("id", batchId)
-        .single();
+    let rowQuery = supabase
+      .from("curriculum_import_rows")
+      .select(
+        "id,row_number,raw_data,topic_slug,quiz_code,quiz_action,question_code,question_action,validation_status,messages",
+      )
+      .eq("batch_id", batchId)
+      .order("row_number", { ascending: true })
+      .limit(200);
 
-      if (batchError) {
-        setError(batchError.message);
-        return;
-      }
+    if (loaded.error_row_count > 0 || loaded.warning_row_count > 0) {
+      rowQuery = rowQuery.in("validation_status", ["error", "warning"]);
+    }
 
-      const loaded = data as unknown as ImportBatch;
-      setBatch(loaded);
-      setLevel(loaded.primary_level);
-      setAllowPublishedUpdates(loaded.allow_published_updates);
-      setConfirmation("");
-      setPublishPreview(null);
-      setPublishConfirmation("");
+    const { data: rows, error: rowsError } = await rowQuery;
+    if (rowsError) setError(rowsError.message);
+    else setPreviewRows((rows || []) as unknown as ImportRow[]);
+  }, []);
 
-      let rowQuery = supabase
-        .from(rowTable)
-        .select(ROW_SELECT)
-        .eq("batch_id", batchId)
-        .order("row_number", { ascending: true })
-        .limit(200);
+  const loadMathIntelligencePreview = useCallback(async (batchId: string) => {
+    const { data, error: previewError } = await supabase.rpc(
+      "curriculum_preview_math_intelligence_import_batch",
+      { p_batch_id: batchId },
+    );
 
-      if (loaded.error_row_count > 0 || loaded.warning_row_count > 0) {
-        rowQuery = rowQuery.in("validation_status", ["error", "warning"]);
-      }
+    if (previewError) {
+      // Phase 2H SQL may not be installed yet. Keep the ordinary importer usable.
+      setMathIntelligencePreview(null);
+      return;
+    }
 
-      const { data: rows, error: rowsError } = await rowQuery;
-
-      if (rowsError) {
-        setError(rowsError.message);
-      } else {
-        setPreviewRows((rows || []) as unknown as ImportRow[]);
-      }
-
-      if (loaded.status === "completed") {
-        const { data: publicationData, error: publicationError } =
-          await supabase.rpc("curriculum_preview_import_batch_publish", {
-            p_subject: loaded.subject,
-            p_batch_id: loaded.id,
-          });
-
-        if (publicationError) {
-          setError(
-            `${publicationError.message}. Run 09_curriculum_operations_batch_publish_imported_quizzes.sql in Supabase if the batch-publication migration has not been installed yet.`,
-          );
-        } else {
-          setPublishPreview(publicationData as unknown as PublishPreview);
-        }
-      }
-    },
-    [batchTable, rowTable],
-  );
+    setMathIntelligencePreview(data as unknown as MathImportIntelligencePreview);
+    setMathIntelligenceConfirmation("");
+  }, []);
 
   useEffect(() => {
     void loadRecentBatches();
   }, [loadRecentBatches]);
 
+  useEffect(() => {
+    if (batch?.subject === "math" && batch.status === "completed") {
+      void loadMathIntelligencePreview(batch.id);
+    } else {
+      setMathIntelligencePreview(null);
+      setMathIntelligenceConfirmation("");
+    }
+  }, [batch?.id, batch?.status, batch?.subject, loadMathIntelligencePreview]);
+
   const requiredConfirmation = batch ? `IMPORT ${batch.row_count} ROWS` : "";
   const summary = batch?.summary || {};
-  const canOperate = role === "admin" || role === "curriculum_lead";
   const canApply =
-    canOperate &&
+    role === "admin" &&
     batch?.status === "ready" &&
     batch.error_row_count === 0;
-  const publishRequiredConfirmation = publishPreview?.confirmation || "";
-  const canPublishBatch =
-    canOperate &&
-    batch?.status === "completed" &&
-    Boolean(publishPreview) &&
-    (publishPreview?.publishable_quiz_count || 0) > 0 &&
-    (publishPreview?.archived_quiz_count || 0) === 0;
 
   const displayedMessageCount = useMemo(
     () => previewRows.reduce((total, row) => total + row.messages.length, 0),
     [previewRows],
   );
 
-  function changeSubject(nextSubject: ImportSubject) {
-    setSubject(nextSubject);
-    setSelectedFile(null);
-    setBatch(null);
-    setPreviewRows([]);
-    setConfirmation("");
-    setPublishPreview(null);
-    setPublishConfirmation("");
-    setProgress(0);
-    setError(null);
-    setNotice(null);
-  }
-
   function resetImporter() {
     setSelectedFile(null);
     setBatch(null);
     setPreviewRows([]);
     setConfirmation("");
-    setPublishPreview(null);
-    setPublishConfirmation("");
     setProgress(0);
     setError(null);
     setNotice(null);
+    setMathIntelligenceBusy(false);
+    setMathIntelligenceProgress({ completed: 0, total: 0 });
+    setMathIntelligenceReport(null);
+    setMathIntelligencePreview(null);
+    setMathIntelligenceConfirmation("");
   }
 
   async function uploadAndValidate() {
@@ -286,7 +283,6 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
       setError("Choose one CSV file first.");
       return;
     }
-
     if (!selectedFile.name.toLowerCase().endsWith(".csv")) {
       setError("Quiz Import accepts CSV files only.");
       return;
@@ -298,105 +294,63 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
     setNotice(null);
     setBatch(null);
     setPreviewRows([]);
-    setPublishPreview(null);
-    setPublishConfirmation("");
+    setMathIntelligenceReport(null);
+    setMathIntelligencePreview(null);
+    setMathIntelligenceConfirmation("");
 
     try {
       const buffer = await selectedFile.arrayBuffer();
       const hash = await sha256(buffer);
       const text = new TextDecoder("utf-8").decode(buffer);
-      const parsed = parseUniversalQuizCsv(text, {
-        includeImageReference: subject === "science",
-      });
+      const parsed = parseQuizCsv(text);
 
-      if (parsed.rows.length === 0) {
-        throw new Error("The CSV has no data rows.");
-      }
-
+      if (parsed.rows.length === 0) throw new Error("The CSV has no data rows.");
       if (parsed.rows.length > 5000) {
         throw new Error("One import batch can contain at most 5,000 rows.");
       }
 
       setProgress(5);
-
-      const createRpc = isScience
-        ? "science_curriculum_create_import_batch"
-        : "curriculum_create_import_batch";
-
-      const createArgs = isScience
-        ? {
-            p_primary_level: level,
-            p_file_name: selectedFile.name,
-            p_source_hash: hash,
-            p_allow_published_updates: allowPublishedUpdates,
-          }
-        : {
-            p_subject: subject,
-            p_primary_level: level,
-            p_file_name: selectedFile.name,
-            p_source_hash: hash,
-            p_allow_published_updates: allowPublishedUpdates,
-          };
-
       const { data: created, error: createError } = await supabase.rpc(
-        createRpc,
-        createArgs,
+        "curriculum_create_import_batch",
+        {
+          p_subject: subject,
+          p_primary_level: level,
+          p_file_name: selectedFile.name,
+          p_source_hash: hash,
+          p_allow_published_updates: allowPublishedUpdates,
+        },
       );
-
       if (createError) throw createError;
 
       const batchId = String(
         (created as unknown as { batch_id: string }).batch_id,
       );
-
-      const uploadRpc = isScience
-        ? "science_curriculum_upload_import_rows"
-        : "curriculum_upload_import_rows";
-
       const chunkSize = 100;
 
       for (let start = 0; start < parsed.rows.length; start += chunkSize) {
         const chunk = parsed.rows.slice(start, start + chunkSize);
-
-        const { error: uploadError } = await supabase.rpc(uploadRpc, {
-          p_batch_id: batchId,
-          p_rows: chunk,
-        });
-
+        const { error: uploadError } = await supabase.rpc(
+          "curriculum_upload_import_rows",
+          { p_batch_id: batchId, p_rows: chunk },
+        );
         if (uploadError) throw uploadError;
-
         setProgress(
-          5 +
-            Math.round(
-              (Math.min(start + chunkSize, parsed.rows.length) /
-                parsed.rows.length) *
-                75,
-            ),
+          5 + Math.round((Math.min(start + chunkSize, parsed.rows.length) / parsed.rows.length) * 75),
         );
       }
 
       setProgress(85);
-
-      const validateRpc = isScience
-        ? "science_curriculum_validate_import_batch"
-        : "curriculum_validate_import_batch";
-
-      const { error: validationError } = await supabase.rpc(validateRpc, {
-        p_batch_id: batchId,
-      });
-
+      const { error: validationError } = await supabase.rpc(
+        "curriculum_validate_import_batch",
+        { p_batch_id: batchId },
+      );
       if (validationError) throw validationError;
 
       setProgress(100);
       await loadBatch(batchId);
       await loadRecentBatches();
-
-      const assetMessage = isScience
-        ? "Science image files and mappings remain in Asset Deployment."
-        : "Inline image bytes were not uploaded; existing asset mappings were preserved.";
-
       setNotice(
-        `CSV uploaded and validated. ${parsed.rows.length.toLocaleString()} rows were staged. ${parsed.imageRowCount.toLocaleString()} image-related row(s) were detected. ${assetMessage}`,
+        `CSV uploaded and validated. ${parsed.rows.length.toLocaleString()} rows were staged. ${parsed.imageRowCount.toLocaleString()} image-related rows kept their existing asset mappings and did not upload inline image bytes.`,
       );
     } catch (uploadError) {
       setError(errorMessage(uploadError));
@@ -405,49 +359,219 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
     }
   }
 
-  async function revalidate() {
-    if (!batch) return;
+  async function loadAllImportRows(batchId: string) {
+    const rows: ImportRow[] = [];
+    const pageSize = 500;
 
-    setBusy(true);
+    for (let from = 0; ; from += pageSize) {
+      const { data, error: rowError } = await supabase
+        .from("curriculum_import_rows")
+        .select(
+          "id,row_number,raw_data,topic_slug,quiz_code,quiz_action,question_code,question_action,validation_status,messages",
+        )
+        .eq("batch_id", batchId)
+        .order("row_number", { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (rowError) throw rowError;
+      const page = (data || []) as unknown as ImportRow[];
+      rows.push(...page);
+      if (page.length < pageSize) break;
+    }
+
+    return rows;
+  }
+
+  async function generateMathIntelligenceForImport() {
+    if (!batch || batch.subject !== "math" || batch.status !== "ready") return;
+    if (batch.error_row_count > 0) {
+      setError("Fix the CSV validation errors before generating Math Intelligence proposals.");
+      return;
+    }
+
+    setMathIntelligenceBusy(true);
+    setMathIntelligenceReport(null);
+    setMathIntelligenceProgress({ completed: 0, total: 0 });
     setError(null);
     setNotice(null);
 
-    const rpc =
-      subject === "science"
-        ? "science_curriculum_validate_import_batch"
-        : "curriculum_validate_import_batch";
+    try {
+      const rows = await loadAllImportRows(batch.id);
+      const newRows = rows.filter(
+        (row) => row.question_action === "create" && row.validation_status !== "error",
+      );
+      const updatesSkipped = rows.filter(
+        (row) => row.question_action === "update" && row.validation_status !== "error",
+      ).length;
 
-    const { error: validationError } = await supabase.rpc(rpc, {
-      p_batch_id: batch.id,
-    });
+      if (newRows.length === 0) {
+        setMathIntelligenceReport({
+          analysed: 0,
+          attached: 0,
+          no_visual: 0,
+          needs_review: 0,
+          failed: 0,
+          luna_used: 0,
+          updates_skipped: updatesSkipped,
+        });
+        setNotice(
+          "There are no newly created Math questions in this validated batch. Existing-question updates are deliberately excluded from automatic Math Intelligence attachment.",
+        );
+        return;
+      }
 
-    if (validationError) {
-      setError(validationError.message);
-    } else {
+      setMathIntelligenceProgress({ completed: 0, total: newRows.length });
+      const generated = await requestMathBatchProposalsInChunks(
+        newRows.map((row) => ({
+          client_id: row.id,
+          question: mathImportRowToQuestionDraft(row.raw_data, {
+            primaryLevel: batch.primary_level,
+            rowId: row.id,
+          }),
+        })),
+        (completed, total) =>
+          setMathIntelligenceProgress({ completed, total }),
+      );
+
+      const attachments = generated.flatMap((item) => {
+        if (!item.proposal) return [];
+        const attachment = buildMathImportIntelligenceAttachment({
+          rowId: item.client_id,
+          proposal: item.proposal,
+        });
+        return attachment ? [attachment] : [];
+      });
+
+      // Regeneration replaces the previous staging proposal set as one logical
+      // operation. Clear first only after generation itself has succeeded, so a
+      // provider failure cannot silently erase the previous reviewable proposals.
+      const { error: clearError } = await supabase.rpc(
+        "curriculum_clear_math_intelligence_import_rows",
+        { p_batch_id: batch.id },
+      );
+      if (clearError) throw clearError;
+
+      let attachedCount = 0;
+      for (let start = 0; start < attachments.length; start += 100) {
+        const attachmentChunk = attachments.slice(start, start + 100);
+        const { data, error: attachError } = await supabase.rpc(
+          "curriculum_attach_math_intelligence_import_rows",
+          {
+            p_batch_id: batch.id,
+            p_items: attachmentChunk,
+          },
+        );
+        if (attachError) throw attachError;
+        attachedCount += Number(
+          (data as unknown as { attached_count?: number })?.attached_count || 0,
+        );
+      }
+
+      const report: MathImportIntelligenceReport = {
+        analysed: generated.length,
+        attached: attachedCount,
+        no_visual: generated.filter(
+          (item) => item.status === "not_needed" || item.status === "preserved",
+        ).length,
+        needs_review: generated.filter(
+          (item) => item.status === "needs_review" || item.status === "invalid",
+        ).length,
+        failed: generated.filter((item) => item.status === "failed").length,
+        luna_used: generated.filter(
+          (item) =>
+            item.proposal?.sources.interpretation.source === "luna" ||
+            item.proposal?.sources.teaching.source === "luna",
+        ).length,
+        updates_skipped: updatesSkipped,
+      };
+
+      setMathIntelligenceReport(report);
+      await loadBatch(batch.id);
+      await loadRecentBatches();
+      setNotice(
+        `Math Intelligence analysed ${report.analysed.toLocaleString()} new question(s) and attached ${report.attached.toLocaleString()} validated V2 proposal(s) to the staging batch. Existing-question updates were not modified.`,
+      );
+    } catch (generationError) {
+      setError(errorMessage(generationError));
+    } finally {
+      setMathIntelligenceBusy(false);
+    }
+  }
+
+  async function applyMathIntelligenceImport() {
+    if (
+      !batch ||
+      role !== "admin" ||
+      batch.subject !== "math" ||
+      batch.status !== "completed" ||
+      !mathIntelligencePreview ||
+      mathIntelligencePreview.eligible_draft_count < 1
+    ) {
+      return;
+    }
+
+    setMathIntelligenceBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const { data, error: applyError } = await supabase.rpc(
+        "curriculum_apply_math_intelligence_import_batch",
+        {
+          p_batch_id: batch.id,
+          p_confirmation: mathIntelligenceConfirmation,
+        },
+      );
+      if (applyError) throw applyError;
+
+      const result = data as unknown as {
+        applied_count?: number;
+        skipped_count?: number;
+      };
+      setMathIntelligenceConfirmation("");
+      await loadBatch(batch.id);
+      await loadRecentBatches();
+      await loadMathIntelligencePreview(batch.id);
+      setNotice(
+        `Math Intelligence applied to ${Number(result.applied_count || 0).toLocaleString()} newly imported draft question(s). No published question or quiz was changed or published.`,
+      );
+    } catch (applyError) {
+      setError(errorMessage(applyError));
+    } finally {
+      setMathIntelligenceBusy(false);
+    }
+  }
+
+  async function revalidate() {
+    if (!batch) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    const { error: validationError } = await supabase.rpc(
+      "curriculum_validate_import_batch",
+      { p_batch_id: batch.id },
+    );
+    if (validationError) setError(validationError.message);
+    else {
       await loadBatch(batch.id);
       await loadRecentBatches();
       setNotice("Validation completed again using the current database state.");
     }
-
     setBusy(false);
   }
 
   async function applyBatch() {
-    if (!batch || !canOperate) return;
-
+    if (!batch || role !== "admin") return;
     setBusy(true);
     setError(null);
     setNotice(null);
 
-    const rpc =
-      subject === "science"
-        ? "science_curriculum_apply_import_batch"
-        : "curriculum_apply_import_batch";
-
-    const { data, error: applyError } = await supabase.rpc(rpc, {
-      p_batch_id: batch.id,
-      p_confirmation: confirmation,
-    });
+    const { data, error: applyError } = await supabase.rpc(
+      "curriculum_apply_import_batch",
+      {
+        p_batch_id: batch.id,
+        p_confirmation: confirmation,
+      },
+    );
 
     if (applyError) {
       setError(applyError.message);
@@ -457,174 +581,81 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
         applied_question_count: number;
         operation_id: string;
       };
-
       setNotice(
         `Import completed: ${result.applied_quiz_count.toLocaleString()} quizzes and ${result.applied_question_count.toLocaleString()} questions processed. Operation ${result.operation_id.slice(0, 8).toUpperCase()} is recorded in Deployment History.`,
       );
-
       setConfirmation("");
       await loadBatch(batch.id);
       await loadRecentBatches();
+      if (batch.subject === "math") {
+        await loadMathIntelligencePreview(batch.id);
+      }
     }
-
     setBusy(false);
-  }
-
-  async function publishImportedBatch() {
-    if (!batch || !publishPreview || !canPublishBatch) return;
-
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-
-    try {
-      const { data, error: publishError } = await supabase.rpc(
-        "curriculum_publish_import_batch",
-        {
-          p_subject: batch.subject,
-          p_batch_id: batch.id,
-          p_confirmation: publishConfirmation,
-        },
-      );
-
-      if (publishError) throw publishError;
-
-      const result = data as unknown as {
-        operation_id: string | null;
-        imported_quiz_count: number;
-        published_quiz_count: number;
-        already_published_count: number;
-        message?: string;
-      };
-
-      const operationText = result.operation_id
-        ? ` Operation ${result.operation_id.slice(0, 8).toUpperCase()} is recorded in Deployment History.`
-        : "";
-
-      setNotice(
-        result.message ||
-          `Batch publication completed: ${result.published_quiz_count.toLocaleString()} quiz(es) published and ${result.already_published_count.toLocaleString()} already-published quiz(es) skipped.${operationText}`,
-      );
-
-      setPublishConfirmation("");
-      await loadBatch(batch.id);
-      await loadRecentBatches();
-    } catch (publishError) {
-      setError(errorMessage(publishError));
-    } finally {
-      setBusy(false);
-    }
   }
 
   return (
     <div style={stack}>
+      <div style={workspaceSwitcher}>
+        <button
+          type="button"
+          onClick={() => setWorkspace("csv")}
+          style={workspace === "csv" ? workspaceButtonActive : workspaceButton}
+        >
+          CSV Import
+        </button>
+        <button
+          type="button"
+          onClick={() => setWorkspace("existing_bank")}
+          style={
+            workspace === "existing_bank"
+              ? workspaceButtonActive
+              : workspaceButton
+          }
+        >
+          Math Intelligence Batch
+        </button>
+      </div>
+
+      {workspace === "existing_bank" ? (
+        <MathIntelligenceBatchView />
+      ) : (
+        <>
       <div style={safeBanner}>
         <strong>Preview-first import:</strong> CSV rows are staged and checked
         before any curriculum record changes. Missing rows never delete or unlink
-        existing questions. Image binaries remain in Asset Deployment.
+        existing questions. Image bytes stay in Asset Deployment.
       </div>
 
       {error && <div style={errorBanner}>{error}</div>}
       {notice && <div style={successBanner}>{notice}</div>}
 
       <section style={card}>
-        <div>
-          <p style={eyebrow}>CSV TEMPLATES</p>
-          <h2 style={heading}>Download the correct quiz CSV structure</h2>
-          <p style={muted}>
-            English, Mathematics and Science all use the same 28-column authoring contract.
-          </p>
-        </div>
-
-        <div style={templateGrid}>
-          {TEMPLATE_LINKS.map((template) => (
-            <article key={template.href} style={templateCard}>
-              <div>
-                <div style={templateTopRow}>
-                  <span style={templatePill}>Supported</span>
-                  <strong style={templateColumnCount}>
-                    {template.columns} columns
-                  </strong>
-                </div>
-
-                <h3 style={templateTitle}>{template.title}</h3>
-                <p style={templateSubtitle}>{template.subtitle}</p>
-                <p style={templateDescription}>{template.description}</p>
-              </div>
-
-              <a
-                href={template.href}
-                download={template.fileName}
-                style={downloadButton}
-              >
-                Download CSV template
-              </a>
-            </article>
-          ))}
-        </div>
-
-        <div style={scienceTemplateNote}>
-          <strong>Science image rule:</strong> the 28-column CSV contains
-          <code style={inlineCode}> image_flag </code>
-          so authors can identify image-dependent rows, but it does not carry
-          prompt/option asset paths. Upload and map those through Asset
-          Deployment so CSV edits cannot accidentally overwrite live images.
-        </div>
-      </section>
-
-      <section style={card}>
         <div style={sectionHeader}>
           <div>
             <p style={eyebrow}>NEW CSV IMPORT</p>
-            <h2 style={heading}>
-              Upload a {isScience ? "28-column Science" : "28-column Core"} CSV
-            </h2>
+            <h2 style={heading}>Upload the standard 28-column quiz CSV</h2>
           </div>
-
           {batch && (
-            <button
-              type="button"
-              onClick={resetImporter}
-              style={secondaryButton}
-            >
+            <button type="button" onClick={resetImporter} style={secondaryButton}>
               Start another import
             </button>
           )}
         </div>
 
-        <div style={subjectSwitch}>
-          {(
-            [
-              ["math", "Mathematics"],
-              ["english", "English"],
-              ["science", "Science"],
-            ] as const
-          ).map(([value, labelText]) => (
-            <button
-              key={value}
-              type="button"
-              disabled={busy || Boolean(batch)}
-              onClick={() => changeSubject(value)}
-              style={{
-                ...subjectButton,
-                ...(subject === value ? subjectButtonActive : {}),
-              }}
-            >
-              {labelText}
-            </button>
-          ))}
-        </div>
-
         <div style={formGrid}>
           <label style={label}>
             Subject
-            <input
-              value={subjectLabel(subject)}
-              disabled
+            <select
+              value={subject}
+              disabled={busy || Boolean(batch)}
+              onChange={(event) => setSubject(event.target.value as CoreSubject)}
               style={input}
-            />
+            >
+              <option value="math">Mathematics</option>
+              <option value="english">English</option>
+            </select>
           </label>
-
           <label style={label}>
             Level
             <select
@@ -634,32 +665,20 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
               style={input}
             >
               {[1, 2, 3, 4, 5, 6].map((value) => (
-                <option key={value} value={value}>
-                  Primary {value}
-                </option>
+                <option key={value} value={value}>Primary {value}</option>
               ))}
             </select>
           </label>
-
           <label style={{ ...label, gridColumn: "span 2" }}>
             CSV file
             <input
               type="file"
               accept=".csv,text/csv"
               disabled={busy || Boolean(batch)}
-              onChange={(event) =>
-                setSelectedFile(event.target.files?.[0] || null)
-              }
+              onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
               style={fileInput}
             />
           </label>
-        </div>
-
-        <div style={formatHint}>
-          <strong>{isScience ? "Science" : "Core"} format:</strong>{" "}
-          {isScience
-            ? "28 columns · same headers as Core · Science database translation happens automatically · image mappings separate"
-            : "28 columns · current English/Mathematics format"}
         </div>
 
         <label style={publishedToggle}>
@@ -667,18 +686,15 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
             type="checkbox"
             checked={allowPublishedUpdates}
             disabled={busy || Boolean(batch)}
-            onChange={(event) =>
-              setAllowPublishedUpdates(event.target.checked)
-            }
+            onChange={(event) => setAllowPublishedUpdates(event.target.checked)}
             style={checkbox}
           />
-
           <span>
             <strong>Allow updates to already-published quizzes</strong>
             <small style={smallBlock}>
-              Leave this off for normal imports. Turn it on only when the CSV
-              intentionally corrects live content; affected rows will be
-              marked with warnings before apply.
+              Leave this off for new quiz imports. Turn it on only when the CSV
+              intentionally corrects live quiz content; validation will mark every
+              affected row with a warning.
             </small>
           </span>
         </label>
@@ -690,9 +706,7 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
             disabled={!selectedFile || busy}
             style={primaryButton}
           >
-            {busy
-              ? `Uploading and validating… ${progress}%`
-              : "Upload and validate CSV"}
+            {busy ? `Uploading and validating… ${progress}%` : "Upload and validate CSV"}
           </button>
         )}
 
@@ -710,142 +724,193 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
               <p style={eyebrow}>VALIDATION PREVIEW</p>
               <h2 style={heading}>{batch.file_name}</h2>
               <p style={muted}>
-                {subjectLabel(batch.subject)} P{batch.primary_level} · Batch{" "}
-                {batch.id.slice(0, 8).toUpperCase()}
+                {batch.subject.toUpperCase()} P{batch.primary_level} · Batch {batch.id.slice(0, 8).toUpperCase()}
               </p>
             </div>
-
             <StatusBadge status={batch.status} />
           </div>
 
           <div style={summaryGrid}>
             <SummaryCard label="CSV rows" value={batch.row_count} />
-            <SummaryCard
-              label="New quizzes"
-              value={summary.new_quiz_count || 0}
-            />
-            <SummaryCard
-              label="Quiz updates"
-              value={summary.updated_quiz_count || 0}
-            />
-            <SummaryCard
-              label="New questions"
-              value={summary.new_question_count || 0}
-            />
-            <SummaryCard
-              label="Question updates"
-              value={summary.updated_question_count || 0}
-            />
-            <SummaryCard
-              label="Warning rows"
-              value={batch.warning_row_count}
-              warning={batch.warning_row_count > 0}
-            />
-            <SummaryCard
-              label="Error rows"
-              value={batch.error_row_count}
-              danger={batch.error_row_count > 0}
-            />
+            <SummaryCard label="New quizzes" value={summary.new_quiz_count || 0} />
+            <SummaryCard label="Quiz updates" value={summary.updated_quiz_count || 0} />
+            <SummaryCard label="New questions" value={summary.new_question_count || 0} />
+            <SummaryCard label="Question updates" value={summary.updated_question_count || 0} />
+            <SummaryCard label="Warning rows" value={batch.warning_row_count} warning={batch.warning_row_count > 0} />
+            <SummaryCard label="Error rows" value={batch.error_row_count} danger={batch.error_row_count > 0} />
           </div>
 
           {batch.status === "blocked" && (
             <div style={errorBanner}>
               This batch cannot be applied. Correct the CSV errors, then start a
-              new import. Nothing has been written to the live quiz tables.
+              new import. Nothing has been written to the quiz tables.
             </div>
           )}
-
           {batch.status === "ready" && (
             <div style={successBanner}>
               Validation passed. Review all warnings before applying this batch.
             </div>
           )}
-
           {batch.status === "completed" && (
             <div style={successBanner}>
-              Import completed. Missing CSV rows were not treated as deletions.
-              {batch.subject === "science"
-                ? " Existing Science image mappings were preserved for options that remain in the question."
-                : " Existing image mappings were preserved."}
+              Import completed. Missing CSV rows were not deleted and existing
+              image mappings were preserved.
             </div>
           )}
 
-          {batch.status === "completed" && publishPreview && (
-            <div style={publishCard}>
-              <div>
-                <p style={publishEyebrow}>BATCH PUBLICATION</p>
-                <h3 style={publishHeading}>Publish imported quizzes together</h3>
-                <p style={muted}>
-                  Publishes every quiz from this completed import batch that is
-                  still unpublished. Already-published quizzes are skipped. The
-                  whole publication is transactional, so one failure stops the
-                  entire batch.
-                </p>
-              </div>
-
-              <div style={publishStats}>
-                <PublishStat
-                  label="In batch"
-                  value={publishPreview.imported_quiz_count}
-                />
-                <PublishStat
-                  label="Waiting to publish"
-                  value={publishPreview.publishable_quiz_count}
-                />
-                <PublishStat
-                  label="Already published"
-                  value={publishPreview.already_published_count}
-                />
-                <PublishStat
-                  label="Archived"
-                  value={publishPreview.archived_quiz_count}
-                  danger={publishPreview.archived_quiz_count > 0}
-                />
-              </div>
-
-              {publishPreview.archived_quiz_count > 0 ? (
-                <div style={errorBanner}>
-                  This batch contains archived quiz(es). Restore them first. No
-                  quiz from this batch will be batch-published while an archived
-                  target remains.
+          {batch.subject === "math" && (
+            <div style={mathIntelligencePanel}>
+              <div style={sectionHeader}>
+                <div>
+                  <p style={eyebrow}>MATH INTELLIGENCE</p>
+                  <h3 style={subheading}>Generate V2 visuals for new import rows</h3>
+                  <p style={muted}>
+                    Optional and preview-first. Only questions classified as new
+                    are analysed. Existing-question updates are never automatically
+                    attached or changed by this workflow.
+                  </p>
                 </div>
-              ) : publishPreview.publishable_quiz_count === 0 ? (
-                <div style={successBanner}>
-                  All quizzes from this import batch are already published.
-                </div>
-              ) : (
-                <div style={publishConfirmationCard}>
-                  <label style={{ ...label, flex: "1 1 320px" }}>
-                    Type{" "}
-                    <strong style={{ color: "white" }}>
-                      {publishRequiredConfirmation}
-                    </strong>{" "}
-                    to publish this batch
-                    <input
-                      value={publishConfirmation}
-                      onChange={(event) =>
-                        setPublishConfirmation(event.target.value)
-                      }
-                      autoComplete="off"
-                      style={input}
-                    />
-                  </label>
-
+                {batch.status === "ready" && (
                   <button
                     type="button"
-                    disabled={
-                      busy ||
-                      !canPublishBatch ||
-                      publishConfirmation !== publishRequiredConfirmation
-                    }
-                    onClick={() => void publishImportedBatch()}
-                    style={publishButton}
+                    disabled={mathIntelligenceBusy || batch.error_row_count > 0}
+                    onClick={() => void generateMathIntelligenceForImport()}
+                    style={secondaryButton}
                   >
-                    {busy
-                      ? "Publishing batch…"
-                      : `Publish ${publishPreview.publishable_quiz_count.toLocaleString()} imported ${publishPreview.publishable_quiz_count === 1 ? "quiz" : "quizzes"}`}
+                    {mathIntelligenceBusy
+                      ? `Generating ${mathIntelligenceProgress.completed}/${mathIntelligenceProgress.total}…`
+                      : summary.math_intelligence_attached_count
+                        ? "Regenerate staged proposals"
+                        : "Generate staged proposals"}
                   </button>
+                )}
+              </div>
+
+              {mathIntelligenceBusy && mathIntelligenceProgress.total > 0 && (
+                <div style={progressTrack}>
+                  <div
+                    style={{
+                      ...progressFill,
+                      width: `${Math.round(
+                        (mathIntelligenceProgress.completed /
+                          mathIntelligenceProgress.total) *
+                          100,
+                      )}%`,
+                    }}
+                  />
                 </div>
+              )}
+
+              {mathIntelligenceReport && (
+                <div style={summaryGrid}>
+                  <SummaryCard label="Analysed" value={mathIntelligenceReport.analysed} />
+                  <SummaryCard label="V2 attached" value={mathIntelligenceReport.attached} />
+                  <SummaryCard label="No visual" value={mathIntelligenceReport.no_visual} />
+                  <SummaryCard
+                    label="Needs review"
+                    value={mathIntelligenceReport.needs_review}
+                    warning={mathIntelligenceReport.needs_review > 0}
+                  />
+                  <SummaryCard
+                    label="Luna used"
+                    value={mathIntelligenceReport.luna_used}
+                  />
+                  <SummaryCard
+                    label="Failed"
+                    value={mathIntelligenceReport.failed}
+                    danger={mathIntelligenceReport.failed > 0}
+                  />
+                  <SummaryCard
+                    label="Updates skipped"
+                    value={mathIntelligenceReport.updates_skipped}
+                  />
+                </div>
+              )}
+
+              {batch.status === "ready" &&
+                Number(summary.math_intelligence_attached_count || 0) > 0 && (
+                  <div style={infoBanner}>
+                    {Number(summary.math_intelligence_attached_count || 0).toLocaleString()}
+                    {" "}validated proposal(s) are attached to this staging batch.
+                    Apply the ordinary CSV import first. Math Intelligence remains a
+                    separate second approval step.
+                  </div>
+                )}
+
+              {batch.status === "completed" && mathIntelligencePreview && (
+                <>
+                  <div style={summaryGrid}>
+                    <SummaryCard
+                      label="Attached proposals"
+                      value={mathIntelligencePreview.attached_count}
+                    />
+                    <SummaryCard
+                      label="Eligible drafts"
+                      value={mathIntelligencePreview.eligible_draft_count}
+                    />
+                    <SummaryCard
+                      label="Published skipped"
+                      value={mathIntelligencePreview.published_skipped_count}
+                      warning={mathIntelligencePreview.published_skipped_count > 0}
+                    />
+                    <SummaryCard
+                      label="Already V2"
+                      value={mathIntelligencePreview.already_applied_count}
+                    />
+                  </div>
+
+                  {mathIntelligencePreview.eligible_draft_count > 0 &&
+                    role === "admin" && (
+                      <div style={mathIntelligenceConfirmationCard}>
+                        <label style={{ ...label, flex: "1 1 320px" }}>
+                          Type{` `}
+                          <strong style={{ color: "white" }}>
+                            {mathIntelligencePreview.confirmation}
+                          </strong>{` `}
+                          to apply only to eligible draft questions
+                          <input
+                            value={mathIntelligenceConfirmation}
+                            onChange={(event) =>
+                              setMathIntelligenceConfirmation(event.target.value)
+                            }
+                            autoComplete="off"
+                            style={input}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          disabled={
+                            mathIntelligenceBusy ||
+                            mathIntelligenceConfirmation !==
+                              mathIntelligencePreview.confirmation
+                          }
+                          onClick={() => void applyMathIntelligenceImport()}
+                          style={primaryButton}
+                        >
+                          {mathIntelligenceBusy
+                            ? "Applying V2 proposals…"
+                            : "Apply Math Intelligence to drafts"}
+                        </button>
+                      </div>
+                    )}
+
+                  {mathIntelligencePreview.eligible_draft_count > 0 &&
+                    role !== "admin" && (
+                      <div style={infoBanner}>
+                        The proposals are staged safely. An admin must perform the
+                        separate Math Intelligence apply step.
+                      </div>
+                    )}
+
+                  {mathIntelligencePreview.attached_count > 0 &&
+                    mathIntelligencePreview.eligible_draft_count === 0 && (
+                      <div style={infoBanner}>
+                        No staged proposal is currently eligible for automatic draft
+                        application. Published content and questions that already have
+                        V2 visuals are deliberately skipped.
+                      </div>
+                    )}
+                </>
               )}
             </div>
           )}
@@ -854,11 +919,9 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
             <div>
               <h3 style={subheading}>Row messages</h3>
               <p style={muted}>
-                Showing up to 200 rows · {displayedMessageCount} displayed
-                message(s)
+                Showing up to 200 rows · {displayedMessageCount} displayed message(s)
               </p>
             </div>
-
             {batch.status !== "completed" && (
               <button
                 type="button"
@@ -876,27 +939,20 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
               <thead>
                 <tr>
                   <th style={th}>Row</th>
-                  <th style={th}>{batch.subject === "science" ? "Quiz slug" : "Quiz"}</th>
-                  <th style={th}>
-                    {batch.subject === "science" ? "Question ID" : "Question"}
-                  </th>
+                  <th style={th}>Quiz</th>
+                  <th style={th}>Question</th>
                   <th style={th}>Action</th>
                   <th style={th}>Status and messages</th>
                 </tr>
               </thead>
-
               <tbody>
                 {previewRows.map((row) => (
                   <tr key={row.id}>
                     <td style={td}>{row.row_number}</td>
                     <td style={td}>{row.quiz_code || "—"}</td>
                     <td style={td}>
-                      <strong>
-                        {formatQuestionReference(row.question_code)}
-                      </strong>
-                      <span style={promptText}>
-                        {String(row.raw_data.prompt || "")}
-                      </span>
+                      <strong>{row.question_code || "—"}</strong>
+                      <span style={promptText}>{String(row.raw_data.prompt || "")}</span>
                     </td>
                     <td style={td}>
                       <span style={actionTag}>
@@ -910,15 +966,10 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
                       <span style={statusStyle(row.validation_status)}>
                         {row.validation_status}
                       </span>
-
                       {row.messages.map((message, index) => (
                         <div
                           key={`${message.code}:${index}`}
-                          style={
-                            message.level === "error"
-                              ? errorMessageStyle
-                              : warningMessageStyle
-                          }
+                          style={message.level === "error" ? errorMessageStyle : warningMessageStyle}
                         >
                           {message.message}
                         </div>
@@ -926,12 +977,9 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
                     </td>
                   </tr>
                 ))}
-
                 {previewRows.length === 0 && (
                   <tr>
-                    <td style={td} colSpan={5}>
-                      No preview rows to display.
-                    </td>
+                    <td style={td} colSpan={5}>No preview rows to display.</td>
                   </tr>
                 )}
               </tbody>
@@ -941,11 +989,7 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
           {canApply && (
             <div style={confirmationCard}>
               <label style={{ ...label, flex: "1 1 300px" }}>
-                Type{" "}
-                <strong style={{ color: "white" }}>
-                  {requiredConfirmation}
-                </strong>{" "}
-                to apply
+                Type <strong style={{ color: "white" }}>{requiredConfirmation}</strong> to apply
                 <input
                   value={confirmation}
                   onChange={(event) => setConfirmation(event.target.value)}
@@ -953,7 +997,6 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
                   style={input}
                 />
               </label>
-
               <button
                 type="button"
                 disabled={busy || confirmation !== requiredConfirmation}
@@ -964,6 +1007,12 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
               </button>
             </div>
           )}
+
+          {role !== "admin" && batch.status === "ready" && (
+            <div style={infoBanner}>
+              Validation is complete. An admin must apply this import.
+            </div>
+          )}
         </section>
       )}
 
@@ -971,16 +1020,9 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
         <div style={sectionHeader}>
           <div>
             <p style={eyebrow}>RECENT IMPORT BATCHES</p>
-            <h2 style={heading}>
-              {subjectLabel(subject)} import history
-            </h2>
+            <h2 style={heading}>Import history</h2>
           </div>
-
-          <button
-            type="button"
-            onClick={() => void loadRecentBatches()}
-            style={secondaryButton}
-          >
+          <button type="button" onClick={() => void loadRecentBatches()} style={secondaryButton}>
             Refresh
           </button>
         </div>
@@ -996,30 +1038,106 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
               <span>
                 <strong>{item.file_name}</strong>
                 <small style={smallBlock}>
-                  {subjectLabel(item.subject)} P{item.primary_level} ·{" "}
-                  {item.row_count.toLocaleString()} rows ·{" "}
-                  {new Date(item.created_at).toLocaleString()}
+                  {item.subject.toUpperCase()} P{item.primary_level} · {item.row_count.toLocaleString()} rows · {new Date(item.created_at).toLocaleString()}
                 </small>
               </span>
-
               <StatusBadge status={item.status} />
             </button>
           ))}
-
           {recentBatches.length === 0 && (
-            <div style={emptyCard}>
-              No {subjectLabel(subject)} CSV import batches yet.
-            </div>
+            <div style={emptyCard}>No CSV import batches yet.</div>
           )}
         </div>
       </section>
+        </>
+      )}
     </div>
   );
 }
 
+function parseQuizCsv(text: string): ParsedCsv {
+  const matrix = parseCsvMatrix(text.replace(/^\uFEFF/, ""));
+  if (matrix.length === 0) throw new Error("The CSV is empty.");
+
+  const headers = matrix[0].map((value) => value.trim());
+  const duplicateHeaders = headers.filter(
+    (header, index) => headers.indexOf(header) !== index,
+  );
+  if (duplicateHeaders.length > 0) {
+    throw new Error(`Duplicate CSV header: ${duplicateHeaders[0]}`);
+  }
+
+  const missing = REQUIRED_HEADERS.filter((header) => !headers.includes(header));
+  if (missing.length > 0) {
+    throw new Error(`Missing required CSV column(s): ${missing.join(", ")}`);
+  }
+
+  const rows: JsonObject[] = [];
+  let imageRowCount = 0;
+  for (let rowIndex = 1; rowIndex < matrix.length; rowIndex += 1) {
+    const values = matrix[rowIndex];
+    if (values.every((value) => value.trim() === "")) continue;
+
+    const row: JsonObject = { row_number: rowIndex + 1 };
+    headers.forEach((header, columnIndex) => {
+      if (header === "image_reference") return;
+      row[header] = values[columnIndex] ?? "";
+    });
+    if (["HAS_IMAGE", "LIKELY_NEEDS_IMAGE"].includes(String(row.image_flag))) {
+      imageRowCount += 1;
+    }
+    rows.push(row);
+  }
+  return { rows, imageRowCount };
+}
+
+function parseCsvMatrix(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (quoted) {
+      if (char === '"' && next === '"') {
+        field += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (char === '"' && field.length === 0) {
+      quoted = true;
+    } else if (char === ",") {
+      row.push(field);
+      field = "";
+    } else if (char === "\n") {
+      row.push(field.replace(/\r$/, ""));
+      rows.push(row);
+      row = [];
+      field = "";
+    } else {
+      field += char;
+    }
+  }
+
+  if (quoted) throw new Error("The CSV contains an unclosed quoted field.");
+  if (field.length > 0 || row.length > 0) {
+    row.push(field.replace(/\r$/, ""));
+    rows.push(row);
+  }
+  return rows;
+}
+
 async function sha256(buffer: ArrayBuffer) {
   const digest = await crypto.subtle.digest("SHA-256", buffer);
-
   return Array.from(new Uint8Array(digest))
     .map((value) => value.toString(16).padStart(2, "0"))
     .join("");
@@ -1027,24 +1145,10 @@ async function sha256(buffer: ArrayBuffer) {
 
 function errorMessage(value: unknown) {
   if (value instanceof Error) return value.message;
-
   if (typeof value === "object" && value && "message" in value) {
     return String((value as { message: unknown }).message);
   }
-
   return "The import could not be completed.";
-}
-
-function subjectLabel(subject: ImportSubject) {
-  if (subject === "science") return "Science";
-  if (subject === "english") return "English";
-  return "Mathematics";
-}
-
-function formatQuestionReference(value: string | null) {
-  if (!value) return "—";
-  if (value.startsWith("NEW@")) return "New question";
-  return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
 }
 
 function SummaryCard({
@@ -1061,40 +1165,7 @@ function SummaryCard({
   return (
     <div style={summaryCard}>
       <span style={summaryLabel}>{label}</span>
-      <strong
-        style={{
-          ...summaryValue,
-          color: danger
-            ? "#fecaca"
-            : warning
-              ? "#fde68a"
-              : "white",
-        }}
-      >
-        {value.toLocaleString()}
-      </strong>
-    </div>
-  );
-}
-
-function PublishStat({
-  label,
-  value,
-  danger = false,
-}: {
-  label: string;
-  value: number;
-  danger?: boolean;
-}) {
-  return (
-    <div style={publishStat}>
-      <span style={summaryLabel}>{label}</span>
-      <strong
-        style={{
-          ...summaryValue,
-          color: danger ? "#fecaca" : "white",
-        }}
-      >
+      <strong style={{ ...summaryValue, color: danger ? "#fecaca" : warning ? "#fde68a" : "white" }}>
         {value.toLocaleString()}
       </strong>
     </div>
@@ -1106,27 +1177,12 @@ function StatusBadge({ status }: { status: ImportStatus }) {
 }
 
 function statusStyle(status: string): CSSProperties {
-  const isGood =
-    status === "ready" ||
-    status === "completed" ||
-    status === "valid";
-
-  const isBad =
-    status === "blocked" ||
-    status === "failed" ||
-    status === "error";
-
+  const isGood = status === "ready" || status === "completed" || status === "valid";
+  const isBad = status === "blocked" || status === "failed" || status === "error";
   const isWarning = status === "warning";
-
   return {
     ...badge,
-    color: isBad
-      ? "#fecaca"
-      : isWarning
-        ? "#fde68a"
-        : isGood
-          ? "#a7f3d0"
-          : "#bfefff",
+    color: isBad ? "#fecaca" : isWarning ? "#fde68a" : isGood ? "#a7f3d0" : "#bfefff",
     background: isBad
       ? "rgba(239,68,68,0.13)"
       : isWarning
@@ -1137,488 +1193,87 @@ function statusStyle(status: string): CSSProperties {
   };
 }
 
-const stack: CSSProperties = {
-  display: "grid",
-  gap: "18px",
-};
-
-const card: CSSProperties = {
-  display: "grid",
-  gap: "17px",
-  borderRadius: "18px",
-  border: "1px solid rgba(126,232,255,0.16)",
-  background: "rgba(13,29,57,0.72)",
-  padding: "18px",
-};
-
-const publishCard: CSSProperties = {
-  display: "grid",
-  gap: "14px",
-  borderRadius: "16px",
-  border: "1px solid rgba(52,211,153,0.3)",
-  background: "rgba(52,211,153,0.055)",
-  padding: "16px",
-};
-
-const publishEyebrow: CSSProperties = {
-  margin: 0,
-  color: "#86efac",
-  fontSize: "10px",
-  fontWeight: 950,
-  letterSpacing: "0.15em",
-};
-
-const publishHeading: CSSProperties = {
-  margin: "5px 0 0",
-  fontSize: "19px",
-};
-
-const publishStats: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))",
-  gap: "8px",
-};
-
-const publishStat: CSSProperties = {
-  display: "grid",
-  gap: "5px",
-  minHeight: "76px",
-  alignContent: "center",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(0,0,0,0.12)",
-  padding: "11px",
-};
-
-const sectionHeader: CSSProperties = {
+const workspaceSwitcher: CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "12px",
-};
-
-const eyebrow: CSSProperties = {
-  margin: 0,
-  color: "#7ee8ff",
-  fontSize: "11px",
-  fontWeight: 900,
-  letterSpacing: "0.14em",
-};
-
-const heading: CSSProperties = {
-  margin: "5px 0 0",
-  fontSize: "22px",
-};
-
-const subheading: CSSProperties = {
-  margin: 0,
-  fontSize: "17px",
-};
-
-const muted: CSSProperties = {
-  margin: "5px 0 0",
-  color: "rgba(255,255,255,0.55)",
-  fontSize: "13px",
-  lineHeight: 1.5,
-};
-
-const templateGrid: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
-  gap: "12px",
-};
-
-const templateCard: CSSProperties = {
-  display: "grid",
-  gap: "16px",
-  alignContent: "space-between",
-  minHeight: "230px",
-  borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.16)",
-  background: "rgba(255,255,255,0.025)",
-  padding: "16px",
-};
-
-const templateTopRow: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "10px",
-};
-
-const templatePill: CSSProperties = {
-  display: "inline-flex",
-  width: "fit-content",
-  borderRadius: "999px",
-  background: "rgba(52,211,153,0.11)",
-  color: "#a7f3d0",
-  padding: "5px 8px",
-  fontSize: "10px",
-  fontWeight: 900,
-  textTransform: "uppercase",
-};
-
-const templateColumnCount: CSSProperties = {
-  color: "#9befff",
-  fontSize: "11px",
-};
-
-const templateTitle: CSSProperties = {
-  margin: "15px 0 0",
-  fontSize: "20px",
-};
-
-const templateSubtitle: CSSProperties = {
-  margin: "5px 0 0",
-  color: "#ccefff",
-  fontSize: "13px",
-  fontWeight: 800,
-};
-
-const templateDescription: CSSProperties = {
-  margin: "9px 0 0",
-  color: "rgba(255,255,255,0.55)",
-  fontSize: "12px",
-  lineHeight: 1.5,
-};
-
-const downloadButton: CSSProperties = {
-  display: "flex",
-  minHeight: "42px",
-  alignItems: "center",
-  justifyContent: "center",
-  borderRadius: "11px",
-  border: "1px solid rgba(126,232,255,0.3)",
-  background: "rgba(83,215,255,0.1)",
-  color: "white",
-  padding: "0 14px",
-  fontSize: "12px",
-  fontWeight: 900,
-  textDecoration: "none",
-};
-
-const scienceTemplateNote: CSSProperties = {
-  borderRadius: "12px",
-  border: "1px solid rgba(251,191,36,0.24)",
-  background: "rgba(251,191,36,0.06)",
-  color: "#fff0bd",
-  padding: "13px",
-  fontSize: "12px",
-  lineHeight: 1.5,
-};
-
-const inlineCode: CSSProperties = {
-  color: "#fff",
-  fontWeight: 800,
-};
-
-const subjectSwitch: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(3,minmax(0,1fr))",
   gap: "8px",
+  padding: "5px",
+  width: "fit-content",
+  borderRadius: "13px",
+  border: "1px solid rgba(126,232,255,0.16)",
+  background: "rgba(7,18,38,0.62)",
 };
-
-const subjectButton: CSSProperties = {
-  minHeight: "43px",
-  borderRadius: "11px",
-  border: "1px solid rgba(126,232,255,0.14)",
-  background: "rgba(255,255,255,0.025)",
-  color: "rgba(255,255,255,0.6)",
-  cursor: "pointer",
-  fontWeight: 850,
-};
-
-const subjectButtonActive: CSSProperties = {
-  borderColor: "rgba(126,232,255,0.42)",
-  background: "rgba(83,215,255,0.13)",
-  color: "white",
-};
-
-const formGrid: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
-  gap: "12px",
-};
-
-const label: CSSProperties = {
-  display: "grid",
-  gap: "7px",
-  color: "rgba(255,255,255,0.7)",
-  fontSize: "12px",
-  fontWeight: 850,
-};
-
-const input: CSSProperties = {
-  width: "100%",
-  minHeight: "44px",
-  boxSizing: "border-box",
-  borderRadius: "11px",
-  border: "1px solid rgba(126,232,255,0.22)",
-  background: "#0d1a31",
-  color: "white",
-  padding: "0 12px",
-  outline: "none",
-};
-
-const fileInput: CSSProperties = {
-  ...input,
-  padding: "10px 12px",
-};
-
-const formatHint: CSSProperties = {
-  borderRadius: "11px",
-  background: "rgba(83,215,255,0.055)",
+const workspaceButton: CSSProperties = {
+  minHeight: "38px",
+  borderRadius: "9px",
+  border: "1px solid transparent",
+  background: "transparent",
   color: "rgba(255,255,255,0.62)",
-  padding: "11px 12px",
-  fontSize: "12px",
-  lineHeight: 1.5,
-};
-
-const checkbox: CSSProperties = {
-  width: "18px",
-  height: "18px",
-  accentColor: "#53d7ff",
-  cursor: "pointer",
-  flex: "0 0 auto",
-  marginTop: "2px",
-};
-
-const publishedToggle: CSSProperties = {
-  display: "flex",
-  gap: "10px",
-  alignItems: "start",
-  borderRadius: "13px",
-  border: "1px solid rgba(251,191,36,0.25)",
-  background: "rgba(251,191,36,0.06)",
-  color: "#fff3c4",
-  padding: "13px",
-  cursor: "pointer",
-};
-
-const smallBlock: CSSProperties = {
-  display: "block",
-  marginTop: "4px",
-  color: "rgba(255,255,255,0.52)",
-  fontSize: "12px",
-  lineHeight: 1.45,
-};
-
-const secondaryButton: CSSProperties = {
-  minHeight: "42px",
-  borderRadius: "11px",
-  border: "1px solid rgba(126,232,255,0.3)",
-  background: "rgba(83,215,255,0.09)",
-  color: "white",
-  padding: "0 14px",
+  padding: "0 13px",
   cursor: "pointer",
   fontWeight: 850,
 };
-
-const primaryButton: CSSProperties = {
-  ...secondaryButton,
-  borderColor: "rgba(52,211,153,0.45)",
-  background: "rgba(52,211,153,0.16)",
+const workspaceButtonActive: CSSProperties = {
+  ...workspaceButton,
+  borderColor: "rgba(83,215,255,0.38)",
+  background: "rgba(83,215,255,0.13)",
+  color: "#e4fbff",
 };
-
-const dangerButton: CSSProperties = {
-  ...secondaryButton,
-  borderColor: "rgba(248,113,113,0.5)",
-  background: "rgba(239,68,68,0.17)",
-  alignSelf: "end",
-};
-
-const progressTrack: CSSProperties = {
-  height: "9px",
-  borderRadius: "999px",
-  background: "rgba(255,255,255,0.08)",
-  overflow: "hidden",
-};
-
-const progressFill: CSSProperties = {
-  height: "100%",
-  borderRadius: "999px",
-  background: "linear-gradient(90deg,#53d7ff,#34d399)",
-  transition: "width 180ms ease",
-};
-
-const summaryGrid: CSSProperties = {
+const mathIntelligencePanel: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit,minmax(125px,1fr))",
-  gap: "9px",
+  gap: "13px",
+  borderRadius: "15px",
+  border: "1px solid rgba(167,139,250,0.28)",
+  background: "rgba(76,29,149,0.08)",
+  padding: "15px",
 };
-
-const summaryCard: CSSProperties = {
-  borderRadius: "12px",
-  background: "rgba(255,255,255,0.035)",
-  padding: "12px",
-  display: "grid",
-  gap: "4px",
-};
-
-const summaryLabel: CSSProperties = {
-  color: "rgba(255,255,255,0.48)",
-  fontSize: "10px",
-  fontWeight: 900,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-};
-
-const summaryValue: CSSProperties = {
-  fontSize: "24px",
-};
-
-const safeBanner: CSSProperties = {
-  borderRadius: "13px",
-  border: "1px solid rgba(52,211,153,0.3)",
-  background: "rgba(52,211,153,0.08)",
-  color: "#d8fff0",
-  padding: "14px",
-  lineHeight: 1.55,
-};
-
-const errorBanner: CSSProperties = {
-  borderRadius: "12px",
-  border: "1px solid rgba(248,113,113,0.42)",
-  background: "rgba(239,68,68,0.13)",
-  color: "#fecaca",
-  padding: "14px",
-  lineHeight: 1.5,
-};
-
-const successBanner: CSSProperties = {
-  borderRadius: "12px",
-  border: "1px solid rgba(52,211,153,0.38)",
-  background: "rgba(52,211,153,0.11)",
-  color: "#b8f8dc",
-  padding: "14px",
-  lineHeight: 1.5,
-};
-
-const tableWrap: CSSProperties = {
-  overflowX: "auto",
-  borderRadius: "12px",
-  border: "1px solid rgba(126,232,255,0.12)",
-};
-
-const table: CSSProperties = {
-  width: "100%",
-  minWidth: "920px",
-  borderCollapse: "collapse",
-  fontSize: "12px",
-};
-
-const th: CSSProperties = {
-  padding: "10px",
-  textAlign: "left",
-  color: "#9befff",
-  background: "rgba(83,215,255,0.07)",
-  borderBottom: "1px solid rgba(126,232,255,0.14)",
-};
-
-const td: CSSProperties = {
-  padding: "10px",
-  verticalAlign: "top",
-  color: "rgba(255,255,255,0.72)",
-  borderBottom: "1px solid rgba(255,255,255,0.055)",
-};
-
-const promptText: CSSProperties = {
-  display: "block",
-  marginTop: "4px",
-  maxWidth: "300px",
-  color: "rgba(255,255,255,0.48)",
-  lineHeight: 1.4,
-};
-
-const badge: CSSProperties = {
-  display: "inline-flex",
-  width: "fit-content",
-  borderRadius: "999px",
-  padding: "4px 8px",
-  fontSize: "10px",
-  fontWeight: 900,
-  textTransform: "uppercase",
-};
-
-const actionTag: CSSProperties = {
-  ...badge,
-  display: "flex",
-  marginBottom: "5px",
-  background: "rgba(167,139,250,0.12)",
-  color: "#ddd2ff",
-};
-
-const errorMessageStyle: CSSProperties = {
-  marginTop: "6px",
-  color: "#fecaca",
-  lineHeight: 1.4,
-};
-
-const warningMessageStyle: CSSProperties = {
-  marginTop: "6px",
-  color: "#fde68a",
-  lineHeight: 1.4,
-};
-
-const confirmationCard: CSSProperties = {
+const mathIntelligenceConfirmationCard: CSSProperties = {
   display: "flex",
   alignItems: "end",
   flexWrap: "wrap",
   gap: "12px",
-  borderRadius: "14px",
-  border: "1px solid rgba(248,113,113,0.3)",
-  background: "rgba(239,68,68,0.07)",
-  padding: "14px",
-};
-
-const historyList: CSSProperties = {
-  display: "grid",
-  gap: "8px",
-};
-
-const historyRow: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-  width: "100%",
-  borderRadius: "12px",
-  border: "1px solid rgba(126,232,255,0.12)",
-  background: "rgba(255,255,255,0.025)",
-  color: "white",
-  padding: "12px",
-  textAlign: "left",
-  cursor: "pointer",
-};
-
-const emptyCard: CSSProperties = {
   borderRadius: "13px",
-  border: "1px dashed rgba(126,232,255,0.2)",
-  color: "rgba(255,255,255,0.55)",
-  padding: "20px",
+  border: "1px solid rgba(167,139,250,0.32)",
+  background: "rgba(76,29,149,0.1)",
+  padding: "13px",
 };
-
-const publishConfirmationCard: CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "end",
-  gap: "12px",
-  borderRadius: "14px",
-  border: "1px solid rgba(52,211,153,0.24)",
-  background: "rgba(52,211,153,0.045)",
-  padding: "14px",
-};
-
-const publishButton: CSSProperties = {
-  minHeight: "46px",
-  borderRadius: "12px",
-  border: "1px solid rgba(110,231,183,0.46)",
-  background: "linear-gradient(135deg,rgba(52,211,153,0.95),rgba(45,212,191,0.9))",
-  color: "#03140f",
-  padding: "0 18px",
-  cursor: "pointer",
-  fontSize: "12px",
-  fontWeight: 950,
-};
-
+const stack: CSSProperties = { display: "grid", gap: "18px" };
+const card: CSSProperties = { display: "grid", gap: "17px", borderRadius: "18px", border: "1px solid rgba(126,232,255,0.16)", background: "rgba(13,29,57,0.72)", padding: "18px" };
+const sectionHeader: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "12px" };
+const eyebrow: CSSProperties = { margin: 0, color: "#7ee8ff", fontSize: "11px", fontWeight: 900, letterSpacing: "0.14em" };
+const heading: CSSProperties = { margin: "5px 0 0", fontSize: "22px" };
+const subheading: CSSProperties = { margin: 0, fontSize: "17px" };
+const muted: CSSProperties = { margin: "5px 0 0", color: "rgba(255,255,255,0.55)", fontSize: "13px", lineHeight: 1.5 };
+const formGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: "12px" };
+const label: CSSProperties = { display: "grid", gap: "7px", color: "rgba(255,255,255,0.7)", fontSize: "12px", fontWeight: 850 };
+const input: CSSProperties = { width: "100%", minHeight: "44px", boxSizing: "border-box", borderRadius: "11px", border: "1px solid rgba(126,232,255,0.22)", background: "#0d1a31", color: "white", padding: "0 12px", outline: "none" };
+const fileInput: CSSProperties = { ...input, padding: "10px 12px" };
+const checkbox: CSSProperties = { width: "18px", height: "18px", accentColor: "#53d7ff", cursor: "pointer", flex: "0 0 auto", marginTop: "2px" };
+const publishedToggle: CSSProperties = { display: "flex", gap: "10px", alignItems: "start", borderRadius: "13px", border: "1px solid rgba(251,191,36,0.25)", background: "rgba(251,191,36,0.06)", color: "#fff3c4", padding: "13px", cursor: "pointer" };
+const smallBlock: CSSProperties = { display: "block", marginTop: "4px", color: "rgba(255,255,255,0.52)", fontSize: "12px", lineHeight: 1.45 };
+const secondaryButton: CSSProperties = { minHeight: "42px", borderRadius: "11px", border: "1px solid rgba(126,232,255,0.3)", background: "rgba(83,215,255,0.09)", color: "white", padding: "0 14px", cursor: "pointer", fontWeight: 850 };
+const primaryButton: CSSProperties = { ...secondaryButton, borderColor: "rgba(52,211,153,0.45)", background: "rgba(52,211,153,0.16)" };
+const dangerButton: CSSProperties = { ...secondaryButton, borderColor: "rgba(248,113,113,0.5)", background: "rgba(239,68,68,0.17)", alignSelf: "end" };
+const progressTrack: CSSProperties = { height: "9px", borderRadius: "999px", background: "rgba(255,255,255,0.08)", overflow: "hidden" };
+const progressFill: CSSProperties = { height: "100%", borderRadius: "999px", background: "linear-gradient(90deg,#53d7ff,#34d399)", transition: "width 180ms ease" };
+const summaryGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(125px,1fr))", gap: "9px" };
+const summaryCard: CSSProperties = { borderRadius: "12px", background: "rgba(255,255,255,0.035)", padding: "12px", display: "grid", gap: "4px" };
+const summaryLabel: CSSProperties = { color: "rgba(255,255,255,0.48)", fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" };
+const summaryValue: CSSProperties = { fontSize: "24px" };
+const safeBanner: CSSProperties = { borderRadius: "13px", border: "1px solid rgba(52,211,153,0.3)", background: "rgba(52,211,153,0.08)", color: "#d8fff0", padding: "14px", lineHeight: 1.55 };
+const infoBanner: CSSProperties = { borderRadius: "12px", border: "1px solid rgba(126,232,255,0.25)", background: "rgba(83,215,255,0.08)", color: "#cef7ff", padding: "13px" };
+const errorBanner: CSSProperties = { borderRadius: "12px", border: "1px solid rgba(248,113,113,0.42)", background: "rgba(239,68,68,0.13)", color: "#fecaca", padding: "14px", lineHeight: 1.5 };
+const successBanner: CSSProperties = { borderRadius: "12px", border: "1px solid rgba(52,211,153,0.38)", background: "rgba(52,211,153,0.11)", color: "#b8f8dc", padding: "14px", lineHeight: 1.5 };
+const tableWrap: CSSProperties = { overflowX: "auto", borderRadius: "12px", border: "1px solid rgba(126,232,255,0.12)" };
+const table: CSSProperties = { width: "100%", minWidth: "920px", borderCollapse: "collapse", fontSize: "12px" };
+const th: CSSProperties = { padding: "10px", textAlign: "left", color: "#9befff", background: "rgba(83,215,255,0.07)", borderBottom: "1px solid rgba(126,232,255,0.14)" };
+const td: CSSProperties = { padding: "10px", verticalAlign: "top", color: "rgba(255,255,255,0.72)", borderBottom: "1px solid rgba(255,255,255,0.055)" };
+const promptText: CSSProperties = { display: "block", marginTop: "4px", maxWidth: "300px", color: "rgba(255,255,255,0.48)", lineHeight: 1.4 };
+const badge: CSSProperties = { display: "inline-flex", width: "fit-content", borderRadius: "999px", padding: "4px 8px", fontSize: "10px", fontWeight: 900, textTransform: "uppercase" };
+const actionTag: CSSProperties = { ...badge, display: "flex", marginBottom: "5px", background: "rgba(167,139,250,0.12)", color: "#ddd2ff" };
+const errorMessageStyle: CSSProperties = { marginTop: "6px", color: "#fecaca", lineHeight: 1.4 };
+const warningMessageStyle: CSSProperties = { marginTop: "6px", color: "#fde68a", lineHeight: 1.4 };
+const confirmationCard: CSSProperties = { display: "flex", alignItems: "end", flexWrap: "wrap", gap: "12px", borderRadius: "14px", border: "1px solid rgba(248,113,113,0.3)", background: "rgba(239,68,68,0.07)", padding: "14px" };
+const historyList: CSSProperties = { display: "grid", gap: "8px" };
+const historyRow: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", width: "100%", borderRadius: "12px", border: "1px solid rgba(126,232,255,0.12)", background: "rgba(255,255,255,0.025)", color: "white", padding: "12px", textAlign: "left", cursor: "pointer" };
+const emptyCard: CSSProperties = { borderRadius: "13px", border: "1px dashed rgba(126,232,255,0.2)", color: "rgba(255,255,255,0.55)", padding: "20px" };

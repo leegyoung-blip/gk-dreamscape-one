@@ -30,3 +30,6 @@ export * from "./MathAuthoringFingerprint";
 export * from "./MathAuthoringProposalTypes";
 export * from "./MathAuthoringProposal";
 export * from "./MathAuthoringProposalApply";
+export * from "./MathBatchGenerationTypes";
+export * from "./MathBatchGeneration";
+export * from "./MathImportIntelligence";
