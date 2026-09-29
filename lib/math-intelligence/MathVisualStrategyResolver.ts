@@ -4,9 +4,10 @@ import type {
   MathStrategyResult,
   MathStructureInterpretation,
 } from "./MathIntelligenceTypes";
+import { mathClassificationText } from "./MathLearnerVisibleEvidence";
 
 function text(input: MathIntelligenceQuestionInput) {
-  return `${input.topic} ${input.skill} ${input.instruction} ${input.prompt} ${input.explanation}`.toLocaleLowerCase();
+  return mathClassificationText(input);
 }
 
 /**

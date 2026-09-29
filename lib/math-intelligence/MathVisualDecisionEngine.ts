@@ -3,12 +3,10 @@ import type {
   MathRuleEvaluation,
   MathVisualStrategy,
 } from "./MathIntelligenceTypes";
+import { mathClassificationText } from "./MathLearnerVisibleEvidence";
 
 function haystack(input: MathIntelligenceQuestionInput) {
-  return [input.topic, input.skill, input.instruction, input.prompt, input.explanation]
-    .filter(Boolean)
-    .join(" \n ")
-    .toLocaleLowerCase();
+  return mathClassificationText(input);
 }
 
 function containsAny(source: string, values: string[]) {
@@ -285,7 +283,7 @@ export function evaluateMathVisualNeed(
   }
 
   if (
-    /\b(fewer|less|more|greater)\s+than\b/i.test(input.prompt) &&
+    /\b(fewer|less|more|greater)(?:\s+[a-z]+){0,3}\s+than\b/i.test(input.prompt) &&
     /\b(has|have|had|owns|bought|collected|made|scored|received)\b/i.test(input.prompt)
   ) {
     return resolved({

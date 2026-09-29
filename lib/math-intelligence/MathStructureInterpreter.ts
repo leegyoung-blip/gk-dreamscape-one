@@ -7,9 +7,17 @@ import type {
   MathStructureInterpretation,
   MathTarget,
 } from "./MathIntelligenceTypes";
+import {
+  learnerVisibleQuestionText,
+  mathClassificationText,
+} from "./MathLearnerVisibleEvidence";
 
 function sourceText(input: MathIntelligenceQuestionInput) {
-  return `${input.topic} ${input.skill} ${input.instruction} ${input.prompt} ${input.explanation}`.toLocaleLowerCase();
+  return mathClassificationText(input);
+}
+
+function learnerText(input: MathIntelligenceQuestionInput) {
+  return learnerVisibleQuestionText(input).toLocaleLowerCase();
 }
 
 function valuesFromText(text: string) {
@@ -113,10 +121,11 @@ function directCalculation(input: MathIntelligenceQuestionInput): MathInterpreta
 
 function rectangleInterpretation(input: MathIntelligenceQuestionInput): MathInterpretationResult | null {
   const text = sourceText(input);
+  const visible = learnerText(input);
   if (!text.includes("rectangle") && !text.includes("rectangular")) return null;
 
-  const length = labelledMeasurement(text, "length");
-  const width = labelledMeasurement(text, "width");
+  const length = labelledMeasurement(visible, "length");
+  const width = labelledMeasurement(visible, "width");
   if (!length || !width) return null;
 
   const structure: MathProblemStructure = text.includes("perimeter") ? "perimeter" : "area";
@@ -139,7 +148,8 @@ function rectangleInterpretation(input: MathIntelligenceQuestionInput): MathInte
 
 function fractionInterpretation(input: MathIntelligenceQuestionInput): MathInterpretationResult | null {
   const text = sourceText(input);
-  const fractions = fractionValues(text);
+  const visible = learnerText(input);
+  const fractions = fractionValues(visible);
   if (fractions.length === 0) return null;
 
   const quantities: MathQuantity[] = [];
@@ -169,8 +179,9 @@ function fractionInterpretation(input: MathIntelligenceQuestionInput): MathInter
 
 function clockInterpretation(input: MathIntelligenceQuestionInput): MathInterpretationResult | null {
   const text = sourceText(input);
+  const visible = learnerText(input);
   if (!text.includes("clock")) return null;
-  const time = timeValue(text);
+  const time = timeValue(visible);
   if (!time) return null;
 
   return {
@@ -191,11 +202,12 @@ function clockInterpretation(input: MathIntelligenceQuestionInput): MathInterpre
 
 function cuboidInterpretation(input: MathIntelligenceQuestionInput): MathInterpretationResult | null {
   const text = sourceText(input);
+  const visible = learnerText(input);
   if (!text.includes("cuboid") && !text.includes("volume")) return null;
 
-  const length = labelledMeasurement(text, "length");
-  const width = labelledMeasurement(text, "width");
-  const height = labelledMeasurement(text, "height");
+  const length = labelledMeasurement(visible, "length");
+  const width = labelledMeasurement(visible, "width");
+  const height = labelledMeasurement(visible, "height");
   if (!length || !width || !height) return null;
 
   return {
@@ -217,7 +229,7 @@ function cuboidInterpretation(input: MathIntelligenceQuestionInput): MathInterpr
 
 function comparisonInterpretation(input: MathIntelligenceQuestionInput): MathInterpretationResult | null {
   const text = input.prompt;
-  const comparison = text.match(/\b(\d+(?:\.\d+)?)\s+(fewer|less|more|greater)\s+than\b/i);
+  const comparison = text.match(/\b(\d+(?:\.\d+)?)\s+(fewer|less|more|greater)(?:\s+[a-z]+){0,3}\s+than\b/i);
   const values = valuesFromText(text);
   if (!comparison || values.length < 2) return null;
 

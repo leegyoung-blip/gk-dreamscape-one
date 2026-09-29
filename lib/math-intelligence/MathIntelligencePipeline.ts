@@ -14,6 +14,8 @@ import type {
 import { normaliseMathIntelligenceQuestion } from "./MathQuestionNormalizer";
 import { evaluateMathVisualNeed } from "./MathVisualDecisionEngine";
 import { resolveMathVisualStrategyWithRules } from "./MathVisualStrategyResolver";
+import { generateMathVisualSpec } from "./MathVisualSpecGenerator";
+import type { MathVisualGenerationPipelineResult } from "./MathVisualGenerationTypes";
 
 function uniqueReasonCodes(values: MathIntelligenceReasonCode[]) {
   return [...new Set(values)];
@@ -149,4 +151,21 @@ export async function analyseMathQuestion(
     rule_evaluation: ruleEvaluation,
     analysis,
   };
+}
+
+
+/**
+ * Phase 2D–2E convenience orchestration for authoring/import/admin workflows.
+ *
+ * The intelligence decision remains exactly two levels: Dreamscape rules first,
+ * then a single Luna escalation only when ambiguous. Spec generation itself is
+ * deterministic Dreamscape code, then passes structural + semantic/source validation. Neither stage makes another model call.
+ */
+export async function generateMathVisualForQuestion(
+  question: unknown,
+  options: MathIntelligencePipelineOptions = {},
+): Promise<MathVisualGenerationPipelineResult> {
+  const analysed = await analyseMathQuestion(question, options);
+  const generation = generateMathVisualSpec(analysed.input, analysed.analysis);
+  return { ...analysed, generation };
 }

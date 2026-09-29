@@ -6,3 +6,8 @@ export * from "./MathVisualStrategyResolver";
 export * from "./MathIntelligencePipeline";
 export type { MathIntelligenceAIProvider } from "./ai/AIProvider";
 export { OpenAILunaProvider } from "./ai/OpenAILunaProvider";
+export * from "./MathVisualGenerationTypes";
+export * from "./MathVisualSpecGenerator";
+export * from "./MathLearnerVisibleEvidence";
+export * from "./MathVisualSemanticTypes";
+export * from "./MathVisualSemanticValidator";

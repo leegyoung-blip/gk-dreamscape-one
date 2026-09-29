@@ -1600,10 +1600,32 @@ export default function MilosMixAndServe({
                 <button type="button" onClick={() => setLandingPhase("choose")} style={{ width: "100%", minHeight: mobile ? 44 : 50, marginTop: mobile ? 12 : 16, borderRadius: 14, border: "1px solid rgba(255,213,126,.46)", background: "linear-gradient(135deg,#ffd06b,#f1a340)", color: "#281700", fontSize: mobile ? 13 : 14, fontWeight: 950, cursor: "pointer", boxShadow: "0 14px 34px rgba(228,140,40,.18)" }}>Choose a Dish</button>
               </div>
             ) : (
-              <div style={{ position: "absolute", zIndex: 4, top: mobile ? 12 : "5%", left: mobile ? 2 : "3%", right: mobile ? "31%" : "29%", bottom: mobile ? 8 : "3%", display: "grid", alignContent: "start", animation: "mixServeDishRise .35s ease-out" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  zIndex: 4,
+                  top: mobile ? 12 : "5%",
+                  left: mobile ? "4%" : "3%",
+                  right: mobile ? "4%" : "29%",
+                  bottom: mobile ? "34%" : "3%",
+                  display: "grid",
+                  alignContent: "start",
+                  animation: "mixServeDishRise .35s ease-out",
+                }}
+              >
                 <div style={{ textAlign: "center", marginBottom: mobile ? 10 : 18 }}>
                   <p style={{ margin: 0, color: "#ffc36f", fontSize: mobile ? 10 : 12, fontWeight: 950, letterSpacing: ".16em", textTransform: "uppercase" }}>Today’s Kitchen</p>
-                  <h3 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 25 : 37, fontWeight: 400 }}>What would you like to cook?</h3>
+                  <h3
+                    style={{
+                      margin: "5px 0 0",
+                      fontFamily: 'Georgia, "Times New Roman", serif',
+                      fontSize: mobile ? 22 : 37,
+                      lineHeight: 1.05,
+                      fontWeight: 400,
+                    }}
+                  >
+                    What would you like to cook?
+                  </h3>
                   {!mobile && (
                     <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.48)", fontSize: 13 }}>
                       {batteryUnlimited
@@ -1613,7 +1635,15 @@ export default function MilosMixAndServe({
                   )}
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: mobile ? 7 : 12, minHeight: 0 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: mobile ? "repeat(2,minmax(0,160px))" : "repeat(2,minmax(0,1fr))",
+                    justifyContent: mobile ? "center" : undefined,
+                    gap: mobile ? 8 : 12,
+                    minHeight: 0,
+                  }}
+                >
                   {DISH_CHOICES.map((dish) => (
                     <button
                       key={dish.id}
@@ -1625,18 +1655,20 @@ export default function MilosMixAndServe({
                       }}
                       style={{
                         minWidth: 0,
-                        minHeight: mobile ? 128 : 178,
+                        minHeight: mobile ? 148 : 178,
                         borderRadius: mobile ? 18 : 24,
                         border: dish.available ? "1px solid rgba(255,207,119,.4)" : "1px solid rgba(255,255,255,.07)",
                         background: dish.available ? "linear-gradient(145deg,rgba(75,45,24,.9),rgba(10,21,30,.95))" : "linear-gradient(145deg,rgba(17,22,27,.92),rgba(6,10,15,.98))",
                         boxShadow: dish.available ? "0 18px 44px rgba(0,0,0,.32),inset 0 0 30px rgba(255,181,75,.04)" : "inset 0 0 30px rgba(0,0,0,.32)",
                         color: "white",
-                        padding: mobile ? 9 : 14,
+                        padding: mobile ? "8px 7px" : 14,
                         display: "grid",
-                        gridTemplateColumns: mobile ? "82px minmax(0,1fr)" : "118px minmax(0,1fr)",
-                        gap: mobile ? 9 : 14,
+                        gridTemplateColumns: mobile ? "1fr" : "118px minmax(0,1fr)",
+                        gridTemplateRows: mobile ? "62px auto" : undefined,
+                        gap: mobile ? 5 : 14,
                         alignItems: "center",
-                        textAlign: "left",
+                        justifyItems: mobile ? "center" : undefined,
+                        textAlign: mobile ? "center" : "left",
                         cursor: dish.available ? "pointer" : "not-allowed",
                         opacity: dish.available ? 1 : .72,
                         position: "relative",
@@ -1644,8 +1676,8 @@ export default function MilosMixAndServe({
                       }}
                     >
                       {dish.available && <span aria-hidden="true" style={{ position: "absolute", inset: -40, borderRadius: 999, border: "1px solid rgba(255,195,95,.13)", animation: "mixServeLandingGlow 2.4s ease-in-out infinite" }} />}
-                      <span style={{ position: "relative", width: mobile ? 78 : 108, height: mobile ? 78 : 108, borderRadius: "50%", display: "grid", placeItems: "center", border: dish.available ? "2px solid rgba(255,211,119,.52)" : "2px solid rgba(255,255,255,.08)", background: dish.available ? "radial-gradient(circle,#4a2a18,#101820 72%)" : "radial-gradient(circle,#1c2429,#090d11 72%)", boxShadow: dish.available ? "0 0 28px rgba(255,183,75,.14)" : "none", overflow: "hidden" }}>
-                        <span aria-hidden="true" style={{ position: "absolute", fontSize: mobile ? 38 : 52, opacity: dish.available ? .2 : .12 }}>{dish.fallback}</span>
+                      <span style={{ position: "relative", width: mobile ? 58 : 108, height: mobile ? 58 : 108, borderRadius: "50%", display: "grid", placeItems: "center", border: dish.available ? "2px solid rgba(255,211,119,.52)" : "2px solid rgba(255,255,255,.08)", background: dish.available ? "radial-gradient(circle,#4a2a18,#101820 72%)" : "radial-gradient(circle,#1c2429,#090d11 72%)", boxShadow: dish.available ? "0 0 28px rgba(255,183,75,.14)" : "none", overflow: "hidden" }}>
+                        <span aria-hidden="true" style={{ position: "absolute", fontSize: mobile ? 29 : 52, opacity: dish.available ? .2 : .12 }}>{dish.fallback}</span>
                         <img
                           src={dish.image}
                           alt=""
@@ -1653,11 +1685,24 @@ export default function MilosMixAndServe({
                           style={{ width: "82%", height: "82%", objectFit: "contain", filter: dish.available ? "none" : "grayscale(1) brightness(.42)", opacity: dish.available ? 1 : .62, position: "relative", zIndex: 2 }}
                         />
                       </span>
-                      <span style={{ position: "relative", minWidth: 0 }}>
-                        <span style={{ display: "block", color: dish.available ? "#ffd18a" : "rgba(255,255,255,.32)", fontSize: mobile ? 9 : 10, fontWeight: 950, letterSpacing: ".12em", textTransform: "uppercase" }}>{dish.status}</span>
-                        <strong style={{ display: "block", marginTop: 5, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? 19 : 27, lineHeight: 1.05, fontWeight: 400 }}>{dish.title}</strong>
-                        <span style={{ display: "block", marginTop: 5, color: dish.available ? "rgba(255,255,255,.54)" : "rgba(255,255,255,.24)", fontSize: mobile ? 10.5 : 13 }}>{dish.subtitle}</span>
-                        <span style={{ display: "inline-flex", marginTop: mobile ? 8 : 12, minHeight: mobile ? 28 : 34, padding: "0 12px", alignItems: "center", borderRadius: 999, border: dish.available ? "1px solid rgba(255,204,111,.25)" : "1px solid rgba(255,255,255,.07)", background: dish.available ? "rgba(255,181,72,.09)" : "rgba(255,255,255,.025)", color: dish.available ? "#ffd18a" : "rgba(255,255,255,.28)", fontSize: mobile ? 10 : 11, fontWeight: 950 }}>{dish.available ? "Enter Kitchen →" : "Locked"}</span>
+                      <span style={{ position: "relative", minWidth: 0, width: "100%" }}>
+                        <span style={{ display: "block", color: dish.available ? "#ffd18a" : "rgba(255,255,255,.32)", fontSize: mobile ? 8 : 10, fontWeight: 950, letterSpacing: ".12em", textTransform: "uppercase" }}>{dish.status}</span>
+                        <strong
+                          style={{
+                            display: "block",
+                            marginTop: mobile ? 3 : 5,
+                            fontFamily: 'Georgia, "Times New Roman", serif',
+                            fontSize: mobile ? 16 : 27,
+                            lineHeight: 1.02,
+                            fontWeight: 400,
+                            minHeight: mobile ? 32 : undefined,
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          {dish.title}
+                        </strong>
+                        <span style={{ display: "block", marginTop: mobile ? 3 : 5, color: dish.available ? "rgba(255,255,255,.54)" : "rgba(255,255,255,.24)", fontSize: mobile ? 9 : 13, lineHeight: 1.15 }}>{dish.subtitle}</span>
+                        <span style={{ display: "inline-flex", marginTop: mobile ? 5 : 12, minHeight: mobile ? 24 : 34, padding: mobile ? "0 9px" : "0 12px", alignItems: "center", borderRadius: 999, border: dish.available ? "1px solid rgba(255,204,111,.25)" : "1px solid rgba(255,255,255,.07)", background: dish.available ? "rgba(255,181,72,.09)" : "rgba(255,255,255,.025)", color: dish.available ? "#ffd18a" : "rgba(255,255,255,.28)", fontSize: mobile ? 10 : 11, fontWeight: 950 }}>{dish.available ? "Enter Kitchen →" : "Locked"}</span>
                       </span>
                     </button>
                   ))}
@@ -2010,13 +2055,11 @@ export default function MilosMixAndServe({
         data-guide-target="orders"
         className={mobile ? "mixServeMobileOrders" : undefined}
         style={{
-          display: mobile ? "flex" : "grid",
-          gridTemplateColumns: mobile ? undefined : "repeat(3,minmax(0,1fr))",
-          gap: mobile ? 8 : 6,
-          overflowX: mobile ? "auto" : undefined,
-          overflowY: "hidden",
-          scrollSnapType: mobile ? "x mandatory" : undefined,
-          paddingBottom: mobile ? 2 : 0,
+          display: "grid",
+          gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+          gap: mobile ? 5 : 6,
+          overflow: "hidden",
+          paddingBottom: mobile ? 1 : 0,
         }}
       >
         {orders.map((order) => {
@@ -2038,19 +2081,33 @@ export default function MilosMixAndServe({
               style={{
                 ...panel,
                 minWidth: 0,
-                flex: mobile ? "0 0 78%" : undefined,
-                scrollSnapAlign: mobile ? "start" : undefined,
-                borderRadius: 14,
-                padding: mobile ? 8 : 9,
+                borderRadius: mobile ? 11 : 14,
+                padding: mobile ? 5 : 9,
                 border: urgent ? "1px solid rgba(255,105,117,.42)" : "1px solid rgba(128,226,255,.14)",
                 animation: leavingOrderId === order.id ? "mixServeOrderLeave .22s ease-in forwards" : shakeNow ? "mixServeOrderShake .65s ease-in-out 1" : recentOrderIds.includes(order.id) ? "mixServeOrderEnter .34s ease-out" : ordersRevision > 1 ? "mixServeOrderShiftRight .28s ease-out" : undefined,
               }}
             >
-              <div style={{ display: "grid", gridTemplateColumns: mobile ? "42px minmax(0,1fr)" : "48px minmax(0,1fr) auto", gap: 8, alignItems: "center" }}>
-                <img src={recipe.image} alt="" style={{ width: mobile ? 40 : 46, height: mobile ? 40 : 46, objectFit: "contain" }} />
+              <div style={{ display: "grid", gridTemplateColumns: mobile ? "28px minmax(0,1fr)" : "48px minmax(0,1fr) auto", gap: mobile ? 4 : 8, alignItems: "center" }}>
+                <img src={recipe.image} alt="" style={{ width: mobile ? 27 : 46, height: mobile ? 27 : 46, objectFit: "contain" }} />
                 <div style={{ minWidth: 0 }}>
-                  <span style={{ display: "block", color: "#ffd08a", fontSize: 11, fontWeight: 950, letterSpacing: ".1em" }}>ORDER · TIER {recipe.tier}</span>
-                  <strong style={{ display: "block", marginTop: 2, fontSize: mobile ? 12 : 14, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{recipe.label}</strong>
+                  <span style={{ display: "block", color: "#ffd08a", fontSize: mobile ? 7.5 : 11, fontWeight: 950, letterSpacing: mobile ? ".05em" : ".1em" }}>
+                    {mobile ? `TIER ${recipe.tier}` : `ORDER · TIER ${recipe.tier}`}
+                  </span>
+                  <strong
+                    style={{
+                      display: "-webkit-box",
+                      marginTop: 1,
+                      fontSize: mobile ? 9.5 : 14,
+                      lineHeight: mobile ? 1.05 : 1.2,
+                      overflow: "hidden",
+                      WebkitLineClamp: mobile ? 2 : 1,
+                      WebkitBoxOrient: "vertical",
+                      whiteSpace: mobile ? "normal" : "nowrap",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {recipe.label}
+                  </strong>
                   {!mobile && (
                     <span style={{ display: "block", marginTop: 2, color: "rgba(255,255,255,.34)", fontSize: 10 }}>
                       Tier value {tierBaseScore(recipe.tier)} + speed bonus
@@ -2067,11 +2124,13 @@ export default function MilosMixAndServe({
                   </div>
                 )}
               </div>
-              <div style={{ marginTop: 7, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 7, alignItems: "center" }}>
-                <div style={{ height: 9, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
+              <div style={{ marginTop: mobile ? 4 : 7, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: mobile ? 4 : 7, alignItems: "center" }}>
+                <div style={{ height: mobile ? 5 : 9, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
                   <div style={{ width: `${progress}%`, height: "100%", borderRadius: 999, background: !orderTimersStarted ? "#7fe7ff" : urgent ? "#ff6e79" : order.secondsLeft <= 30 ? "#ffd36d" : "#86efad", transition: "width .25s linear" }} />
                 </div>
-                <strong style={{ color: urgent ? "#ff8e98" : "rgba(255,255,255,.55)", fontSize: 11.5 }}>{orderTimersStarted ? `${order.secondsLeft}s` : "WAITING"}</strong>
+                <strong style={{ color: urgent ? "#ff8e98" : "rgba(255,255,255,.55)", fontSize: mobile ? 8 : 11.5 }}>
+                  {orderTimersStarted ? `${order.secondsLeft}s` : mobile ? "WAIT" : "WAITING"}
+                </strong>
               </div>
             </div>
           );
@@ -2167,9 +2226,30 @@ export default function MilosMixAndServe({
                     cursor: item && running && !paused ? "grab" : running && !paused ? "pointer" : "default",
                     touchAction: item && running && !paused ? "none" : "auto",
                     userSelect: "none",
+                    position: "relative",
+                    overflow: "hidden",
                   }}
                 >
-                  {item ? <img src={item.image} alt="" draggable={false} style={{ width: mobile ? "78%" : "84%", height: mobile ? "78%" : "84%", maxWidth: 82, maxHeight: 82, objectFit: "contain", pointerEvents: "none" }} /> : null}
+                  {item ? (
+                    <img
+                      src={item.image}
+                      alt=""
+                      draggable={false}
+                      style={{
+                        position: "absolute",
+                        left: "50%",
+                        top: "50%",
+                        transform: "translate(-50%,-50%)",
+                        width: mobile ? "72%" : "84%",
+                        height: mobile ? "72%" : "84%",
+                        maxWidth: 82,
+                        maxHeight: 82,
+                        objectFit: "contain",
+                        objectPosition: "center",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  ) : null}
                 </button>
               );
             })}
@@ -2215,9 +2295,9 @@ export default function MilosMixAndServe({
                         onClick={() => dispenseIngredient(key)}
                         title={`Dispense ${ingredientDef(key).label}`}
                         aria-label={`Dispense ${ingredientDef(key).label}`}
-                        style={{ minWidth: 0, minHeight: 0, border: 0, borderRadius: 9, background: "rgba(255,255,255,.025)", display: "grid", placeItems: "center", cursor: running && !paused ? "pointer" : "not-allowed", opacity: running && !paused ? 1 : .45, padding: 2 }}
+                        style={{ minWidth: 0, minHeight: 0, border: 0, borderRadius: 9, background: "rgba(255,255,255,.025)", display: "grid", placeItems: "center", cursor: running && !paused ? "pointer" : "not-allowed", opacity: running && !paused ? 1 : .45, padding: 2, position: "relative", overflow: "hidden" }}
                       >
-                        <img src={ingredientDef(key).image} alt="" style={{ width: dispenser.keys.length > 1 ? "82%" : "72%", height: dispenser.keys.length > 1 ? "82%" : "72%", maxWidth: mobile ? 42 : 54, maxHeight: mobile ? 42 : 54, objectFit: "contain", pointerEvents: "none" }} />
+                        <img src={ingredientDef(key).image} alt="" style={{ width: dispenser.keys.length > 1 ? "82%" : "72%", height: dispenser.keys.length > 1 ? "82%" : "72%", maxWidth: mobile ? 42 : 54, maxHeight: mobile ? 42 : 54, objectFit: "contain", objectPosition: "center", pointerEvents: "none", margin: "auto" }} />
                       </button>
                     ))}
                   </div>
@@ -2325,30 +2405,36 @@ export default function MilosMixAndServe({
               }}
               style={{
                 ...panel,
-                minHeight: 0,
                 borderRadius: 16,
-                padding: mobile ? 7 : 10,
+                padding: mobile ? "5px 7px" : 10,
+                minHeight: mobile ? 78 : 0,
                 border: "1px dashed rgba(126,232,255,.3)",
                 display: "grid",
-                gridTemplateColumns: mobile ? "1fr" : "108px minmax(0,1fr)",
-                justifyItems: mobile ? "center" : undefined,
+                gridTemplateColumns: mobile ? "64px minmax(0,1fr)" : "108px minmax(0,1fr)",
+                justifyItems: mobile ? "stretch" : undefined,
                 alignItems: "center",
-                gap: mobile ? 4 : 10,
-                textAlign: mobile ? "center" : "left",
+                gap: mobile ? 5 : 10,
+                textAlign: mobile ? "left" : "left",
               }}
             >
               {renderEquipmentItem(choppingJob, "chopping")}
               <div style={{ minWidth: 0 }}>
-                <strong style={{ display: "block", color: "#8ee8ff", fontSize: 14 }}>Chopping Board</strong>
-                <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.42)", fontSize: mobile ? 8.5 : 10.5 }}>
-                  {mobile ? (activeStation === "salad" ? "Tomato / chicken · 5s" : "Tomato · 5s") : "Whole tomato · 5 sec"}
-                </span>
-                <div style={{ marginTop: 7, height: 7, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
-                  <div style={{ width: `${workstationProgress(choppingJob)}%`, height: "100%", background: choppingJob?.status === "ready" ? "#70e9a4" : "#8ee8ff" }} />
-                </div>
-                <span style={{ display: "block", marginTop: 4, color: "rgba(255,255,255,.3)", fontSize: mobile ? 8.5 : 10 }}>
-                  {choppingJob ? choppingJob.status === "ready" ? "Returning…" : `${Math.max(0, 5 - choppingJob.elapsedTicks * PROCESS_TICK_MS / 1000).toFixed(1)}s` : mobile ? "Drop here" : "Drop tomato"}
-                </span>
+                <strong style={{ display: "block", color: "#8ee8ff", fontSize: mobile ? 11.5 : 14, lineHeight: 1.05 }}>Chopping Board</strong>
+                {!mobile && (
+                  <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.42)", fontSize: 10.5 }}>
+                    Whole tomato · 5 sec
+                  </span>
+                )}
+                {(choppingJob || !mobile) && (
+                  <div style={{ marginTop: mobile ? 5 : 7, height: mobile ? 5 : 7, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
+                    <div style={{ width: `${workstationProgress(choppingJob)}%`, height: "100%", background: choppingJob?.status === "ready" ? "#70e9a4" : "#8ee8ff" }} />
+                  </div>
+                )}
+                {!mobile && (
+                  <span style={{ display: "block", marginTop: 4, color: "rgba(255,255,255,.3)", fontSize: 10 }}>
+                    {choppingJob ? choppingJob.status === "ready" ? "Returning…" : `${Math.max(0, 5 - choppingJob.elapsedTicks * PROCESS_TICK_MS / 1000).toFixed(1)}s` : "Drop tomato"}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -2365,27 +2451,29 @@ export default function MilosMixAndServe({
               }}
               style={{
                 ...panel,
-                minHeight: 0,
                 borderRadius: 16,
-                padding: mobile ? 7 : 9,
+                padding: mobile ? "5px 7px" : 9,
+                minHeight: mobile ? 78 : 0,
                 border: "1px dashed rgba(255,129,143,.3)",
                 display: "grid",
-                gridTemplateColumns: mobile ? "1fr" : "74px minmax(0,1fr)",
-                justifyItems: mobile ? "center" : undefined,
+                gridTemplateColumns: mobile ? "64px minmax(0,1fr)" : "74px minmax(0,1fr)",
+                justifyItems: mobile ? "stretch" : undefined,
                 alignItems: "center",
-                gap: mobile ? 4 : 9,
-                textAlign: mobile ? "center" : "left",
+                gap: mobile ? 5 : 9,
+                textAlign: "left",
               }}
             >
-              <div style={{ width: mobile ? 52 : 68, height: mobile ? 52 : 68, borderRadius: "50%", border: mobile ? "4px solid rgba(255,129,143,.32)" : "5px solid rgba(255,129,143,.32)", background: "radial-gradient(circle at 50% 44%, rgba(27,31,39,.96) 0 47%, rgba(255,129,143,.16) 49% 58%, rgba(7,13,23,.95) 60%)", boxShadow: "inset 0 0 0 5px rgba(255,255,255,.035), 0 8px 20px rgba(0,0,0,.28)", display: "grid", placeItems: "center", color: "#ff9da8", fontSize: 11, fontWeight: 950, letterSpacing: ".08em" }}>BIN</div>
+              <div style={{ width: mobile ? 56 : 68, height: mobile ? 56 : 68, borderRadius: "50%", border: mobile ? "4px solid rgba(255,129,143,.32)" : "5px solid rgba(255,129,143,.32)", background: "radial-gradient(circle at 50% 44%, rgba(27,31,39,.96) 0 47%, rgba(255,129,143,.16) 49% 58%, rgba(7,13,23,.95) 60%)", boxShadow: "inset 0 0 0 5px rgba(255,255,255,.035), 0 8px 20px rgba(0,0,0,.28)", display: "grid", placeItems: "center", color: "#ff9da8", fontSize: 11, fontWeight: 950, letterSpacing: ".08em" }}>BIN</div>
               <div style={{ minWidth: 0 }}>
-                <strong style={{ display: "block", color: "#ff9da8", fontSize: 14 }}>Waste Bin</strong>
+                <strong style={{ display: "block", color: "#ff9da8", fontSize: mobile ? 11.5 : 14, lineHeight: 1.05 }}>Waste Bin</strong>
                 {!mobile && (
                   <span style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.42)", fontSize: 11.5, lineHeight: 1.35 }}>
                     {activeStation === "salad" ? "Drag unwanted food or burnt chicken here." : "Drag unwanted food or burnt patties here."}
                   </span>
                 )}
-                <strong style={{ display: "block", marginTop: mobile ? 3 : 6, color: "#ff8996", fontSize: mobile ? 9 : 10.5 }}>−{DISCARD_PENALTY} pts</strong>
+                {!mobile && (
+                  <strong style={{ display: "block", marginTop: 6, color: "#ff8996", fontSize: 10.5 }}>−{DISCARD_PENALTY} pts</strong>
+                )}
               </div>
             </div>
           </div>
