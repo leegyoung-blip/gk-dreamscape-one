@@ -104,7 +104,7 @@ export default function BudgetFinalWeekStage({
     }
     if (fundingGap > 0) {
       setMessage(
-        `Move another ${fundingGap.toLocaleString()} DT into available DT before this choice can cover both the opportunity and the remaining known bills.`,
+        `Move another $${fundingGap.toLocaleString()} into available cash before this choice can cover both the opportunity and the remaining known bills.`,
       );
       setShowRebalance(true);
       return;
@@ -121,7 +121,7 @@ export default function BudgetFinalWeekStage({
     });
     if (!completed.ok) {
       setMessage(
-        `The final week is still short of ${completed.shortfall.toLocaleString()} DT. Rebalance and try again.`,
+        `The final week is still short of $${completed.shortfall.toLocaleString()}. Rebalance and try again.`,
       );
       setShowRebalance(true);
       return;
@@ -162,9 +162,9 @@ export default function BudgetFinalWeekStage({
 
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(88px,1fr))", gap: "6px" }}>
-          <Metric label="Available" value={`${liquid.toLocaleString()} DT`} accent="#8ee8ff" />
-          <Metric label="Set aside" value={`${protectedTotal.toLocaleString()} DT`} accent="#c3b5ff" />
-          <Metric label="Still due" value={`${finalCommitments.toLocaleString()} DT`} accent="#ffd18a" />
+          <Metric label="Available" value={`$${liquid.toLocaleString()}`} accent="#8ee8ff" />
+          <Metric label="Set aside" value={`$${protectedTotal.toLocaleString()}`} accent="#c3b5ff" />
+          <Metric label="Still due" value={`$${finalCommitments.toLocaleString()}`} accent="#ffd18a" />
         </div>
       </div>
 
@@ -189,7 +189,7 @@ export default function BudgetFinalWeekStage({
             <div style={{ borderRadius: "15px", border: "1px solid rgba(255,209,138,.15)", background: "rgba(255,209,138,.055)", padding: "10px 12px", minWidth: 0 }}>
               <span style={miniLabel}>Suggested capital</span>
               <strong style={{ display: "block", marginTop: "3px", color: "#ffd18a", fontSize: "24px" }}>
-                {challenge.opportunityAmount.toLocaleString()} DT
+                {`$${challenge.opportunityAmount.toLocaleString()}`}
               </strong>
               <div style={{ marginTop: "7px" }}><BudgetInfoButton title="Possible benefit" accent="#ffd18a">This is a simulated possible return range of +{challenge.potentialBenefitLow}% to +{challenge.potentialBenefitHigh}% over the next few months. It is not guaranteed.</BudgetInfoButton></div>
             </div>
@@ -197,10 +197,10 @@ export default function BudgetFinalWeekStage({
         </div>
 
         <div style={{ marginTop: "11px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: "7px" }}>
-          <InfoCard label="Liquid before decision" value={`${liquid.toLocaleString()} DT`} detail="Accessible across Available, Lifestyle and Essentials." />
-          <InfoCard label="Emergency reserve" value={`${allocation.emergency.toLocaleString()} DT`} detail="Protected unless you deliberately release it." />
-          <InfoCard label="Goals" value={`${allocation.goals.toLocaleString()} DT`} detail="Progress already protected for future priorities." />
-          <InfoCard label="Bills left" value={`${finalCommitments.toLocaleString()} DT`} detail={challenge.finalCommitments.length > 0 ? challenge.finalCommitments.map((item) => `Day ${item.dueDay} ${item.title}`).join(" · ") : "No known fixed payments remain."} />
+          <InfoCard label="Liquid before decision" value={`$${liquid.toLocaleString()}`} detail="Accessible across Available, Lifestyle and Essentials." />
+          <InfoCard label="Emergency reserve" value={`$${allocation.emergency.toLocaleString()}`} detail="Protected unless you deliberately release it." />
+          <InfoCard label="Goals" value={`$${allocation.goals.toLocaleString()}`} detail="Progress already protected for future priorities." />
+          <InfoCard label="Bills left" value={`$${finalCommitments.toLocaleString()}`} detail={challenge.finalCommitments.length > 0 ? challenge.finalCommitments.map((item) => `Day ${item.dueDay} ${item.title}`).join(" · ") : "No known fixed payments remain."} />
         </div>
       </section>
 
@@ -245,7 +245,7 @@ export default function BudgetFinalWeekStage({
                 >
                   <strong style={{ display: "block", fontSize: "21px" }}>{choice.label}</strong>
                   <span style={{ display: "block", marginTop: "8px", color: gap > 0 ? "#ffd3a0" : "#b9f7d7", fontSize: "16px", fontWeight: 850 }}>
-                    {gap > 0 ? `Needs ${gap.toLocaleString()} DT rebalanced` : "Fundable"}
+                    {gap > 0 ? `Needs $${gap.toLocaleString()} rebalanced` : "Fundable"}
                   </span>
                 </button>
                 <BudgetInfoButton title={choice.label}>{choice.description} {choice.riskNote}</BudgetInfoButton>

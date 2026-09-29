@@ -77,7 +77,7 @@ export default function BudgetReviewStage({
         }}
       >
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "9px" }}><p style={eyebrowStyle}>Stage 7 · Review</p><BudgetInfoButton title="Review your month">There is no score. Compare your first plan with where your DT ended, what you protected, and which trade-offs shaped the result.</BudgetInfoButton></div>
+          <div style={{ display: "flex", alignItems: "center", gap: "9px" }}><p style={eyebrowStyle}>Stage 7 · Review</p><BudgetInfoButton title="Review your month">There is no score. Compare your first plan with where your money ended, what you protected, and which trade-offs shaped the result.</BudgetInfoButton></div>
           <h3
             style={{
               margin: "4px 0 0",
@@ -96,9 +96,9 @@ export default function BudgetReviewStage({
       </div>
 
       <section className="budget-review-enter" style={{ marginTop: "11px", display: "grid", gridTemplateColumns: isMobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap: "7px" }}>
-        <Metric label="Available at end" value={`${result.endingAvailable.toLocaleString()} DT`} accent="#8ee8ff" detail="Accessible after known payments" />
-        <Metric label="Set aside" value={`${result.endingProtected.toLocaleString()} DT`} accent="#c8bcff" detail="Savings, reserve, investing and goals" />
-        <Metric label="Bills paid" value={`${result.finalCommitmentsPaid.toLocaleString()} DT`} accent="#ffd18a" detail="Known bills settled" />
+        <Metric label="Available at end" value={`$${result.endingAvailable.toLocaleString()}`} accent="#8ee8ff" detail="Accessible after known payments" />
+        <Metric label="Set aside" value={`$${result.endingProtected.toLocaleString()}`} accent="#c8bcff" detail="Savings, reserve, investing and goals" />
+        <Metric label="Bills paid" value={`$${result.finalCommitmentsPaid.toLocaleString()}`} accent="#ffd18a" detail="Known bills settled" />
         <Metric label="Missed commitments" value={`${result.commitmentsMissed}`} accent={result.commitmentsMissed === 0 ? "#80efb8" : "#ffaaaa"} detail="No automatic score attached" />
       </section>
 
@@ -107,7 +107,7 @@ export default function BudgetReviewStage({
           <div>
             <p style={eyebrowStyle}>Day 1 plan → Day 30 position</p>
             <h4 style={{ margin: "4px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "28px", fontWeight: 500 }}>
-              Where the DT actually ended up
+              Where the money actually ended up
             </h4>
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "14px", color: "rgba(255,255,255,.38)" }}>
@@ -130,7 +130,7 @@ export default function BudgetReviewStage({
                 </div>
                 {!isMobile && (
                   <span style={{ textAlign: "right", color: delta > 0 ? "#80efb8" : delta < 0 ? "#ffd18a" : "rgba(255,255,255,.28)", fontSize: "14px", fontWeight: 900 }}>
-                    {delta > 0 ? "+" : ""}{delta.toLocaleString()} DT
+                    {delta > 0 ? "+" : ""}{`$${delta.toLocaleString()}`}
                   </span>
                 )}
               </div>
@@ -259,7 +259,7 @@ function CompletionPanel({
           <div>
             <p style={{ ...eyebrowStyle, color: "#aef7d2" }}>Finish this run</p>
             <h4 style={{ margin: "4px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "27px", fontWeight: 500 }}>Save the completed month to your Financial Profile</h4>
-            <div style={{ marginTop: "7px" }}><BudgetInfoButton title="Finish this run" accent="#aef7d2">Finishing closes this run and saves its skill evidence. The first Budget Simulator completion earns 10 DT once. The first {difficulty === "standard" ? "Complex or Strategic" : difficulty === "complex" ? "Complex" : "Strategic"} completion can also earn a one-time 5 DT difficulty reward. Replays do not repeat those rewards.</BudgetInfoButton></div>
+            <div style={{ marginTop: "7px" }}><BudgetInfoButton title="Finish this run" accent="#aef7d2">Finishing closes this run and saves its skill evidence. The first Money Under Pressure completion earns 10 Dream Tokens once. The first {difficulty === "standard" ? "Complex or Strategic" : difficulty === "complex" ? "Complex" : "Strategic"} completion can also earn a one-time 5 Dream Token difficulty reward. Replays do not repeat those rewards.</BudgetInfoButton></div>
           </div>
           <button type="button" disabled={saving} onClick={() => void onComplete()} style={{ ...primaryButtonStyle, opacity: saving ? 0.5 : 1 }}>
             {saving ? "Finishing…" : "Finish simulation"}
@@ -278,13 +278,13 @@ function CompletionPanel({
           <div style={{ marginTop: "7px" }}>
             <BudgetInfoButton title="Completion saved" accent="#aef7d2">
               {completion?.rewardDt
-                ? `${completion.rewardDt.toLocaleString()} DT was added as a one-time completion reward for this qualifying milestone.`
-                : "This replay added fresh decision evidence but no repeat DT reward."}
+                ? `${completion.rewardDt.toLocaleString()} Dream Tokens were added as a one-time completion reward for this qualifying milestone.`
+                : "This replay added fresh decision evidence but no repeat Dream Token reward."}
             </BudgetInfoButton>
           </div>
           {completion?.rewardDt ? (
             <div style={{ marginTop: "7px", display: "inline-flex", alignItems: "center", gap: "6px", borderRadius: "999px", border: "1px solid rgba(255,209,138,.18)", background: "rgba(255,209,138,.06)", padding: "6px 9px", color: "#ffd18a", fontSize: "15px", fontWeight: 950 }}>
-              +{completion.rewardDt.toLocaleString()} DT
+              +{completion.rewardDt.toLocaleString()} Dream Tokens
               <span style={{ color: "rgba(255,255,255,.32)", fontSize: "15px", fontWeight: 700 }}>{completion.rewardLabel}</span>
             </div>
           ) : null}

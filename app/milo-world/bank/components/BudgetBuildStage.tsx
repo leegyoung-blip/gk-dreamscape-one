@@ -78,7 +78,7 @@ export default function BudgetBuildStage({
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
             <p style={eyebrowStyle}>Stage 3 · Plan your money</p>
-            <BudgetInfoButton title="Build your first plan">Move DT between categories until the plan reflects what you want to protect. You can leave some DT flexible. There is no single correct allocation.</BudgetInfoButton>
+            <BudgetInfoButton title="Build your first plan">Move money between categories until the plan reflects what you want to protect. You can leave some money flexible. There is no single correct allocation.</BudgetInfoButton>
           </div>
           <h3
             style={{
@@ -88,13 +88,13 @@ export default function BudgetBuildStage({
               fontWeight: 500,
             }}
           >
-            Give every DT a job.
+            Give every dollar a job.
           </h3>
         </div>
         <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
-          <SummaryPill label="DT to plan" value={`${pool.toLocaleString()} DT`} />
-          <SummaryPill label="Bills to cover" value={`${commitments.toLocaleString()} DT`} />
-          <SummaryPill label="Still flexible" value={`${allocation.unallocated.toLocaleString()} DT`} gold />
+          <SummaryPill label="Money to plan" value={`$${pool.toLocaleString()}`} />
+          <SummaryPill label="Bills to cover" value={`$${commitments.toLocaleString()}`} />
+          <SummaryPill label="Still flexible" value={`$${allocation.unallocated.toLocaleString()}`} gold />
         </div>
       </div>
 
@@ -154,7 +154,7 @@ export default function BudgetBuildStage({
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline", flexWrap: "wrap" }}>
                       <strong style={{ fontSize: "21px" }}>{formatBudgetAllocationLabel(selected)}</strong>
-                      <strong style={{ color: "#ffd18a", fontSize: "23px" }}>{allocation[selected].toLocaleString()} DT</strong>
+                      <strong style={{ color: "#ffd18a", fontSize: "23px" }}>{`$${allocation[selected].toLocaleString()}`}</strong>
                     </div>
                     <div style={{ marginTop: "7px" }}>
                       <BudgetInfoButton title={formatBudgetAllocationLabel(selected)}>
@@ -163,14 +163,14 @@ export default function BudgetBuildStage({
                           : selected === "savings"
                             ? "Protected money prioritised for stability and future flexibility."
                             : selected === "goals"
-                              ? "DT reserved for a defined future target."
+                              ? "Money reserved for a defined future target."
                               : selected === "emergency"
                                 ? "A buffer for costs you cannot predict in advance."
                                 : selected === "lifestyle"
                                   ? "Optional spending that competes with other priorities."
                                   : selected === "essentials"
                                     ? "Known needs and commitments that keep the month functioning."
-                                    : "DT kept immediately flexible until you decide where it should go."}
+                                    : "Money kept immediately flexible until you decide where it should go."}
                       </BudgetInfoButton>
                     </div>
                   </div>
@@ -190,7 +190,7 @@ export default function BudgetBuildStage({
                     <div style={{ marginTop: "8px", display: "grid", gridTemplateColumns: "minmax(0,1fr) 112px", gap: "8px", alignItems: "center" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <span style={{ color: "rgba(255,255,255,.58)", fontSize: "16px", fontWeight: 800 }}>Set amount</span>
-                        <BudgetInfoButton title="Set an amount">Use the slider for quick changes or type an exact DT value. Any DT you have not assigned stays in Still flexible.</BudgetInfoButton>
+                        <BudgetInfoButton title="Set an amount">Use the slider for quick changes or type an exact dollar amount. Any money you have not assigned stays in Still flexible.</BudgetInfoButton>
                       </div>
                       <input
                         type="number"
@@ -206,7 +206,7 @@ export default function BudgetBuildStage({
                   </>
                 ) : (
                   <div style={{ marginTop: "10px" }}>
-                    <BudgetInfoButton title="Still flexible">This DT has not been committed yet. It stays available for surprises or can be moved into another category at any time.</BudgetInfoButton>
+                    <BudgetInfoButton title="Still flexible">This money has not been committed yet. It stays available for surprises or can be moved into another category at any time.</BudgetInfoButton>
                   </div>
                 )}
                 {selected === "investing" && <InvestmentReference />}
@@ -273,7 +273,7 @@ export default function BudgetBuildStage({
                         style={{ width: "100%", accentColor: "#7ee8ff" }}
                       />
                       <span style={{ color: "#ffd18a", textAlign: "right", fontSize: "15px", fontWeight: 900 }}>
-                        {allocation[key].toLocaleString()} DT
+                        {`$${allocation[key].toLocaleString()}`}
                       </span>
                     </label>
                   );
@@ -390,7 +390,7 @@ function InvestmentReference() {
         />
         <div>
           <strong style={{ display: "block", fontSize: "15px" }}>Bank Bonds</strong>
-          <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "7px" }}><span style={referenceTextStyle}>Fixed return</span><BudgetInfoButton title="Bank Bonds">The return is fixed for the term, but the DT is locked until the Bond matures.</BudgetInfoButton></div>
+          <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "7px" }}><span style={referenceTextStyle}>Fixed return</span><BudgetInfoButton title="Bank Bonds">The return is fixed for the term, but the money is locked until the Bond matures.</BudgetInfoButton></div>
         </div>
       </div>
     </div>

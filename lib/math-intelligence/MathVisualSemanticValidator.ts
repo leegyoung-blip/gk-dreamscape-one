@@ -38,7 +38,7 @@ import type {
   MathVisualSemanticValidationResult,
 } from "./MathVisualSemanticTypes";
 
-export const MATH_VISUAL_SEMANTIC_VALIDATOR_VERSION = "2e.1";
+export const MATH_VISUAL_SEMANTIC_VALIDATOR_VERSION = "2I-P1.1";
 
 const GENERIC_LABELS = new Set([
   "answer",
@@ -692,6 +692,103 @@ function validatePartWholeBarModel(context: ValidationContext) {
   }
 }
 
+function validateRatioBarModel(context: ValidationContext) {
+  const factors = context.analysis.interpretation.quantities.filter(
+    (quantity) => quantity.role === "factor" && finite(quantity.value),
+  );
+  const left = context.analysis.interpretation.quantities.find(
+    (quantity) => quantity.id === "ratio_a" && finite(quantity.value),
+  ) || factors[0] || null;
+  const right = context.analysis.interpretation.quantities.find(
+    (quantity) => quantity.id === "ratio_b" && finite(quantity.value),
+  ) || factors[1] || null;
+
+  const leftSegments = context.visual.objects.filter(
+    (object) => object.type === "rectangle" && /^ratio_a_segment_\d+$/i.test(object.id),
+  ) as MathRectangleObject[];
+  const rightSegments = context.visual.objects.filter(
+    (object) => object.type === "rectangle" && /^ratio_b_segment_\d+$/i.test(object.id),
+  ) as MathRectangleObject[];
+
+  if (!left || !right || !finite(left.value) || !finite(right.value) || leftSegments.length < 1 || rightSegments.length < 1) {
+    addIssue(
+      context,
+      "MISSING_EXPECTED_OBJECT",
+      "The ratio bar model is missing source-supported ratio factors or ratio-unit segments.",
+      { visual_id: context.visual.id },
+    );
+    return;
+  }
+
+  checkFact(
+    context,
+    "ratio.left.count",
+    "left ratio unit count",
+    left.value,
+    leftSegments.length,
+    approx(leftSegments.length, left.value),
+    "VALUE_MISMATCH",
+  );
+  checkFact(
+    context,
+    "ratio.right.count",
+    "right ratio unit count",
+    right.value,
+    rightSegments.length,
+    approx(rightSegments.length, right.value),
+    "VALUE_MISMATCH",
+  );
+  requireSourceNumber(context, left.value, "left ratio term");
+  requireSourceNumber(context, right.value, "right ratio term");
+
+  const allSegments = [...leftSegments, ...rightSegments];
+  const referenceWidth = allSegments[0]?.width ?? null;
+  if (referenceWidth != null) {
+    const equalWidths = allSegments.every((segment) => approx(segment.width, referenceWidth));
+    checkFact(
+      context,
+      "ratio.equal_units",
+      "equal ratio-unit widths",
+      "equal",
+      equalWidths ? "equal" : "not equal",
+      equalWidths,
+      "RELATIONSHIP_MISMATCH",
+    );
+  }
+
+  const leftCount = textObject(context.visual, "ratio_a_count");
+  const rightCount = textObject(context.visual, "ratio_b_count");
+  if (leftCount) {
+    checkFact(
+      context,
+      `${leftCount.id}.value`,
+      "left ratio count label",
+      left.value,
+      firstNumber(leftCount.text),
+      firstNumber(leftCount.text) != null && approx(firstNumber(leftCount.text) as number, left.value),
+      "VALUE_MISMATCH",
+      leftCount.id,
+    );
+  }
+  if (rightCount) {
+    checkFact(
+      context,
+      `${rightCount.id}.value`,
+      "right ratio count label",
+      right.value,
+      firstNumber(rightCount.text),
+      firstNumber(rightCount.text) != null && approx(firstNumber(rightCount.text) as number, right.value),
+      "VALUE_MISMATCH",
+      rightCount.id,
+    );
+  }
+
+  const leftLabel = textObject(context.visual, "ratio_a_label");
+  const rightLabel = textObject(context.visual, "ratio_b_label");
+  if (left.label?.trim() && leftLabel) requireSourceLabel(context, leftLabel.text, "left ratio label", leftLabel.id);
+  if (right.label?.trim() && rightLabel) requireSourceLabel(context, rightLabel.text, "right ratio label", rightLabel.id);
+}
+
 function validatePlaceValueTable(context: ValidationContext) {
   const table = objectOfType(context.visual, "table") as MathTableObject | undefined;
   const source = visibleFiniteQuantities(context.analysis).find((quantity) => Number.isInteger(quantity.value) && (quantity.value as number) >= 0) || null;
@@ -757,6 +854,9 @@ function runStrategyValidation(context: ValidationContext) {
       break;
     case "bar_model_part_whole":
       validatePartWholeBarModel(context);
+      break;
+    case "bar_model_ratio":
+      validateRatioBarModel(context);
       break;
     case "place_value_table":
       validatePlaceValueTable(context);

@@ -169,20 +169,20 @@ export default function BudgetWhatIfPanel({
           available={comparison.alternativeEndingAvailable}
           protectedAmount={comparison.alternativeEndingProtected}
           tone="alternative"
-          unavailableDetail={comparison.fundable ? undefined : `Needs ${comparison.fundingGap.toLocaleString()} DT more liquid funding before it can be compared fairly.`}
+          unavailableDetail={comparison.fundable ? undefined : `Needs $${comparison.fundingGap.toLocaleString()} more liquid funding before it can be compared fairly.`}
         />
       </div>
 
       {comparison.fundable && comparison.alternativeEndingAvailable !== null && comparison.alternativeEndingProtected !== null && (
         <div style={{ marginTop: "9px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))", gap: "8px" }}>
           <ComparisonBar
-            label="Available DT at month end"
+            label="Available cash at month end"
             actual={comparison.actualEndingAvailable}
             alternative={comparison.alternativeEndingAvailable}
             max={maxAvailable}
           />
           <ComparisonBar
-            label="Set-aside DT at month end"
+            label="Set-aside money at month end"
             actual={comparison.actualEndingProtected}
             alternative={comparison.alternativeEndingProtected}
             max={maxProtected}
@@ -243,9 +243,9 @@ function PathCard({
       <span style={{ color: accent, fontSize: "15px", fontWeight: 950, textTransform: "uppercase", letterSpacing: ".08em" }}>{title}</span>
       <strong style={{ display: "block", marginTop: "4px", fontSize: "16px", lineHeight: 1.4 }}>{choice}</strong>
       <div style={{ marginTop: "7px", display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: "5px" }}>
-        <TinyMetric label="Committed" value={`${committed.toLocaleString()} DT`} />
-        <TinyMetric label="Available" value={available === null ? "—" : `${available.toLocaleString()} DT`} />
-        <TinyMetric label="Set aside" value={protectedAmount === null ? "—" : `${protectedAmount.toLocaleString()} DT`} />
+        <TinyMetric label="Committed" value={`$${committed.toLocaleString()}`} />
+        <TinyMetric label="Available" value={available === null ? "—" : `$${available.toLocaleString()}`} />
+        <TinyMetric label="Set aside" value={protectedAmount === null ? "—" : `$${protectedAmount.toLocaleString()}`} />
       </div>
       {unavailableDetail && <div style={{ marginTop: "7px" }}><BudgetInfoButton title="Why this path cannot be funded" accent="#ffd3a0">{unavailableDetail}</BudgetInfoButton></div>}
     </div>
@@ -278,7 +278,7 @@ function BarRow({ label, value, width, tone }: { label: string; value: number; w
       <div style={{ height: "7px", borderRadius: "999px", background: "rgba(255,255,255,.035)", overflow: "hidden" }}>
         <div style={{ width: `${Math.max(0, Math.min(100, width))}%`, height: "100%", borderRadius: "inherit", background: tone === "actual" ? "#72dff4" : "#a995ff" }} />
       </div>
-      <strong style={{ textAlign: "right", color: tone === "actual" ? "#9defff" : "#d6ceff", fontSize: "15px" }}>{value.toLocaleString()} DT</strong>
+      <strong style={{ textAlign: "right", color: tone === "actual" ? "#9defff" : "#d6ceff", fontSize: "15px" }}>{`$${value.toLocaleString()}`}</strong>
     </div>
   );
 }

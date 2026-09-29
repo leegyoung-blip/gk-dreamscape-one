@@ -70,7 +70,7 @@ export default function BudgetSimulatorShell({
   onReplaySameMonth: () => Promise<boolean>;
   onReplayFreshMonth: () => Promise<boolean>;
 }) {
-  const isMobile = screenMode === "mobile";
+  const isMobile = false;
   const scenario = getBudgetScenario(run.scenarioKey);
   const difficulty = getBudgetDifficulty(run.difficulty);
   const profile = useMemo(
@@ -160,14 +160,14 @@ export default function BudgetSimulatorShell({
 
   async function abandon() {
     const confirmed = window.confirm(
-      "End this Budget Simulator run? You will not be able to resume it.",
+      "End this Money Under Pressure run? You will not be able to resume it.",
     );
     if (!confirmed) return;
     await onAbandon();
   }
 
   return (
-    <section style={{ marginTop: isMobile ? "10px" : "12px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <section style={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div
         style={{
           borderRadius: "22px",
@@ -180,7 +180,8 @@ export default function BudgetSimulatorShell({
           boxShadow: "0 28px 80px rgba(0,0,0,.34)",
           overflow: "hidden",
           flex: 1,
-          minHeight: isMobile ? "calc(100dvh - 190px)" : "calc(100dvh - 210px)",
+          height: "100%",
+          minHeight: 0,
           display: "flex",
           flexDirection: "column",
         }}
@@ -200,7 +201,7 @@ export default function BudgetSimulatorShell({
         >
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: "7px", flexWrap: "wrap" }}>
-              <span style={eyebrowStyle}>Budget Simulator</span>
+              <span style={eyebrowStyle}>Budget challenge</span>
               <span style={badgeStyle}>{difficulty.title}</span>
               <span style={badgeStyle}>{scenario.title}</span>
             </div>
@@ -212,7 +213,7 @@ export default function BudgetSimulatorShell({
                 fontSize: isMobile ? "22px" : "28px",
               }}
             >
-              Build a Budget That Can Handle Surprises
+              Money Under Pressure
             </h2>
           </div>
 
@@ -249,7 +250,7 @@ export default function BudgetSimulatorShell({
         </header>
 
         <div
-          aria-label="Budget Simulator stages"
+          aria-label="Money Under Pressure stages"
           style={{
             padding: isMobile ? "8px" : "9px 12px",
             display: "grid",
@@ -314,8 +315,8 @@ export default function BudgetSimulatorShell({
           })}
         </div>
 
-        <div style={{ padding: isMobile ? "16px" : "20px", background: "linear-gradient(180deg,rgba(2,8,20,.28),rgba(2,8,20,.56))", flex: 1, display: "flex", minHeight: 0 }}>
-          <div style={{ width: "100%", alignSelf: "stretch" }}>
+        <div style={{ padding: "14px 16px", background: "linear-gradient(180deg,rgba(2,8,20,.30),rgba(2,8,20,.58))", flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
+          <div style={{ width: "100%", height: "100%", minHeight: 0, alignSelf: "stretch", overflow: "hidden" }}>
           {run.currentStage === "briefing" ? (
             <BudgetBriefingStage
               run={run}
@@ -576,7 +577,7 @@ function ComingNextStage({
   screenMode: BankScreenMode;
   allocation: BudgetAllocation;
 }) {
-  const isMobile = screenMode === "mobile";
+  const isMobile = false;
   const stageLabel = BUDGET_STAGES.find((item) => item.id === stage)?.label ?? "Next stage";
   return (
     <div
@@ -611,7 +612,7 @@ function ComingNextStage({
         <div style={{ marginTop: "14px", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "6px" }}>
           {Object.entries(allocation).map(([key, value]) => (
             <span key={key} style={miniAllocationStyle}>
-              {key.replaceAll("_", " ")} · {Number(value).toLocaleString()} DT
+              {key.replaceAll("_", " ")} · {`$${Number(value).toLocaleString()}`}
             </span>
           ))}
         </div>

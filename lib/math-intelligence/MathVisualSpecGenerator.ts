@@ -33,7 +33,7 @@ import type {
   MathVisualSpecGenerationResult,
 } from "./MathVisualGenerationTypes";
 
-export const MATH_VISUAL_SPEC_GENERATOR_VERSION = "2d.1";
+export const MATH_VISUAL_SPEC_GENERATOR_VERSION = "2I-P1.1";
 
 const PROMPT_VISUAL_ID = "main";
 
@@ -1181,6 +1181,149 @@ function generatePartWholeBarModel(
   );
 }
 
+function generateRatioBarModel(
+  input: MathIntelligenceQuestionInput,
+  analysis: MathIntelligenceAnalysis,
+) {
+  const factors = analysis.interpretation.quantities.filter(
+    (quantity) => quantity.role === "factor" && finite(quantity.value),
+  );
+  const left = analysis.interpretation.quantities.find(
+    (quantity) => quantity.id === "ratio_a" && finite(quantity.value),
+  ) || factors[0] || null;
+  const right = analysis.interpretation.quantities.find(
+    (quantity) => quantity.id === "ratio_b" && finite(quantity.value),
+  ) || factors[1] || null;
+
+  if (!left || !right || !finite(left.value) || !finite(right.value)) {
+    return noSpec(
+      analysis,
+      "needs_review",
+      issue("MISSING_REQUIRED_RELATIONSHIP", "A ratio bar model needs two explicit source-supported ratio terms."),
+    );
+  }
+
+  if (
+    !Number.isInteger(left.value) ||
+    !Number.isInteger(right.value) ||
+    left.value <= 0 ||
+    right.value <= 0 ||
+    left.value > 12 ||
+    right.value > 12
+  ) {
+    return noSpec(
+      analysis,
+      "needs_review",
+      issue(
+        "UNSUPPORTED_STRATEGY",
+        "The deterministic ratio bar currently supports positive whole-number ratios up to 12 units per quantity.",
+      ),
+    );
+  }
+
+  const leftCount = left.value;
+  const rightCount = right.value;
+  const maxCount = Math.max(leftCount, rightCount);
+  const unitWidth = Math.min(66, 480 / maxCount);
+  const barHeight = 58;
+  const x = 135;
+  const firstY = 80;
+  const secondY = 190;
+  const objects: MathVisualObject[] = [];
+
+  for (let index = 0; index < leftCount; index += 1) {
+    objects.push({
+      id: `ratio_a_segment_${index + 1}`,
+      type: "rectangle",
+      x: x + index * unitWidth,
+      y: firstY,
+      width: unitWidth,
+      height: barHeight,
+      style: { fill: "light", tone: "accent", stroke_width: 3 },
+    } as MathRectangleObject);
+  }
+
+  for (let index = 0; index < rightCount; index += 1) {
+    objects.push({
+      id: `ratio_b_segment_${index + 1}`,
+      type: "rectangle",
+      x: x + index * unitWidth,
+      y: secondY,
+      width: unitWidth,
+      height: barHeight,
+      style: { fill: "light", tone: "muted", stroke_width: 3 },
+    } as MathRectangleObject);
+  }
+
+  if (left.label?.trim()) {
+    objects.push({
+      id: "ratio_a_label",
+      type: "text",
+      x: x - 18,
+      y: firstY + 37,
+      text: left.label.trim(),
+      anchor: "end",
+      role: "label",
+    } as MathTextObject);
+  }
+
+  if (right.label?.trim()) {
+    objects.push({
+      id: "ratio_b_label",
+      type: "text",
+      x: x - 18,
+      y: secondY + 37,
+      text: right.label.trim(),
+      anchor: "end",
+      role: "label",
+    } as MathTextObject);
+  }
+
+  objects.push(
+    {
+      id: "ratio_a_count",
+      type: "text",
+      x: x + leftCount * unitWidth + 18,
+      y: firstY + 37,
+      text: `${formatNumber(leftCount)} parts`,
+      anchor: "start",
+      role: "value",
+      style: { tone: "accent" },
+    } as MathTextObject,
+    {
+      id: "ratio_b_count",
+      type: "text",
+      x: x + rightCount * unitWidth + 18,
+      y: secondY + 37,
+      text: `${formatNumber(rightCount)} parts`,
+      anchor: "start",
+      role: "value",
+      style: { tone: "muted" },
+    } as MathTextObject,
+    {
+      id: "ratio_equal_units_note",
+      type: "text",
+      x: 360,
+      y: 310,
+      text: "Each block represents one equal ratio unit",
+      anchor: "middle",
+      role: "annotation",
+      style: { tone: "muted" },
+    } as MathTextObject,
+  );
+
+  return generated(
+    input,
+    analysis,
+    visual(
+      "bar_model",
+      `Ratio bar model showing ${formatNumber(leftCount)} to ${formatNumber(rightCount)} equal units`,
+      { width: 720, height: 350, padding: 28, background: "paper" },
+      objects,
+    ),
+  );
+}
+
 function generatePlaceValueTable(
   input: MathIntelligenceQuestionInput,
   analysis: MathIntelligenceAnalysis,
@@ -1367,6 +1510,8 @@ export function generateMathVisualSpec(
       return generateComparisonBarModel(input, analysis);
     case "bar_model_part_whole":
       return generatePartWholeBarModel(input, analysis);
+    case "bar_model_ratio":
+      return generateRatioBarModel(input, analysis);
     case "place_value_table":
       return generatePlaceValueTable(input, analysis);
     case "measurement_diagram":
@@ -1383,8 +1528,6 @@ export function generateMathVisualSpec(
       return unsupported(analysis, analysis.strategy, "the exact face arrangement is required before deterministic generation.");
     case "line_graph":
       return unsupported(analysis, analysis.strategy, "explicit x-values and y-values are required before deterministic generation.");
-    case "bar_model_ratio":
-      return unsupported(analysis, analysis.strategy, "explicit ratio-unit structure is required before deterministic generation.");
     case "mixed":
       return unsupported(analysis, analysis.strategy, "mixed visuals require an explicit multi-visual plan rather than guessed composition.");
     default:

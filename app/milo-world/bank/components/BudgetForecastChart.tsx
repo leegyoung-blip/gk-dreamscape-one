@@ -54,15 +54,15 @@ export default function BudgetForecastChart({
           fontWeight: 850,
         }}
       >
-        <LegendDot colour="#7ee8ff" label="Available DT" />
-        <LegendDot colour="#d9b7ff" label="Protected DT" />
+        <LegendDot colour="#7ee8ff" label="Available cash" />
+        <LegendDot colour="#d9b7ff" label="Set-aside money" />
         <LegendDot colour="#ffd18a" label="Known payment" />
       </div>
 
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label="Thirty-day Budget Simulator forecast showing Available DT, Protected DT and known payment dates"
+        aria-label="Thirty-day Money Under Pressure forecast showing Available cash, Set-aside money and known payment dates"
         style={{ display: "block", width: "100%", height: "auto", minHeight: "270px" }}
       >
         <defs>

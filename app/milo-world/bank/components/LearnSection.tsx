@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FINANCIAL_LEARNING_PATHWAYS } from "../lib/financial-learning";
 import type { BankScreenMode } from "../lib/bank-types";
 import FinancialCoursePanel from "./FinancialCoursePanel";
+import DesktopLearningNotice from "./DesktopLearningNotice";
 
 const COURSE_SUMMARIES: Record<string, string> = {
   "financial-foundations": "Saving, interest, bonds, priorities and risk.",
@@ -29,6 +30,10 @@ export default function LearnSection({
   const isMobile = screenMode === "mobile";
   const compact = screenMode !== "desktop";
   const [selectedCourseId, setSelectedCourseId] = useState("financial-foundations");
+
+  if (isMobile) {
+    return <DesktopLearningNotice kind="lesson" />;
+  }
 
   function selectCourse(courseId: string, premium: boolean) {
     if (premium) {

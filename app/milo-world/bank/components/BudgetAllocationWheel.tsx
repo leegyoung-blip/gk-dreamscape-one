@@ -75,10 +75,7 @@ export default function BudgetAllocationWheel({
             {formatBudgetAllocationLabel(selected).toUpperCase()}
           </text>
           <text x="160" y="169" textAnchor="middle" fill={selected === "unallocated" ? "#c7ced8" : "#ffffff"} fontSize="25" fontWeight="900">
-            {allocation[selected].toLocaleString()}
-          </text>
-          <text x="160" y="185" textAnchor="middle" fill="#ffd18a" fontSize="14" fontWeight="900">
-            DT
+            {`$${allocation[selected].toLocaleString()}`}
           </text>
         </svg>
       </div>

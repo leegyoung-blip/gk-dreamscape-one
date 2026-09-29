@@ -88,21 +88,21 @@ export default function BudgetLiveRebalancePanel({
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><p style={eyebrowStyle}>Rebalance</p><BudgetInfoButton title="Rebalancing">Move DT from one priority to another when circumstances change. Moving DT does not create or destroy money; it changes what you are protecting.</BudgetInfoButton></div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><p style={eyebrowStyle}>Rebalance</p><BudgetInfoButton title="Rebalancing">Move money from one priority to another when circumstances change. Moving money does not create or destroy money; it changes what you are protecting.</BudgetInfoButton></div>
           <strong style={{ display: "block", marginTop: "3px", fontSize: "18px" }}>
             Move money where it is needed
           </strong>
         </div>
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-          <Metric label="Available" value={`${liquid.toLocaleString()} DT`} />
-          <Metric label="Set aside" value={`${protectedTotal.toLocaleString()} DT`} />
+          <Metric label="Available" value={`$${liquid.toLocaleString()}`} />
+          <Metric label="Set aside" value={`$${protectedTotal.toLocaleString()}`} />
         </div>
       </div>
 
       {fundingGap > 0 && (
         <div style={{ marginTop: "9px", display: "flex", alignItems: "center", gap: "9px" }}>
-          <strong style={{ color: "#ffd3a0", fontSize: "18px" }}>{fundingGap.toLocaleString()} DT more needed</strong>
-          <BudgetInfoButton title="Funding gap" accent="#ffd3a0">Move DT from a protected priority into Available or another liquid category before this step can be funded.</BudgetInfoButton>
+          <strong style={{ color: "#ffd3a0", fontSize: "18px" }}>{`$${fundingGap.toLocaleString()}`} more needed</strong>
+          <BudgetInfoButton title="Funding gap" accent="#ffd3a0">Move money from a protected priority into Available or another liquid category before this step can be funded.</BudgetInfoButton>
         </div>
       )}
 
@@ -120,7 +120,7 @@ export default function BudgetLiveRebalancePanel({
               {LABELS[key]}
             </span>
             <strong style={{ display: "block", marginTop: "2px", color: key === "unallocated" ? "#8ee8ff" : "white", fontSize: "17px" }}>
-              {state.allocation[key].toLocaleString()} DT
+              {`$${state.allocation[key].toLocaleString()}`}
             </strong>
           </div>
         ))}
@@ -139,7 +139,7 @@ export default function BudgetLiveRebalancePanel({
           From
           <select value={from} onChange={(event) => setFrom(event.target.value as BudgetAllocationKey)} style={inputStyle}>
             {KEYS.map((key) => (
-              <option key={key} value={key}>{LABELS[key]} · {state.allocation[key].toLocaleString()} DT</option>
+              <option key={key} value={key}>{LABELS[key]} · {`$${state.allocation[key].toLocaleString()}`}</option>
             ))}
           </select>
         </label>
@@ -167,13 +167,13 @@ export default function BudgetLiveRebalancePanel({
         </label>
 
         <button type="button" disabled={!canTransfer} onClick={transfer} style={{ ...buttonStyle, opacity: canTransfer ? 1 : 0.45 }}>
-          Move {safeAmount.toLocaleString()} DT
+          Move {`$${safeAmount.toLocaleString()}`}
         </button>
       </div>
 
       {suggestion && suggestion > 0 && (
         <button type="button" onClick={() => setAmount(suggestion)} style={linkButtonStyle}>
-          Use suggested amount: {suggestion.toLocaleString()} DT
+          Use suggested amount: {`$${suggestion.toLocaleString()}`}
         </button>
       )}
     </div>

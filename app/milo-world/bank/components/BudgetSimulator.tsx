@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useBudgetSimulation } from "../hooks/useBudgetSimulation";
 import type { BankScreenMode } from "../lib/bank-types";
 import { createBudgetScenarioSeed } from "../lib/budget-simulator-scenarios";
@@ -10,6 +10,7 @@ import type {
 } from "../lib/budget-simulator-types";
 import BudgetSimulatorLanding from "./BudgetSimulatorLanding";
 import BudgetSimulatorShell from "./BudgetSimulatorShell";
+import DesktopLearningNotice from "./DesktopLearningNotice";
 
 export default function BudgetSimulator({
   screenMode,
@@ -22,12 +23,27 @@ export default function BudgetSimulator({
 }) {
   const simulation = useBudgetSimulation(isLoggedIn);
   const [insideRun, setInsideRun] = useState(false);
-  const simulatorViewportStyle = {
-    width: "100%",
-    minHeight: screenMode === "mobile" ? "calc(100dvh - 185px)" : "calc(100dvh - 205px)",
-    display: "flex",
-    flexDirection: "column" as const,
-  };
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    if (screenMode === "mobile") return;
+
+    const measure = () => {
+      const node = viewportRef.current;
+      if (!node) return;
+      const top = node.getBoundingClientRect().top;
+      setViewportHeight(Math.max(0, Math.floor(window.innerHeight - top - 8)));
+    };
+
+    measure();
+    const id = window.requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.cancelAnimationFrame(id);
+      window.removeEventListener("resize", measure);
+    };
+  }, [screenMode, insideRun, simulation.run?.currentStage, simulation.run?.id]);
 
   async function start(input: {
     scenarioKey: BudgetScenarioKey;
@@ -40,60 +56,73 @@ export default function BudgetSimulator({
     return true;
   }
 
+  if (screenMode === "mobile") {
+    return <DesktopLearningNotice kind="simulation" />;
+  }
+
+  const simulatorViewportStyle = {
+    width: "100%",
+    height: viewportHeight ? `${viewportHeight}px` : "calc(100dvh - 210px)",
+    minHeight: 0,
+    overflow: "hidden" as const,
+    display: "flex",
+    flexDirection: "column" as const,
+  };
+
   if (insideRun && simulation.run) {
     return (
-      <div style={simulatorViewportStyle}>
-      <BudgetSimulatorShell
-        run={simulation.run}
-        screenMode={screenMode}
-        saving={simulation.saving}
-        error={simulation.error}
-        onSaveCheckpoint={simulation.saveCheckpoint}
-        onRecordEvidence={simulation.recordEvidence}
-        onCompleteRun={async () => Boolean(await simulation.complete())}
-        onReplaySameMonth={async () => {
-          const current = simulation.run;
-          if (!current) return false;
-          return Boolean(await simulation.start({
-            scenarioKey: current.scenarioKey,
-            difficulty: current.difficulty,
-            scenarioSeed: current.scenarioSeed,
-          }));
-        }}
-        onReplayFreshMonth={async () => {
-          const current = simulation.run;
-          if (!current) return false;
-          return Boolean(await simulation.start({
-            scenarioKey: current.scenarioKey,
-            difficulty: current.difficulty,
-            scenarioSeed: createBudgetScenarioSeed(),
-          }));
-        }}
-        onExit={() => {
-          setInsideRun(false);
-          onExit();
-        }}
-        onAbandon={async () => {
-          const success = await simulation.abandon();
-          if (success) setInsideRun(false);
-        }}
-      />
+      <div ref={viewportRef} style={simulatorViewportStyle}>
+        <BudgetSimulatorShell
+          run={simulation.run}
+          screenMode={screenMode}
+          saving={simulation.saving}
+          error={simulation.error}
+          onSaveCheckpoint={simulation.saveCheckpoint}
+          onRecordEvidence={simulation.recordEvidence}
+          onCompleteRun={async () => Boolean(await simulation.complete())}
+          onReplaySameMonth={async () => {
+            const current = simulation.run;
+            if (!current) return false;
+            return Boolean(await simulation.start({
+              scenarioKey: current.scenarioKey,
+              difficulty: current.difficulty,
+              scenarioSeed: current.scenarioSeed,
+            }));
+          }}
+          onReplayFreshMonth={async () => {
+            const current = simulation.run;
+            if (!current) return false;
+            return Boolean(await simulation.start({
+              scenarioKey: current.scenarioKey,
+              difficulty: current.difficulty,
+              scenarioSeed: createBudgetScenarioSeed(),
+            }));
+          }}
+          onExit={() => {
+            setInsideRun(false);
+            onExit();
+          }}
+          onAbandon={async () => {
+            const success = await simulation.abandon();
+            if (success) setInsideRun(false);
+          }}
+        />
       </div>
     );
   }
 
   return (
-    <div style={simulatorViewportStyle}>
-    <BudgetSimulatorLanding
-      screenMode={screenMode}
-      isLoggedIn={isLoggedIn}
-      run={simulation.run}
-      loading={simulation.loading}
-      saving={simulation.saving}
-      error={simulation.error}
-      onContinue={() => setInsideRun(true)}
-      onStart={start}
-    />
+    <div ref={viewportRef} style={simulatorViewportStyle}>
+      <BudgetSimulatorLanding
+        screenMode={screenMode}
+        isLoggedIn={isLoggedIn}
+        run={simulation.run}
+        loading={simulation.loading}
+        saving={simulation.saving}
+        error={simulation.error}
+        onContinue={() => setInsideRun(true)}
+        onStart={start}
+      />
     </div>
   );
 }

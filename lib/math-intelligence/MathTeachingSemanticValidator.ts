@@ -8,7 +8,7 @@ import type { MathTeachingSemanticIssue, MathTeachingSemanticValidationResult } 
 import type { MathTeachingVisualDraftResult, MathTeachingVisualRole } from "./MathTeachingVisualTypes";
 import type { MathIntelligenceAnalysis, MathVisualStrategy } from "./MathIntelligenceTypes";
 
-export const MATH_TEACHING_SEMANTIC_VALIDATOR_VERSION = "2F-D.1";
+export const MATH_TEACHING_SEMANTIC_VALIDATOR_VERSION = "2I-P1.1";
 
 type Channel = "lesson" | "teach_me";
 
@@ -87,6 +87,11 @@ const TEMPLATE_PROFILES: Record<string, TemplateProfile> = {
     strategies: ["bar_model_part_whole"],
     required_roles: ["part_segment", "total_dimension"],
     minimum_role_counts: { part_segment: 2 },
+  },
+  bar_model_ratio: {
+    strategies: ["bar_model_ratio"],
+    required_roles: ["ratio_group_a", "ratio_group_b", "ratio_unit"],
+    minimum_role_counts: { ratio_unit: 2 },
   },
   place_value_basic: {
     strategies: ["place_value_table"],

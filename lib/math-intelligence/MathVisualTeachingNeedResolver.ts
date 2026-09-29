@@ -246,10 +246,24 @@ export function resolveMathVisualTeachingNeed(
         requires_luna: false,
       });
 
+    case "bar_model_ratio": {
+      const complete =
+        hasRole(roles, "ratio_group_a") &&
+        hasRole(roles, "ratio_group_b") &&
+        (roles.by_role.ratio_unit?.length || 0) >= 2;
+      return result(roles, {
+        need: "strongly_recommended",
+        decision: complete ? "generate_with_rules" : "needs_review",
+        confidence: 0.96,
+        reason_codes: ["BAR_MODEL_PEDAGOGY"],
+        can_generate_deterministically: complete,
+        requires_luna: false,
+      });
+    }
+
     case "polygon_geometry":
     case "symmetry_diagram":
     case "solid_net":
-    case "bar_model_ratio":
     case "mixed":
       return result(roles, {
         need: "strongly_recommended",

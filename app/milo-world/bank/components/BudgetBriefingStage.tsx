@@ -53,7 +53,7 @@ export default function BudgetBriefingStage({
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
               <p style={eyebrowStyle}>Stage 1 · Your starting point</p>
-              <BudgetInfoButton title="Your starting point">These are the headline numbers for the month. The next screen lets you inspect the actual payments, goals and uncertain signals before you decide how to allocate your DT.</BudgetInfoButton>
+              <BudgetInfoButton title="Your starting point">These are the headline numbers for the month. The next screen lets you inspect the actual payments, goals and uncertain signals before you decide how to allocate your money.</BudgetInfoButton>
             </div>
             <h3
               style={{
@@ -93,9 +93,9 @@ export default function BudgetBriefingStage({
             gap: "8px",
           }}
         >
-          <Metric label="Monthly income" value={`${profile.monthlyIncome.toLocaleString()} DT`} />
-          <Metric label="Available now" value={`${profile.availableNow.toLocaleString()} DT`} />
-          <Metric label="Bills to cover" value={`${commitments.toLocaleString()} DT`} />
+          <Metric label="Monthly income" value={`$${profile.monthlyIncome.toLocaleString()}`} />
+          <Metric label="Available now" value={`$${profile.availableNow.toLocaleString()}`} />
+          <Metric label="Bills to cover" value={`$${commitments.toLocaleString()}`} />
           <Metric label="Active goals" value={String(profile.goals.length)} />
         </div>
 
@@ -107,7 +107,7 @@ export default function BudgetBriefingStage({
             gap: "8px",
           }}
         >
-          <MiniFact label="Current savings" value={`${profile.currentSavings.toLocaleString()} DT`} />
+          <MiniFact label="Current savings" value={`$${profile.currentSavings.toLocaleString()}`} />
           <MiniFact
             label="Next income"
             value={profile.nextIncomeWindow ?? `Day ${profile.nextIncomeDay}`}

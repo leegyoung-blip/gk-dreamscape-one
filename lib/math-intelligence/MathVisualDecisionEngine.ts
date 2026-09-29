@@ -51,6 +51,104 @@ function expressionOnlyPrompt(prompt: string) {
   return /^[\d\s+\-×x*÷/().,%$:=]+$/i.test(compact);
 }
 
+function ratioManipulationPrompt(source: string) {
+  return (
+    containsAny(source, [
+      "simplify the ratio",
+      "simplify this ratio",
+      "simplest form",
+      "lowest terms",
+      "express the ratio",
+      "write the ratio",
+    ]) && source.includes("ratio")
+  );
+}
+
+function routineTextOnlyTask(
+  input: MathIntelligenceQuestionInput,
+  source: string,
+  topicSkill: string,
+) {
+  if (looksVisuallyDependent(source)) return false;
+  if (
+    input.existing_media.has_real_image ||
+    input.existing_media.has_legacy_svg ||
+    input.existing_media.has_option_images
+  ) {
+    return false;
+  }
+
+  // These domains frequently encode the mathematics in a visual or benefit
+  // from a representation. Their dedicated rules above get first refusal.
+  if (
+    containsAny(topicSkill, [
+      "geometry",
+      "angle",
+      "symmetry",
+      "area",
+      "perimeter",
+      "volume",
+      "cube",
+      "cuboid",
+      "graph",
+      "chart",
+      "table",
+      "data",
+      "time",
+      "clock",
+    ])
+  ) {
+    return false;
+  }
+
+  // Relationship language is handled by bar-model rules or Luna instead of
+  // being discarded as routine arithmetic.
+  if (
+    /\b(fewer|less|more|greater)(?:\s+[a-z]+){0,4}\s+than\b/i.test(input.prompt) ||
+    containsAny(source, [
+      "altogether",
+      "in total",
+      "total number",
+      "ratio of",
+      "ratio is",
+      "in the ratio",
+      "ratio between",
+      "shared equally",
+      "equally among",
+      "each group",
+      "per group",
+    ])
+  ) {
+    return false;
+  }
+
+  const prompt = input.prompt.trim().toLocaleLowerCase();
+  const taskLead = /^(calculate|work out|evaluate|solve|simplify|round|convert|write|express|find the (?:value|sum|difference|product|quotient)|what is|which (?:number|expression|value|fraction|decimal|percentage))\b/i;
+  const conciseQuestion = prompt.length <= 190;
+  const curriculumTextOnlyDomain = containsAny(topicSkill, [
+    "whole number",
+    "whole numbers",
+    "addition",
+    "subtraction",
+    "multiplication",
+    "division",
+    "operations",
+    "decimal",
+    "percentage",
+    "percent",
+    "rounding",
+    "place value",
+    "factor",
+    "multiple",
+    "algebra",
+    "estimation",
+    "money",
+    "conversion",
+  ]);
+
+  return conciseQuestion && taskLead.test(prompt) && curriculumTextOnlyDomain;
+}
+
 function resolved(
   values: Omit<MathRuleEvaluation, "resolved">,
 ): MathRuleEvaluation {
@@ -73,10 +171,14 @@ function ambiguous(
 }
 
 /**
- * Phase 2A — conservative deterministic decision layer.
+ * Phase 2I coverage expansion pass 1 — deterministic decision layer.
  *
- * A rule result is final only when Dreamscape can defend the decision from
- * explicit question signals. Anything genuinely ambiguous is escalated to Luna.
+ * The ordering is deliberate:
+ * 1. preserve existing learner media;
+ * 2. catch explicit visual mathematics;
+ * 3. catch high-value bar-model structures;
+ * 4. skip only clearly routine text-only work;
+ * 5. route genuine ambiguity to Luna.
  */
 export function evaluateMathVisualNeed(
   input: MathIntelligenceQuestionInput,
@@ -95,7 +197,10 @@ export function evaluateMathVisualNeed(
     });
   }
 
-  if (input.existing_media.has_real_image && looksVisuallyDependent(source)) {
+  // Genuine images and option images are never silently replaced by generated
+  // mathematical diagrams. Phase 3 may migrate mathematical legacy media, but
+  // Phase 2I only analyses/preserves it.
+  if (input.existing_media.has_real_image || input.existing_media.has_option_images) {
     return resolved({
       visual_need: "prohibited",
       disposition: "preserve_media",
@@ -105,14 +210,12 @@ export function evaluateMathVisualNeed(
     });
   }
 
-  // Phase 3 will migrate legacy mathematical SVG/stimulus media. Phase 2 must
-  // not silently replace it while building new intelligence behaviour.
   if (input.existing_media.has_legacy_svg) {
     return resolved({
       visual_need: looksVisuallyDependent(source) ? "required" : "useful",
       disposition: "preserve_media",
       candidate_strategies: ["preserve_media"],
-      confidence: 0.98,
+      confidence: 0.99,
       reason_codes: ["LEGACY_MEDIA_DEPENDENCY"],
     });
   }
@@ -132,6 +235,20 @@ export function evaluateMathVisualNeed(
   }
 
   if (
+    containsAny(topicSkill, ["fraction", "fractions"]) &&
+    containsAny(source, ["fraction bar", "fraction model"]) &&
+    containsAny(source, ["show", "draw", "represent", "model"])
+  ) {
+    return resolved({
+      visual_need: "required",
+      disposition: "generate",
+      candidate_strategies: ["fraction_bar"],
+      confidence: 0.97,
+      reason_codes: ["FRACTION_SHADED_WHOLE"],
+    });
+  }
+
+  if (
     containsAny(source, [
       "shaded fraction",
       "fraction is shaded",
@@ -139,6 +256,7 @@ export function evaluateMathVisualNeed(
       "fraction of the bar is shaded",
       "shaded part",
       "unshaded part",
+      "equal parts are shaded",
     ])
   ) {
     return resolved({
@@ -151,7 +269,7 @@ export function evaluateMathVisualNeed(
   }
 
   if (
-    containsAny(source, ["equivalent fraction", "equivalent fractions"]) &&
+    containsAny(source, ["equivalent fraction", "equivalent fractions", "same fraction"]) &&
     containsAny(topicSkill, ["fraction", "fractions"])
   ) {
     return resolved({
@@ -175,7 +293,7 @@ export function evaluateMathVisualNeed(
 
   if (
     containsAny(source, ["bar graph", "bar chart", "pictogram", "pie chart", "line graph"]) &&
-    containsAny(source, ["shown", "below", "above", "study", "according to", "represents"])
+    containsAny(source, ["shown", "below", "above", "study", "according to", "represents", "draw", "construct", "make"])
   ) {
     const candidates: MathVisualStrategy[] = containsAny(source, ["bar graph", "bar chart"])
       ? ["bar_chart"]
@@ -196,7 +314,7 @@ export function evaluateMathVisualNeed(
 
   if (
     source.includes("table") &&
-    containsAny(source, ["shown", "below", "above", "study", "according to"])
+    containsAny(source, ["shown", "below", "above", "study", "according to", "complete", "draw", "construct"])
   ) {
     return resolved({
       visual_need: "required",
@@ -218,7 +336,7 @@ export function evaluateMathVisualNeed(
   }
 
   if (
-    containsAny(source, ["angle marked", "marked angle", "angle shown", "find angle", "unknown angle"]) &&
+    containsAny(source, ["angle marked", "marked angle", "angle shown", "find angle", "unknown angle", "draw an angle", "construct an angle"]) &&
     containsAny(topicSkill, ["angle", "geometry"])
   ) {
     return resolved({
@@ -257,20 +375,20 @@ export function evaluateMathVisualNeed(
 
   if (
     containsAny(topicSkill, ["cube", "cuboid", "volume"]) &&
-    containsAny(source, ["cube", "cuboid", "volume", "length", "width", "height"])
+    containsAny(source, ["cube", "cuboid", "volume", "length", "width", "height", "edge", "side"])
   ) {
     return resolved({
       visual_need: "useful",
       disposition: "generate",
       candidate_strategies: source.includes("cuboid") ? ["cuboid"] : ["cube", "cuboid"],
-      confidence: source.includes("cuboid") ? 0.93 : 0.78,
+      confidence: source.includes("cuboid") ? 0.93 : 0.8,
       reason_codes: ["SOLID_REQUIRED"],
     });
   }
 
   if (
     containsAny(source, ["rectangle", "rectangular"]) &&
-    containsAny(source, ["length", "long", "width", "wide", "breadth"]) &&
+    containsAny(source, ["length", "long", "width", "wide", "breadth", " by ", "×", " x "]) &&
     containsAny(source, ["area", "perimeter"])
   ) {
     return resolved({
@@ -283,54 +401,54 @@ export function evaluateMathVisualNeed(
   }
 
   if (
-    /\b(fewer|less|more|greater)(?:\s+[a-z]+){0,3}\s+than\b/i.test(input.prompt) &&
-    /\b(has|have|had|owns|bought|collected|made|scored|received)\b/i.test(input.prompt)
+    /\b(fewer|less|more|greater)(?:\s+[a-z]+){0,4}\s+than\b/i.test(input.prompt) &&
+    /\b(has|have|had|owns|bought|collected|made|scored|received|is|are|was|were)\b/i.test(input.prompt)
   ) {
     return resolved({
       visual_need: "useful",
       disposition: "generate",
       candidate_strategies: ["bar_model_comparison"],
-      confidence: 0.92,
+      confidence: 0.93,
       reason_codes: ["WORD_PROBLEM_COMPARISON"],
+    });
+  }
+
+  // Pure ratio manipulation is a routine symbolic task; a prompt diagram would
+  // add little and can make the assessment noisier.
+  if (ratioManipulationPrompt(source) && !looksVisuallyDependent(source)) {
+    return resolved({
+      visual_need: "unnecessary",
+      disposition: "skip",
+      candidate_strategies: ["none"],
+      confidence: 0.96,
+      reason_codes: ["DIRECT_CALCULATION"],
     });
   }
 
   if (
     containsAny(source, ["ratio of", "ratio is", "in the ratio", "ratio between"]) &&
-    !containsAny(source, ["simplify the ratio", "express the ratio"])
+    !ratioManipulationPrompt(source)
   ) {
     return resolved({
       visual_need: "useful",
       disposition: "generate",
       candidate_strategies: ["bar_model_ratio"],
-      confidence: 0.9,
+      confidence: 0.94,
       reason_codes: ["WORD_PROBLEM_RATIO"],
     });
   }
 
   if (
-    containsAny(source, ["altogether", "in total", "total number"]) &&
-    input.prompt.length >= 70 &&
-    /\b(has|have|had|bought|collected|made|received|shared)\b/i.test(input.prompt)
+    containsAny(source, ["altogether", "in total", "total number", "total of"]) &&
+    /\b(has|have|had|bought|collected|made|received|shared|there (?:is|are|were)|contains?)\b/i.test(input.prompt)
   ) {
-    // Part-whole language is useful, but this is intentionally not a final rule
-    // when another relationship may also exist in a long word problem.
-    return ambiguous(
-      ["bar_model_part_whole"],
-      ["WORD_PROBLEM_PART_WHOLE", "AMBIGUOUS_LANGUAGE"],
-      0.74,
-    );
-  }
-
-  if (
-    containsAny(topicSkill, ["measurement", "length", "mass", "capacity"]) &&
-    containsAny(source, ["measure", "length", "height", "distance"])
-  ) {
-    return ambiguous(
-      ["measurement_diagram", "none"],
-      ["MEASUREMENT_USEFUL", "MULTIPLE_STRATEGIES_PLAUSIBLE"],
-      0.65,
-    );
+    return resolved({
+      visual_need: "useful",
+      disposition: "generate",
+      candidate_strategies: ["bar_model_part_whole"],
+      confidence: 0.86,
+      reason_codes: ["WORD_PROBLEM_PART_WHOLE"],
+    });
   }
 
   if (expressionOnlyPrompt(input.prompt)) {
@@ -343,12 +461,12 @@ export function evaluateMathVisualNeed(
     });
   }
 
-  if (containsAny(topicSkill, ["rounding", "round off", "nearest"]) && input.prompt.length < 150) {
+  if (containsAny(topicSkill, ["rounding", "round off", "nearest"]) && input.prompt.length < 180) {
     return resolved({
       visual_need: "unnecessary",
       disposition: "skip",
       candidate_strategies: ["none"],
-      confidence: 0.92,
+      confidence: 0.95,
       reason_codes: ["ROUNDING_TEXT_ONLY"],
     });
   }
@@ -361,9 +479,30 @@ export function evaluateMathVisualNeed(
       visual_need: "unnecessary",
       disposition: "skip",
       candidate_strategies: ["none"],
-      confidence: 0.9,
+      confidence: 0.93,
       reason_codes: ["PLACE_VALUE_TEXT_ONLY"],
     });
+  }
+
+  if (routineTextOnlyTask(input, source, topicSkill)) {
+    return resolved({
+      visual_need: "unnecessary",
+      disposition: "skip",
+      candidate_strategies: ["none"],
+      confidence: 0.91,
+      reason_codes: ["DIRECT_CALCULATION"],
+    });
+  }
+
+  if (
+    containsAny(topicSkill, ["measurement", "length", "mass", "capacity"]) &&
+    containsAny(source, ["measure", "length", "height", "distance"])
+  ) {
+    return ambiguous(
+      ["measurement_diagram", "none"],
+      ["MEASUREMENT_USEFUL", "MULTIPLE_STRATEGIES_PLAUSIBLE"],
+      0.65,
+    );
   }
 
   return ambiguous([], ["AMBIGUOUS_LANGUAGE"], 0.4);

@@ -8,7 +8,7 @@ import type {
 import { resolveMathVisualTeachingNeed } from "./MathVisualTeachingNeedResolver";
 import { resolveMathVisualTeachingRoles } from "./MathVisualTeachingRoleResolver";
 
-export const MATH_TEACHING_VISUAL_GENERATOR_VERSION = "2F-B.1";
+export const MATH_TEACHING_VISUAL_GENERATOR_VERSION = "2I-P1.1";
 
 function issue(
   code: MathTeachingVisualDraftIssue["code"],

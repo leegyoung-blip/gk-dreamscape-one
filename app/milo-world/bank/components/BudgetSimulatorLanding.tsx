@@ -30,35 +30,29 @@ type DifficultyTone = {
 const DIFFICULTY_TONES: Record<BudgetDifficulty, DifficultyTone> = {
   standard: {
     accent: "#67e8f9",
-    border: "rgba(103,232,249,0.20)",
-    selectedBorder: "rgba(103,232,249,0.68)",
-    background:
-      "linear-gradient(135deg,rgba(6,182,212,.10),rgba(15,118,110,.035))",
-    selectedBackground:
-      "linear-gradient(135deg,rgba(6,182,212,.22),rgba(15,118,110,.10))",
-    glow: "0 0 34px rgba(34,211,238,.12)",
+    border: "rgba(103,232,249,0.34)",
+    selectedBorder: "rgba(103,232,249,0.82)",
+    background: "linear-gradient(135deg,rgba(6,32,52,.88),rgba(7,27,35,.84))",
+    selectedBackground: "linear-gradient(135deg,rgba(6,86,104,.92),rgba(8,47,54,.90))",
+    glow: "0 0 30px rgba(34,211,238,.15)",
     label: "Clearer planning",
   },
   complex: {
     accent: "#c4b5fd",
-    border: "rgba(196,181,253,0.20)",
-    selectedBorder: "rgba(196,181,253,0.68)",
-    background:
-      "linear-gradient(135deg,rgba(139,92,246,.10),rgba(79,70,229,.04))",
-    selectedBackground:
-      "linear-gradient(135deg,rgba(139,92,246,.22),rgba(79,70,229,.11))",
-    glow: "0 0 34px rgba(139,92,246,.13)",
+    border: "rgba(196,181,253,0.34)",
+    selectedBorder: "rgba(196,181,253,0.82)",
+    background: "linear-gradient(135deg,rgba(41,31,74,.88),rgba(22,25,57,.84))",
+    selectedBackground: "linear-gradient(135deg,rgba(88,62,145,.92),rgba(48,46,105,.90))",
+    glow: "0 0 30px rgba(139,92,246,.16)",
     label: "Competing pressures",
   },
   strategic: {
     accent: "#fbbf24",
-    border: "rgba(251,191,36,0.22)",
-    selectedBorder: "rgba(251,191,36,0.70)",
-    background:
-      "linear-gradient(135deg,rgba(245,158,11,.10),rgba(234,88,12,.035))",
-    selectedBackground:
-      "linear-gradient(135deg,rgba(245,158,11,.22),rgba(234,88,12,.10))",
-    glow: "0 0 34px rgba(251,191,36,.12)",
+    border: "rgba(251,191,36,0.36)",
+    selectedBorder: "rgba(251,191,36,0.84)",
+    background: "linear-gradient(135deg,rgba(72,47,13,.88),rgba(48,30,13,.84))",
+    selectedBackground: "linear-gradient(135deg,rgba(121,79,15,.94),rgba(78,43,13,.90))",
+    glow: "0 0 30px rgba(251,191,36,.16)",
     label: "Maximum uncertainty",
   },
 };
@@ -75,29 +69,25 @@ const SCENARIO_ACCENTS: Record<BudgetScenarioKey, string> = {
 
 const DIFFICULTY_GUIDANCE: Record<BudgetDifficulty, string> = {
   standard:
-    "Standard is the clearest place to begin. Income is steadier and fewer pressures overlap, so you can focus on building a sensible plan before the month starts changing.",
+    "Standard keeps the pressure clearer so you can focus on planning and learning how the simulator reacts.",
   complex:
-    "Complex asks you to juggle more commitments and competing goals. Choose it when you are ready to rebalance your plan instead of relying on your first allocation.",
+    "Complex adds more overlapping bills, goals and decisions, so your first plan is less likely to survive unchanged.",
   strategic:
-    "Strategic gives you less certainty, more delayed consequences and more overlapping decisions. Choose it when you are comfortable acting without seeing every outcome in advance.",
+    "Strategic gives you the least certainty, more delayed consequences and the toughest trade-offs.",
 };
 
 const SCENARIO_GUIDANCE: Record<BudgetScenarioKey, string> = {
-  starter:
-    "Starter Month is a balanced baseline and is a good first scenario if you want to learn the controls before facing heavier pressure.",
-  tight_month:
-    "Tight Month tests liquidity. Most of your DT already has a job, so one extra expense can force a real trade-off.",
-  goal_conflict:
-    "Goal Conflict is about prioritisation. Several worthwhile goals compete for the same limited pool of DT.",
-  opportunity_month:
-    "Opportunity Month gives you attractive offers while commitments still need protection. The challenge is deciding when an opportunity is actually affordable.",
-  uncertain_income:
-    "Uncertain Income tests resilience. Timing becomes less predictable, so keeping flexibility can matter as much as chasing growth.",
-  high_commitments:
-    "High Commitments is a cash-flow challenge. Fixed obligations leave less room for impulsive changes or weak forecasting.",
-  random_month:
-    "Random Month combines pressures and opportunities from several scenario types. It is best when you already understand the simulator and want a fresh replay.",
+  starter: "Starter Month gives you a balanced first run.",
+  tight_month: "Tight Month tests whether you can stay liquid when there is very little spare cash.",
+  goal_conflict: "Goal Conflict makes several worthwhile goals compete for the same money.",
+  opportunity_month: "Opportunity Month tests whether attractive offers are actually affordable.",
+  uncertain_income: "Uncertain Income tests resilience when the timing of money coming in becomes less predictable.",
+  high_commitments: "High Commitments leaves less room for weak forecasting or impulsive changes.",
+  random_month: "Random Month mixes pressures and opportunities for a less predictable replay.",
 };
+
+const GAME_OBJECTIVE =
+  "Your mission: reach the end of the month with your important bills covered and enough flexibility for surprises. Choose a challenge level on the left and a month on the right. Then you will build a plan, stress-test it, face changing events, rebalance when needed and compare your final choices with your first plan. There is no single perfect budget.";
 
 function useTypewriter(text: string) {
   const [visible, setVisible] = useState("");
@@ -119,7 +109,7 @@ function useTypewriter(text: string) {
       index += 1;
       setVisible(text.slice(0, index));
       if (index >= text.length) window.clearInterval(timer);
-    }, 14);
+    }, 10);
 
     return () => window.clearInterval(timer);
   }, [text]);
@@ -150,25 +140,17 @@ export default function BudgetSimulatorLanding({
     scenarioSeed: number;
   }) => Promise<boolean>;
 }) {
-  const isMobile = screenMode === "mobile";
+  const compact = screenMode === "compact";
   const [difficulty, setDifficulty] = useState<BudgetDifficulty>("standard");
   const [scenarioKey, setScenarioKey] = useState<BudgetScenarioKey>("starter");
 
-  const activeScenario = useMemo(
-    () => getBudgetScenario(scenarioKey),
-    [scenarioKey],
+  const activeScenario = useMemo(() => getBudgetScenario(scenarioKey), [scenarioKey]);
+  const activeDifficulty = useMemo(() => getBudgetDifficulty(difficulty), [difficulty]);
+  const selectionMessage = useMemo(
+    () => `${GAME_OBJECTIVE}\n\nYou selected ${activeDifficulty.title} + ${activeScenario.title}. ${DIFFICULTY_GUIDANCE[difficulty]} ${SCENARIO_GUIDANCE[scenarioKey]}`,
+    [activeDifficulty.title, activeScenario.title, difficulty, scenarioKey],
   );
-
-  const activeDifficulty = useMemo(
-    () => getBudgetDifficulty(difficulty),
-    [difficulty],
-  );
-
-  const guideMessage = useMemo(
-    () => `${DIFFICULTY_GUIDANCE[difficulty]} ${SCENARIO_GUIDANCE[scenarioKey]}`,
-    [difficulty, scenarioKey],
-  );
-  const typedGuideMessage = useTypewriter(guideMessage);
+  const typedGuideMessage = useTypewriter(selectionMessage);
 
   const resumeScenario = run ? getBudgetScenario(run.scenarioKey) : null;
   const resumeDifficulty = run ? getBudgetDifficulty(run.difficulty) : null;
@@ -181,7 +163,7 @@ export default function BudgetSimulatorLanding({
 
     if (run) {
       const confirmed = window.confirm(
-        "Start a new Budget Simulator run? Your current active run will be archived.",
+        "Start a new Money Under Pressure run? Your current active run will be archived.",
       );
       if (!confirmed) return;
     }
@@ -194,398 +176,231 @@ export default function BudgetSimulatorLanding({
   }
 
   return (
-    <div style={{ marginTop: isMobile ? "10px" : "12px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <div style={{ flex: 1, minHeight: 0, height: "100%", display: "flex", flexDirection: "column" }}>
       {run && resumeScenario && resumeDifficulty && (
         <section
           style={{
-            borderRadius: "22px",
-            border: "1px solid rgba(126,232,255,0.24)",
-            background:
-              "linear-gradient(135deg, rgba(10,35,59,0.84), rgba(5,12,29,0.90))",
-            padding: isMobile ? "15px" : "18px 20px",
+            marginBottom: "10px",
+            borderRadius: "18px",
+            border: "1px solid rgba(126,232,255,0.28)",
+            background: "linear-gradient(135deg, rgba(8,31,54,0.95), rgba(4,11,27,0.96))",
+            padding: "12px 16px",
             display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            alignItems: isMobile ? "stretch" : "center",
+            alignItems: "center",
             justifyContent: "space-between",
             gap: "14px",
+            flexShrink: 0,
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                color: "#8ee8ff",
-                fontSize: "15px",
-                fontWeight: 950,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-              }}
-            >
+            <div style={{ color: "#8ee8ff", fontSize: "14px", fontWeight: 950, letterSpacing: "0.1em", textTransform: "uppercase" }}>
               Continue active run
             </div>
-            <div
-              style={{
-                marginTop: "5px",
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "7px",
-                alignItems: "baseline",
-              }}
-            >
-              <strong style={{ fontSize: isMobile ? "19px" : "22px" }}>
-                {resumeScenario.title}
-              </strong>
-              <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "17px" }}>
+            <div style={{ marginTop: "3px", display: "flex", flexWrap: "wrap", gap: "7px", alignItems: "baseline" }}>
+              <strong style={{ fontSize: "19px" }}>{resumeScenario.title}</strong>
+              <span style={{ color: "rgba(255,255,255,0.55)", fontSize: "15px" }}>
                 {resumeDifficulty.title} · Day {run.currentDay} · {run.currentStage.replaceAll("_", " ")}
               </span>
             </div>
           </div>
-
-          <button type="button" onClick={onContinue} style={primaryButtonStyle}>
-            Continue →
-          </button>
+          <button type="button" onClick={onContinue} style={primaryButtonStyle}>Continue →</button>
         </section>
       )}
 
       <section
         style={{
-          marginTop: run ? "12px" : 0,
-          borderRadius: "24px",
-          border: "1px solid rgba(184,168,255,0.15)",
-          backgroundImage: `linear-gradient(180deg,rgba(2,8,20,.69),rgba(2,8,20,.91)), url(${BUDGET_SIMULATOR_ASSETS.background})`,
+          borderRadius: "22px",
+          border: "1px solid rgba(184,168,255,0.18)",
+          backgroundImage: `linear-gradient(180deg,rgba(2,8,20,.58),rgba(2,8,20,.76)), url(${BUDGET_SIMULATOR_ASSETS.background})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
-          backgroundColor: "rgba(4,12,30,0.88)",
-          padding: isMobile ? "18px" : "24px",
+          backgroundColor: "#04101f",
+          padding: compact ? "16px" : "18px 20px",
           flex: 1,
-          minHeight: isMobile ? "calc(100dvh - 200px)" : "calc(100dvh - 220px)",
+          minHeight: 0,
+          height: "100%",
+          overflow: "hidden",
           display: "flex",
           flexDirection: "column",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            justifyContent: "space-between",
-            gap: "12px",
-            alignItems: isMobile ? "stretch" : "flex-end",
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px", flexShrink: 0 }}>
           <div>
-            <p style={eyebrowStyle}>Budget Simulator</p>
-            <h2
-              style={{
-                margin: "5px 0 0",
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isMobile ? "27px" : "34px",
-                lineHeight: 1.05,
-                fontWeight: 500,
-              }}
-            >
-              Build a budget that can handle surprises.
+            <p style={eyebrowStyle}>Budget challenge</p>
+            <h2 style={{ margin: "3px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: compact ? "30px" : "36px", lineHeight: 1, fontWeight: 500 }}>
+              Money Under Pressure
             </h2>
+            <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,.72)", fontSize: "17px", fontWeight: 700 }}>
+              Plan your month. Handle surprises. Stay in control.
+            </p>
           </div>
-          <span
-            style={{
-              color: "rgba(255,255,255,0.4)",
-              fontSize: "16px",
-              fontWeight: 800,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-            }}
-          >
+          <span style={{ color: "rgba(255,255,255,0.55)", fontSize: "15px", fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase" }}>
             35–45 min · Replayable
           </span>
         </div>
 
         <section
           style={{
-            marginTop: "16px",
+            marginTop: "12px",
             display: "grid",
-            gridTemplateColumns: isMobile ? "82px minmax(0,1fr)" : "110px minmax(0,1fr)",
-            gap: isMobile ? "10px" : "14px",
-            alignItems: "end",
+            gridTemplateColumns: compact ? "92px minmax(0,1fr)" : "104px minmax(0,1fr)",
+            gap: "14px",
+            alignItems: "center",
             borderRadius: "18px",
-            border: "1px solid rgba(126,232,255,.14)",
-            background:
-              "linear-gradient(135deg,rgba(4,19,38,.82),rgba(9,14,33,.76))",
+            border: "1px solid rgba(126,232,255,.24)",
+            background: "linear-gradient(135deg,rgba(3,17,35,.94),rgba(6,13,29,.94))",
+            boxShadow: "0 16px 32px rgba(0,0,0,.18)",
             overflow: "hidden",
-            minHeight: isMobile ? "128px" : "142px",
+            minHeight: compact ? "120px" : "132px",
+            flexShrink: 0,
           }}
         >
-          <div
-            style={{
-              alignSelf: "stretch",
-              display: "flex",
-              alignItems: "flex-end",
-              justifyContent: "center",
-              overflow: "hidden",
-            }}
-          >
+          <div style={{ alignSelf: "stretch", display: "flex", alignItems: "flex-end", justifyContent: "center", overflow: "hidden" }}>
             <img
               src={BUDGET_SIMULATOR_ASSETS.advisor}
               alt="Milo finance adviser"
-              style={{
-                display: "block",
-                width: isMobile ? "78px" : "104px",
-                height: isMobile ? "118px" : "146px",
-                objectFit: "contain",
-                objectPosition: "bottom center",
-              }}
+              style={{ display: "block", width: compact ? "88px" : "100px", height: compact ? "124px" : "142px", objectFit: "contain", objectPosition: "bottom center" }}
             />
           </div>
-
-          <div style={{ padding: isMobile ? "13px 13px 13px 0" : "16px 18px 16px 0" }}>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: "7px",
-              }}
-            >
-              <span
-                style={{
-                  color: "#8ee8ff",
-                  fontSize: "15px",
-                  fontWeight: 950,
-                  letterSpacing: ".12em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Milo's guide
-              </span>
-              <span
-                style={{
-                  borderRadius: "999px",
-                  border: `1px solid ${DIFFICULTY_TONES[difficulty].border}`,
-                  background: "rgba(255,255,255,.035)",
-                  color: DIFFICULTY_TONES[difficulty].accent,
-                  padding: "3px 7px",
-                  fontSize: "14px",
-                  fontWeight: 900,
-                  letterSpacing: ".08em",
-                  textTransform: "uppercase",
-                }}
-              >
+          <div style={{ padding: "12px 16px 12px 0", minWidth: 0 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px" }}>
+              <span style={{ color: "#8ee8ff", fontSize: "15px", fontWeight: 950, letterSpacing: ".12em", textTransform: "uppercase" }}>Milo's guide</span>
+              <span style={{ borderRadius: "999px", border: `1px solid ${DIFFICULTY_TONES[difficulty].border}`, background: "rgba(255,255,255,.055)", color: DIFFICULTY_TONES[difficulty].accent, padding: "4px 8px", fontSize: "13px", fontWeight: 900, letterSpacing: ".06em", textTransform: "uppercase" }}>
                 {activeDifficulty.title} · {activeScenario.title}
               </span>
             </div>
-
-            <p
-              aria-live="polite"
-              style={{
-                margin: "8px 0 0",
-                minHeight: isMobile ? "64px" : "50px",
-                maxWidth: "980px",
-                color: "rgba(255,255,255,.78)",
-                fontSize: isMobile ? "11px" : "12px",
-                lineHeight: 1.6,
-              }}
-            >
+            <p aria-live="polite" style={{ margin: "7px 0 0", minHeight: "68px", maxWidth: "1200px", color: "rgba(255,255,255,.84)", fontSize: compact ? "14px" : "15px", lineHeight: 1.48, whiteSpace: "pre-line" }}>
               {typedGuideMessage}
-              <span
-                aria-hidden="true"
-                style={{
-                  display: "inline-block",
-                  width: "1px",
-                  height: "1em",
-                  marginLeft: "2px",
-                  verticalAlign: "-2px",
-                  background: "#8ee8ff",
-                  opacity: typedGuideMessage.length < guideMessage.length ? 0.9 : 0.25,
-                }}
-              />
+              <span aria-hidden="true" style={{ display: "inline-block", width: "1px", height: "1em", marginLeft: "2px", verticalAlign: "-2px", background: "#8ee8ff", opacity: typedGuideMessage.length < selectionMessage.length ? 0.9 : 0.22 }} />
             </p>
           </div>
         </section>
 
-        <div style={{ marginTop: "18px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
-            <p style={sectionLabelStyle}>1 · Choose your challenge</p>
-            <BudgetInfoButton title="Challenge levels">Standard keeps the month clearer while you learn the system. Complex adds more competing commitments. Strategic adds the most uncertainty, delayed consequences and overlapping decisions.</BudgetInfoButton>
-          </div>
-          <div
-            style={{
-              marginTop: "8px",
-              display: "grid",
-              gridTemplateColumns: isMobile
-                ? "1fr"
-                : "repeat(3, minmax(0, 1fr))",
-              gap: "8px",
-            }}
-          >
-            {BUDGET_DIFFICULTIES.map((item) => {
-              const active = difficulty === item.id;
-              const tone = DIFFICULTY_TONES[item.id];
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setDifficulty(item.id)}
-                  aria-pressed={active}
-                  style={{
-                    position: "relative",
-                    minHeight: isMobile ? "88px" : "102px",
-                    padding: "13px 14px 12px 17px",
-                    borderRadius: "17px",
-                    border: active
-                      ? `1px solid ${tone.selectedBorder}`
-                      : `1px solid ${tone.border}`,
-                    borderLeft: `4px solid ${tone.accent}`,
-                    background: active ? tone.selectedBackground : tone.background,
-                    boxShadow: active ? tone.glow : "none",
-                    color: "white",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    fontFamily: "inherit",
-                    transition: "border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease",
-                    transform: active ? "translateY(-1px)" : "none",
-                  }}
-                >
-                  <div
+        <div
+          style={{
+            marginTop: "12px",
+            display: "grid",
+            gridTemplateColumns: compact ? "minmax(250px,.78fr) minmax(0,1.22fr)" : "minmax(290px,.72fr) minmax(0,1.28fr)",
+            gap: "14px",
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <section style={choiceColumnStyle}>
+            <div style={{ display: "flex", alignItems: "center", gap: "9px", flexShrink: 0 }}>
+              <p style={sectionLabelStyle}>Choose your challenge</p>
+              <BudgetInfoButton title="Challenge levels">Standard is the clearest starting point. Complex adds more competing pressures. Strategic gives you the most uncertainty and delayed consequences.</BudgetInfoButton>
+            </div>
+            <div style={{ marginTop: "9px", display: "grid", gridTemplateRows: "repeat(3,minmax(0,1fr))", gap: "8px", flex: 1, minHeight: 0 }}>
+              {BUDGET_DIFFICULTIES.map((item) => {
+                const active = difficulty === item.id;
+                const tone = DIFFICULTY_TONES[item.id];
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setDifficulty(item.id)}
+                    aria-pressed={active}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "8px",
+                      position: "relative",
+                      minHeight: 0,
+                      padding: compact ? "12px 13px" : "13px 15px",
+                      borderRadius: "16px",
+                      border: active ? `1px solid ${tone.selectedBorder}` : `1px solid ${tone.border}`,
+                      borderLeft: `5px solid ${tone.accent}`,
+                      background: active ? tone.selectedBackground : tone.background,
+                      boxShadow: active ? tone.glow : "0 10px 22px rgba(0,0,0,.16)",
+                      color: "white",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      fontFamily: "inherit",
+                      transition: "border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease",
+                      transform: active ? "translateX(2px)" : "none",
                     }}
                   >
-                    <strong style={{ display: "block", fontSize: "20px" }}>
-                      {item.title}
-                    </strong>
-                    {active && (
-                      <span
-                        style={{
-                          borderRadius: "999px",
-                          background: tone.accent,
-                          color: "#07111f",
-                          padding: "3px 7px",
-                          fontSize: "15px",
-                          fontWeight: 950,
-                          letterSpacing: ".08em",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Selected
-                      </span>
-                    )}
-                  </div>
-                  <span
-                    style={{
-                      display: "block",
-                      marginTop: "5px",
-                      color: tone.accent,
-                      fontSize: "15px",
-                      fontWeight: 900,
-                      letterSpacing: ".06em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {tone.label} · {item.decisionRange}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                      <strong style={{ display: "block", fontSize: compact ? "18px" : "20px" }}>{item.title}</strong>
+                      {active && <span style={{ borderRadius: "999px", background: tone.accent, color: "#07111f", padding: "3px 7px", fontSize: "12px", fontWeight: 950, letterSpacing: ".07em", textTransform: "uppercase" }}>Selected</span>}
+                    </div>
+                    <span style={{ display: "block", marginTop: "5px", color: tone.accent, fontSize: "13px", fontWeight: 900, letterSpacing: ".05em", textTransform: "uppercase" }}>
+                      {tone.label} · {item.decisionRange}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
 
-        <div style={{ marginTop: "18px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
-            <p style={sectionLabelStyle}>2 · Choose the month</p>
-            <BudgetInfoButton title="Scenario types">Each month changes the pressure you face. Choose the situation you want to practise: tight cash flow, competing goals, opportunities, uncertain income, heavy commitments or a random mix.</BudgetInfoButton>
-          </div>
-          <div
-            style={{
-              marginTop: "8px",
-              display: "grid",
-              gridTemplateColumns: isMobile
-                ? "1fr"
-                : screenMode === "compact"
-                  ? "repeat(2, minmax(0, 1fr))"
-                  : "repeat(4, minmax(0, 1fr))",
-              gap: "8px",
-            }}
-          >
-            {BUDGET_SCENARIOS.map((scenario) => {
-              const active = scenarioKey === scenario.id;
-              const accent = SCENARIO_ACCENTS[scenario.id];
-              return (
-                <button
-                  key={scenario.id}
-                  type="button"
-                  onClick={() => setScenarioKey(scenario.id)}
-                  aria-pressed={active}
-                  style={{
-                    minHeight: "92px",
-                    padding: "12px 13px",
-                    borderRadius: "16px",
-                    border: active
-                      ? `1px solid ${accent}`
-                      : "1px solid rgba(255,255,255,0.075)",
-                    borderTop: `3px solid ${active ? accent : `${accent}66`}`,
-                    background: active
-                      ? `linear-gradient(135deg,${accent}20,rgba(7,14,31,.72))`
-                      : "rgba(255,255,255,0.022)",
-                    boxShadow: active ? `0 0 26px ${accent}16` : "none",
-                    color: "white",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    fontFamily: "inherit",
-                    transition: "border-color .18s ease, background .18s ease, box-shadow .18s ease",
-                  }}
-                >
-                  <span
+          <section style={choiceColumnStyle}>
+            <div style={{ display: "flex", alignItems: "center", gap: "9px", flexShrink: 0 }}>
+              <p style={sectionLabelStyle}>Choose the month</p>
+              <BudgetInfoButton title="Month scenarios">Each month changes the kind of pressure you face: tight cash flow, competing goals, opportunities, uncertain income, heavy commitments or a random mix.</BudgetInfoButton>
+            </div>
+            <div
+              style={{
+                marginTop: "9px",
+                display: "grid",
+                gridTemplateColumns: compact ? "repeat(2,minmax(0,1fr))" : "repeat(3,minmax(0,1fr))",
+                gridAutoRows: "minmax(62px,1fr)",
+                gap: "8px",
+                flex: 1,
+                minHeight: 0,
+              }}
+            >
+              {BUDGET_SCENARIOS.map((scenario) => {
+                const active = scenarioKey === scenario.id;
+                const accent = SCENARIO_ACCENTS[scenario.id];
+                return (
+                  <button
+                    key={scenario.id}
+                    type="button"
+                    onClick={() => setScenarioKey(scenario.id)}
+                    aria-pressed={active}
                     style={{
-                      color: active ? accent : "rgba(255,255,255,0.35)",
-                      fontSize: "14px",
-                      fontWeight: 950,
-                      letterSpacing: "0.1em",
-                      textTransform: "uppercase",
+                      minHeight: 0,
+                      padding: "10px 12px",
+                      borderRadius: "15px",
+                      border: active ? `1px solid ${accent}` : `1px solid ${accent}42`,
+                      borderTop: `3px solid ${active ? accent : `${accent}80`}`,
+                      background: active
+                        ? `linear-gradient(135deg,${accent}36,rgba(4,13,30,.94))`
+                        : "linear-gradient(145deg,rgba(5,14,31,.90),rgba(4,10,24,.94))",
+                      boxShadow: active ? `0 0 24px ${accent}18` : "0 8px 18px rgba(0,0,0,.15)",
+                      color: "white",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      fontFamily: "inherit",
                     }}
                   >
-                    {scenario.emphasis}
-                  </span>
-                  <strong
-                    style={{ display: "block", marginTop: "5px", fontSize: "18px" }}
-                  >
-                    {scenario.title}
-                  </strong>
-                </button>
-              );
-            })}
-          </div>
+                    <span style={{ color: active ? accent : "rgba(255,255,255,0.52)", fontSize: "12px", fontWeight: 950, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                      {scenario.emphasis}
+                    </span>
+                    <strong style={{ display: "block", marginTop: "3px", fontSize: compact ? "15px" : "17px" }}>{scenario.title}</strong>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         </div>
 
         <div
           style={{
-            marginTop: "14px",
-            borderRadius: "16px",
-            border: `1px solid ${SCENARIO_ACCENTS[scenarioKey]}30`,
-            background: "rgba(0,0,0,0.18)",
-            padding: "12px 14px",
+            marginTop: "10px",
+            borderRadius: "15px",
+            border: `1px solid ${SCENARIO_ACCENTS[scenarioKey]}4a`,
+            background: "rgba(2,8,20,.92)",
+            padding: "10px 12px",
             display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            alignItems: isMobile ? "stretch" : "center",
+            alignItems: "center",
             justifyContent: "space-between",
             gap: "12px",
+            flexShrink: 0,
           }}
         >
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-              <span
-                aria-hidden="true"
-                style={{
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "999px",
-                  background: SCENARIO_ACCENTS[scenarioKey],
-                  boxShadow: `0 0 14px ${SCENARIO_ACCENTS[scenarioKey]}`,
-                }}
-              />
-              <strong style={{ fontSize: "18px" }}>{activeScenario.title}</strong>
-            </div>
-            <div style={{ marginTop: "8px", marginLeft: "15px" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span aria-hidden="true" style={{ width: "8px", height: "8px", borderRadius: "999px", background: SCENARIO_ACCENTS[scenarioKey], boxShadow: `0 0 14px ${SCENARIO_ACCENTS[scenarioKey]}` }} />
+              <strong style={{ fontSize: "16px" }}>{activeDifficulty.title} · {activeScenario.title}</strong>
               <BudgetInfoButton title={activeScenario.title}>{activeScenario.shortDescription}</BudgetInfoButton>
             </div>
           </div>
@@ -595,37 +410,19 @@ export default function BudgetSimulatorLanding({
             disabled={saving || loading}
             style={{
               ...primaryButtonStyle,
-              borderColor: `${DIFFICULTY_TONES[difficulty].accent}66`,
-              background: `linear-gradient(135deg,${DIFFICULTY_TONES[difficulty].accent}24,rgba(83,215,255,.08))`,
+              borderColor: `${DIFFICULTY_TONES[difficulty].accent}72`,
+              background: `linear-gradient(135deg,${DIFFICULTY_TONES[difficulty].accent}30,rgba(5,20,36,.88))`,
               color: DIFFICULTY_TONES[difficulty].accent,
               opacity: saving || loading ? 0.55 : 1,
               cursor: saving || loading ? "wait" : "pointer",
             }}
           >
-            {!isLoggedIn
-              ? "Sign in to start →"
-              : saving
-                ? "Starting…"
-                : run
-                  ? "Start a new month →"
-                  : "Start month →"}
+            {!isLoggedIn ? "Sign in to start →" : saving ? "Starting…" : run ? "Start a new month →" : "Start the month →"}
           </button>
         </div>
 
         {error && (
-          <p
-            role="alert"
-            style={{
-              margin: "10px 0 0",
-              borderRadius: "13px",
-              border: "1px solid rgba(255,120,120,0.22)",
-              background: "rgba(255,80,80,0.085)",
-              padding: "10px 12px",
-              color: "#ffc1c1",
-              fontSize: "16px",
-              lineHeight: 1.5,
-            }}
-          >
+          <p role="alert" style={{ margin: "8px 0 0", borderRadius: "12px", border: "1px solid rgba(255,120,120,0.28)", background: "rgba(55,10,18,.90)", padding: "8px 11px", color: "#ffc1c1", fontSize: "14px", lineHeight: 1.4, flexShrink: 0 }}>
             {error}
           </p>
         )}
@@ -634,36 +431,48 @@ export default function BudgetSimulatorLanding({
   );
 }
 
+const choiceColumnStyle = {
+  minWidth: 0,
+  minHeight: 0,
+  display: "flex",
+  flexDirection: "column" as const,
+  borderRadius: "18px",
+  border: "1px solid rgba(255,255,255,.09)",
+  background: "rgba(2,9,23,.78)",
+  padding: "12px",
+  backdropFilter: "blur(10px)",
+};
+
 const eyebrowStyle = {
   margin: 0,
   color: "#8ee8ff",
-  fontSize: "15px",
+  fontSize: "14px",
   fontWeight: 950,
-  letterSpacing: "0.14em",
+  letterSpacing: "0.13em",
   textTransform: "uppercase" as const,
 };
 
 const sectionLabelStyle = {
   margin: 0,
-  color: "rgba(255,255,255,0.55)",
+  color: "rgba(255,255,255,0.78)",
   fontSize: "15px",
   fontWeight: 950,
-  letterSpacing: "0.11em",
+  letterSpacing: "0.08em",
   textTransform: "uppercase" as const,
 };
 
 const primaryButtonStyle = {
-  minHeight: "38px",
+  minHeight: "40px",
   flexShrink: 0,
-  padding: "0 14px",
+  padding: "0 15px",
   borderRadius: "11px",
-  border: "1px solid rgba(126,232,255,0.28)",
-  background: "rgba(83,215,255,0.12)",
+  border: "1px solid rgba(126,232,255,0.32)",
+  background: "rgba(83,215,255,0.14)",
   color: "#bff6ff",
   cursor: "pointer",
   fontFamily: "inherit",
-  fontSize: "15px",
+  fontSize: "14px",
   fontWeight: 950,
-  letterSpacing: "0.08em",
+  letterSpacing: "0.07em",
   textTransform: "uppercase" as const,
 };

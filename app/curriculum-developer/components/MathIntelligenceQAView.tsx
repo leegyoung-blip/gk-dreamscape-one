@@ -51,6 +51,18 @@ type StoredReview = {
   reviewed_at: string | null;
 };
 
+
+type QAStatusFilter =
+  | "all"
+  | "resolved"
+  | "auto_review"
+  | "generated"
+  | "not_needed"
+  | "preserved"
+  | "invalid_failed";
+
+type QASourceFilter = "all" | "rules_only" | "luna";
+
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error || "Unknown error");
 }
@@ -72,6 +84,11 @@ export default function MathIntelligenceQAView() {
   const [notice, setNotice] = useState<string | null>(null);
   const [recentRuns, setRecentRuns] = useState<any[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
+  const [strategyFilter, setStrategyFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<QAStatusFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<QASourceFilter>("all");
+  const [levelFilter, setLevelFilter] = useState("all");
+  const [topicFilter, setTopicFilter] = useState("all");
 
   const resultByQuestion = useMemo(
     () => new Map(results.map((item) => [item.client_id, item])),
@@ -101,6 +118,70 @@ export default function MathIntelligenceQAView() {
     () => buildStrategySummary(results, storedReviews),
     [results, storedReviews],
   );
+
+  const topicOptions = useMemo(() => {
+    const values = new Map<string, string>();
+    for (const item of sample?.items || []) values.set(item.topic_id, item.topic_title);
+    return [...values.entries()].sort((left, right) => left[1].localeCompare(right[1]));
+  }, [sample]);
+
+  const filteredSampleItems = useMemo(() => {
+    return (sample?.items || []).filter((item) => {
+      const result = resultByQuestion.get(item.question_id);
+      const strategy = result?.proposal?.decision.strategy || (result ? "generation_failed" : "not_run");
+      const lunaUsed = Boolean(
+        result?.proposal?.sources.interpretation.source === "luna" ||
+        result?.proposal?.sources.teaching.source === "luna"
+      );
+      const status = result?.status || "not_run";
+      const resolved = ["generated", "not_needed", "preserved"].includes(status);
+      const autoReview = ["needs_review", "invalid", "failed"].includes(status);
+
+      if (strategyFilter !== "all" && strategy !== strategyFilter) return false;
+      if (levelFilter !== "all" && item.primary_level !== Number(levelFilter)) return false;
+      if (topicFilter !== "all" && item.topic_id !== topicFilter) return false;
+      if (sourceFilter === "luna" && !lunaUsed) return false;
+      if (sourceFilter === "rules_only" && (!result?.proposal || lunaUsed)) return false;
+      if (statusFilter === "resolved" && !resolved) return false;
+      if (statusFilter === "auto_review" && !autoReview) return false;
+      if (statusFilter === "generated" && status !== "generated") return false;
+      if (statusFilter === "not_needed" && status !== "not_needed") return false;
+      if (statusFilter === "preserved" && status !== "preserved") return false;
+      if (statusFilter === "invalid_failed" && !["invalid", "failed"].includes(status)) return false;
+      return true;
+    });
+  }, [sample, resultByQuestion, strategyFilter, levelFilter, topicFilter, sourceFilter, statusFilter]);
+
+  useEffect(() => {
+    if (filteredSampleItems.length === 0) {
+      if (selectedQuestionId) setSelectedQuestionId("");
+      return;
+    }
+    if (!filteredSampleItems.some((item) => item.question_id === selectedQuestionId)) {
+      setSelectedQuestionId(filteredSampleItems[0].question_id);
+    }
+  }, [filteredSampleItems, selectedQuestionId]);
+
+  function clearQAFilters() {
+    setStrategyFilter("all");
+    setStatusFilter("all");
+    setSourceFilter("all");
+    setLevelFilter("all");
+    setTopicFilter("all");
+  }
+
+  function focusStrategy(strategy: string, mode: "all" | "auto_review" | "luna" = "all") {
+    setStrategyFilter(strategy);
+    setStatusFilter(mode === "auto_review" ? "auto_review" : "all");
+    setSourceFilter(mode === "luna" ? "luna" : "all");
+  }
+
+  function selectNextFilteredQuestion() {
+    if (filteredSampleItems.length === 0) return;
+    const index = filteredSampleItems.findIndex((item) => item.question_id === selectedQuestionId);
+    const next = filteredSampleItems[(index + 1 + filteredSampleItems.length) % filteredSampleItems.length];
+    setSelectedQuestionId(next.question_id);
+  }
 
   async function refreshRecentRuns() {
     setLoadingRecent(true);
@@ -145,6 +226,7 @@ export default function MathIntelligenceQAView() {
     setStoredReviews(new Map());
     setRunId("");
     setSelectedQuestionId("");
+    clearQAFilters();
     try {
       const nextSample = await loadRealBankMathQASample({
         targetSize: sampleSize,
@@ -241,6 +323,7 @@ export default function MathIntelligenceQAView() {
     setBuildingSample(true);
     setError(null);
     setNotice(null);
+    clearQAFilters();
     try {
       const loaded = await loadMathQARun(nextRunId);
       setRunId(nextRunId);
@@ -455,11 +538,27 @@ export default function MathIntelligenceQAView() {
                 <tbody>
                   {strategySummary.map((row) => (
                     <tr key={row.strategy}>
-                      <td style={td}>{row.strategy}</td>
+                      <td style={td}>
+                        <button type="button" onClick={() => focusStrategy(row.strategy)} style={tableLinkButton}>
+                          {row.strategy}
+                        </button>
+                      </td>
                       <td style={td}>{row.sampled}</td>
-                      <td style={td}>{row.generated}</td>
-                      <td style={td}>{row.needs_review + row.invalid_or_failed}</td>
-                      <td style={td}>{row.luna_used}</td>
+                      <td style={td}>
+                        <button type="button" onClick={() => { setStrategyFilter(row.strategy); setStatusFilter("resolved"); setSourceFilter("all"); }} style={tableCountButton}>
+                          {row.generated}
+                        </button>
+                      </td>
+                      <td style={td}>
+                        <button type="button" onClick={() => focusStrategy(row.strategy, "auto_review")} style={tableCountButton}>
+                          {row.needs_review + row.invalid_or_failed}
+                        </button>
+                      </td>
+                      <td style={td}>
+                        <button type="button" onClick={() => focusStrategy(row.strategy, "luna")} style={tableCountButton}>
+                          {row.luna_used}
+                        </button>
+                      </td>
                       <td style={td}>{row.human_pass}</td>
                       <td style={td}>{row.human_minor}</td>
                       <td style={td}>{row.human_fail}</td>
@@ -470,9 +569,71 @@ export default function MathIntelligenceQAView() {
             </div>
           </section>
 
+          <section style={card}>
+            <div style={sectionHeader}>
+              <div>
+                <p style={eyebrow}>QA DRILL-DOWN</p>
+                <h2 style={heading}>Inspect the questions behind each result</h2>
+                <p style={muted}>Click a strategy, Auto review count or Luna count above, or filter directly below.</p>
+              </div>
+              <div style={buttonRow}>
+                <button type="button" onClick={() => { setStatusFilter("auto_review"); setSourceFilter("all"); }} style={secondaryButton}>Auto-review items</button>
+                <button type="button" onClick={() => { setSourceFilter("luna"); setStatusFilter("all"); }} style={secondaryButton}>Luna-used items</button>
+                <button type="button" onClick={clearQAFilters} style={secondaryButton}>Clear filters</button>
+              </div>
+            </div>
+            <div style={filterGrid}>
+              <label style={label}>
+                Strategy
+                <select value={strategyFilter} onChange={(event: any) => setStrategyFilter(event.target.value)} style={input}>
+                  <option value="all">All strategies</option>
+                  {strategySummary.map((row) => <option key={row.strategy} value={row.strategy}>{row.strategy}</option>)}
+                </select>
+              </label>
+              <label style={label}>
+                Automatic status
+                <select value={statusFilter} onChange={(event: any) => setStatusFilter(event.target.value as QAStatusFilter)} style={input}>
+                  <option value="all">All statuses</option>
+                  <option value="resolved">Resolved automatically</option>
+                  <option value="auto_review">Needs automatic review</option>
+                  <option value="generated">Generated visual</option>
+                  <option value="not_needed">No visual needed</option>
+                  <option value="preserved">Preserved media</option>
+                  <option value="invalid_failed">Invalid / failed</option>
+                </select>
+              </label>
+              <label style={label}>
+                Intelligence source
+                <select value={sourceFilter} onChange={(event: any) => setSourceFilter(event.target.value as QASourceFilter)} style={input}>
+                  <option value="all">Rules + Luna</option>
+                  <option value="rules_only">Dreamscape rules only</option>
+                  <option value="luna">Luna used</option>
+                </select>
+              </label>
+              <label style={label}>
+                Level
+                <select value={levelFilter} onChange={(event: any) => setLevelFilter(event.target.value)} style={input}>
+                  <option value="all">P1–P6</option>
+                  {[1,2,3,4,5,6].map((level) => <option key={level} value={String(level)}>P{level}</option>)}
+                </select>
+              </label>
+              <label style={label}>
+                Topic
+                <select value={topicFilter} onChange={(event: any) => setTopicFilter(event.target.value)} style={input}>
+                  <option value="all">All topics</option>
+                  {topicOptions.map(([id, title]) => <option key={id} value={id}>{title}</option>)}
+                </select>
+              </label>
+            </div>
+            <div style={filterSummary}>
+              <strong>{filteredSampleItems.length.toLocaleString()}</strong> of {sample.items.length.toLocaleString()} sampled questions shown
+              <button type="button" onClick={selectNextFilteredQuestion} disabled={filteredSampleItems.length === 0} style={secondaryButton}>Next filtered question</button>
+            </div>
+          </section>
+
           <section style={qaGrid}>
             <div style={questionList}>
-              {(sample.items || []).map((item) => {
+              {filteredSampleItems.map((item) => {
                 const result = resultByQuestion.get(item.question_id);
                 const review = storedReviews.get(item.question_id);
                 const selected = selectedQuestionId === item.question_id;
@@ -488,7 +649,9 @@ export default function MathIntelligenceQAView() {
                     <span style={questionPrompt}>{item.prompt}</span>
                     <span style={pillRow}>
                       <small style={miniPill}>{item.sample_stratum.replaceAll("_", " ")}</small>
+                      <small style={miniPill}>{result?.proposal?.decision.strategy || "not run"}</small>
                       <small style={miniPill}>{result?.status || "not run"}</small>
+                      <small style={miniPill}>{!result?.proposal ? "No proposal" : (result.proposal.sources.interpretation.source === "luna" || result.proposal.sources.teaching.source === "luna") ? "Luna used" : "Rules only"}</small>
                       <small style={reviewPill(review?.verdict || "unreviewed")}>{review?.verdict || "unreviewed"}</small>
                     </span>
                   </button>
@@ -684,6 +847,10 @@ const metricGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repea
 const metricCard: CSSProperties = { display: "grid", gap: 3, border: "1px solid rgba(148,163,184,.16)", background: "rgba(8,20,42,.9)", borderRadius: 14, padding: 14 };
 const metricValue: CSSProperties = { fontSize: 24, color: "#F8FBFF" };
 const metricLabel: CSSProperties = { color: "#A9B8D0", fontSize: 12 };
+const filterGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10 };
+const filterSummary: CSSProperties = { display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", color: "#CBD5E1", fontSize: 12 };
+const tableLinkButton: CSSProperties = { border: 0, background: "transparent", padding: 0, color: "#7EE8FF", font: "inherit", fontWeight: 800, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 };
+const tableCountButton: CSSProperties = { border: 0, background: "transparent", padding: 0, color: "#DDE7F7", font: "inherit", fontWeight: 800, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 };
 const tableWrap: CSSProperties = { overflowX: "auto" };
 const table: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 720 };
 const th: CSSProperties = { textAlign: "left", padding: "8px 9px", fontSize: 11, color: "#93C5FD", borderBottom: "1px solid rgba(148,163,184,.2)" };

@@ -4,6 +4,7 @@ import type { BankScreenMode } from "../lib/bank-types";
 import type { MiloFinanceAccessTier } from "../lib/milo-finance-access";
 import { useState } from "react";
 import BudgetSimulator from "./BudgetSimulator";
+import DesktopLearningNotice from "./DesktopLearningNotice";
 
 const ACTIVITIES: Array<{
   title: string;
@@ -12,9 +13,9 @@ const ACTIVITIES: Array<{
   accessTier: MiloFinanceAccessTier;
 }> = [
   {
-    title: "Budget Simulator",
+    title: "Money Under Pressure",
     description:
-      "Build a budget, make trade-offs and see what happens when the month does not go exactly to plan.",
+      "Plan your month, handle surprises and adapt your strategy without losing control.",
     tag: "Budgeting",
     accessTier: "free",
   },
@@ -91,6 +92,10 @@ export default function PractiseSection({
 }) {
   const isMobile = screenMode === "mobile";
   const [activeSimulation, setActiveSimulation] = useState<"budget" | null>(null);
+
+  if (isMobile) {
+    return <DesktopLearningNotice kind="simulation" />;
+  }
 
   if (activeSimulation === "budget") {
     return (
@@ -203,7 +208,7 @@ export default function PractiseSection({
             </p>
 
             <div style={{ marginTop: "auto", paddingTop: "15px" }}>
-              {activity.title === "Budget Simulator" ? (
+              {index === 0 ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -228,7 +233,7 @@ export default function PractiseSection({
                     textTransform: "uppercase",
                   }}
                 >
-                  {isLoggedIn ? "Open Simulator →" : "Sign in to start →"}
+                  {isLoggedIn ? "Start challenge →" : "Sign in to start →"}
                 </button>
               ) : locked ? (
                 <button

@@ -100,10 +100,21 @@ export function normaliseMathIntelligenceQuestion(
     .filter(Boolean);
 
   const stimulusType = stimulus ? stringValue(stimulus.stimulus_type) || null : null;
+  const contentImageCandidates = [
+    stringValue(content.image_url),
+    stringValue(content.stimulus_image_url),
+    stringValue(content.image_reference),
+  ].filter(Boolean);
+
   const hasRealImage =
     stimulusType === "image" ||
     assetTypes.includes("image") ||
-    Boolean(stringValue(content.image_url));
+    contentImageCandidates.some(
+      (value) =>
+        !value.includes("data:image/svg+xml") &&
+        !value.includes("<svg") &&
+        !value.toLocaleLowerCase().includes(".svg"),
+    );
 
   const hasLegacySvg =
     stimulusType === "diagram" ||
@@ -114,7 +125,9 @@ export function normaliseMathIntelligenceQuestion(
   const options = normaliseOptions(content);
   const hasOptionImages = Array.isArray(content.options)
     ? content.options.some(
-        (option) => isRecord(option) && Boolean(stringValue(option.image_url)),
+        (option) =>
+          isRecord(option) &&
+          Boolean(stringValue(option.image_url) || stringValue(option.image_path)),
       )
     : false;
 

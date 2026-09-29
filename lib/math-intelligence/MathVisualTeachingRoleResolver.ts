@@ -145,7 +145,10 @@ function stableIdRoles(object: MathVisualObject): MathTeachingVisualRole[] {
   if (/^total(?:_|$)/.test(id)) roles.push("total_dimension");
   if (/^part_\d+$/.test(id)) roles.push("part_segment", "bar_model");
   if (/^part_value_\d+$/.test(id)) roles.push("part_value", "value");
-  if (id === "not_to_scale") roles.push("annotation");
+  if (/^ratio_a_segment_\d+$/.test(id)) roles.push("ratio_group_a", "ratio_unit", "bar_model");
+  if (/^ratio_b_segment_\d+$/.test(id)) roles.push("ratio_group_b", "ratio_unit", "bar_model");
+  if (/^ratio_[ab]_count$/.test(id)) roles.push("ratio_count", "value");
+  if (id === "not_to_scale" || id === "ratio_equal_units_note") roles.push("annotation");
   if (/_label$/.test(id)) roles.push("label");
 
   return uniqueRoles(roles);
@@ -169,7 +172,7 @@ function strategyRoles(
     roles.push("bar_model");
   }
   if (
-    (strategy === "bar_model_comparison" || strategy === "bar_model_part_whole") &&
+    (strategy === "bar_model_comparison" || strategy === "bar_model_part_whole" || strategy === "bar_model_ratio") &&
     object.type === "rectangle"
   ) {
     roles.push("bar_model");

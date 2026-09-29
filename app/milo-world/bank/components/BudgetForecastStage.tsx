@@ -93,11 +93,11 @@ export default function BudgetForecastStage({
         <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
           <SummaryPill
             label="Lowest cash"
-            value={`${forecast.minimumAvailable.toLocaleString()} DT`}
+            value={`$${forecast.minimumAvailable.toLocaleString()}`}
             warning={forecast.minimumAvailable < 0}
           />
-          <SummaryPill label="Set aside" value={`${forecast.protectedTotal.toLocaleString()} DT`} />
-          <SummaryPill label="Bills" value={`${forecast.totalKnownPayments.toLocaleString()} DT`} />
+          <SummaryPill label="Set aside" value={`$${forecast.protectedTotal.toLocaleString()}`} />
+          <SummaryPill label="Bills" value={`$${forecast.totalKnownPayments.toLocaleString()}`} />
         </div>
       </div>
 
@@ -150,8 +150,8 @@ export default function BudgetForecastStage({
         <aside style={panelStyle}>
           <p style={sectionLabel}>Day {day}</p>
           <div style={{ marginTop: "8px", display: "grid", gap: "8px", gridTemplateColumns: "1fr 1fr" }}>
-            <Metric label="Available" value={`${point.available.toLocaleString()} DT`} tone={point.available < 0 ? "danger" : "cyan"} />
-            <Metric label="Set aside" value={`${point.protected.toLocaleString()} DT`} tone="violet" />
+            <Metric label="Available" value={`$${point.available.toLocaleString()}`} tone={point.available < 0 ? "danger" : "cyan"} />
+            <Metric label="Set aside" value={`$${point.protected.toLocaleString()}`} tone="violet" />
           </div>
 
           <div
@@ -176,7 +176,7 @@ export default function BudgetForecastStage({
                       {item.title}
                     </span>
                     <strong style={{ color: "#ffd18a", fontSize: "15px", whiteSpace: "nowrap" }}>
-                      -{item.amount.toLocaleString()} DT
+                      -{`$${item.amount.toLocaleString()}`}
                     </strong>
                   </div>
                 ))}
@@ -193,8 +193,8 @@ export default function BudgetForecastStage({
             </div>
             <BudgetInfoButton title="Forecast signal" accent={forecast.firstShortfallDay ? "#ffc1c1" : "#a9ffd4"}>
               {forecast.firstShortfallDay
-                ? `Your available DT first falls below zero on Day ${forecast.firstShortfallDay}. You would need to change an allocation before then.`
-                : `All known bills fit inside the available part of your plan. Your tightest projected point still leaves ${Math.max(0, forecast.minimumAvailable).toLocaleString()} DT available.`}
+                ? `Your available cash first falls below zero on Day ${forecast.firstShortfallDay}. You would need to change an allocation before then.`
+                : `All known bills fit inside the available part of your plan. Your tightest projected point still leaves $${Math.max(0, forecast.minimumAvailable).toLocaleString()} available.`}
             </BudgetInfoButton>
           </div>
         </aside>
@@ -290,17 +290,17 @@ export default function BudgetForecastStage({
             </div>
             <Metric
               label="Tightest point"
-              value={`${activeStressResult.minimumAvailable.toLocaleString()} DT`}
+              value={`$${activeStressResult.minimumAvailable.toLocaleString()}`}
               tone={activeStressResult.minimumAvailable < 0 ? "danger" : "cyan"}
             />
             <Metric
               label="Cash gap"
-              value={`${activeStressResult.liquidityGap.toLocaleString()} DT`}
+              value={`$${activeStressResult.liquidityGap.toLocaleString()}`}
               tone={activeStressResult.liquidityGap > 0 ? "danger" : "green"}
             />
             <Metric
               label="Month end"
-              value={`${activeStressResult.finalAvailable.toLocaleString()} DT`}
+              value={`$${activeStressResult.finalAvailable.toLocaleString()}`}
               tone={activeStressResult.finalAvailable < 0 ? "danger" : "violet"}
             />
           </div>

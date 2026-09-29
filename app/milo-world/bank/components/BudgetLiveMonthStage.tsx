@@ -85,7 +85,7 @@ export default function BudgetLiveMonthStage({
 
     if (!result.ok) {
       setMessage(
-        `You need another ${result.shortfall.toLocaleString()} DT in available DT before the commitments due by Day ${activeEvent.day} can be paid. Rebalance first.`,
+        `You need another $${result.shortfall.toLocaleString()} in available cash before the commitments due by Day ${activeEvent.day} can be paid. Rebalance first.`,
       );
       setShowRebalance(true);
       return;
@@ -108,7 +108,7 @@ export default function BudgetLiveMonthStage({
 
     if (!result.ok) {
       setMessage(
-        `This choice needs another ${result.fundingGap.toLocaleString()} DT in available DT. Rebalance before confirming it.`,
+        `This choice needs another $${result.fundingGap.toLocaleString()} in available cash. Rebalance before confirming it.`,
       );
       setShowRebalance(true);
       return;
@@ -136,7 +136,7 @@ export default function BudgetLiveMonthStage({
 
     if (!result.ok) {
       setMessage(
-        `You need another ${result.shortfall.toLocaleString()} DT in available DT to cover known bills through Day 24. Rebalance before entering the final week.`,
+        `You need another $${result.shortfall.toLocaleString()} in available cash to cover known bills through Day 24. Rebalance before entering the final week.`,
       );
       setShowRebalance(true);
       return;
@@ -168,8 +168,8 @@ export default function BudgetLiveMonthStage({
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(82px,1fr))", gap: "6px" }}>
-          <TopMetric label="Available" value={`${liquid.toLocaleString()} DT`} accent="#8ee8ff" />
-          <TopMetric label="Set aside" value={`${protectedTotal.toLocaleString()} DT`} accent="#c3b5ff" />
+          <TopMetric label="Available" value={`$${liquid.toLocaleString()}`} accent="#8ee8ff" />
+          <TopMetric label="Set aside" value={`$${protectedTotal.toLocaleString()}`} accent="#c3b5ff" />
           <TopMetric label="Decisions" value={`${progress.completed}/${progress.total}`} accent="#80efb8" />
         </div>
       </div>
@@ -357,8 +357,8 @@ function EventDecisionPanel({
                   <strong style={{ fontSize: "20px" }}>{choice.label}</strong>
                   <span style={{ color: choice.allocationMove ? "#c3b5ff" : choice.cashImpact > 0 ? "#80efb8" : choice.cashImpact < 0 ? "#ffd18a" : "rgba(255,255,255,.38)", fontSize: "18px", fontWeight: 900 }}>
                     {choice.allocationMove
-                      ? `Move ${choice.allocationMove.amount.toLocaleString()} DT`
-                      : `${choice.cashImpact > 0 ? "+" : ""}${choice.cashImpact.toLocaleString()} DT`}
+                      ? `Move $${choice.allocationMove.amount.toLocaleString()}`
+                      : `${choice.cashImpact > 0 ? "+" : ""}$${choice.cashImpact.toLocaleString()}`}
                   </span>
                 </div>
               </button>
@@ -372,11 +372,11 @@ function EventDecisionPanel({
         <div style={{ marginTop: "10px", borderRadius: "14px", border: fundingGap > 0 ? "1px solid rgba(255,184,112,.22)" : "1px solid rgba(126,232,255,.11)", background: fundingGap > 0 ? "rgba(83,41,10,.13)" : "rgba(83,215,255,.035)", padding: "10px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
             <strong style={{ color: fundingGap > 0 ? "#ffd3a0" : "#a9ffd4", fontSize: "18px" }}>
-              {fundingGap > 0 ? `${fundingGap.toLocaleString()} DT more needed` : "Ready to confirm"}
+              {fundingGap > 0 ? `$${fundingGap.toLocaleString()} more needed` : "Ready to confirm"}
             </strong>
             <BudgetInfoButton title={selectedChoice.label} accent={fundingGap > 0 ? "#ffd3a0" : "#a9ffd4"}>
               {fundingGap > 0
-                ? `This choice is short of ${fundingGap.toLocaleString()} DT in available DT. Move money out of a protected priority before confirming.`
+                ? `This choice is short of $${fundingGap.toLocaleString()} in available cash. Move money out of a protected priority before confirming.`
                 : `${selectedChoice.effectSummary}${selectedChoice.riskNote ? ` ${selectedChoice.riskNote}` : ""}`}
             </BudgetInfoButton>
           </div>
@@ -421,13 +421,13 @@ function AdvancePanel({
       </h4>
       <div style={{ marginTop: "8px", display: "flex", alignItems: "center", gap: "9px" }}>
         <strong style={{ color: "rgba(255,255,255,.78)", fontSize: "18px" }}>Next: {eventTitle}</strong>
-        <BudgetInfoButton title="Advance the month">Known bills due before the next decision will be paid automatically from available DT.</BudgetInfoButton>
+        <BudgetInfoButton title="Advance the month">Known bills due before the next decision will be paid automatically from available cash.</BudgetInfoButton>
       </div>
 
       <div style={{ marginTop: "11px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: "7px" }}>
-        <TopMetric label="Available now" value={`${liquid.toLocaleString()} DT`} accent="#8ee8ff" />
-        <TopMetric label="Commitments due" value={`${commitments.reduce((sum, item) => sum + item.amount, 0).toLocaleString()} DT`} accent="#ffd18a" />
-        <TopMetric label="After commitments" value={`${Math.max(0, liquid - commitments.reduce((sum, item) => sum + item.amount, 0)).toLocaleString()} DT`} accent={shortfall > 0 ? "#ffaaaa" : "#80efb8"} />
+        <TopMetric label="Available now" value={`$${liquid.toLocaleString()}`} accent="#8ee8ff" />
+        <TopMetric label="Commitments due" value={`$${commitments.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}`} accent="#ffd18a" />
+        <TopMetric label="After commitments" value={`$${Math.max(0, liquid - commitments.reduce((sum, item) => sum + item.amount, 0)).toLocaleString()}`} accent={shortfall > 0 ? "#ffaaaa" : "#80efb8"} />
       </div>
 
       {commitments.length > 0 && (
@@ -435,7 +435,7 @@ function AdvancePanel({
           {commitments.map((item) => (
             <div key={item.id} style={{ display: "flex", justifyContent: "space-between", gap: "8px", borderRadius: "10px", background: "rgba(255,255,255,.018)", padding: "7px 9px", fontSize: "14px" }}>
               <span style={{ color: "rgba(255,255,255,.45)" }}>Day {item.dueDay} · {item.title}</span>
-              <strong style={{ color: "#ffd18a" }}>{item.amount.toLocaleString()} DT</strong>
+              <strong style={{ color: "#ffd18a" }}>{`$${item.amount.toLocaleString()}`}</strong>
             </div>
           ))}
         </div>
@@ -511,8 +511,8 @@ function FinishPanel({
       <div style={{ marginTop: "8px" }}><BudgetInfoButton title="Final Week">Before Day 25 begins, any remaining known bills through Day 24 are settled. The Final Week then gives you one deliberately difficult trade-off using the position you built.</BudgetInfoButton></div>
       <div style={{ marginTop: "10px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(135px,1fr))", gap: "7px" }}>
         <TopMetric label="Current day" value={`Day ${currentDay}`} accent="#8ee8ff" />
-        <TopMetric label="Available DT" value={`${liquid.toLocaleString()} DT`} accent="#8ee8ff" />
-        <TopMetric label="Still due by Day 24" value={`${total.toLocaleString()} DT`} accent="#ffd18a" />
+        <TopMetric label="Available cash" value={`$${liquid.toLocaleString()}`} accent="#8ee8ff" />
+        <TopMetric label="Still due by Day 24" value={`$${total.toLocaleString()}`} accent="#ffd18a" />
       </div>
       <div style={{ marginTop: "10px", display: "flex", gap: "7px", flexWrap: "wrap" }}>
         {shortfall > 0 && <button type="button" onClick={onRebalance} style={secondaryButtonStyle}>Rebalance</button>}
@@ -546,7 +546,7 @@ function AllocationComparison({ firstPlan, current, isMobile }: { firstPlan: Bud
           return (
             <div key={row.key} style={{ borderRadius: "10px", background: "rgba(255,255,255,.018)", padding: "7px" }}>
               <span style={{ display: "block", color: "rgba(255,255,255,.28)", fontSize: "15px", fontWeight: 850 }}>{row.label}</span>
-              <strong style={{ display: "block", marginTop: "2px", fontSize: "16px" }}>{current[row.key].toLocaleString()} DT</strong>
+              <strong style={{ display: "block", marginTop: "2px", fontSize: "16px" }}>{`$${current[row.key].toLocaleString()}`}</strong>
               <span style={{ display: "block", marginTop: "2px", color: delta > 0 ? "#80efb8" : delta < 0 ? "#ffd18a" : "rgba(255,255,255,.23)", fontSize: "15px" }}>
                 {delta > 0 ? "+" : ""}{delta.toLocaleString()} from Day 1
               </span>

@@ -109,7 +109,7 @@ export default function BudgetPlanningBoard({
                 <div style={{ marginTop: "5px", display: "flex", alignItems: "center", gap: "8px" }}>
                   {item.amount != null && (
                     <span style={{ color: "#ffd18a", fontSize: "17px", fontWeight: 900 }}>
-                      {item.amount.toLocaleString()} DT
+                      {`$${item.amount.toLocaleString()}`}
                     </span>
                   )}
                   <BudgetInfoButton title={item.title}>{item.detail}</BudgetInfoButton>

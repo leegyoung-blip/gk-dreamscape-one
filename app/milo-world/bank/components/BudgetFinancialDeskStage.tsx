@@ -82,20 +82,20 @@ export default function BudgetFinancialDeskStage({
       number: "01",
       title: "Income",
       summary: "What enters the month and when.",
-      value: `${profile.monthlyIncome.toLocaleString()} DT`,
+      value: `$${profile.monthlyIncome.toLocaleString()}`,
     },
     {
       id: "commitments",
       number: "02",
       title: "Commitments",
       summary: "Known payments with dates attached.",
-      value: `${totalKnownCommitments(profile).toLocaleString()} DT`,
+      value: `$${totalKnownCommitments(profile).toLocaleString()}`,
     },
     {
       id: "goals",
       number: "03",
       title: "Goals",
-      summary: "What future plans are competing for DT.",
+      summary: "What future plans are competing for money.",
       value: `${profile.goals.length} active`,
     },
     {
@@ -103,7 +103,7 @@ export default function BudgetFinancialDeskStage({
       number: "04",
       title: "Current savings",
       summary: "Protected money already outside this month's plan.",
-      value: `${profile.currentSavings.toLocaleString()} DT`,
+      value: `$${profile.currentSavings.toLocaleString()}`,
     },
     {
       id: "optional",
@@ -135,7 +135,7 @@ export default function BudgetFinancialDeskStage({
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
             <p style={eyebrowStyle}>Stage 2 · Check your money</p>
-            <BudgetInfoButton title="Why check first?">Look at what is coming in, what must be paid, what you are saving for and what is uncertain before you decide where your DT should go.</BudgetInfoButton>
+            <BudgetInfoButton title="Why check first?">Look at what is coming in, what must be paid, what you are saving for and what is uncertain before you decide where your money should go.</BudgetInfoButton>
           </div>
           <h3
             style={{
@@ -282,7 +282,7 @@ export default function BudgetFinancialDeskStage({
         }}
       >
         <p style={{ margin: 0, color: "rgba(255,255,255,.34)", fontSize: "15px" }}>
-          Still needed for goals: {totalGoalGap(profile).toLocaleString()} DT · {pinnedItems.length} pinned
+          Still needed for goals: {`$${totalGoalGap(profile).toLocaleString()}`} · {pinnedItems.length} pinned
         </p>
         <button
           type="button"
@@ -321,14 +321,14 @@ function DeskDetail({
         <div style={detailGridStyle}>
           <DataRow
             title="Available now"
-            value={`${profile.availableNow.toLocaleString()} DT`}
+            value={`$${profile.availableNow.toLocaleString()}`}
             detail="Already in your wallet before this month's income arrives."
             pinned={pinnedItems.includes("income-available")}
             onPin={() => onTogglePin("income-available")}
           />
           <DataRow
             title="Expected monthly income"
-            value={`${profile.monthlyIncome.toLocaleString()} DT`}
+            value={`$${profile.monthlyIncome.toLocaleString()}`}
             detail={profile.nextIncomeWindow ?? `Expected on Day ${profile.nextIncomeDay}.`}
             pinned={pinnedItems.includes("income-monthly")}
             onPin={() => onTogglePin("income-monthly")}
@@ -347,7 +347,7 @@ function DeskDetail({
             <DataRow
               key={item.id}
               title={item.title}
-              value={`${item.amount.toLocaleString()} DT`}
+              value={`$${item.amount.toLocaleString()}`}
               detail={`Day ${item.dueDay} · ${item.description}`}
               pinned={pinnedItems.includes(item.id)}
               onPin={() => onTogglePin(item.id)}
@@ -361,14 +361,14 @@ function DeskDetail({
   if (activeDesk === "goals") {
     return (
       <>
-        <DetailHeader title="Competing goals" detail="Every goal may be worthwhile. The constraint is that they share the same DT." />
+        <DetailHeader title="Competing goals" detail="Every goal may be worthwhile. The constraint is that they share the same money." />
         <div style={detailGridStyle}>
           {profile.goals.map((goal) => (
             <DataRow
               key={goal.id}
               title={goal.title}
-              value={`${Math.max(0, goal.targetAmount - goal.currentAmount).toLocaleString()} DT left`}
-              detail={`${goal.currentAmount.toLocaleString()} / ${goal.targetAmount.toLocaleString()} DT · target in ${goal.desiredMonths} month${goal.desiredMonths === 1 ? "" : "s"}. ${goal.description}`}
+              value={`$${Math.max(0, goal.targetAmount - goal.currentAmount).toLocaleString()} left`}
+              detail={`$${goal.currentAmount.toLocaleString()} / $${goal.targetAmount.toLocaleString()} · target in ${goal.desiredMonths} month${goal.desiredMonths === 1 ? "" : "s"}. ${goal.description}`}
               pinned={pinnedItems.includes(goal.id)}
               onPin={() => onTogglePin(goal.id)}
             />
@@ -384,7 +384,7 @@ function DeskDetail({
         <DetailHeader title="Current savings" detail="This is already protected and is not automatically part of the month's spending pool." />
         <DataRow
           title="Protected savings"
-          value={`${profile.currentSavings.toLocaleString()} DT`}
+          value={`$${profile.currentSavings.toLocaleString()}`}
           detail="You can choose to add to this buffer, but using it later would reduce your resilience."
           pinned={pinnedItems.includes("savings-current")}
           onPin={() => onTogglePin("savings-current")}
@@ -402,7 +402,7 @@ function DeskDetail({
             <DataRow
               key={item.id}
               title={item.title}
-              value={`${item.amount.toLocaleString()} DT`}
+              value={`$${item.amount.toLocaleString()}`}
               detail={item.description}
               pinned={pinnedItems.includes(item.id)}
               onPin={() => onTogglePin(item.id)}

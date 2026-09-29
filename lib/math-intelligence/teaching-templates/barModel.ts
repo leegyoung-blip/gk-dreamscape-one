@@ -130,6 +130,59 @@ function partWholeTemplate(
   };
 }
 
+
+function ratioTemplate(
+  context: MathTeachingTemplateContext,
+): MathTeachingTemplatePlan | null {
+  const groupA = idsForRole(context, "ratio_group_a");
+  const groupB = idsForRole(context, "ratio_group_b");
+  const counts = idsForRole(context, "ratio_count");
+  if (groupA.length < 1 || groupB.length < 1) return null;
+
+  return {
+    template_id: "bar_model_ratio",
+    lesson_steps: [
+      step(
+        "identify_first_ratio_group",
+        "Count the equal units in the first ratio group.",
+        action(context, "highlight", groupA),
+      ),
+      step(
+        "identify_second_ratio_group",
+        "Now count the equal units in the second ratio group.",
+        action(context, "highlight", groupB),
+      ),
+      step(
+        "connect_ratio_units",
+        "Compare the two groups using the same-sized ratio units.",
+        action(context, "emphasise", [...groupA, ...groupB, ...counts]),
+      ),
+    ],
+    teach_me_steps: [
+      step(
+        "read_first_ratio_group",
+        "Start with the first quantity and count its equal ratio units.",
+        action(context, "highlight", groupA),
+      ),
+      step(
+        "read_second_ratio_group",
+        "Then count the equal ratio units for the second quantity.",
+        action(context, "highlight", groupB),
+      ),
+      step(
+        "compare_equal_units",
+        "Each block has the same unit size, so the unit counts show the ratio.",
+        action(context, "emphasise", [...groupA, ...groupB]),
+      ),
+      step(
+        "state_ratio_relationship",
+        "Read the first unit count to the second unit count to describe the relationship.",
+        action(context, "emphasise", [...groupA, ...groupB, ...counts]),
+      ),
+    ],
+  };
+}
+
 export function barModelTeachingTemplate(
   context: MathTeachingTemplateContext,
 ): MathTeachingTemplatePlan | null {
@@ -138,6 +191,9 @@ export function barModelTeachingTemplate(
   }
   if (context.analysis.strategy === "bar_model_part_whole") {
     return partWholeTemplate(context);
+  }
+  if (context.analysis.strategy === "bar_model_ratio") {
+    return ratioTemplate(context);
   }
   return null;
 }
