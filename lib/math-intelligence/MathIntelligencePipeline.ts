@@ -16,6 +16,9 @@ import { evaluateMathVisualNeed } from "./MathVisualDecisionEngine";
 import { resolveMathVisualStrategyWithRules } from "./MathVisualStrategyResolver";
 import { generateMathVisualSpec } from "./MathVisualSpecGenerator";
 import type { MathVisualGenerationPipelineResult } from "./MathVisualGenerationTypes";
+import type { MathTeachingAIProvider } from "./ai/TeachingAIProvider";
+import { generateMathTeachingVisualWithFallback } from "./MathTeachingVisualPipeline";
+import type { MathTeachingVisualPipelineResult } from "./MathTeachingVisualPipeline";
 
 function uniqueReasonCodes(values: MathIntelligenceReasonCode[]) {
   return [...new Set(values)];
@@ -168,4 +171,47 @@ export async function generateMathVisualForQuestion(
   const analysed = await analyseMathQuestion(question, options);
   const generation = generateMathVisualSpec(analysed.input, analysed.analysis);
   return { ...analysed, generation };
+}
+
+
+export type MathVisualAndTeachingPipelineOptions = MathIntelligencePipelineOptions & {
+  teachingAIProvider?: MathTeachingAIProvider;
+  minLunaTeachingConfidence?: number;
+};
+
+export type MathVisualAndTeachingPipelineResult =
+  MathVisualGenerationPipelineResult & {
+    teaching: MathTeachingVisualPipelineResult | null;
+  };
+
+/**
+ * Phase 2F-D end-to-end authoring/import helper.
+ *
+ * It generates + validates the V2 visual first. Only a successfully generated
+ * spec proceeds into visual teaching. Teaching then uses Dreamscape rules and,
+ * only when explicitly deferred by those rules, one constrained Luna call.
+ * This helper does not save or merge content; Phase 2F-C remains the safe
+ * ownership-aware merge boundary.
+ */
+export async function generateMathVisualAndTeachingForQuestion(
+  question: unknown,
+  options: MathVisualAndTeachingPipelineOptions = {},
+): Promise<MathVisualAndTeachingPipelineResult> {
+  const visual = await generateMathVisualForQuestion(question, options);
+
+  if (visual.generation.status !== "generated" || !visual.generation.spec) {
+    return { ...visual, teaching: null };
+  }
+
+  const teaching = await generateMathTeachingVisualWithFallback(
+    visual.input,
+    visual.analysis,
+    visual.generation.spec,
+    {
+      aiProvider: options.teachingAIProvider,
+      minLunaConfidence: options.minLunaTeachingConfidence,
+    },
+  );
+
+  return { ...visual, teaching };
 }

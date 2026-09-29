@@ -24,9 +24,13 @@ export default function MathTeachingRenderer({
 }) {
   const type = lesson.type.trim().toLocaleLowerCase().replace(/[-\s]+/g, "_");
 
-  let lessonBody: ReactNode;
+  let lessonBody: ReactNode = null;
 
-  if (["worked_steps", "method_steps", "worked_example", "steps"].includes(type)) {
+  if (type === "visual_explanation") {
+    // Phase 2F-C: generated visual-only teaching shells intentionally render
+    // the V2 visual sequence without adding an empty generic lesson panel.
+    lessonBody = null;
+  } else if (["worked_steps", "method_steps", "worked_example", "steps"].includes(type)) {
     lessonBody = <WorkedStepsLesson question={question} lesson={lesson} label={label} />;
   } else if ([
     "vertical_working",

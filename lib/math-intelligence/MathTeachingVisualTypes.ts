@@ -162,7 +162,13 @@ export type MathTeachingVisualDraftIssueCode =
   | "RULES_DEFER_TO_LUNA"
   | "ROLE_RESOLUTION_INCOMPLETE"
   | "NO_DETERMINISTIC_TEMPLATE"
-  | "MISSING_PREFERRED_VISUAL";
+  | "MISSING_PREFERRED_VISUAL"
+  | "TEACHING_VALIDATION_FAILED"
+  | "LUNA_NOT_AVAILABLE"
+  | "LUNA_NEEDS_REVIEW"
+  | "LUNA_REQUEST_FAILED"
+  | "LUNA_OUTPUT_INVALID"
+  | "LUNA_SEMANTIC_VALIDATION_FAILED";
 
 export type MathTeachingVisualDraftIssue = {
   code: MathTeachingVisualDraftIssueCode;
@@ -171,8 +177,12 @@ export type MathTeachingVisualDraftIssue = {
 
 export type MathTeachingVisualDraftResult = {
   status: MathTeachingVisualDraftStatus;
-  source: "rules";
+  source: "rules" | "luna";
   generator_version: string;
+  /** Provider model used for a Luna draft; null for deterministic rules. */
+  model: string | null;
+  /** Confidence of the teaching-plan source, independent of Math analysis confidence. */
+  confidence: number;
   strategy: MathVisualStrategy;
   visual_id: string | null;
   template_id: string | null;

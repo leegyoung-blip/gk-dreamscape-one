@@ -30,6 +30,9 @@ function messageFrom(error: unknown) {
     typeof (error as { message?: unknown }).message === "string"
   ) {
     const message = (error as { message: string }).message;
+    if (/column reference [\"']?(status|checkpoint_version)[\"']? is ambiguous/i.test(message)) {
+      return "Budget Simulator database functions need the 4A RPC ambiguity fix. Run PHASE-4A-SIMULATION-RPC-AMBIGUITY-FIX.sql.";
+    }
     if (/complete_milo_finance_budget_simulation/i.test(message)) {
       return "Budget Simulator completion setup is missing. Run PHASE-4A6-BUDGET-WHAT-IF-COMPLETION.sql.";
     }
