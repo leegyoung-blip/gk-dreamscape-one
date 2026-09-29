@@ -167,7 +167,7 @@ export default function MathIntelligenceQAView() {
   }
 
   async function generateSample() {
-    if (!sample || !runId) return;
+    if (!sample) return;
     setGenerating(true);
     setError(null);
     setNotice(null);
