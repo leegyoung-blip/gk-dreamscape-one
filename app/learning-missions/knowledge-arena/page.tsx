@@ -2457,7 +2457,32 @@ export default function KnowledgeArenaPage() {
             p_selection_context: selectionContext,
           };
 
-    const { data, error } = await supabase.rpc(saveRpc, saveParams);
+    let { data, error } = await supabase.rpc(saveRpc, saveParams);
+
+    const isStatementTimeout =
+      Boolean(error) &&
+      (
+        error?.code === "57014" ||
+        /statement timeout|canceling statement due to statement timeout/i.test(
+          error?.message || ""
+        )
+      );
+
+    if (isStatementTimeout) {
+      // PostgreSQL statement_timeout cancels and rolls back the timed-out
+      // transaction, so one targeted retry is safe here. Do not retry other
+      // save failures because their commit state may be ambiguous.
+      console.warn(
+        "Knowledge Arena final save hit statement_timeout; retrying once.",
+        error
+      );
+      setAttemptSaveMessage(
+        "The first save attempt took too long. Retrying the completed battle once…"
+      );
+
+      await new Promise((resolve) => window.setTimeout(resolve, 650));
+      ({ data, error } = await supabase.rpc(saveRpc, saveParams));
+    }
 
     if (error) {
       console.error("Could not save Knowledge Arena attempt:", error);
@@ -2548,13 +2573,25 @@ export default function KnowledgeArenaPage() {
               : finalLocalBattle.novaHp <= 0
               ? "defeat"
               : "escaped"),
-          novaHp: Number(authoritativeBattle?.nova_hp ?? finalLocalBattle.novaHp),
-          monsterHp: Number(authoritativeBattle?.monster_hp ?? finalLocalBattle.monsterHp),
-          damageDealt: Number(
-            authoritativeBattle?.damage_dealt ?? finalLocalBattle.damageDealt
+          novaHp: Math.max(
+            0,
+            Math.ceil(Number(authoritativeBattle?.nova_hp ?? finalLocalBattle.novaHp))
           ),
-          damageReceived: Number(
-            authoritativeBattle?.damage_received ?? finalLocalBattle.damageReceived
+          monsterHp: Math.max(
+            0,
+            Math.ceil(Number(authoritativeBattle?.monster_hp ?? finalLocalBattle.monsterHp))
+          ),
+          damageDealt: Math.max(
+            0,
+            Math.ceil(
+              Number(authoritativeBattle?.damage_dealt ?? finalLocalBattle.damageDealt)
+            )
+          ),
+          damageReceived: Math.max(
+            0,
+            Math.ceil(
+              Number(authoritativeBattle?.damage_received ?? finalLocalBattle.damageReceived)
+            )
           ),
           revivesUsed: Number(
             authoritativeBattle?.revives_used ?? finalLocalBattle.revivesUsed
@@ -2771,10 +2808,10 @@ export default function KnowledgeArenaPage() {
     setRewardSaved(false);
     setLastBattleResult({
       outcome: localOutcome,
-      novaHp: latestBattle.novaHp,
-      monsterHp: latestBattle.monsterHp,
-      damageDealt: latestBattle.damageDealt,
-      damageReceived: latestBattle.damageReceived,
+      novaHp: Math.max(0, Math.ceil(latestBattle.novaHp)),
+      monsterHp: Math.max(0, Math.ceil(latestBattle.monsterHp)),
+      damageDealt: Math.max(0, Math.ceil(latestBattle.damageDealt)),
+      damageReceived: Math.max(0, Math.ceil(latestBattle.damageReceived)),
       revivesUsed: latestBattle.revivesUsed,
       collection: currentBattleCollectionRef.current,
     });

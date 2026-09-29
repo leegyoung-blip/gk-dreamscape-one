@@ -8,6 +8,7 @@ import {
   normaliseBudgetAllocation,
 } from "../lib/budget-simulator-financial-model";
 import { createInitialLiveMonthState } from "../lib/budget-simulator-live-month";
+import { BUDGET_SIMULATOR_ASSETS } from "../lib/budget-simulator-assets";
 import { buildBudgetResultsSummary } from "../lib/budget-simulator-results";
 import {
   BUDGET_STAGES,
@@ -161,7 +162,12 @@ export default function BudgetSimulatorShell({
         style={{
           borderRadius: "22px",
           border: "1px solid rgba(126,232,255,0.18)",
-          background: "rgba(4,12,30,0.82)",
+          backgroundImage: `linear-gradient(180deg,rgba(2,8,20,.74),rgba(2,8,20,.90)), url(${BUDGET_SIMULATOR_ASSETS.background})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center top",
+          backgroundRepeat: "no-repeat",
+          backgroundColor: "rgba(4,12,30,0.92)",
+          boxShadow: "0 28px 80px rgba(0,0,0,.34)",
           overflow: "hidden",
         }}
       >
@@ -174,6 +180,8 @@ export default function BudgetSimulatorShell({
             justifyContent: "space-between",
             gap: "9px",
             borderBottom: "1px solid rgba(255,255,255,0.07)",
+            background: "rgba(2,8,20,.58)",
+            backdropFilter: "blur(14px)",
           }}
         >
           <div style={{ minWidth: 0 }}>
@@ -237,6 +245,8 @@ export default function BudgetSimulatorShell({
             gap: "5px",
             overflowX: isMobile ? "auto" : "visible",
             borderBottom: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(2,8,20,.46)",
+            backdropFilter: "blur(12px)",
           }}
         >
           {BUDGET_STAGES.map((stage, index) => {
@@ -290,7 +300,7 @@ export default function BudgetSimulatorShell({
           })}
         </div>
 
-        <div style={{ padding: isMobile ? "13px" : "16px" }}>
+        <div style={{ padding: isMobile ? "13px" : "16px", background: "linear-gradient(180deg,rgba(2,8,20,.28),rgba(2,8,20,.56))" }}>
           {run.currentStage === "briefing" ? (
             <BudgetBriefingStage
               run={run}

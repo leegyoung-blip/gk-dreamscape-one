@@ -11,3 +11,8 @@ export * from "./MathVisualSpecGenerator";
 export * from "./MathLearnerVisibleEvidence";
 export * from "./MathVisualSemanticTypes";
 export * from "./MathVisualSemanticValidator";
+export * from "./MathTeachingVisualTypes";
+export * from "./MathVisualTeachingRoleResolver";
+export * from "./MathVisualTeachingNeedResolver";
+export * from "./MathTeachingTemplateLibrary";
+export * from "./MathTeachingVisualGenerator";

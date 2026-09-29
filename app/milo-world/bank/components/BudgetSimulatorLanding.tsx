@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { BankScreenMode } from "../lib/bank-types";
+import { BUDGET_SIMULATOR_ASSETS } from "../lib/budget-simulator-assets";
 import {
   BUDGET_DIFFICULTIES,
   BUDGET_SCENARIOS,
@@ -128,7 +129,10 @@ export default function BudgetSimulatorLanding({
           marginTop: run ? "12px" : 0,
           borderRadius: "24px",
           border: "1px solid rgba(184,168,255,0.15)",
-          background: "rgba(4,12,30,0.78)",
+          backgroundImage: `linear-gradient(180deg,rgba(2,8,20,.72),rgba(2,8,20,.90)), url(${BUDGET_SIMULATOR_ASSETS.background})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundColor: "rgba(4,12,30,0.88)",
           padding: isMobile ? "16px" : "20px",
         }}
       >

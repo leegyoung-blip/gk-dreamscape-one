@@ -16,7 +16,12 @@ import type {
   BudgetAllocationKey,
   BudgetFinancialProfile,
 } from "../lib/budget-simulator-types";
+import {
+  BUDGET_SIMULATOR_ASSETS,
+  budgetAllocationAsset,
+} from "../lib/budget-simulator-assets";
 import BudgetAllocationWheel from "./BudgetAllocationWheel";
+import BudgetAssetIcon from "./BudgetAssetIcon";
 import BudgetFinancialRadar from "./BudgetFinancialRadar";
 import BudgetPlanningBoard from "./BudgetPlanningBoard";
 
@@ -135,9 +140,34 @@ export default function BudgetBuildStage({
                 <p style={{ margin: 0, color: "rgba(255,255,255,.34)", fontSize: "7px", fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
                   Selected allocation
                 </p>
-                <div style={{ marginTop: "5px", display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline" }}>
-                  <strong style={{ fontSize: "15px" }}>{formatBudgetAllocationLabel(selected)}</strong>
-                  <strong style={{ color: "#ffd18a", fontSize: "18px" }}>{allocation[selected].toLocaleString()} DT</strong>
+                <div style={{ marginTop: "7px", display: "grid", gridTemplateColumns: "52px minmax(0,1fr)", gap: "9px", alignItems: "center" }}>
+                  <BudgetAssetIcon
+                    src={budgetAllocationAsset(selected)}
+                    alt={`${formatBudgetAllocationLabel(selected)} visual`}
+                    size={50}
+                    muted={selected === "unallocated"}
+                  />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline", flexWrap: "wrap" }}>
+                      <strong style={{ fontSize: "15px" }}>{formatBudgetAllocationLabel(selected)}</strong>
+                      <strong style={{ color: "#ffd18a", fontSize: "18px" }}>{allocation[selected].toLocaleString()} DT</strong>
+                    </div>
+                    <span style={{ display: "block", marginTop: "3px", color: "rgba(255,255,255,.31)", fontSize: "7px", lineHeight: 1.4 }}>
+                      {selected === "investing"
+                        ? "Growth money can later be directed into variable-return or fixed-return products."
+                        : selected === "savings"
+                          ? "Protected money prioritised for stability and future flexibility."
+                          : selected === "goals"
+                            ? "DT reserved for a defined future target."
+                            : selected === "emergency"
+                              ? "A buffer for costs you cannot predict in advance."
+                              : selected === "lifestyle"
+                                ? "Optional spending that competes with other priorities."
+                                : selected === "essentials"
+                                  ? "Known needs and commitments that keep the month functioning."
+                                  : "DT kept immediately flexible until you decide where it should go."}
+                    </span>
+                  </div>
                 </div>
 
                 {selectedEditable ? (
@@ -172,6 +202,7 @@ export default function BudgetBuildStage({
                     Unallocated DT stays immediately flexible. Reduce or increase another category to change this amount.
                   </p>
                 )}
+                {selected === "investing" && <InvestmentReference />}
               </div>
 
               <div style={{ marginTop: "8px", display: "grid", gap: "6px" }}>
@@ -208,9 +239,21 @@ export default function BudgetBuildStage({
                           fontSize: "8px",
                           fontWeight: 850,
                           cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          minWidth: 0,
                         }}
                       >
-                        {formatBudgetAllocationLabel(key)}
+                        {budgetAllocationAsset(key) && (
+                          <BudgetAssetIcon
+                            src={budgetAllocationAsset(key)}
+                            alt=""
+                            size={24}
+                            muted={selected !== key}
+                          />
+                        )}
+                        <span>{formatBudgetAllocationLabel(key)}</span>
                       </button>
                       <input
                         type="range"
@@ -313,6 +356,42 @@ export default function BudgetBuildStage({
   );
 }
 
+function InvestmentReference() {
+  return (
+    <div
+      style={{
+        marginTop: "10px",
+        display: "grid",
+        gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+        gap: "6px",
+      }}
+    >
+      <div style={referenceCardStyle}>
+        <BudgetAssetIcon
+          src={BUDGET_SIMULATOR_ASSETS.exchangeInvesting}
+          alt="Exchange investing"
+          size={36}
+        />
+        <div>
+          <strong style={{ display: "block", fontSize: "8px" }}>Exchange</strong>
+          <span style={referenceTextStyle}>Variable outcome · higher uncertainty</span>
+        </div>
+      </div>
+      <div style={referenceCardStyle}>
+        <BudgetAssetIcon
+          src={BUDGET_SIMULATOR_ASSETS.bondFixedReturn}
+          alt="Bank Bond"
+          size={36}
+        />
+        <div>
+          <strong style={{ display: "block", fontSize: "8px" }}>Bank Bonds</strong>
+          <span style={referenceTextStyle}>Fixed return · DT locked for a term</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SummaryPill({ label, value, gold = false }: { label: string; value: string; gold?: boolean }) {
   return (
     <div
@@ -371,6 +450,26 @@ function ConditionCard({
     </div>
   );
 }
+
+const referenceCardStyle = {
+  minWidth: 0,
+  display: "grid",
+  gridTemplateColumns: "36px minmax(0,1fr)",
+  gap: "7px",
+  alignItems: "center",
+  borderRadius: "11px",
+  border: "1px solid rgba(255,255,255,.055)",
+  background: "rgba(255,255,255,.015)",
+  padding: "6px",
+};
+
+const referenceTextStyle = {
+  display: "block",
+  marginTop: "2px",
+  color: "rgba(255,255,255,.30)",
+  fontSize: "6px",
+  lineHeight: 1.35,
+};
 
 const eyebrowStyle = {
   margin: 0,

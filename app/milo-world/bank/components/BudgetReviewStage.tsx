@@ -11,6 +11,7 @@ import type {
   BudgetResultsSummary,
   BudgetScenarioKey,
 } from "../lib/budget-simulator-types";
+import { BUDGET_SIMULATOR_ASSETS } from "../lib/budget-simulator-assets";
 import BudgetWhatIfPanel from "./BudgetWhatIfPanel";
 
 const ROWS: Array<{ key: keyof BudgetAllocation; label: string }> = [
@@ -142,9 +143,9 @@ export default function BudgetReviewStage({
       <section className="budget-review-enter" style={{ ...panelStyle, marginTop: "10px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "150px minmax(0,1fr)", gap: "12px", alignItems: "center" }}>
         <div style={{ display: "grid", placeItems: "center" }}>
           <img
-            src="/milo-world/milo-character.png"
-            alt="Milo"
-            style={{ width: isMobile ? "92px" : "118px", height: isMobile ? "110px" : "140px", objectFit: "contain", objectPosition: "center bottom" }}
+            src={BUDGET_SIMULATOR_ASSETS.advisor}
+            alt="Milo, your finance adviser"
+            style={{ width: isMobile ? "108px" : "132px", height: isMobile ? "138px" : "166px", objectFit: "contain", objectPosition: "center bottom", filter: "drop-shadow(0 12px 22px rgba(0,0,0,.32))" }}
           />
           <span style={{ marginTop: "-4px", color: "#ffd18a", fontSize: "7px", fontWeight: 950, textTransform: "uppercase" }}>Milo's view</span>
         </div>

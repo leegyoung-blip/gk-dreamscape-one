@@ -19,6 +19,8 @@ import type {
   BudgetLiveEventChoice,
   BudgetLiveMonthState,
 } from "../lib/budget-simulator-types";
+import { budgetLiveEventAsset } from "../lib/budget-simulator-assets";
+import BudgetAssetIcon from "./BudgetAssetIcon";
 import BudgetLiveMonthTimeline from "./BudgetLiveMonthTimeline";
 import BudgetLiveRebalancePanel from "./BudgetLiveRebalancePanel";
 
@@ -285,7 +287,7 @@ function EventDecisionPanel({
 }) {
   return (
     <section style={mainPanelStyle}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: "12px", alignItems: "start" }}>
         <div style={{ maxWidth: "760px" }}>
           <p style={{ ...eyebrowStyle, color: categoryColour(event.category) }}>Day {event.day} · {formatCategory(event.category)}</p>
           <h4 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "24px", fontWeight: 500 }}>
@@ -297,12 +299,17 @@ function EventDecisionPanel({
           <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,.43)", fontSize: "8px", lineHeight: 1.65 }}>
             {event.briefing}
           </p>
+          {event.linkedFrom && (
+            <span style={{ display: "inline-flex", marginTop: "8px", height: "fit-content", borderRadius: "999px", border: "1px solid rgba(255,209,138,.16)", background: "rgba(255,209,138,.06)", padding: "6px 8px", color: "#ffd18a", fontSize: "6px", fontWeight: 900 }}>
+              Linked consequence
+            </span>
+          )}
         </div>
-        {event.linkedFrom && (
-          <span style={{ height: "fit-content", borderRadius: "999px", border: "1px solid rgba(255,209,138,.16)", background: "rgba(255,209,138,.06)", padding: "6px 8px", color: "#ffd18a", fontSize: "6px", fontWeight: 900 }}>
-            Linked consequence
-          </span>
-        )}
+        <BudgetAssetIcon
+          src={budgetLiveEventAsset(event)}
+          alt={`${event.title} event`}
+          size={86}
+        />
       </div>
 
       <div style={{ marginTop: "12px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: "7px" }}>

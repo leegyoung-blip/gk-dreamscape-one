@@ -11,6 +11,7 @@ import {
   completeBudgetFinalWeek,
   finalWeekFundingGap,
 } from "../lib/budget-simulator-results";
+import { BUDGET_SIMULATOR_ASSETS } from "../lib/budget-simulator-assets";
 import type {
   BudgetAllocation,
   BudgetDecisionFactorKey,
@@ -21,6 +22,7 @@ import type {
   BudgetLiveMonthState,
   BudgetScenarioKey,
 } from "../lib/budget-simulator-types";
+import BudgetAssetIcon from "./BudgetAssetIcon";
 import BudgetDecisionFactors from "./BudgetDecisionFactors";
 import BudgetLiveRebalancePanel from "./BudgetLiveRebalancePanel";
 
@@ -168,7 +170,7 @@ export default function BudgetFinalWeekStage({
       </div>
 
       <section style={{ ...panelStyle, marginTop: "11px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) auto", gap: "12px", alignItems: "start" }}>
           <div style={{ maxWidth: "780px" }}>
             <p style={{ ...eyebrowStyle, color: "#ffd18a" }}>Day {challenge.day} · Capital decision</p>
             <h4 style={{ margin: "5px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "24px", fontWeight: 500 }}>
@@ -181,14 +183,21 @@ export default function BudgetFinalWeekStage({
               {challenge.briefing}
             </p>
           </div>
-          <div style={{ borderRadius: "15px", border: "1px solid rgba(255,209,138,.15)", background: "rgba(255,209,138,.055)", padding: "10px 12px", minWidth: "155px" }}>
-            <span style={miniLabel}>Suggested capital</span>
-            <strong style={{ display: "block", marginTop: "3px", color: "#ffd18a", fontSize: "19px" }}>
-              {challenge.opportunityAmount.toLocaleString()} DT
-            </strong>
-            <span style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,.34)", fontSize: "7px", lineHeight: 1.4 }}>
-              Simulated possible benefit: +{challenge.potentialBenefitLow}% to +{challenge.potentialBenefitHigh}% over the next few months. Not guaranteed.
-            </span>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "74px minmax(0,1fr)" : "82px 165px", gap: "8px", alignItems: "center" }}>
+            <BudgetAssetIcon
+              src={BUDGET_SIMULATOR_ASSETS.businessEquipment}
+              alt="Business Builder opportunity"
+              size={isMobile ? 72 : 80}
+            />
+            <div style={{ borderRadius: "15px", border: "1px solid rgba(255,209,138,.15)", background: "rgba(255,209,138,.055)", padding: "10px 12px", minWidth: 0 }}>
+              <span style={miniLabel}>Suggested capital</span>
+              <strong style={{ display: "block", marginTop: "3px", color: "#ffd18a", fontSize: "19px" }}>
+                {challenge.opportunityAmount.toLocaleString()} DT
+              </strong>
+              <span style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,.34)", fontSize: "7px", lineHeight: 1.4 }}>
+                Simulated possible benefit: +{challenge.potentialBenefitLow}% to +{challenge.potentialBenefitHigh}% over the next few months. Not guaranteed.
+              </span>
+            </div>
           </div>
         </div>
 

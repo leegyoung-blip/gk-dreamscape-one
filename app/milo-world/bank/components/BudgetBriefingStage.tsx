@@ -9,6 +9,7 @@ import type {
   BudgetFinancialProfile,
   BudgetSimulationRun,
 } from "../lib/budget-simulator-types";
+import { BUDGET_SIMULATOR_ASSETS } from "../lib/budget-simulator-assets";
 
 export default function BudgetBriefingStage({
   run,
@@ -158,14 +159,14 @@ export default function BudgetBriefingStage({
         }}
       >
         <img
-          src="/milo-world/milo-character.png"
-          alt="Milo"
+          src={BUDGET_SIMULATOR_ASSETS.advisor}
+          alt="Milo, your finance adviser"
           style={{
             position: "absolute",
             right: isMobile ? "8px" : "2px",
             top: isMobile ? "4px" : "8px",
-            width: isMobile ? "118px" : "150px",
-            height: isMobile ? "140px" : "180px",
+            width: isMobile ? "132px" : "168px",
+            height: isMobile ? "160px" : "205px",
             objectFit: "contain",
             objectPosition: "center bottom",
             filter: "drop-shadow(0 16px 24px rgba(0,0,0,.35))",

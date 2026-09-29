@@ -81,20 +81,21 @@ const NOVA_START_HP = 1000;
 const NOVA_REVIVE_HP = 500;
 
 function defenseReduction(defenseRating: number) {
-  const rating = Math.max(1, Math.min(5, Math.round(defenseRating || 1)));
-  return (rating - 1) * 0.08;
+  // Ratings above 5 are allowed for future monsters, but effective reduction
+  // is capped at 40% so Nova upgrades remain meaningful.
+  const rating = Math.max(1, Math.round(defenseRating || 1));
+  return Math.min(0.4, (rating - 1) * 0.08);
 }
 
 function damagePerShot(defenseRating: number, attackLevel: number) {
   const safeLevel = Math.max(0, Math.min(50, Math.round(attackLevel || 0)));
   const upgradedBaseDamage = BASE_SHOT_DAMAGE * (1 + safeLevel * 0.05);
+  const defendedDamage =
+    upgradedBaseDamage * (1 - defenseReduction(defenseRating));
 
-  // Keep fractional damage internally. The UI rounds only what it displays.
-  // This prevents purchased levels from being lost to per-shot integer rounding.
-  return Math.max(
-    1,
-    upgradedBaseDamage * (1 - Math.min(0.4, defenseReduction(defenseRating))),
-  );
+  // Combat Standard V2.1: Nova damage is always a whole number.
+  // Round UP once per shot, then use that integer for HP and total damage.
+  return Math.max(1, Math.ceil(defendedDamage));
 }
 
 export function fireWindowForSecondsUsed(secondsUsed: number) {
@@ -381,13 +382,17 @@ export function useKnowledgeArenaBattle({
     // Once the real monster is defeated, later firing is target practice.
     if (monsterHpRef.current <= 0) return true;
 
-    const nextHp = Math.max(0, monsterHpRef.current - monsterDamagePerShot);
-    const actualDamage = monsterHpRef.current - nextHp;
+    const shotDamage = Math.max(1, Math.ceil(monsterDamagePerShot));
+    const currentHp = Math.max(0, Math.ceil(monsterHpRef.current));
+    const nextHp = Math.max(0, currentHp - shotDamage);
+    const actualDamage = currentHp - nextHp;
+
     monsterHpRef.current = nextHp;
     setMonsterHp(nextHp);
-    damageDealtRef.current += actualDamage;
+
+    damageDealtRef.current = Math.ceil(damageDealtRef.current) + actualDamage;
     setDamageDealt(damageDealtRef.current);
-    setDamageFlash(monsterDamagePerShot);
+    setDamageFlash(actualDamage);
     window.setTimeout(() => setDamageFlash(null), 150);
 
     if (nextHp <= 0) {
