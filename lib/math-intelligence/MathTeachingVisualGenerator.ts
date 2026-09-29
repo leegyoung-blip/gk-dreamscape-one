@@ -36,6 +36,8 @@ export function generateMathTeachingVisualDraft(
   const base = {
     source: "rules" as const,
     generator_version: MATH_TEACHING_VISUAL_GENERATOR_VERSION,
+    model: null,
+    confidence: need.confidence,
     strategy: analysis.strategy,
     visual_id: visualId,
     roles,
