@@ -16,7 +16,13 @@ import {
   MATH_VISUAL_EXAMPLES,
   type MathVisualExample,
 } from "@/components/core-math/visual-engine/MathVisualExamples";
+import { buildMathAuthoringQuestionFingerprint } from "@/lib/math-intelligence/MathAuthoringFingerprint";
 import type { MathAuthoringProposal } from "@/lib/math-intelligence/MathAuthoringProposalTypes";
+import {
+  applyMathAuthoringProposalToDraft,
+  inspectMathAuthoringProposalApplication,
+  type MathAuthoringProposalApplicationInspection,
+} from "@/lib/math-intelligence/MathAuthoringProposalApply";
 import MathIntelligenceProposalPreview from "./math-intelligence/MathIntelligenceProposalPreview";
 import {
   MathAuthoringProposalRequestError,
@@ -72,6 +78,21 @@ export default function MathVisualAuthoringPanel({
   const [proposal, setProposal] = useState<MathAuthoringProposal | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [applyNotice, setApplyNotice] = useState<string | null>(null);
+  const [confirmProtectedReplace, setConfirmProtectedReplace] = useState(false);
+
+  const currentQuestionFingerprint = useMemo(
+    () =>
+      questionDraft
+        ? buildMathAuthoringQuestionFingerprint(questionDraft)
+        : null,
+    [questionDraft],
+  );
+  const proposalStale = Boolean(
+    proposal &&
+      (!currentQuestionFingerprint ||
+        proposal.question_fingerprint !== currentQuestionFingerprint),
+  );
 
   const visualResult = useMemo(() => parseVisualText(visualText), [visualText]);
   const lessonResult = useMemo(
@@ -81,6 +102,15 @@ export default function MathVisualAuthoringPanel({
   const teachMeResult = useMemo(
     () => parseStepsText(teachMeStepsText, visualResult.spec, "teach_me.visual_steps"),
     [teachMeStepsText, visualResult.spec],
+  );
+
+  const applicationInspection = useMemo(
+    () =>
+      inspectMathAuthoringProposalApplication({
+        visual: visualResult.spec,
+        teaching,
+      }),
+    [teaching, visualResult.spec],
   );
 
   const overallValid =
@@ -108,6 +138,8 @@ export default function MathVisualAuthoringPanel({
 
     setGenerating(true);
     setGenerationError(null);
+    setApplyNotice(null);
+    setConfirmProtectedReplace(false);
 
     try {
       const nextProposal = await requestMathAuthoringProposal(questionDraft);
@@ -123,6 +155,58 @@ export default function MathVisualAuthoringPanel({
     } finally {
       setGenerating(false);
     }
+  }
+
+  function discardProposal() {
+    setProposal(null);
+    setGenerationError(null);
+    setConfirmProtectedReplace(false);
+    setApplyNotice("Proposal discarded. The current question draft was not changed.");
+  }
+
+  function applyProposal(replaceProtected: boolean) {
+    if (!proposal) return;
+    if (proposalStale) {
+      setGenerationError(
+        "This proposal is out of date because the Math question changed after generation. Regenerate before accepting it.",
+      );
+      setConfirmProtectedReplace(false);
+      return;
+    }
+
+    const result = applyMathAuthoringProposalToDraft({
+      currentVisual: visualResult.spec,
+      currentTeaching: teaching,
+      proposal,
+      options: {
+        allow_replace_manual: replaceProtected,
+        allow_replace_reviewed: replaceProtected,
+      },
+    });
+
+    if (result.status === "invalid") {
+      setGenerationError(result.messages[0] || "This proposal cannot be applied.");
+      return;
+    }
+
+    if (result.status === "preserved") {
+      setApplyNotice(result.messages.join(" "));
+      return;
+    }
+
+    setVisualText(pretty(result.visual));
+    setLessonStepsText(pretty(readLessonSteps(result.teaching as TeachingDraft, "lesson")));
+    setTeachMeStepsText(pretty(readLessonSteps(result.teaching as TeachingDraft, "teach_me")));
+    setPreviewMode("question");
+    setPreviewStep(0);
+
+    onChangeVisual(result.visual);
+    onChangeTeaching(result.teaching as TeachingDraft);
+
+    setProposal(null);
+    setConfirmProtectedReplace(false);
+    setGenerationError(null);
+    setApplyNotice(result.messages.join(" "));
   }
 
   function updateVisualText(next: string) {
@@ -237,7 +321,7 @@ export default function MathVisualAuthoringPanel({
                 onClick={() => void generateProposal()}
                 style={generateButton(disabled || generating || !questionDraft)}
               >
-                {generating ? "Analysing…" : "Generate Visual + Teaching"}
+                {generating ? "Analysing…" : proposal ? "Regenerate Proposal" : applicationInspection.has_existing_content ? "Generate Comparison" : "Generate Visual + Teaching"}
               </button>
             </div>
 
@@ -251,8 +335,44 @@ export default function MathVisualAuthoringPanel({
               <div style={generationErrorBox}>{generationError}</div>
             ) : null}
 
+            {applyNotice ? (
+              <div style={applyNoticeBox}>{applyNotice}</div>
+            ) : null}
+
+            {proposalStale ? (
+              <div style={staleProposalBox}>
+                <strong>Question changed after generation.</strong> The proposal is now read-only.
+                Regenerate it against the current unsaved question before accepting.
+              </div>
+            ) : null}
+
+            {applicationInspection.has_existing_content ? (
+              <OwnershipSummary inspection={applicationInspection} />
+            ) : null}
+
             {proposal ? (
-              <MathIntelligenceProposalPreview proposal={proposal} />
+              <>
+                <MathIntelligenceProposalPreview
+                  proposal={proposal}
+                  currentVisual={visualResult.spec}
+                  currentTeaching={teaching}
+                  comparison={applicationInspection.has_existing_content}
+                />
+
+                <ProposalActions
+                  proposal={proposal}
+                  inspection={applicationInspection}
+                  disabled={disabled || generating}
+                  stale={proposalStale}
+                  confirmingProtectedReplace={confirmProtectedReplace}
+                  onAccept={() => applyProposal(false)}
+                  onRequestProtectedReplace={() => setConfirmProtectedReplace(true)}
+                  onConfirmProtectedReplace={() => applyProposal(true)}
+                  onCancelProtectedReplace={() => setConfirmProtectedReplace(false)}
+                  onRegenerate={() => void generateProposal()}
+                  onDiscard={discardProposal}
+                />
+              </>
             ) : (
               <div style={generationPlaceholder}>
                 No proposal generated yet. The existing Math Visual JSON below remains unchanged.
@@ -420,6 +540,160 @@ export default function MathVisualAuthoringPanel({
       ) : null}
     </section>
   );
+}
+
+function OwnershipSummary({
+  inspection,
+}: {
+  inspection: MathAuthoringProposalApplicationInspection;
+}) {
+  return (
+    <div style={ownershipShell}>
+      <span style={ownershipTitle}>CURRENT AUTHORING OWNERSHIP</span>
+      <div style={ownershipPills}>
+        <OwnershipPill label="Visual" status={inspection.visual.status} />
+        <OwnershipPill label="Lesson" status={inspection.lesson.status} />
+        <OwnershipPill label="Teach Me" status={inspection.teach_me.status} />
+      </div>
+      {inspection.has_locked_content ? (
+        <span style={ownershipNote}>
+          Locked content is never replaced by Math Intelligence.
+        </span>
+      ) : inspection.requires_explicit_replace ? (
+        <span style={ownershipNote}>
+          Manual or reviewed generated content requires an explicit Use Proposal confirmation.
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function OwnershipPill({ label, status }: { label: string; status: string }) {
+  return (
+    <span style={ownershipPill(status)}>
+      {label}: {humaniseStatus(status)}
+    </span>
+  );
+}
+
+function ProposalActions({
+  proposal,
+  inspection,
+  disabled,
+  stale,
+  confirmingProtectedReplace,
+  onAccept,
+  onRequestProtectedReplace,
+  onConfirmProtectedReplace,
+  onCancelProtectedReplace,
+  onRegenerate,
+  onDiscard,
+}: {
+  proposal: MathAuthoringProposal;
+  inspection: MathAuthoringProposalApplicationInspection;
+  disabled: boolean;
+  stale: boolean;
+  confirmingProtectedReplace: boolean;
+  onAccept: () => void;
+  onRequestProtectedReplace: () => void;
+  onConfirmProtectedReplace: () => void;
+  onCancelProtectedReplace: () => void;
+  onRegenerate: () => void;
+  onDiscard: () => void;
+}) {
+  const canApply = Boolean(
+    !stale && proposal.can_accept.visual && proposal.visual.spec,
+  );
+  const visualLocked = inspection.visual.status === "locked";
+  const needsProtectedConfirmation = inspection.requires_explicit_replace;
+
+  return (
+    <div style={proposalActionsShell}>
+      {confirmingProtectedReplace ? (
+        <div style={protectedConfirmBox}>
+          <strong style={protectedConfirmTitle}>Replace protected current content?</strong>
+          <span style={protectedConfirmText}>
+            This is an explicit authoring action. Manual and reviewed generated visual-teaching
+            content that has a corresponding proposal will be replaced in the local draft.
+            Locked content will still be preserved.
+          </span>
+          <div style={proposalButtonRow}>
+            <button
+              type="button"
+              disabled={disabled || visualLocked || stale}
+              onClick={onConfirmProtectedReplace}
+              style={dangerActionButton(disabled || visualLocked || stale)}
+            >
+              Confirm Use Proposal
+            </button>
+            <button type="button" disabled={disabled} onClick={onCancelProtectedReplace} style={secondaryActionButton}>
+              Cancel
+            </button>
+          </div>
+          {visualLocked ? (
+            <span style={lockedActionNote}>
+              The current visual itself is locked, so this proposal cannot replace it.
+            </span>
+          ) : null}
+        </div>
+      ) : (
+        <div style={proposalButtonRow}>
+          {canApply && !visualLocked ? (
+            needsProtectedConfirmation ? (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={onRequestProtectedReplace}
+                style={primaryActionButton(disabled)}
+              >
+                Use Proposal
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={onAccept}
+                style={primaryActionButton(disabled)}
+              >
+                Accept Proposal
+              </button>
+            )
+          ) : null}
+
+          <button type="button" disabled={disabled} onClick={onRegenerate} style={secondaryActionButton}>
+            Regenerate
+          </button>
+          <button type="button" disabled={disabled} onClick={onDiscard} style={secondaryActionButton}>
+            {inspection.has_existing_content ? "Keep Current / Discard" : "Discard"}
+          </button>
+        </div>
+      )}
+
+      {stale ? (
+        <span style={actionHint}>
+          This proposal no longer matches the current question draft. Regenerate before accepting it.
+        </span>
+      ) : !canApply ? (
+        <span style={actionHint}>
+          This proposal is preview-only because the generated visual did not pass the full acceptability gate.
+        </span>
+      ) : visualLocked ? (
+        <span style={actionHint}>
+          The current Math Visual is locked. Generate and inspect proposals if useful, but they cannot replace the locked visual.
+        </span>
+      ) : (
+        <span style={actionHint}>
+          Accepting changes only the local editor draft. Use the existing question Save action to persist it.
+        </span>
+      )}
+    </div>
+  );
+}
+
+function humaniseStatus(value: string) {
+  if (value === "none") return "None";
+  if (value === "generated_reviewed") return "Generated · Reviewed";
+  return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function parseVisualText(text: string): ParsedVisual {
@@ -682,6 +956,144 @@ const generationPlaceholder: CSSProperties = {
   fontSize: 10,
   lineHeight: 1.45,
 };
+const applyNoticeBox: CSSProperties = {
+  borderRadius: 9,
+  border: "1px solid rgba(74,222,128,0.22)",
+  background: "rgba(34,197,94,0.07)",
+  color: "#bbf7d0",
+  padding: "9px 10px",
+  fontSize: 10,
+  lineHeight: 1.45,
+};
+const staleProposalBox: CSSProperties = {
+  borderRadius: 9,
+  border: "1px solid rgba(251,191,36,0.28)",
+  background: "rgba(245,158,11,0.09)",
+  color: "#fde68a",
+  padding: "9px 10px",
+  fontSize: 10,
+  lineHeight: 1.5,
+};
+const ownershipShell: CSSProperties = {
+  borderRadius: 11,
+  border: "1px solid rgba(255,255,255,0.09)",
+  background: "rgba(255,255,255,0.035)",
+  padding: 10,
+  display: "grid",
+  gap: 7,
+};
+const ownershipTitle: CSSProperties = {
+  color: "rgba(255,255,255,0.46)",
+  fontSize: 9,
+  fontWeight: 900,
+  letterSpacing: "0.1em",
+};
+const ownershipPills: CSSProperties = {
+  display: "flex",
+  gap: 7,
+  flexWrap: "wrap",
+};
+function ownershipPill(status: string): CSSProperties {
+  const protectedState = status === "manual" || status === "generated_reviewed";
+  const locked = status === "locked";
+  return {
+    borderRadius: 999,
+    border: locked
+      ? "1px solid rgba(248,113,113,0.25)"
+      : protectedState
+        ? "1px solid rgba(251,191,36,0.24)"
+        : "1px solid rgba(83,215,255,0.18)",
+    background: locked
+      ? "rgba(239,68,68,0.07)"
+      : protectedState
+        ? "rgba(245,158,11,0.07)"
+        : "rgba(14,165,233,0.06)",
+    color: locked ? "#fecaca" : protectedState ? "#fde68a" : "#c7f5ff",
+    padding: "5px 8px",
+    fontSize: 9,
+    fontWeight: 850,
+  };
+}
+const ownershipNote: CSSProperties = {
+  color: "rgba(255,255,255,0.54)",
+  fontSize: 10,
+  lineHeight: 1.4,
+};
+const proposalActionsShell: CSSProperties = {
+  borderTop: "1px solid rgba(255,255,255,0.08)",
+  paddingTop: 11,
+  display: "grid",
+  gap: 8,
+};
+const proposalButtonRow: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  alignItems: "center",
+};
+function primaryActionButton(blocked: boolean): CSSProperties {
+  return {
+    borderRadius: 10,
+    border: "1px solid rgba(74,222,128,0.34)",
+    background: "rgba(34,197,94,0.13)",
+    color: "#d8ffe4",
+    padding: "8px 11px",
+    fontSize: 10,
+    fontWeight: 900,
+    cursor: blocked ? "not-allowed" : "pointer",
+    opacity: blocked ? 0.48 : 1,
+  };
+}
+function dangerActionButton(blocked: boolean): CSSProperties {
+  return {
+    borderRadius: 10,
+    border: "1px solid rgba(251,191,36,0.34)",
+    background: "rgba(245,158,11,0.12)",
+    color: "#fff0b8",
+    padding: "8px 11px",
+    fontSize: 10,
+    fontWeight: 900,
+    cursor: blocked ? "not-allowed" : "pointer",
+    opacity: blocked ? 0.48 : 1,
+  };
+}
+const secondaryActionButton: CSSProperties = {
+  borderRadius: 10,
+  border: "1px solid rgba(255,255,255,0.13)",
+  background: "rgba(255,255,255,0.045)",
+  color: "rgba(255,255,255,0.82)",
+  padding: "8px 11px",
+  fontSize: 10,
+  fontWeight: 850,
+  cursor: "pointer",
+};
+const actionHint: CSSProperties = {
+  color: "rgba(255,255,255,0.48)",
+  fontSize: 10,
+  lineHeight: 1.4,
+};
+const protectedConfirmBox: CSSProperties = {
+  borderRadius: 11,
+  border: "1px solid rgba(251,191,36,0.24)",
+  background: "rgba(245,158,11,0.07)",
+  padding: 11,
+  display: "grid",
+  gap: 7,
+};
+const protectedConfirmTitle: CSSProperties = {
+  color: "#fde68a",
+  fontSize: 11,
+};
+const protectedConfirmText: CSSProperties = {
+  color: "rgba(255,255,255,0.68)",
+  fontSize: 10,
+  lineHeight: 1.45,
+};
+const lockedActionNote: CSSProperties = {
+  color: "#fecaca",
+  fontSize: 10,
+};
+
 const manualDivider: CSSProperties = {
   display: "flex",
   alignItems: "center",

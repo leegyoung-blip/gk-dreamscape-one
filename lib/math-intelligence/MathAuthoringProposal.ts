@@ -144,7 +144,12 @@ function teachingAcceptable(result: MathVisualAndTeachingPipelineResult) {
  */
 export function buildMathAuthoringProposal(
   result: MathVisualAndTeachingPipelineResult,
-  options: { proposalId?: string; createdAt?: string } = {},
+  options: {
+    proposalId?: string;
+    createdAt?: string;
+    questionFingerprint: string;
+    sourceFingerprint: string;
+  },
 ): MathAuthoringProposal {
   const visualOk = visualAcceptable(result);
   const teachingOk = teachingAcceptable(result);
@@ -155,6 +160,8 @@ export function buildMathAuthoringProposal(
     proposal_id: options.proposalId || randomUUID(),
     created_at: options.createdAt || new Date().toISOString(),
     question_id: result.input.id,
+    question_fingerprint: options.questionFingerprint,
+    source_fingerprint: options.sourceFingerprint,
     status: statusForPipeline(result),
     can_accept: {
       visual: visualOk,

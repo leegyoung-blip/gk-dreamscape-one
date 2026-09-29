@@ -6,42 +6,47 @@ import {
   MathVisualRenderer,
   buildMathVisualStateForStep,
   getMathVisualIdsForTeachingStep,
+  readMathVisualTeachingSteps,
+  type MathVisualSpec,
   type MathVisualTeachingStep,
 } from "@/components/core-math/visual-engine";
 import type { MathAuthoringProposal } from "@/lib/math-intelligence/MathAuthoringProposalTypes";
 
+type TeachingDraft = Record<string, unknown>;
 type PreviewMode = "diagram" | "lesson" | "teach_me";
 
 export default function MathIntelligenceProposalPreview({
   proposal,
+  currentVisual = null,
+  currentTeaching = {},
+  comparison = false,
 }: {
   proposal: MathAuthoringProposal;
+  currentVisual?: MathVisualSpec | null;
+  currentTeaching?: TeachingDraft;
+  comparison?: boolean;
 }) {
   const [mode, setMode] = useState<PreviewMode>("diagram");
   const [stepIndex, setStepIndex] = useState(0);
 
-  const steps = useMemo<MathVisualTeachingStep[]>(() => {
-    if (!proposal.teaching) return [];
-    return mode === "lesson"
-      ? proposal.teaching.lesson_steps
+  const proposalSteps =
+    mode === "lesson"
+      ? proposal.teaching?.lesson_steps ?? []
       : mode === "teach_me"
-        ? proposal.teaching.teach_me_steps
+        ? proposal.teaching?.teach_me_steps ?? []
         : [];
-  }, [mode, proposal.teaching]);
 
-  const boundedStep = Math.max(
-    0,
-    Math.min(stepIndex, Math.max(0, steps.length - 1)),
+  const currentSteps = useMemo(
+    () =>
+      mode === "diagram"
+        ? []
+        : readCurrentSteps(currentTeaching, mode === "lesson" ? "lesson" : "teach_me"),
+    [currentTeaching, mode],
   );
-  const runtimeState =
-    steps.length > 0
-      ? buildMathVisualStateForStep(steps, boundedStep, { cumulative: true })
-      : undefined;
-  const visualIds =
-    steps.length > 0 ? getMathVisualIdsForTeachingStep(steps, boundedStep) : [];
-  const visualId = visualIds[0];
 
-  const spec = proposal.visual.spec;
+  const maxStepCount = Math.max(proposalSteps.length, comparison ? currentSteps.length : 0);
+  const boundedGlobalStep = Math.max(0, Math.min(stepIndex, Math.max(0, maxStepCount - 1)));
+
   const structuralValid = Boolean(proposal.visual.structural_validation?.valid);
   const semanticValid = Boolean(
     proposal.visual.semantic_validation?.valid &&
@@ -80,10 +85,7 @@ export default function MathIntelligenceProposalPreview({
             proposal.sources.interpretation.model,
           )}
         />
-        <DecisionItem
-          label="Teaching"
-          value={teachingSourceLabel(proposal)}
-        />
+        <DecisionItem label="Teaching" value={teachingSourceLabel(proposal)} />
         <DecisionItem label="Domain" value={humanise(proposal.decision.domain)} />
         <DecisionItem
           label="Confidence"
@@ -99,7 +101,7 @@ export default function MathIntelligenceProposalPreview({
 
       <div style={previewTabs}>
         {(["diagram", "lesson", "teach_me"] as const).map((nextMode) => {
-          const count =
+          const proposalCount =
             nextMode === "lesson"
               ? proposal.teaching?.lesson_steps.length || 0
               : nextMode === "teach_me"
@@ -118,70 +120,73 @@ export default function MathIntelligenceProposalPreview({
               {nextMode === "diagram"
                 ? "Diagram"
                 : nextMode === "lesson"
-                  ? `Lesson${count ? ` (${count})` : ""}`
-                  : `Teach Me${count ? ` (${count})` : ""}`}
+                  ? `Lesson${proposalCount ? ` (${proposalCount})` : ""}`
+                  : `Teach Me${proposalCount ? ` (${proposalCount})` : ""}`}
             </button>
           );
         })}
       </div>
 
-      <div style={previewCard}>
-        {!spec ? (
-          <ProposalEmpty proposal={proposal} />
-        ) : mode !== "diagram" && steps.length === 0 ? (
-          <div style={emptyState}>
-            <strong>No {mode === "lesson" ? "Lesson" : "Teach Me"} visual steps proposed.</strong>
-            <span>
-              {proposal.teaching?.status === "not_needed"
-                ? "Dreamscape determined that visual teaching is not required for this question."
-                : "The proposed visual can still be inspected in the Diagram tab."}
-            </span>
-          </div>
-        ) : (
-          <>
-            {mode !== "diagram" && steps.length > 0 ? (
-              <div style={stepHeader}>
-                <strong>
-                  Step {boundedStep + 1} of {steps.length}
-                </strong>
-                <span>{steps[boundedStep]?.text || "Visual teaching step"}</span>
-              </div>
-            ) : null}
+      {comparison ? (
+        <div style={comparisonGrid}>
+          <PreviewPane
+            label="CURRENT"
+            spec={currentVisual}
+            steps={currentSteps}
+            mode={mode}
+            stepIndex={boundedGlobalStep}
+            emptyText={
+              currentVisual
+                ? "No current visual teaching steps in this section."
+                : "No current Math Visual V2 content."
+            }
+          />
+          <PreviewPane
+            label="PROPOSAL"
+            spec={proposal.visual.spec}
+            steps={proposalSteps}
+            mode={mode}
+            stepIndex={boundedGlobalStep}
+            emptyText={proposalEmptyText(proposal, mode)}
+          />
+        </div>
+      ) : (
+        <PreviewPane
+          label="PROPOSAL"
+          spec={proposal.visual.spec}
+          steps={proposalSteps}
+          mode={mode}
+          stepIndex={boundedGlobalStep}
+          emptyText={proposalEmptyText(proposal, mode)}
+          standalone
+        />
+      )}
 
-            <MathVisualRenderer
-              spec={spec}
-              visualId={visualId}
-              placement={visualId ? undefined : "prompt"}
-              runtimeState={runtimeState}
-              size="large"
-              showTitle
-            />
-
-            {mode !== "diagram" && steps.length > 0 ? (
-              <div style={stepControls}>
-                <button
-                  type="button"
-                  disabled={boundedStep <= 0}
-                  onClick={() => setStepIndex((value) => Math.max(0, value - 1))}
-                  style={stepButton}
-                >
-                  ← Previous
-                </button>
-                <button
-                  type="button"
-                  disabled={boundedStep >= steps.length - 1}
-                  onClick={() =>
-                    setStepIndex((value) => Math.min(steps.length - 1, value + 1))
-                  }
-                  style={stepButton}
-                >
-                  Next →
-                </button>
-              </div>
-            ) : null}
-          </>
-        )}
-      </div>
+      {mode !== "diagram" && maxStepCount > 0 ? (
+        <div style={stepControls}>
+          <button
+            type="button"
+            disabled={boundedGlobalStep <= 0}
+            onClick={() => setStepIndex((value) => Math.max(0, value - 1))}
+            style={stepButton}
+          >
+            ← Previous
+          </button>
+          <span style={stepCounter}>
+            Step {boundedGlobalStep + 1} of {maxStepCount}
+          </span>
+          <button
+            type="button"
+            disabled={boundedGlobalStep >= maxStepCount - 1}
+            onClick={() =>
+              setStepIndex((value) => Math.min(maxStepCount - 1, value + 1))
+            }
+            style={stepButton}
+          >
+            Next →
+          </button>
+        </div>
+      ) : null}
 
       {proposal.issues.length > 0 ? (
         <details style={issuesBox}>
@@ -201,6 +206,81 @@ export default function MathIntelligenceProposalPreview({
   );
 }
 
+function PreviewPane({
+  label,
+  spec,
+  steps,
+  mode,
+  stepIndex,
+  emptyText,
+  standalone = false,
+}: {
+  label: string;
+  spec: MathVisualSpec | null;
+  steps: MathVisualTeachingStep[];
+  mode: PreviewMode;
+  stepIndex: number;
+  emptyText: string;
+  standalone?: boolean;
+}) {
+  const boundedStep = Math.max(0, Math.min(stepIndex, Math.max(0, steps.length - 1)));
+  const runtimeState =
+    mode !== "diagram" && steps.length > 0
+      ? buildMathVisualStateForStep(steps, boundedStep, { cumulative: true })
+      : undefined;
+  const visualIds =
+    mode !== "diagram" && steps.length > 0
+      ? getMathVisualIdsForTeachingStep(steps, boundedStep)
+      : [];
+  const visualId = visualIds[0];
+  const step = steps[boundedStep];
+
+  return (
+    <div style={standalone ? standalonePane : previewPane}>
+      <div style={paneHeader}>
+        <span style={paneLabel}>{label}</span>
+        {mode !== "diagram" && steps.length > 0 ? (
+          <span style={paneStepCount}>
+            {boundedStep + 1}/{steps.length}
+          </span>
+        ) : null}
+      </div>
+
+      {mode !== "diagram" && step ? (
+        <div style={stepHeader}>
+          <strong>{step.text || "Visual teaching step"}</strong>
+        </div>
+      ) : null}
+
+      {!spec ? (
+        <div style={emptyState}>{emptyText}</div>
+      ) : mode !== "diagram" && steps.length === 0 ? (
+        <div style={emptyState}>{emptyText}</div>
+      ) : (
+        <MathVisualRenderer
+          spec={spec}
+          visualId={visualId}
+          placement={visualId ? undefined : "prompt"}
+          runtimeState={runtimeState}
+          size="large"
+          showTitle
+        />
+      )}
+    </div>
+  );
+}
+
+function readCurrentSteps(
+  teaching: TeachingDraft,
+  key: "lesson" | "teach_me",
+): MathVisualTeachingStep[] {
+  const slot = teaching?.[key];
+  if (!slot || typeof slot !== "object" || Array.isArray(slot)) return [];
+  const raw = (slot as Record<string, unknown>).visual_steps;
+  const result = readMathVisualTeachingSteps(raw);
+  return result.steps;
+}
+
 function DecisionItem({ label, value }: { label: string; value: string }) {
   return (
     <div style={decisionItem}>
@@ -218,30 +298,27 @@ function ValidationPill({ label, valid }: { label: string; valid: boolean }) {
   );
 }
 
-function ProposalEmpty({ proposal }: { proposal: MathAuthoringProposal }) {
-  let heading = "No generated V2 diagram is available.";
-  let body = "Review the proposal status and notes above.";
-
-  if (proposal.status === "not_needed") {
-    heading = "No mathematical visual recommended.";
-    body = "Dreamscape determined that this question is clearer without a generated mathematical diagram.";
-  } else if (proposal.status === "preserved") {
-    heading = "Existing visual/media should be preserved.";
-    body = "The engine intentionally did not replace the current learner-facing media.";
-  } else if (proposal.status === "needs_review") {
-    heading = "This question needs manual review.";
-    body = "The mathematical intent was analysed, but the current V2 generator could not produce a safe automatic diagram.";
-  } else if (proposal.status === "invalid") {
-    heading = "The proposal failed validation.";
-    body = "No generated content should be applied to the question.";
+function proposalEmptyText(proposal: MathAuthoringProposal, mode: PreviewMode) {
+  if (mode === "lesson" || mode === "teach_me") {
+    if (proposal.teaching?.status === "not_needed") {
+      return "Dreamscape determined that visual teaching is not required for this question.";
+    }
+    return `No ${mode === "lesson" ? "Lesson" : "Teach Me"} visual steps were proposed.`;
   }
 
-  return (
-    <div style={emptyState}>
-      <strong>{heading}</strong>
-      <span>{body}</span>
-    </div>
-  );
+  if (proposal.status === "not_needed") {
+    return "No mathematical visual recommended. Dreamscape determined that this question is clearer without a generated diagram.";
+  }
+  if (proposal.status === "preserved") {
+    return "Existing learner-facing media should be preserved rather than replaced by a generated V2 visual.";
+  }
+  if (proposal.status === "needs_review") {
+    return "The current V2 generator could not produce a sufficiently safe automatic diagram for this question.";
+  }
+  if (proposal.status === "invalid") {
+    return "The generated proposal failed validation and cannot be accepted.";
+  }
+  return "No generated V2 diagram is available.";
 }
 
 function teachingSourceLabel(proposal: MathAuthoringProposal) {
@@ -361,25 +438,53 @@ function tab(active: boolean): CSSProperties {
     cursor: "pointer",
   };
 }
-const previewCard: CSSProperties = {
+const comparisonGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+  gap: 10,
+};
+const previewPane: CSSProperties = {
+  minWidth: 0,
   borderRadius: 13,
   border: "1px solid rgba(255,255,255,0.09)",
   background: "rgba(0,0,0,0.16)",
-  padding: 13,
-  minHeight: 240,
+  padding: 12,
+  minHeight: 250,
+};
+const standalonePane: CSSProperties = {
+  ...previewPane,
+  width: "100%",
+};
+const paneHeader: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+  marginBottom: 9,
+};
+const paneLabel: CSSProperties = {
+  color: "rgba(255,255,255,0.48)",
+  fontSize: 9,
+  fontWeight: 900,
+  letterSpacing: "0.12em",
+};
+const paneStepCount: CSSProperties = {
+  color: "#bcefff",
+  fontSize: 9,
+  fontWeight: 850,
 };
 const stepHeader: CSSProperties = {
-  display: "grid",
-  gap: 4,
-  marginBottom: 10,
-  color: "rgba(255,255,255,0.84)",
-  fontSize: 11,
+  minHeight: 32,
+  marginBottom: 9,
+  color: "rgba(255,255,255,0.82)",
+  fontSize: 10,
+  lineHeight: 1.4,
 };
 const stepControls: CSSProperties = {
   display: "flex",
+  alignItems: "center",
   justifyContent: "space-between",
   gap: 10,
-  marginTop: 10,
 };
 const stepButton: CSSProperties = {
   borderRadius: 9,
@@ -390,16 +495,20 @@ const stepButton: CSSProperties = {
   fontSize: 10,
   fontWeight: 800,
 };
+const stepCounter: CSSProperties = {
+  color: "rgba(255,255,255,0.48)",
+  fontSize: 10,
+  fontWeight: 800,
+};
 const emptyState: CSSProperties = {
   minHeight: 190,
   display: "grid",
   placeContent: "center",
-  justifyItems: "center",
   textAlign: "center",
-  gap: 7,
-  color: "rgba(255,255,255,0.62)",
+  color: "rgba(255,255,255,0.58)",
   fontSize: 11,
   lineHeight: 1.5,
+  padding: 12,
 };
 const issuesBox: CSSProperties = {
   borderTop: "1px solid rgba(255,255,255,0.08)",
@@ -428,7 +537,7 @@ function proposalStatusStyle(status: MathAuthoringProposal["status"]): CSSProper
       ? "1px solid rgba(248,113,113,0.26)"
       : good
         ? "1px solid rgba(74,222,128,0.24)"
-        : "1px solid rgba(251,191,36,0.28)",
+        : "1px solid rgba(251,191,36,0.26)",
     background: invalid
       ? "rgba(239,68,68,0.08)"
       : good

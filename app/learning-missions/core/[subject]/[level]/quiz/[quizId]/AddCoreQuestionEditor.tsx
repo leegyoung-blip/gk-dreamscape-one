@@ -3,6 +3,7 @@
 
 
 import { useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 
 import type { CSSProperties } from "react";
 
@@ -10,6 +11,10 @@ import { supabase } from "@/lib/supabase";
 
 import QuestionMediaEditor from "@/app/curriculum-developer/components/QuestionMediaEditor";
 import MathVisualAuthoringPanel from "@/app/curriculum-developer/components/MathVisualAuthoringPanel";
+import {
+  applyMathIntelligenceAuthoringOptionImages,
+  buildMathIntelligenceAuthoringMedia,
+} from "@/app/curriculum-developer/components/math-intelligence/mathAuthoringMediaSnapshot";
 
 import {
 
@@ -32,6 +37,7 @@ import {
   readMathVisualSpec,
   type MathVisualSpec,
 } from "@/components/core-math/visual-engine";
+import { inspectMathAuthoringAcceptedSourceFreshness } from "@/lib/math-intelligence/MathAuthoringFingerprint";
 
 import TeachingAuthoringPanel from "./teaching/authoring/TeachingAuthoringPanel";
 
@@ -129,8 +135,6 @@ const MATH_TYPES: Array<[StandardQuestionType, string]> = [
 
 ];
 
-
-
 export default function AddCoreQuestionEditor({
 
   subject,
@@ -176,6 +180,10 @@ export default function AddCoreQuestionEditor({
   const [saving, setSaving] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+  const params = useParams<{ level?: string | string[] }>();
+  const rawLevel = Array.isArray(params?.level) ? params.level[0] : params?.level;
+  const primaryLevelMatch = String(rawLevel || "").match(/\d+/);
+  const routePrimaryLevel = primaryLevelMatch ? Number(primaryLevelMatch[0]) : null;
 
 
 
@@ -269,6 +277,8 @@ export default function AddCoreQuestionEditor({
 
             quizTitle={quizTitle}
 
+            primaryLevel={routePrimaryLevel}
+
             mode={mode}
 
             templateContent={templateContent || {}}
@@ -303,6 +313,8 @@ function StandardAddForm({
 
   quizTitle,
 
+  primaryLevel,
+
   mode,
 
   templateContent,
@@ -322,6 +334,8 @@ function StandardAddForm({
   quizId: string;
 
   quizTitle: string;
+
+  primaryLevel: number | null;
 
   mode: "standard" | "split_comprehension";
 
@@ -465,12 +479,18 @@ const effectiveType: StandardQuestionType =
     const content: JsonObject = {};
 
     if (teachingOptions.length > 0) {
-
-      content.options = teachingOptions.map((option) => ({ ...option }));
-
+      content.options = applyMathIntelligenceAuthoringOptionImages(
+        teachingOptions.map((option) => ({ ...option })),
+        mediaDraft,
+      );
     }
 
     if (mathVisualDraft) content.math_visual = mathVisualDraft;
+    if (Object.keys(teachingDraft || {}).length > 0) {
+      content.teaching = teachingDraft;
+    }
+
+    const media = buildMathIntelligenceAuthoringMedia(mediaDraft);
 
     let answerData: JsonObject = {};
 
@@ -552,6 +572,8 @@ const effectiveType: StandardQuestionType =
 
       subject: "math",
 
+      primary_level: primaryLevel,
+
       topic: quizTitle,
 
       question_type: effectiveType,
@@ -569,6 +591,10 @@ const effectiveType: StandardQuestionType =
       skill,
 
       difficulty,
+
+      stimulus: media.stimulus,
+
+      assets: media.assets,
 
     };
 
@@ -592,6 +618,8 @@ const effectiveType: StandardQuestionType =
 
     mathVisualDraft,
 
+    mediaDraft,
+
     mode,
 
     moneyAmount,
@@ -602,6 +630,8 @@ const effectiveType: StandardQuestionType =
 
     numericValue,
 
+    primaryLevel,
+
     prompt,
 
     quizTitle,
@@ -611,6 +641,8 @@ const effectiveType: StandardQuestionType =
     subject,
 
     teachingCorrectOptionIds,
+
+    teachingDraft,
 
     teachingOptions,
 
@@ -936,6 +968,20 @@ const effectiveType: StandardQuestionType =
       if (!mathVisualValid) {
         setError(mathVisualError || "Fix the Math Visual V2 authoring errors before saving.");
         return;
+      }
+
+      if (mathIntelligenceQuestionDraft) {
+        const sourceFreshness = inspectMathAuthoringAcceptedSourceFreshness({
+          question: mathIntelligenceQuestionDraft,
+          visual: mathVisualDraft,
+          teaching: teachingDraft,
+        });
+        if (sourceFreshness.stale) {
+          setError(
+            "This Math question changed after its generated visual or teaching was accepted. Regenerate the Math Intelligence proposal before saving.",
+          );
+          return;
+        }
       }
 
       if (mathVisualDraft) content.math_visual = mathVisualDraft;

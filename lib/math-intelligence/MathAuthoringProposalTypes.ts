@@ -99,6 +99,8 @@ export type MathAuthoringProposal = {
   proposal_id: string;
   created_at: string;
   question_id: string | null;
+  question_fingerprint: string;
+  source_fingerprint: string;
   status: MathAuthoringProposalStatus;
   can_accept: MathAuthoringProposalAcceptability;
   decision: MathAuthoringProposalDecision;

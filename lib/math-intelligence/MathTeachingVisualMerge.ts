@@ -24,6 +24,7 @@ export type MathTeachingVisualStepMeta = {
   visual_id: string | null;
   strategy: MathVisualStrategy | null;
   model: string | null;
+  source_fingerprint?: string | null;
 };
 
 export type MathTeachingVisualOwnership = {
@@ -95,6 +96,7 @@ function readMeta(value: unknown): MathTeachingVisualStepMeta | null {
     visual_id: text(value.visual_id) || null,
     strategy: (text(value.strategy) || null) as MathVisualStrategy | null,
     model: text(value.model) || null,
+    source_fingerprint: text(value.source_fingerprint) || null,
   };
 }
 

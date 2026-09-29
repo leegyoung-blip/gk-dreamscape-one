@@ -113,11 +113,27 @@ export type MathVisualSpec = {
   metadata?: MathVisualMetadata;
 };
 
+export type MathVisualAuthoringStatus =
+  | "generated"
+  | "generated_reviewed"
+  | "manual"
+  | "locked";
+
 export type MathVisualMetadata = {
   generated_by?: "human" | "migration" | "intelligence" | "system";
   generator_version?: string;
   source?: string;
   notes?: string;
+  /**
+   * Authoring ownership is operational metadata only. It does not affect
+   * rendering or mathematical meaning. Existing visuals without this field
+   * are interpreted conservatively by the authoring layer.
+   */
+  authoring_status?: MathVisualAuthoringStatus;
+  proposal_id?: string;
+  source_fingerprint?: string;
+  accepted_at?: string;
+  model?: string;
 };
 
 export type MathVisual = {

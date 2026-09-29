@@ -5,6 +5,10 @@ import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import QuestionMediaEditor from "@/app/curriculum-developer/components/QuestionMediaEditor";
 import MathVisualAuthoringPanel from "@/app/curriculum-developer/components/MathVisualAuthoringPanel";
+import {
+  applyMathIntelligenceAuthoringOptionImages,
+  buildMathIntelligenceAuthoringMedia,
+} from "@/app/curriculum-developer/components/math-intelligence/mathAuthoringMediaSnapshot";
 import { CropImageButton } from "@/app/curriculum-developer/components/ImageCropEditor";
 import {
   questionMediaDraftFromQuestion,
@@ -21,6 +25,7 @@ import {
   readMathVisualSpec,
   type MathVisualSpec,
 } from "@/components/core-math/visual-engine";
+import { inspectMathAuthoringAcceptedSourceFreshness } from "@/lib/math-intelligence/MathAuthoringFingerprint";
 import TeachingAuthoringPanel from "./teaching/authoring/TeachingAuthoringPanel";
 import {
   cloneTeaching,
@@ -635,13 +640,20 @@ function SingleQuestionEditor({
 
     const content: JsonObject = { ...(question.content || {}) };
     if (teachingOptions.length > 0) {
-      content.options = teachingOptions.map((option, index) => ({
-        ...(originalOptions[index] || {}),
-        ...option,
-      }));
+      content.options = applyMathIntelligenceAuthoringOptionImages(
+        teachingOptions.map((option, index) => ({
+          ...(originalOptions[index] || {}),
+          ...option,
+        })),
+        mediaDraft,
+      );
     }
     if (mathVisualDraft) content.math_visual = mathVisualDraft;
     else delete content.math_visual;
+    if (Object.keys(teachingDraft || {}).length > 0) content.teaching = teachingDraft;
+    else delete content.teaching;
+
+    const media = buildMathIntelligenceAuthoringMedia(mediaDraft);
 
     let answerData: JsonObject = { ...(question.answer_data || {}) };
 
@@ -718,7 +730,7 @@ function SingleQuestionEditor({
       id: question.id,
       subject: "math",
       primary_level: primaryLevel,
-      topic: String(question.content?.topic || ""),
+      topic: String(payload?.quiz.topic_title || question.content?.topic || ""),
       question_type: question.question_type,
       instruction,
       prompt,
@@ -727,8 +739,8 @@ function SingleQuestionEditor({
       explanation: { text: explanation },
       skill,
       difficulty,
-      stimulus: question.stimulus,
-      assets: question.assets,
+      stimulus: media.stimulus,
+      assets: media.assets,
     };
   }, [
     acceptedAnswers,
@@ -747,18 +759,21 @@ function SingleQuestionEditor({
     hasValues,
     instruction,
     mathVisualDraft,
+    mediaDraft,
     moneyAmount,
     moneyToleranceCents,
     numericTolerance,
     numericValue,
     optionTexts,
     originalOptions,
+    payload?.quiz.topic_title,
     primaryLevel,
     prompt,
     question,
     reorderLines,
     skill,
     subject,
+    teachingDraft,
     teachingOptions,
     valueAnswers,
   ]);
@@ -1031,6 +1046,20 @@ function SingleQuestionEditor({
       if (!mathVisualValid) {
         setError(mathVisualError || "Fix the Math Visual V2 authoring errors before saving.");
         return;
+      }
+
+      if (mathIntelligenceQuestionDraft) {
+        const sourceFreshness = inspectMathAuthoringAcceptedSourceFreshness({
+          question: mathIntelligenceQuestionDraft,
+          visual: mathVisualDraft,
+          teaching: teachingDraft,
+        });
+        if (sourceFreshness.stale) {
+          setError(
+            "This Math question changed after its generated visual or teaching was accepted. Regenerate the Math Intelligence proposal before saving.",
+          );
+          return;
+        }
       }
 
       if (mathVisualDraft) nextContent.math_visual = mathVisualDraft;
