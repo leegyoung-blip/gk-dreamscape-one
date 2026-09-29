@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useBudgetSimulation } from "../hooks/useBudgetSimulation";
 import type { BankScreenMode } from "../lib/bank-types";
+import { createBudgetScenarioSeed } from "../lib/budget-simulator-scenarios";
 import type {
   BudgetDifficulty,
   BudgetScenarioKey,
@@ -42,6 +43,25 @@ export default function BudgetSimulator({
         error={simulation.error}
         onSaveCheckpoint={simulation.saveCheckpoint}
         onRecordEvidence={simulation.recordEvidence}
+        onCompleteRun={async () => Boolean(await simulation.complete())}
+        onReplaySameMonth={async () => {
+          const current = simulation.run;
+          if (!current) return false;
+          return Boolean(await simulation.start({
+            scenarioKey: current.scenarioKey,
+            difficulty: current.difficulty,
+            scenarioSeed: current.scenarioSeed,
+          }));
+        }}
+        onReplayFreshMonth={async () => {
+          const current = simulation.run;
+          if (!current) return false;
+          return Boolean(await simulation.start({
+            scenarioKey: current.scenarioKey,
+            difficulty: current.difficulty,
+            scenarioSeed: createBudgetScenarioSeed(),
+          }));
+        }}
         onExit={() => {
           setInsideRun(false);
           onExit();

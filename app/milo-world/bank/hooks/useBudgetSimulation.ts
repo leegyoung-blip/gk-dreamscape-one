@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   abandonBudgetSimulation,
+  completeBudgetSimulation,
   loadActiveBudgetSimulation,
   recordBudgetSimulationEvidence,
   saveBudgetSimulationCheckpoint,
@@ -119,6 +120,23 @@ export function useBudgetSimulation(isLoggedIn: boolean) {
     }
   }, []);
 
+  const complete = useCallback(async () => {
+    if (!run) return null;
+
+    setSaving(true);
+    setError(null);
+    try {
+      const completedRun = await completeBudgetSimulation(run.id);
+      setRun(completedRun);
+      return completedRun;
+    } catch (caught) {
+      setError(errorMessage(caught));
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }, [run]);
+
   const abandon = useCallback(async () => {
     if (!run) return true;
 
@@ -145,6 +163,7 @@ export function useBudgetSimulation(isLoggedIn: boolean) {
     start,
     saveCheckpoint,
     recordEvidence,
+    complete,
     abandon,
   };
 }

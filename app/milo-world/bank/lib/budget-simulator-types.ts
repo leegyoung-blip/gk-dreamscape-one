@@ -278,6 +278,33 @@ export type BudgetFinalWeekResult = {
   completedAt: string;
 };
 
+
+export type BudgetWhatIfComparison = {
+  actualChoiceId: BudgetFinalWeekChoiceId;
+  actualChoiceLabel: string;
+  alternativeChoiceId: BudgetFinalWeekChoiceId;
+  alternativeChoiceLabel: string;
+  fundable: boolean;
+  fundingGap: number;
+  actualCommitted: number;
+  alternativeCommitted: number;
+  actualEndingAvailable: number;
+  actualEndingProtected: number;
+  alternativeEndingAvailable: number | null;
+  alternativeEndingProtected: number | null;
+  availableDelta: number | null;
+  protectedDelta: number | null;
+  interpretation: string;
+};
+
+export type BudgetCompletionInfo = {
+  completedAt: string;
+  rewardDt: number;
+  firstCompletionReward: boolean;
+  difficultyReward: boolean;
+  rewardLabel: string;
+};
+
 export type BudgetEvidenceLevel = "observed" | "applied" | "demonstrated";
 
 export type BudgetSkillEvidenceSummary = {
@@ -327,6 +354,7 @@ export type BudgetSimulationData = {
   finalWeekResult?: BudgetFinalWeekResult;
   finalWeekCompleted?: boolean;
   resultsSummary?: BudgetResultsSummary;
+  completion?: BudgetCompletionInfo;
 };
 
 export type BudgetSimulationState = {

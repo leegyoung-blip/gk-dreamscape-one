@@ -18,6 +18,8 @@ import type {
   BudgetScenarioKey,
   BudgetSimulationData,
   BudgetSkillEvidenceSummary,
+  BudgetWhatIfComparison,
+  BudgetFinalWeekChoiceId,
 } from "./budget-simulator-types";
 
 const LIQUID_KEYS = ["unallocated", "lifestyle", "essentials"] as const;
@@ -420,4 +422,131 @@ export function buildBudgetResultsSummary(input: {
   }
 
   return { skills, patterns, miloInsights: insights.slice(0, 3) };
+}
+
+
+export function buildBudgetWhatIfComparison(input: {
+  profile: BudgetFinancialProfile;
+  liveMonth: BudgetLiveMonthState;
+  decisionAllocation: BudgetAllocation;
+  actualResult: BudgetFinalWeekResult;
+  alternativeChoiceId: BudgetFinalWeekChoiceId;
+  scenarioSeed: number;
+  scenarioKey: BudgetScenarioKey;
+  difficulty: BudgetDifficulty;
+}): BudgetWhatIfComparison {
+  const challenge = buildBudgetFinalWeekChallenge({
+    profile: input.profile,
+    liveMonth: input.liveMonth,
+    openingAllocation: input.actualResult.openingAllocation,
+    scenarioSeed: input.scenarioSeed,
+    scenarioKey: input.scenarioKey,
+    difficulty: input.difficulty,
+  });
+
+  const alternative = challenge.choices.find(
+    (choice) => choice.id === input.alternativeChoiceId,
+  );
+  if (!alternative) {
+    throw new Error("The alternative Final Week decision could not be found.");
+  }
+
+  const fundingGap = finalWeekFundingGap({
+    allocation: input.decisionAllocation,
+    choice: alternative,
+    challenge,
+  });
+
+  if (fundingGap > 0) {
+    return {
+      actualChoiceId: input.actualResult.choiceId,
+      actualChoiceLabel: input.actualResult.choiceLabel,
+      alternativeChoiceId: alternative.id,
+      alternativeChoiceLabel: alternative.label,
+      fundable: false,
+      fundingGap,
+      actualCommitted: input.actualResult.opportunityCommitted,
+      alternativeCommitted: alternative.commitmentAmount,
+      actualEndingAvailable: input.actualResult.endingAvailable,
+      actualEndingProtected: input.actualResult.endingProtected,
+      alternativeEndingAvailable: null,
+      alternativeEndingProtected: null,
+      availableDelta: null,
+      protectedDelta: null,
+      interpretation:
+        `With the same pre-decision allocation, this alternative needed ${fundingGap.toLocaleString()} DT more liquid funding. ` +
+        "Taking it would have required another deliberate rebalance, so the comparison stops before inventing which protected priority you would have sacrificed.",
+    };
+  }
+
+  const completed = completeBudgetFinalWeek({
+    liveMonth: input.liveMonth,
+    allocation: input.decisionAllocation,
+    challenge,
+    choice: alternative,
+    factors: input.actualResult.selectedFactors,
+    confidence: input.actualResult.confidence,
+    profile: input.profile,
+  });
+
+  if ("shortfall" in completed) {
+    return {
+      actualChoiceId: input.actualResult.choiceId,
+      actualChoiceLabel: input.actualResult.choiceLabel,
+      alternativeChoiceId: alternative.id,
+      alternativeChoiceLabel: alternative.label,
+      fundable: false,
+      fundingGap: completed.shortfall,
+      actualCommitted: input.actualResult.opportunityCommitted,
+      alternativeCommitted: alternative.commitmentAmount,
+      actualEndingAvailable: input.actualResult.endingAvailable,
+      actualEndingProtected: input.actualResult.endingProtected,
+      alternativeEndingAvailable: null,
+      alternativeEndingProtected: null,
+      availableDelta: null,
+      protectedDelta: null,
+      interpretation:
+        "The alternative path could not settle the remaining month from the same allocation without another rebalance.",
+    };
+  }
+
+  const alternativeResult = completed.result;
+  const availableDelta =
+    alternativeResult.endingAvailable - input.actualResult.endingAvailable;
+  const protectedDelta =
+    alternativeResult.endingProtected - input.actualResult.endingProtected;
+
+  let interpretation: string;
+  if (alternative.commitmentAmount > input.actualResult.opportunityCommitted) {
+    interpretation =
+      `The alternative commits ${(alternative.commitmentAmount - input.actualResult.opportunityCommitted).toLocaleString()} DT more to the opportunity. ` +
+      `That moves ${Math.abs(availableDelta).toLocaleString()} DT of month-end flexibility into protected/invested capital. ` +
+      "The possible future return remains uncertain; the important difference is the liquidity you would give up today.";
+  } else if (alternative.commitmentAmount < input.actualResult.opportunityCommitted) {
+    interpretation =
+      `The alternative commits ${(input.actualResult.opportunityCommitted - alternative.commitmentAmount).toLocaleString()} DT less. ` +
+      `That leaves ${Math.max(0, availableDelta).toLocaleString()} DT more liquid at month-end, but reduces the amount exposed to the opportunity. ` +
+      "This is a resilience-versus-upside trade-off rather than a guaranteed better outcome.";
+  } else {
+    interpretation =
+      "This alternative commits the same amount, so the month-end liquidity position is effectively unchanged. The meaningful difference would be in the reasoning used to reach the decision.";
+  }
+
+  return {
+    actualChoiceId: input.actualResult.choiceId,
+    actualChoiceLabel: input.actualResult.choiceLabel,
+    alternativeChoiceId: alternative.id,
+    alternativeChoiceLabel: alternative.label,
+    fundable: true,
+    fundingGap: 0,
+    actualCommitted: input.actualResult.opportunityCommitted,
+    alternativeCommitted: alternative.commitmentAmount,
+    actualEndingAvailable: input.actualResult.endingAvailable,
+    actualEndingProtected: input.actualResult.endingProtected,
+    alternativeEndingAvailable: alternativeResult.endingAvailable,
+    alternativeEndingProtected: alternativeResult.endingProtected,
+    availableDelta,
+    protectedDelta,
+    interpretation,
+  };
 }

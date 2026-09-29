@@ -39,6 +39,9 @@ export default function BudgetSimulatorShell({
   onAbandon,
   onSaveCheckpoint,
   onRecordEvidence,
+  onCompleteRun,
+  onReplaySameMonth,
+  onReplayFreshMonth,
 }: {
   run: BudgetSimulationRun;
   screenMode: BankScreenMode;
@@ -52,6 +55,9 @@ export default function BudgetSimulatorShell({
     state: BudgetSimulationState;
   }) => Promise<BudgetSimulationRun | null>;
   onRecordEvidence: (runId: string) => Promise<boolean>;
+  onCompleteRun: () => Promise<boolean>;
+  onReplaySameMonth: () => Promise<boolean>;
+  onReplayFreshMonth: () => Promise<boolean>;
 }) {
   const isMobile = screenMode === "mobile";
   const scenario = getBudgetScenario(run.scenarioKey);
@@ -189,26 +195,34 @@ export default function BudgetSimulatorShell({
           </div>
 
           <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={() => void exitAndSave()}
-              disabled={saving}
-              style={secondaryButtonStyle}
-            >
-              {saving ? "Saving..." : "Exit & save"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void abandon()}
-              disabled={saving}
-              style={{
-                ...secondaryButtonStyle,
-                borderColor: "rgba(255,130,130,0.16)",
-                color: "rgba(255,190,190,0.72)",
-              }}
-            >
-              End run
-            </button>
+            {run.status === "completed" ? (
+              <button type="button" onClick={onExit} style={secondaryButtonStyle}>
+                Back to Practice
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void exitAndSave()}
+                  disabled={saving}
+                  style={secondaryButtonStyle}
+                >
+                  {saving ? "Saving..." : "Exit & save"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void abandon()}
+                  disabled={saving}
+                  style={{
+                    ...secondaryButtonStyle,
+                    borderColor: "rgba(255,130,130,0.16)",
+                    color: "rgba(255,190,190,0.72)",
+                  }}
+                >
+                  End run
+                </button>
+              </>
+            )}
           </div>
         </header>
 
@@ -470,7 +484,7 @@ export default function BudgetSimulatorShell({
                 }
               }}
             />
-          ) : run.currentStage === "review" && draftState.data.finalWeekResult && draftState.data.resultsSummary ? (
+          ) : run.currentStage === "review" && draftState.data.finalWeekResult && draftState.data.resultsSummary && draftState.data.liveMonth ? (
             <BudgetReviewStage
               firstPlan={
                 draftState.data.firstPlan ??
@@ -478,7 +492,19 @@ export default function BudgetSimulatorShell({
               }
               result={draftState.data.finalWeekResult}
               summary={draftState.data.resultsSummary}
+              profile={profile}
+              liveMonth={draftState.data.liveMonth}
+              scenarioSeed={run.scenarioSeed}
+              scenarioKey={run.scenarioKey}
+              difficulty={run.difficulty}
               screenMode={screenMode}
+              completed={run.status === "completed"}
+              completion={draftState.data.completion}
+              saving={saving}
+              onComplete={onCompleteRun}
+              onReplaySameMonth={onReplaySameMonth}
+              onReplayFreshMonth={onReplayFreshMonth}
+              onExit={onExit}
             />
           ) : (
             <ComingNextStage
@@ -612,6 +638,7 @@ function hydrateState(run: BudgetSimulationRun, profile: ReturnType<typeof gener
       finalWeekResult: run.state.data.finalWeekResult,
       finalWeekCompleted: run.state.data.finalWeekCompleted ?? false,
       resultsSummary: run.state.data.resultsSummary,
+      completion: run.state.data.completion,
     },
   } satisfies BudgetSimulationState;
 }
