@@ -2,6 +2,7 @@
 
 import { FINAL_WEEK_FACTOR_OPTIONS } from "../lib/budget-simulator-results";
 import type { BudgetDecisionFactorKey } from "../lib/budget-simulator-types";
+import BudgetInfoButton from "./BudgetInfoButton";
 
 export default function BudgetDecisionFactors({
   selected,
@@ -30,13 +31,13 @@ export default function BudgetDecisionFactors({
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
         <div>
-          <p style={eyebrowStyle}>Your reasoning</p>
-          <strong style={{ display: "block", marginTop: "3px", fontSize: "12px" }}>
-            Choose the two factors that matter most
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <p style={eyebrowStyle}>Your reasoning</p>
+            <BudgetInfoButton title="Choose two factors" accent="#c8bcff">There is no universal pair. Choose the two pieces of evidence you are actually relying on most for this decision.</BudgetInfoButton>
+          </div>
+          <strong style={{ display: "block", marginTop: "3px", fontSize: "19px" }}>
+            What matters most?
           </strong>
-          <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,.37)", fontSize: "7px", lineHeight: 1.5 }}>
-            There is no universal pair. Select the evidence you are actually using to make this decision.
-          </p>
         </div>
         <span
           style={{
@@ -46,7 +47,7 @@ export default function BudgetDecisionFactors({
             background: "rgba(184,168,255,.07)",
             padding: "6px 8px",
             color: "#d4cbff",
-            fontSize: "7px",
+            fontSize: "14px",
             fontWeight: 900,
           }}
         >
@@ -82,12 +83,9 @@ export default function BudgetDecisionFactors({
                 fontFamily: "inherit",
               }}
             >
-              <strong style={{ display: "block", fontSize: "9px", color: active ? "#ded7ff" : "rgba(255,255,255,.76)" }}>
+              <strong style={{ display: "block", fontSize: "16px", color: active ? "#ded7ff" : "rgba(255,255,255,.76)" }}>
                 {factor.label}
               </strong>
-              <span style={{ display: "block", marginTop: "5px", color: "rgba(255,255,255,.34)", fontSize: "7px", lineHeight: 1.45 }}>
-                {factor.description}
-              </span>
             </button>
           );
         })}
@@ -99,7 +97,7 @@ export default function BudgetDecisionFactors({
 const eyebrowStyle = {
   margin: 0,
   color: "#c8bcff",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   letterSpacing: "0.12em",
   textTransform: "uppercase" as const,

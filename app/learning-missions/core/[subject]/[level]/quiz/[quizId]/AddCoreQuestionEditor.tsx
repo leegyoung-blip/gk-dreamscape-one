@@ -267,6 +267,8 @@ export default function AddCoreQuestionEditor({
 
             quizId={quizId}
 
+            quizTitle={quizTitle}
+
             mode={mode}
 
             templateContent={templateContent || {}}
@@ -299,6 +301,8 @@ function StandardAddForm({
 
   quizId,
 
+  quizTitle,
+
   mode,
 
   templateContent,
@@ -316,6 +320,8 @@ function StandardAddForm({
   subject: CoreSubject;
 
   quizId: string;
+
+  quizTitle: string;
 
   mode: "standard" | "split_comprehension";
 
@@ -449,6 +455,166 @@ const effectiveType: StandardQuestionType =
         ? [correctOptionId]
 
         : [];
+
+
+
+  const mathIntelligenceQuestionDraft = useMemo(() => {
+
+    if (subject !== "math" || mode !== "standard") return null;
+
+    const content: JsonObject = {};
+
+    if (teachingOptions.length > 0) {
+
+      content.options = teachingOptions.map((option) => ({ ...option }));
+
+    }
+
+    if (mathVisualDraft) content.math_visual = mathVisualDraft;
+
+    let answerData: JsonObject = {};
+
+    if (teachingCorrectOptionIds.length > 0) {
+
+      answerData.correct_option_ids = [...teachingCorrectOptionIds];
+
+    } else if (effectiveType === "short_text") {
+
+      const answers = acceptedAnswers
+
+        .split("\n")
+
+        .map((answer) => answer.trim())
+
+        .filter(Boolean);
+
+      if (answers.length > 0) answerData.accepted_answers = answers;
+
+    } else if (effectiveType === "numeric" || effectiveType === "numeric_unit") {
+
+      const value = Number(numericValue);
+
+      if (Number.isFinite(value)) {
+
+        answerData = {
+
+          kind: effectiveType,
+
+          value,
+
+          tolerance: Number(numericTolerance || 0),
+
+          units: acceptedUnits
+
+            .split("\n")
+
+            .map((item) => item.trim())
+
+            .filter(Boolean),
+
+        };
+
+      }
+
+    } else if (effectiveType === "fraction") {
+
+      const numerator = Number(fractionNumerator);
+
+      const denominator = Number(fractionDenominator);
+
+      if (Number.isFinite(numerator) && Number.isFinite(denominator)) {
+
+        answerData = { kind: "fraction", numerator, denominator };
+
+      }
+
+    } else if (effectiveType === "money") {
+
+      const amount = Number(moneyAmount);
+
+      if (Number.isFinite(amount)) {
+
+        answerData = {
+
+          kind: "money",
+
+          amount_cents: Math.round(amount * 100),
+
+          tolerance_cents: Number(moneyToleranceCents || 0),
+
+        };
+
+      }
+
+    }
+
+    return {
+
+      subject: "math",
+
+      topic: quizTitle,
+
+      question_type: effectiveType,
+
+      instruction,
+
+      prompt,
+
+      content,
+
+      answer_data: answerData,
+
+      explanation: { text: explanation },
+
+      skill,
+
+      difficulty,
+
+    };
+
+  }, [
+
+    acceptedAnswers,
+
+    acceptedUnits,
+
+    difficulty,
+
+    effectiveType,
+
+    explanation,
+
+    fractionDenominator,
+
+    fractionNumerator,
+
+    instruction,
+
+    mathVisualDraft,
+
+    mode,
+
+    moneyAmount,
+
+    moneyToleranceCents,
+
+    numericTolerance,
+
+    numericValue,
+
+    prompt,
+
+    quizTitle,
+
+    skill,
+
+    subject,
+
+    teachingCorrectOptionIds,
+
+    teachingOptions,
+
+  ]);
 
 
 
@@ -1575,6 +1741,7 @@ const effectiveType: StandardQuestionType =
           <MathVisualAuthoringPanel
             value={templateContent?.math_visual ?? null}
             teaching={teachingDraft}
+            questionDraft={mathIntelligenceQuestionDraft}
             disabled={saving}
             defaultOpen={Boolean(templateContent?.math_visual)}
             onChangeVisual={setMathVisualDraft}

@@ -24,6 +24,7 @@ import BudgetAllocationWheel from "./BudgetAllocationWheel";
 import BudgetAssetIcon from "./BudgetAssetIcon";
 import BudgetFinancialRadar from "./BudgetFinancialRadar";
 import BudgetPlanningBoard from "./BudgetPlanningBoard";
+import BudgetInfoButton from "./BudgetInfoButton";
 
 export default function BudgetBuildStage({
   profile,
@@ -75,7 +76,10 @@ export default function BudgetBuildStage({
         }}
       >
         <div>
-          <p style={eyebrowStyle}>Stage 3 · Build Budget</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+            <p style={eyebrowStyle}>Stage 3 · Plan your money</p>
+            <BudgetInfoButton title="Build your first plan">Move DT between categories until the plan reflects what you want to protect. You can leave some DT flexible. There is no single correct allocation.</BudgetInfoButton>
+          </div>
           <h3
             style={{
               margin: "4px 0 0",
@@ -84,13 +88,13 @@ export default function BudgetBuildStage({
               fontWeight: 500,
             }}
           >
-            Decide where each DT should work.
+            Give every DT a job.
           </h3>
         </div>
         <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
-          <SummaryPill label="Planning pool" value={`${pool.toLocaleString()} DT`} />
-          <SummaryPill label="Known commitments" value={`${commitments.toLocaleString()} DT`} />
-          <SummaryPill label="Unallocated" value={`${allocation.unallocated.toLocaleString()} DT`} gold />
+          <SummaryPill label="DT to plan" value={`${pool.toLocaleString()} DT`} />
+          <SummaryPill label="Bills to cover" value={`${commitments.toLocaleString()} DT`} />
+          <SummaryPill label="Still flexible" value={`${allocation.unallocated.toLocaleString()} DT`} gold />
         </div>
       </div>
 
@@ -137,8 +141,8 @@ export default function BudgetBuildStage({
                   padding: "12px",
                 }}
               >
-                <p style={{ margin: 0, color: "rgba(255,255,255,.34)", fontSize: "7px", fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
-                  Selected allocation
+                <p style={{ margin: 0, color: "rgba(255,255,255,.34)", fontSize: "14px", fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
+                  You are adjusting
                 </p>
                 <div style={{ marginTop: "7px", display: "grid", gridTemplateColumns: "52px minmax(0,1fr)", gap: "9px", alignItems: "center" }}>
                   <BudgetAssetIcon
@@ -149,24 +153,26 @@ export default function BudgetBuildStage({
                   />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline", flexWrap: "wrap" }}>
-                      <strong style={{ fontSize: "15px" }}>{formatBudgetAllocationLabel(selected)}</strong>
-                      <strong style={{ color: "#ffd18a", fontSize: "18px" }}>{allocation[selected].toLocaleString()} DT</strong>
+                      <strong style={{ fontSize: "21px" }}>{formatBudgetAllocationLabel(selected)}</strong>
+                      <strong style={{ color: "#ffd18a", fontSize: "23px" }}>{allocation[selected].toLocaleString()} DT</strong>
                     </div>
-                    <span style={{ display: "block", marginTop: "3px", color: "rgba(255,255,255,.31)", fontSize: "7px", lineHeight: 1.4 }}>
-                      {selected === "investing"
-                        ? "Growth money can later be directed into variable-return or fixed-return products."
-                        : selected === "savings"
-                          ? "Protected money prioritised for stability and future flexibility."
-                          : selected === "goals"
-                            ? "DT reserved for a defined future target."
-                            : selected === "emergency"
-                              ? "A buffer for costs you cannot predict in advance."
-                              : selected === "lifestyle"
-                                ? "Optional spending that competes with other priorities."
-                                : selected === "essentials"
-                                  ? "Known needs and commitments that keep the month functioning."
-                                  : "DT kept immediately flexible until you decide where it should go."}
-                    </span>
+                    <div style={{ marginTop: "7px" }}>
+                      <BudgetInfoButton title={formatBudgetAllocationLabel(selected)}>
+                        {selected === "investing"
+                          ? "Growth money can later be directed into variable-return or fixed-return products."
+                          : selected === "savings"
+                            ? "Protected money prioritised for stability and future flexibility."
+                            : selected === "goals"
+                              ? "DT reserved for a defined future target."
+                              : selected === "emergency"
+                                ? "A buffer for costs you cannot predict in advance."
+                                : selected === "lifestyle"
+                                  ? "Optional spending that competes with other priorities."
+                                  : selected === "essentials"
+                                    ? "Known needs and commitments that keep the month functioning."
+                                    : "DT kept immediately flexible until you decide where it should go."}
+                      </BudgetInfoButton>
+                    </div>
                   </div>
                 </div>
 
@@ -182,9 +188,10 @@ export default function BudgetBuildStage({
                       style={{ width: "100%", marginTop: "12px", accentColor: "#7ee8ff" }}
                     />
                     <div style={{ marginTop: "8px", display: "grid", gridTemplateColumns: "minmax(0,1fr) 112px", gap: "8px", alignItems: "center" }}>
-                      <span style={{ color: "rgba(255,255,255,.34)", fontSize: "8px", lineHeight: 1.5 }}>
-                        Drag the slider or enter an exact DT amount. Unallocated DT adjusts automatically.
-                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ color: "rgba(255,255,255,.58)", fontSize: "16px", fontWeight: 800 }}>Set amount</span>
+                        <BudgetInfoButton title="Set an amount">Use the slider for quick changes or type an exact DT value. Any DT you have not assigned stays in Still flexible.</BudgetInfoButton>
+                      </div>
                       <input
                         type="number"
                         min={0}
@@ -198,9 +205,9 @@ export default function BudgetBuildStage({
                     </div>
                   </>
                 ) : (
-                  <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,.38)", fontSize: "8px", lineHeight: 1.5 }}>
-                    Unallocated DT stays immediately flexible. Reduce or increase another category to change this amount.
-                  </p>
+                  <div style={{ marginTop: "10px" }}>
+                    <BudgetInfoButton title="Still flexible">This DT has not been committed yet. It stays available for surprises or can be moved into another category at any time.</BudgetInfoButton>
+                  </div>
                 )}
                 {selected === "investing" && <InvestmentReference />}
               </div>
@@ -236,7 +243,7 @@ export default function BudgetBuildStage({
                           color: selected === key ? "#a9f1ff" : "rgba(255,255,255,.66)",
                           textAlign: "left",
                           fontFamily: "inherit",
-                          fontSize: "8px",
+                          fontSize: "15px",
                           fontWeight: 850,
                           cursor: "pointer",
                           display: "flex",
@@ -265,7 +272,7 @@ export default function BudgetBuildStage({
                         onChange={(event: { target: { value: string } }) => setValue(key, Number(event.target.value))}
                         style={{ width: "100%", accentColor: "#7ee8ff" }}
                       />
-                      <span style={{ color: "#ffd18a", textAlign: "right", fontSize: "8px", fontWeight: 900 }}>
+                      <span style={{ color: "#ffd18a", textAlign: "right", fontSize: "15px", fontWeight: 900 }}>
                         {allocation[key].toLocaleString()} DT
                       </span>
                     </label>
@@ -294,12 +301,12 @@ export default function BudgetBuildStage({
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline" }}>
               <div>
-                <p style={eyebrowStyle}>Live conditions</p>
-                <strong style={{ display: "block", marginTop: "4px", fontSize: "13px" }}>
-                  What this plan protects
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><p style={eyebrowStyle}>Plan health</p><BudgetInfoButton title="Plan health">These indicators show what your current allocation protects. They are not a score; different plans can make sense for different goals.</BudgetInfoButton></div>
+                <strong style={{ display: "block", marginTop: "4px", fontSize: "19px" }}>
+                  What your plan looks like
                 </strong>
               </div>
-              <span style={{ color: "rgba(255,255,255,.28)", fontSize: "7px" }}>No score</span>
+              
             </div>
 
             <div style={{ marginTop: "9px", display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "6px" }}>
@@ -319,9 +326,9 @@ export default function BudgetBuildStage({
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline" }}>
               <div>
-                <p style={{ ...eyebrowStyle, color: "#c3b5ff" }}>Financial shape</p>
-                <strong style={{ display: "block", marginTop: "4px", fontSize: "12px" }}>
-                  Different plans create different trade-offs
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><p style={{ ...eyebrowStyle, color: "#c3b5ff" }}>Trade-offs</p><BudgetInfoButton title="Trade-offs" accent="#c3b5ff">The radar chart shows how strongly your plan supports liquidity, resilience, goals, flexibility and long-term growth. A larger shape is not always better if it ignores your priorities.</BudgetInfoButton></div>
+                <strong style={{ display: "block", marginTop: "4px", fontSize: "18px" }}>
+                  See the balance at a glance
                 </strong>
               </div>
             </div>
@@ -340,16 +347,14 @@ export default function BudgetBuildStage({
           gap: "10px",
         }}
       >
-        <p style={{ margin: 0, maxWidth: "700px", color: "rgba(255,255,255,.34)", fontSize: "8px", lineHeight: 1.5 }}>
-          You can lock a risky plan. The simulator will not correct it for you. Forecasting in the next stage will show whether timing and shocks expose a weakness.
-        </p>
+        <BudgetInfoButton title="Before you continue">You can lock a risky plan. The simulator will not correct it for you. The next stage lets you test whether timing and unexpected costs expose a weakness.</BudgetInfoButton>
         <button
           type="button"
           disabled={saving}
           onClick={() => void onContinue()}
           style={{ ...primaryButtonStyle, opacity: saving ? .45 : 1 }}
         >
-          Lock first budget →
+          Test this plan →
         </button>
       </div>
     </div>
@@ -373,8 +378,8 @@ function InvestmentReference() {
           size={36}
         />
         <div>
-          <strong style={{ display: "block", fontSize: "8px" }}>Exchange</strong>
-          <span style={referenceTextStyle}>Variable outcome · higher uncertainty</span>
+          <strong style={{ display: "block", fontSize: "15px" }}>Exchange</strong>
+          <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "7px" }}><span style={referenceTextStyle}>Variable return</span><BudgetInfoButton title="Exchange investing">Returns can rise or fall, so the outcome is uncertain and the value can change over time.</BudgetInfoButton></div>
         </div>
       </div>
       <div style={referenceCardStyle}>
@@ -384,8 +389,8 @@ function InvestmentReference() {
           size={36}
         />
         <div>
-          <strong style={{ display: "block", fontSize: "8px" }}>Bank Bonds</strong>
-          <span style={referenceTextStyle}>Fixed return · DT locked for a term</span>
+          <strong style={{ display: "block", fontSize: "15px" }}>Bank Bonds</strong>
+          <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "7px" }}><span style={referenceTextStyle}>Fixed return</span><BudgetInfoButton title="Bank Bonds">The return is fixed for the term, but the DT is locked until the Bond matures.</BudgetInfoButton></div>
         </div>
       </div>
     </div>
@@ -402,10 +407,10 @@ function SummaryPill({ label, value, gold = false }: { label: string; value: str
         padding: "7px 9px",
       }}
     >
-      <span style={{ display: "block", color: "rgba(255,255,255,.30)", fontSize: "6px", fontWeight: 850, textTransform: "uppercase", letterSpacing: ".07em" }}>
+      <span style={{ display: "block", color: "rgba(255,255,255,.30)", fontSize: "15px", fontWeight: 850, textTransform: "uppercase", letterSpacing: ".07em" }}>
         {label}
       </span>
-      <strong style={{ display: "block", marginTop: "2px", color: gold ? "#ffd18a" : "rgba(255,255,255,.78)", fontSize: "9px" }}>
+      <strong style={{ display: "block", marginTop: "2px", color: gold ? "#ffd18a" : "rgba(255,255,255,.78)", fontSize: "16px" }}>
         {value}
       </strong>
     </div>
@@ -433,20 +438,20 @@ function ConditionCard({
           : { text: "#ffb8b8", border: "rgba(255,140,140,.16)", bg: "rgba(255,100,100,.035)" };
 
   return (
-    <div style={{ borderRadius: "13px", border: `1px solid ${tone.border}`, background: tone.bg, padding: "9px" }} title={detail}>
-      <span style={{ display: "block", color: "rgba(255,255,255,.34)", fontSize: "6px", fontWeight: 850, textTransform: "uppercase", letterSpacing: ".06em" }}>
+    <div style={{ borderRadius: "13px", border: `1px solid ${tone.border}`, background: tone.bg, padding: "11px" }}>
+      <span style={{ display: "block", color: "rgba(255,255,255,.34)", fontSize: "15px", fontWeight: 850, textTransform: "uppercase", letterSpacing: ".06em" }}>
         {label}
       </span>
       <div style={{ marginTop: "4px", display: "flex", justifyContent: "space-between", gap: "6px", alignItems: "baseline" }}>
-        <strong style={{ color: tone.text, fontSize: "10px", textTransform: "capitalize" }}>{level}</strong>
-        <span style={{ color: "rgba(255,255,255,.25)", fontSize: "7px" }}>{Math.round(value)}</span>
+        <strong style={{ color: tone.text, fontSize: "17px", textTransform: "capitalize" }}>{level}</strong>
+        <span style={{ color: "rgba(255,255,255,.25)", fontSize: "14px" }}>{Math.round(value)}</span>
       </div>
       <div style={{ marginTop: "6px", height: "3px", borderRadius: "999px", background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, value))}%`, background: tone.text, borderRadius: "999px" }} />
       </div>
-      <p style={{ margin: "6px 0 0", color: "rgba(255,255,255,.30)", fontSize: "6px", lineHeight: 1.45 }}>
-        {detail}
-      </p>
+      <div style={{ marginTop: "8px" }}>
+        <BudgetInfoButton title={label} accent={tone.text}>{detail}</BudgetInfoButton>
+      </div>
     </div>
   );
 }
@@ -467,14 +472,14 @@ const referenceTextStyle = {
   display: "block",
   marginTop: "2px",
   color: "rgba(255,255,255,.30)",
-  fontSize: "6px",
+  fontSize: "15px",
   lineHeight: 1.35,
 };
 
 const eyebrowStyle = {
   margin: 0,
   color: "#8ee8ff",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   letterSpacing: ".13em",
   textTransform: "uppercase" as const,
@@ -490,7 +495,7 @@ const numberInputStyle = {
   padding: "0 9px",
   outline: "none",
   fontFamily: "inherit",
-  fontSize: "10px",
+  fontSize: "17px",
   fontWeight: 900,
 };
 
@@ -503,7 +508,7 @@ const primaryButtonStyle = {
   color: "#dffaff",
   cursor: "pointer",
   fontFamily: "inherit",
-  fontSize: "8px",
+  fontSize: "15px",
   fontWeight: 950,
   letterSpacing: ".08em",
   textTransform: "uppercase" as const,

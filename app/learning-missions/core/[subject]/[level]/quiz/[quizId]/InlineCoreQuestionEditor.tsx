@@ -630,6 +630,139 @@ function SingleQuestionEditor({
     text: optionTexts[index] ?? String(option?.text ?? ""),
   }));
 
+  const mathIntelligenceQuestionDraft = useMemo(() => {
+    if (subject !== "math") return null;
+
+    const content: JsonObject = { ...(question.content || {}) };
+    if (teachingOptions.length > 0) {
+      content.options = teachingOptions.map((option, index) => ({
+        ...(originalOptions[index] || {}),
+        ...option,
+      }));
+    }
+    if (mathVisualDraft) content.math_visual = mathVisualDraft;
+    else delete content.math_visual;
+
+    let answerData: JsonObject = { ...(question.answer_data || {}) };
+
+    if (hasOptions) {
+      const validIds = teachingOptions.map((option) => option.id);
+      const selectedCorrectIds = allowsMultipleCorrect
+        ? correctOptionIds.filter((id) => validIds.includes(id))
+        : correctOptionId && validIds.includes(correctOptionId)
+          ? [correctOptionId]
+          : [];
+      answerData.correct_option_ids = selectedCorrectIds;
+    }
+
+    if (hasAcceptedAnswers) {
+      answerData.accepted_answers = acceptedAnswers
+        .split("\n")
+        .map((answer) => answer.trim())
+        .filter(Boolean);
+    }
+
+    if (hasOrdering) {
+      const lines = reorderLines
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+      const tokens = lines.map((text, index) => ({ id: `t${index + 1}`, text }));
+      content.tokens = tokens;
+      answerData.order = tokens.map((token) => token.id);
+    }
+
+    if (hasValues) {
+      answerData.values = Object.fromEntries(
+        Object.entries(valueAnswers).map(([key, value]) => [key, String(value).trim()]),
+      );
+    }
+
+    if (answerKind === "numeric" || answerKind === "numeric_unit") {
+      const value = Number(numericValue);
+      if (Number.isFinite(value)) {
+        answerData = {
+          ...answerData,
+          kind: answerKind,
+          value,
+          tolerance: Number(numericTolerance || 0),
+          units: acceptedUnits
+            .split("\n")
+            .map((item) => item.trim())
+            .filter(Boolean),
+        };
+      }
+    }
+
+    if (answerKind === "fraction") {
+      const numerator = Number(fractionNumerator);
+      const denominator = Number(fractionDenominator);
+      if (Number.isFinite(numerator) && Number.isFinite(denominator)) {
+        answerData = { ...answerData, kind: "fraction", numerator, denominator };
+      }
+    }
+
+    if (answerKind === "money") {
+      const amount = Number(moneyAmount);
+      if (Number.isFinite(amount)) {
+        answerData = {
+          ...answerData,
+          kind: "money",
+          amount_cents: Math.round(amount * 100),
+          tolerance_cents: Number(moneyToleranceCents || 0),
+        };
+      }
+    }
+
+    return {
+      id: question.id,
+      subject: "math",
+      primary_level: primaryLevel,
+      topic: String(question.content?.topic || ""),
+      question_type: question.question_type,
+      instruction,
+      prompt,
+      content,
+      answer_data: answerData,
+      explanation: { text: explanation },
+      skill,
+      difficulty,
+      stimulus: question.stimulus,
+      assets: question.assets,
+    };
+  }, [
+    acceptedAnswers,
+    acceptedUnits,
+    allowsMultipleCorrect,
+    answerKind,
+    correctOptionId,
+    correctOptionIds,
+    difficulty,
+    explanation,
+    fractionDenominator,
+    fractionNumerator,
+    hasAcceptedAnswers,
+    hasOptions,
+    hasOrdering,
+    hasValues,
+    instruction,
+    mathVisualDraft,
+    moneyAmount,
+    moneyToleranceCents,
+    numericTolerance,
+    numericValue,
+    optionTexts,
+    originalOptions,
+    primaryLevel,
+    prompt,
+    question,
+    reorderLines,
+    skill,
+    subject,
+    teachingOptions,
+    valueAnswers,
+  ]);
+
   async function handleDeleteQuestion() {
     if (saving) return;
 
@@ -1371,6 +1504,7 @@ function SingleQuestionEditor({
           <MathVisualAuthoringPanel
             value={question.content?.math_visual ?? null}
             teaching={teachingDraft}
+            questionDraft={mathIntelligenceQuestionDraft}
             disabled={saving}
             defaultOpen={Boolean(question.content?.math_visual)}
             onChangeVisual={setMathVisualDraft}

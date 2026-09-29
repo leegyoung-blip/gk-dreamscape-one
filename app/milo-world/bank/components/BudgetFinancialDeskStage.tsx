@@ -12,6 +12,7 @@ import type {
   BudgetPlanningItem,
 } from "../lib/budget-simulator-types";
 import BudgetPlanningBoard from "./BudgetPlanningBoard";
+import BudgetInfoButton from "./BudgetInfoButton";
 
 type DeskKey =
   | "income"
@@ -132,7 +133,10 @@ export default function BudgetFinancialDeskStage({
         }}
       >
         <div>
-          <p style={eyebrowStyle}>Stage 2 · Financial Desk</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+            <p style={eyebrowStyle}>Stage 2 · Check your money</p>
+            <BudgetInfoButton title="Why check first?">Look at what is coming in, what must be paid, what you are saving for and what is uncertain before you decide where your DT should go.</BudgetInfoButton>
+          </div>
           <h3
             style={{
               margin: "4px 0 0",
@@ -141,7 +145,7 @@ export default function BudgetFinancialDeskStage({
               fontWeight: 500,
             }}
           >
-            Investigate before you allocate.
+            Know what needs your attention.
           </h3>
         </div>
         <div
@@ -151,7 +155,7 @@ export default function BudgetFinancialDeskStage({
             background: requiredDone ? "rgba(111,255,184,.06)" : "rgba(255,209,138,.05)",
             color: requiredDone ? "#a9ffd4" : "#ffd18a",
             padding: "8px 11px",
-            fontSize: "8px",
+            fontSize: "15px",
             fontWeight: 850,
             lineHeight: 1.4,
           }}
@@ -206,14 +210,14 @@ export default function BudgetFinancialDeskStage({
               <span
                 style={{
                   color: active ? "#8ee8ff" : "rgba(255,255,255,.26)",
-                  fontSize: "7px",
+                  fontSize: "14px",
                   fontWeight: 950,
                   letterSpacing: ".08em",
                 }}
               >
                 {card.number}
               </span>
-              <strong style={{ display: "block", marginTop: "4px", fontSize: "10px" }}>
+              <strong style={{ display: "block", marginTop: "4px", fontSize: "17px" }}>
                 {card.title}
               </strong>
               <span
@@ -221,22 +225,11 @@ export default function BudgetFinancialDeskStage({
                   display: "block",
                   marginTop: "4px",
                   color: "#ffd18a",
-                  fontSize: "10px",
+                  fontSize: "17px",
                   fontWeight: 900,
                 }}
               >
                 {card.value}
-              </span>
-              <span
-                style={{
-                  display: "block",
-                  marginTop: "4px",
-                  color: "rgba(255,255,255,.32)",
-                  fontSize: "7px",
-                  lineHeight: 1.35,
-                }}
-              >
-                {card.summary}
               </span>
             </button>
           );
@@ -288,8 +281,8 @@ export default function BudgetFinancialDeskStage({
           gap: "10px",
         }}
       >
-        <p style={{ margin: 0, color: "rgba(255,255,255,.34)", fontSize: "8px" }}>
-          Goal gap: {totalGoalGap(profile).toLocaleString()} DT · {pinnedItems.length} item{pinnedItems.length === 1 ? "" : "s"} pinned
+        <p style={{ margin: 0, color: "rgba(255,255,255,.34)", fontSize: "15px" }}>
+          Still needed for goals: {totalGoalGap(profile).toLocaleString()} DT · {pinnedItems.length} pinned
         </p>
         <button
           type="button"
@@ -348,7 +341,7 @@ function DeskDetail({
   if (activeDesk === "commitments") {
     return (
       <>
-        <DetailHeader title="Known commitments" detail="Dates matter. A budget can look balanced overall and still run short at the wrong time." />
+        <DetailHeader title="Bills to cover" detail="Dates matter. A budget can look balanced overall and still run short at the wrong time." />
         <div style={detailGridStyle}>
           {profile.commitments.map((item) => (
             <DataRow
@@ -441,11 +434,9 @@ function DeskDetail({
 
 function DetailHeader({ title, detail }: { title: string; detail: string }) {
   return (
-    <div style={{ marginBottom: "10px" }}>
-      <strong style={{ display: "block", fontSize: "13px" }}>{title}</strong>
-      <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,.36)", fontSize: "8px", lineHeight: 1.5 }}>
-        {detail}
-      </p>
+    <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "9px" }}>
+      <strong style={{ display: "block", fontSize: "21px" }}>{title}</strong>
+      <BudgetInfoButton title={title}>{detail}</BudgetInfoButton>
     </div>
   );
 }
@@ -475,11 +466,13 @@ function DataRow({
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
         <div style={{ minWidth: 0 }}>
-          <strong style={{ display: "block", fontSize: "9px", lineHeight: 1.3 }}>{title}</strong>
-          <span style={{ display: "block", marginTop: "3px", color: "#ffd18a", fontSize: "10px", fontWeight: 900 }}>
+          <strong style={{ display: "block", fontSize: "16px", lineHeight: 1.3 }}>{title}</strong>
+          <span style={{ display: "block", marginTop: "3px", color: "#ffd18a", fontSize: "17px", fontWeight: 900 }}>
             {value}
           </span>
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "7px", flexShrink: 0 }}>
+        <BudgetInfoButton title={title}>{detail}</BudgetInfoButton>
         <button
           type="button"
           onClick={onPin}
@@ -492,17 +485,15 @@ function DataRow({
             padding: "0 8px",
             cursor: "pointer",
             fontFamily: "inherit",
-            fontSize: "7px",
+            fontSize: "14px",
             fontWeight: 900,
             whiteSpace: "nowrap",
           }}
         >
           {pinned ? "Pinned ✓" : "Pin to plan"}
         </button>
+        </div>
       </div>
-      <p style={{ margin: "6px 0 0", color: "rgba(255,255,255,.34)", fontSize: "7px", lineHeight: 1.5 }}>
-        {detail}
-      </p>
     </article>
   );
 }
@@ -516,7 +507,7 @@ const detailGridStyle = {
 const eyebrowStyle = {
   margin: 0,
   color: "#8ee8ff",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   letterSpacing: ".13em",
   textTransform: "uppercase" as const,
@@ -530,7 +521,7 @@ const primaryButtonStyle = {
   background: "linear-gradient(180deg,rgba(83,215,255,.18),rgba(83,215,255,.09))",
   color: "#dffaff",
   fontFamily: "inherit",
-  fontSize: "8px",
+  fontSize: "15px",
   fontWeight: 950,
   letterSpacing: ".08em",
   textTransform: "uppercase" as const,

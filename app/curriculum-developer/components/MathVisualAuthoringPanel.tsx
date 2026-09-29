@@ -16,6 +16,12 @@ import {
   MATH_VISUAL_EXAMPLES,
   type MathVisualExample,
 } from "@/components/core-math/visual-engine/MathVisualExamples";
+import type { MathAuthoringProposal } from "@/lib/math-intelligence/MathAuthoringProposalTypes";
+import MathIntelligenceProposalPreview from "./math-intelligence/MathIntelligenceProposalPreview";
+import {
+  MathAuthoringProposalRequestError,
+  requestMathAuthoringProposal,
+} from "./math-intelligence/requestMathAuthoringProposal";
 
 type TeachingDraft = Record<string, any>;
 
@@ -35,6 +41,7 @@ type ParsedSteps = {
 export default function MathVisualAuthoringPanel({
   value,
   teaching,
+  questionDraft,
   disabled = false,
   defaultOpen = false,
   onChangeVisual,
@@ -43,6 +50,7 @@ export default function MathVisualAuthoringPanel({
 }: {
   value: unknown;
   teaching: TeachingDraft;
+  questionDraft?: unknown;
   disabled?: boolean;
   defaultOpen?: boolean;
   onChangeVisual: (next: MathVisualSpec | null) => void;
@@ -61,6 +69,9 @@ export default function MathVisualAuthoringPanel({
     "question",
   );
   const [previewStep, setPreviewStep] = useState(0);
+  const [proposal, setProposal] = useState<MathAuthoringProposal | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   const visualResult = useMemo(() => parseVisualText(visualText), [visualText]);
   const lessonResult = useMemo(
@@ -85,6 +96,34 @@ export default function MathVisualAuthoringPanel({
     // not retrigger this effect on every editor render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstMessage, overallValid]);
+
+  async function generateProposal() {
+    if (disabled || generating) return;
+    if (!questionDraft) {
+      setGenerationError(
+        "This editor has not supplied the current Math question draft to Math Intelligence.",
+      );
+      return;
+    }
+
+    setGenerating(true);
+    setGenerationError(null);
+
+    try {
+      const nextProposal = await requestMathAuthoringProposal(questionDraft);
+      setProposal(nextProposal);
+    } catch (error) {
+      if (error instanceof MathAuthoringProposalRequestError) {
+        setGenerationError(error.message);
+      } else {
+        setGenerationError(
+          "Math Intelligence could not create a proposal. The question has not been changed.",
+        );
+      }
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   function updateVisualText(next: string) {
     setVisualText(next);
@@ -179,6 +218,50 @@ export default function MathVisualAuthoringPanel({
             >
               Open full test gallery ↗
             </a>
+          </div>
+
+          <section style={intelligenceCard}>
+            <div style={intelligenceHeader}>
+              <div>
+                <span style={intelligenceEyebrow}>DREAMSCAPE MATH INTELLIGENCE</span>
+                <strong style={intelligenceTitle}>Generate visual + teaching proposal</strong>
+                <p style={intelligenceText}>
+                  Analyses the current unsaved Math question. Dreamscape rules run first;
+                  Luna is used only when the mathematical interpretation remains ambiguous.
+                  Generation is preview-only and does not change the question.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={disabled || generating || !questionDraft}
+                onClick={() => void generateProposal()}
+                style={generateButton(disabled || generating || !questionDraft)}
+              >
+                {generating ? "Analysing…" : "Generate Visual + Teaching"}
+              </button>
+            </div>
+
+            {!questionDraft ? (
+              <div style={generationNotice}>
+                The current editor has not connected its unsaved question draft yet.
+              </div>
+            ) : null}
+
+            {generationError ? (
+              <div style={generationErrorBox}>{generationError}</div>
+            ) : null}
+
+            {proposal ? (
+              <MathIntelligenceProposalPreview proposal={proposal} />
+            ) : (
+              <div style={generationPlaceholder}>
+                No proposal generated yet. The existing Math Visual JSON below remains unchanged.
+              </div>
+            )}
+          </section>
+
+          <div style={manualDivider}>
+            <span>MANUAL / ADVANCED AUTHORING</span>
           </div>
 
           <div style={templateGrid}>
@@ -525,6 +608,91 @@ const helperText: CSSProperties = {
   maxWidth: 760,
 };
 const galleryLink: CSSProperties = { color: "#9eeeff", fontSize: 12, fontWeight: 800 };
+const intelligenceCard: CSSProperties = {
+  borderRadius: 15,
+  border: "1px solid rgba(83,215,255,0.2)",
+  background: "linear-gradient(180deg, rgba(14,48,79,0.42), rgba(7,25,48,0.34))",
+  padding: 14,
+  display: "grid",
+  gap: 12,
+};
+const intelligenceHeader: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 14,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+};
+const intelligenceEyebrow: CSSProperties = {
+  display: "block",
+  color: "#8ee8ff",
+  fontSize: 9,
+  fontWeight: 900,
+  letterSpacing: "0.14em",
+  marginBottom: 5,
+};
+const intelligenceTitle: CSSProperties = {
+  display: "block",
+  color: "white",
+  fontSize: 14,
+};
+const intelligenceText: CSSProperties = {
+  margin: "5px 0 0",
+  color: "rgba(255,255,255,0.58)",
+  fontSize: 11,
+  lineHeight: 1.5,
+  maxWidth: 760,
+};
+function generateButton(blocked: boolean): CSSProperties {
+  return {
+    borderRadius: 11,
+    border: "1px solid rgba(83,215,255,0.44)",
+    background: "linear-gradient(135deg, rgba(14,165,233,0.22), rgba(139,92,246,0.2))",
+    color: "#e5fbff",
+    padding: "10px 13px",
+    fontSize: 11,
+    fontWeight: 900,
+    cursor: blocked ? "not-allowed" : "pointer",
+    opacity: blocked ? 0.48 : 1,
+    whiteSpace: "nowrap",
+  };
+}
+const generationNotice: CSSProperties = {
+  borderRadius: 9,
+  border: "1px solid rgba(251,191,36,0.2)",
+  background: "rgba(245,158,11,0.07)",
+  color: "#fde68a",
+  padding: "8px 10px",
+  fontSize: 10,
+};
+const generationErrorBox: CSSProperties = {
+  borderRadius: 9,
+  border: "1px solid rgba(248,113,113,0.24)",
+  background: "rgba(239,68,68,0.08)",
+  color: "#fecaca",
+  padding: "9px 10px",
+  fontSize: 10,
+  lineHeight: 1.45,
+};
+const generationPlaceholder: CSSProperties = {
+  borderRadius: 10,
+  border: "1px dashed rgba(255,255,255,0.12)",
+  color: "rgba(255,255,255,0.46)",
+  padding: "10px 11px",
+  fontSize: 10,
+  lineHeight: 1.45,
+};
+const manualDivider: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  color: "rgba(255,255,255,0.4)",
+  fontSize: 9,
+  fontWeight: 900,
+  letterSpacing: "0.12em",
+  borderTop: "1px solid rgba(255,255,255,0.08)",
+  paddingTop: 12,
+};
 const templateGrid: CSSProperties = {
   display: "flex",
   gap: 7,

@@ -10,6 +10,7 @@ import type {
   BudgetAllocationKey,
   BudgetLiveMonthState,
 } from "../lib/budget-simulator-types";
+import BudgetInfoButton from "./BudgetInfoButton";
 
 const KEYS: BudgetAllocationKey[] = [
   "essentials",
@@ -87,21 +88,22 @@ export default function BudgetLiveRebalancePanel({
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
         <div>
-          <p style={eyebrowStyle}>Rebalance plan</p>
-          <strong style={{ display: "block", marginTop: "3px", fontSize: "12px" }}>
-            Move DT between priorities
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><p style={eyebrowStyle}>Rebalance</p><BudgetInfoButton title="Rebalancing">Move DT from one priority to another when circumstances change. Moving DT does not create or destroy money; it changes what you are protecting.</BudgetInfoButton></div>
+          <strong style={{ display: "block", marginTop: "3px", fontSize: "18px" }}>
+            Move money where it is needed
           </strong>
         </div>
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-          <Metric label="Liquid" value={`${liquid.toLocaleString()} DT`} />
-          <Metric label="Protected" value={`${protectedTotal.toLocaleString()} DT`} />
+          <Metric label="Available" value={`${liquid.toLocaleString()} DT`} />
+          <Metric label="Set aside" value={`${protectedTotal.toLocaleString()} DT`} />
         </div>
       </div>
 
       {fundingGap > 0 && (
-        <p style={{ margin: "9px 0 0", color: "#ffd3a0", fontSize: "8px", lineHeight: 1.5 }}>
-          You need another <strong>{fundingGap.toLocaleString()} DT</strong> in liquid funds before this step can be funded. Move DT from a protected priority into Available or another liquid category.
-        </p>
+        <div style={{ marginTop: "9px", display: "flex", alignItems: "center", gap: "9px" }}>
+          <strong style={{ color: "#ffd3a0", fontSize: "18px" }}>{fundingGap.toLocaleString()} DT more needed</strong>
+          <BudgetInfoButton title="Funding gap" accent="#ffd3a0">Move DT from a protected priority into Available or another liquid category before this step can be funded.</BudgetInfoButton>
+        </div>
       )}
 
       <div
@@ -114,10 +116,10 @@ export default function BudgetLiveRebalancePanel({
       >
         {KEYS.map((key) => (
           <div key={key} style={{ borderRadius: "11px", border: "1px solid rgba(255,255,255,.06)", background: "rgba(255,255,255,.018)", padding: "7px" }}>
-            <span style={{ display: "block", color: "rgba(255,255,255,.32)", fontSize: "6px", fontWeight: 850, textTransform: "uppercase" }}>
+            <span style={{ display: "block", color: "rgba(255,255,255,.32)", fontSize: "15px", fontWeight: 850, textTransform: "uppercase" }}>
               {LABELS[key]}
             </span>
-            <strong style={{ display: "block", marginTop: "2px", color: key === "unallocated" ? "#8ee8ff" : "white", fontSize: "10px" }}>
+            <strong style={{ display: "block", marginTop: "2px", color: key === "unallocated" ? "#8ee8ff" : "white", fontSize: "17px" }}>
               {state.allocation[key].toLocaleString()} DT
             </strong>
           </div>
@@ -180,7 +182,7 @@ export default function BudgetLiveRebalancePanel({
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <span style={{ borderRadius: "999px", border: "1px solid rgba(255,255,255,.07)", background: "rgba(255,255,255,.025)", padding: "6px 8px", fontSize: "7px", color: "rgba(255,255,255,.46)" }}>
+    <span style={{ borderRadius: "999px", border: "1px solid rgba(255,255,255,.07)", background: "rgba(255,255,255,.025)", padding: "6px 8px", fontSize: "14px", color: "rgba(255,255,255,.46)" }}>
       {label}: <strong style={{ color: "rgba(255,255,255,.78)" }}>{value}</strong>
     </span>
   );
@@ -189,7 +191,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 const eyebrowStyle = {
   margin: 0,
   color: "#8ee8ff",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   letterSpacing: "0.12em",
   textTransform: "uppercase" as const,
@@ -199,7 +201,7 @@ const labelStyle = {
   display: "grid",
   gap: "4px",
   color: "rgba(255,255,255,.38)",
-  fontSize: "6px",
+  fontSize: "15px",
   fontWeight: 900,
   textTransform: "uppercase" as const,
   letterSpacing: ".08em",
@@ -214,7 +216,7 @@ const inputStyle = {
   color: "white",
   padding: "0 9px",
   fontFamily: "inherit",
-  fontSize: "8px",
+  fontSize: "15px",
   outline: "none",
 };
 
@@ -226,7 +228,7 @@ const buttonStyle = {
   color: "#b8f4ff",
   padding: "0 10px",
   fontFamily: "inherit",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   cursor: "pointer",
   textTransform: "uppercase" as const,
@@ -238,7 +240,7 @@ const linkButtonStyle = {
   background: "transparent",
   color: "#ffd3a0",
   fontFamily: "inherit",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 850,
   cursor: "pointer",
   padding: 0,

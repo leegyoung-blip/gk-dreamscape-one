@@ -74,7 +74,7 @@ export default function BudgetLiveMonthTimeline({
                 style={{
                   display: "block",
                   marginTop: "4px",
-                  fontSize: "6px",
+                  fontSize: "15px",
                   fontWeight: active ? 950 : 750,
                   color: active ? "#b8f4ff" : "rgba(255,255,255,.26)",
                 }}
@@ -85,7 +85,7 @@ export default function BudgetLiveMonthTimeline({
           );
         })}
       </div>
-      <div style={{ marginTop: "7px", display: "flex", flexWrap: "wrap", gap: "8px", color: "rgba(255,255,255,.34)", fontSize: "6px", fontWeight: 800 }}>
+      <div style={{ marginTop: "7px", display: "flex", flexWrap: "wrap", gap: "8px", color: "rgba(255,255,255,.34)", fontSize: "15px", fontWeight: 800 }}>
         <LegendDot color="#8ee8ff" label="Today" />
         <LegendDot color="#c3b5ff" label="Upcoming decision" />
         <LegendDot color="#80efb8" label="Decision completed" />

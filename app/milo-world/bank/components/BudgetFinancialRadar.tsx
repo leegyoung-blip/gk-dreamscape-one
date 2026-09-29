@@ -21,7 +21,7 @@ export default function BudgetFinancialRadar({ values }: { values: BudgetRadarVa
 
   return (
     <div>
-      <svg viewBox="0 0 300 286" role="img" aria-label="Financial health radar" style={{ width: "100%", maxWidth: "340px", display: "block", margin: "0 auto" }}>
+      <svg viewBox="0 0 300 286" role="img" aria-label="Financial health radar" style={{ width: "100%", maxWidth: "430px", display: "block", margin: "0 auto" }}>
         {[25, 50, 75, 100].map((level) => {
           const radius = (maxRadius * level) / 100;
           const polygon = axes.map((_, index) => point(cx, cy, radius, index, axes.length));
@@ -54,10 +54,10 @@ export default function BudgetFinancialRadar({ values }: { values: BudgetRadarVa
           const labelPoint = point(cx, cy, maxRadius + 27, index, axes.length);
           return (
             <g key={axis.key}>
-              <text x={labelPoint.x} y={labelPoint.y - 2} textAnchor="middle" fill="rgba(255,255,255,.58)" fontSize="9" fontWeight="800">
+              <text x={labelPoint.x} y={labelPoint.y - 2} textAnchor="middle" fill="rgba(255,255,255,.58)" fontSize="14" fontWeight="800">
                 {axis.label}
               </text>
-              <text x={labelPoint.x} y={labelPoint.y + 10} textAnchor="middle" fill="rgba(255,209,138,.72)" fontSize="8" fontWeight="900">
+              <text x={labelPoint.x} y={labelPoint.y + 10} textAnchor="middle" fill="rgba(255,209,138,.72)" fontSize="13" fontWeight="900">
                 {Math.round(values[axis.key])}
               </text>
             </g>

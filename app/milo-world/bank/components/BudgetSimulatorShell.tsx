@@ -31,6 +31,16 @@ import BudgetLiveMonthStage from "./BudgetLiveMonthStage";
 import BudgetFinalWeekStage from "./BudgetFinalWeekStage";
 import BudgetReviewStage from "./BudgetReviewStage";
 
+const FRIENDLY_STAGE_LABELS: Record<BudgetStageKey, string> = {
+  briefing: "Start",
+  financial_desk: "Check money",
+  build_budget: "Plan",
+  forecast: "Test plan",
+  live_month: "Run month",
+  final_week: "Final week",
+  review: "Review",
+};
+
 export default function BudgetSimulatorShell({
   run,
   screenMode,
@@ -157,7 +167,7 @@ export default function BudgetSimulatorShell({
   }
 
   return (
-    <section style={{ marginTop: isMobile ? "10px" : "12px" }}>
+    <section style={{ marginTop: isMobile ? "10px" : "12px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <div
         style={{
           borderRadius: "22px",
@@ -169,6 +179,10 @@ export default function BudgetSimulatorShell({
           backgroundColor: "rgba(4,12,30,0.92)",
           boxShadow: "0 28px 80px rgba(0,0,0,.34)",
           overflow: "hidden",
+          flex: 1,
+          minHeight: isMobile ? "calc(100dvh - 190px)" : "calc(100dvh - 210px)",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         <header
@@ -198,7 +212,7 @@ export default function BudgetSimulatorShell({
                 fontSize: isMobile ? "22px" : "28px",
               }}
             >
-              Build a Budget That Survives
+              Build a Budget That Can Handle Surprises
             </h2>
           </div>
 
@@ -278,7 +292,7 @@ export default function BudgetSimulatorShell({
                       : complete
                         ? "#a9ffd4"
                         : "rgba(255,255,255,0.28)",
-                    fontSize: "8px",
+                    fontSize: "15px",
                   }}
                 >
                   {complete && !active ? "✓" : stage.number}
@@ -288,19 +302,20 @@ export default function BudgetSimulatorShell({
                     display: "block",
                     marginTop: "2px",
                     color: active ? "rgba(255,255,255,0.82)" : "rgba(255,255,255,0.34)",
-                    fontSize: isMobile ? "6px" : "7px",
+                    fontSize: isMobile ? "12px" : "13px",
                     fontWeight: 850,
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {isMobile ? stage.shortLabel : stage.label}
+                  {FRIENDLY_STAGE_LABELS[stage.id]}
                 </span>
               </div>
             );
           })}
         </div>
 
-        <div style={{ padding: isMobile ? "13px" : "16px", background: "linear-gradient(180deg,rgba(2,8,20,.28),rgba(2,8,20,.56))" }}>
+        <div style={{ padding: isMobile ? "16px" : "20px", background: "linear-gradient(180deg,rgba(2,8,20,.28),rgba(2,8,20,.56))", flex: 1, display: "flex", minHeight: 0 }}>
+          <div style={{ width: "100%", alignSelf: "stretch" }}>
           {run.currentStage === "briefing" ? (
             <BudgetBriefingStage
               run={run}
@@ -539,12 +554,13 @@ export default function BudgetSimulatorShell({
                 background: "rgba(255,90,90,.05)",
                 padding: "9px 11px",
                 color: "#ffc1c1",
-                fontSize: "8px",
+                fontSize: "15px",
               }}
             >
               {error}
             </p>
           )}
+          </div>
         </div>
       </div>
     </section>
@@ -587,7 +603,7 @@ function ComingNextStage({
         >
           {stage === "final_week" ? "Live Month complete." : `${stageLabel} is ready.`}
         </h3>
-        <p style={{ margin: "9px auto 0", color: "rgba(255,255,255,.42)", fontSize: "9px", lineHeight: 1.6 }}>
+        <p style={{ margin: "9px auto 0", color: "rgba(255,255,255,.42)", fontSize: "16px", lineHeight: 1.6 }}>
           {stage === "final_week"
             ? "Your decisions, rebalancing and linked consequences are saved. Phase 4A-5 will build the final multi-factor challenge from this position."
             : "Your saved allocation and simulation state will carry into the next stage."}
@@ -659,7 +675,7 @@ function uniqueStages(items: BudgetStageKey[]) {
 
 const eyebrowStyle = {
   color: "#8ee8ff",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   letterSpacing: "0.12em",
   textTransform: "uppercase" as const,
@@ -674,7 +690,7 @@ const badgeStyle = {
   color: "rgba(255,255,255,0.5)",
   display: "inline-flex",
   alignItems: "center",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 900,
   letterSpacing: "0.07em",
   textTransform: "uppercase" as const,
@@ -689,7 +705,7 @@ const secondaryButtonStyle = {
   color: "rgba(255,255,255,0.62)",
   cursor: "pointer",
   fontFamily: "inherit",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 900,
   letterSpacing: "0.07em",
   textTransform: "uppercase" as const,
@@ -701,6 +717,6 @@ const miniAllocationStyle = {
   background: "rgba(255,255,255,.02)",
   padding: "6px 8px",
   color: "rgba(255,255,255,.46)",
-  fontSize: "7px",
+  fontSize: "14px",
   textTransform: "capitalize" as const,
 };

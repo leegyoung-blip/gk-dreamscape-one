@@ -26,3 +26,5 @@ export * from "./MathTeachingSemanticTypes";
 export * from "./MathTeachingSemanticValidator";
 export * from "./MathTeachingVisualMerge";
 export * from "./MathTeachingVisualPipeline";
+export * from "./MathAuthoringProposalTypes";
+export * from "./MathAuthoringProposal";

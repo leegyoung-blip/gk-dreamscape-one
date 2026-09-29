@@ -22,6 +22,12 @@ export default function BudgetSimulator({
 }) {
   const simulation = useBudgetSimulation(isLoggedIn);
   const [insideRun, setInsideRun] = useState(false);
+  const simulatorViewportStyle = {
+    width: "100%",
+    minHeight: screenMode === "mobile" ? "calc(100dvh - 185px)" : "calc(100dvh - 205px)",
+    display: "flex",
+    flexDirection: "column" as const,
+  };
 
   async function start(input: {
     scenarioKey: BudgetScenarioKey;
@@ -36,6 +42,7 @@ export default function BudgetSimulator({
 
   if (insideRun && simulation.run) {
     return (
+      <div style={simulatorViewportStyle}>
       <BudgetSimulatorShell
         run={simulation.run}
         screenMode={screenMode}
@@ -71,10 +78,12 @@ export default function BudgetSimulator({
           if (success) setInsideRun(false);
         }}
       />
+      </div>
     );
   }
 
   return (
+    <div style={simulatorViewportStyle}>
     <BudgetSimulatorLanding
       screenMode={screenMode}
       isLoggedIn={isLoggedIn}
@@ -85,5 +94,6 @@ export default function BudgetSimulator({
       onContinue={() => setInsideRun(true)}
       onStart={start}
     />
+    </div>
   );
 }

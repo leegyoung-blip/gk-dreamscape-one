@@ -14,6 +14,7 @@ import type {
   BudgetStressTestKey,
 } from "../lib/budget-simulator-types";
 import BudgetForecastChart from "./BudgetForecastChart";
+import BudgetInfoButton from "./BudgetInfoButton";
 
 export default function BudgetForecastStage({
   profile,
@@ -75,7 +76,7 @@ export default function BudgetForecastStage({
         }}
       >
         <div>
-          <p style={eyebrowStyle}>Stage 4 · Forecast</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "9px" }}><p style={eyebrowStyle}>Stage 4 · Test your plan</p><BudgetInfoButton title="Forecast">The forecast uses your budget and payments you already know about. It does not reveal the surprise events that can happen later in the Live Month.</BudgetInfoButton></div>
           <h3
             style={{
               margin: "4px 0 0",
@@ -84,21 +85,19 @@ export default function BudgetForecastStage({
               fontWeight: 500,
             }}
           >
-            Test the plan before the month begins.
+            See where your plan gets tight.
           </h3>
-          <p style={introStyle}>
-            The forecast uses your confirmed budget and known commitments. Unknown events are deliberately not included.
-          </p>
+
         </div>
 
         <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
           <SummaryPill
-            label="Lowest available"
+            label="Lowest cash"
             value={`${forecast.minimumAvailable.toLocaleString()} DT`}
             warning={forecast.minimumAvailable < 0}
           />
-          <SummaryPill label="Protected" value={`${forecast.protectedTotal.toLocaleString()} DT`} />
-          <SummaryPill label="Known payments" value={`${forecast.totalKnownPayments.toLocaleString()} DT`} />
+          <SummaryPill label="Set aside" value={`${forecast.protectedTotal.toLocaleString()} DT`} />
+          <SummaryPill label="Bills" value={`${forecast.totalKnownPayments.toLocaleString()} DT`} />
         </div>
       </div>
 
@@ -117,9 +116,9 @@ export default function BudgetForecastStage({
         <section style={panelStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
             <div>
-              <p style={sectionLabel}>30-day cash-flow view</p>
+              <p style={sectionLabel}>30-day view</p>
               <strong style={{ display: "block", marginTop: "3px", fontSize: isMobile ? "15px" : "17px" }}>
-                Available versus protected DT
+                Cash available vs protected
               </strong>
             </div>
             <span style={neutralBadgeStyle}>
@@ -132,8 +131,8 @@ export default function BudgetForecastStage({
           </div>
 
           <label style={{ display: "block", marginTop: "8px" }}>
-            <span style={{ display: "flex", justifyContent: "space-between", gap: "8px", color: "rgba(255,255,255,.42)", fontSize: "8px", fontWeight: 850 }}>
-              <span>Scrub through the month</span>
+            <span style={{ display: "flex", justifyContent: "space-between", gap: "8px", color: "rgba(255,255,255,.42)", fontSize: "15px", fontWeight: 850 }}>
+              <span>Move through the month</span>
               <span>Day {day} / 30</span>
             </span>
             <input
@@ -152,7 +151,7 @@ export default function BudgetForecastStage({
           <p style={sectionLabel}>Day {day}</p>
           <div style={{ marginTop: "8px", display: "grid", gap: "8px", gridTemplateColumns: "1fr 1fr" }}>
             <Metric label="Available" value={`${point.available.toLocaleString()} DT`} tone={point.available < 0 ? "danger" : "cyan"} />
-            <Metric label="Protected" value={`${point.protected.toLocaleString()} DT`} tone="violet" />
+            <Metric label="Set aside" value={`${point.protected.toLocaleString()} DT`} tone="violet" />
           </div>
 
           <div
@@ -164,19 +163,19 @@ export default function BudgetForecastStage({
               padding: "11px",
             }}
           >
-            <p style={{ ...sectionLabel, color: "#ffd18a" }}>Known payment today</p>
+            <p style={{ ...sectionLabel, color: "#ffd18a" }}>Payment today</p>
             {commitments.length === 0 ? (
-              <p style={{ margin: "5px 0 0", color: "rgba(255,255,255,.38)", fontSize: "8px", lineHeight: 1.5 }}>
-                No known commitment is due on this day.
+              <p style={{ margin: "5px 0 0", color: "rgba(255,255,255,.38)", fontSize: "15px", lineHeight: 1.5 }}>
+                No payment due today.
               </p>
             ) : (
               <div style={{ marginTop: "6px", display: "grid", gap: "6px" }}>
                 {commitments.map((item) => (
                   <div key={item.id} style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
-                    <span style={{ color: "rgba(255,255,255,.62)", fontSize: "8px", lineHeight: 1.4 }}>
+                    <span style={{ color: "rgba(255,255,255,.62)", fontSize: "15px", lineHeight: 1.4 }}>
                       {item.title}
                     </span>
-                    <strong style={{ color: "#ffd18a", fontSize: "8px", whiteSpace: "nowrap" }}>
+                    <strong style={{ color: "#ffd18a", fontSize: "15px", whiteSpace: "nowrap" }}>
                       -{item.amount.toLocaleString()} DT
                     </strong>
                   </div>
@@ -185,13 +184,18 @@ export default function BudgetForecastStage({
             )}
           </div>
 
-          <div style={{ marginTop: "10px", borderTop: "1px solid rgba(255,255,255,.06)", paddingTop: "10px" }}>
-            <p style={sectionLabel}>What the forecast is saying</p>
-            <p style={{ margin: "5px 0 0", color: "rgba(255,255,255,.52)", fontSize: "8px", lineHeight: 1.6 }}>
+          <div style={{ marginTop: "12px", borderTop: "1px solid rgba(255,255,255,.06)", paddingTop: "12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+            <div>
+              <p style={sectionLabel}>Forecast signal</p>
+              <strong style={{ display: "block", marginTop: "5px", color: forecast.firstShortfallDay ? "#ffc1c1" : "#a9ffd4", fontSize: "21px" }}>
+                {forecast.firstShortfallDay ? `Shortfall on Day ${forecast.firstShortfallDay}` : "Known payments covered"}
+              </strong>
+            </div>
+            <BudgetInfoButton title="Forecast signal" accent={forecast.firstShortfallDay ? "#ffc1c1" : "#a9ffd4"}>
               {forecast.firstShortfallDay
-                ? `Your available DT first falls below zero on Day ${forecast.firstShortfallDay}. The plan relies on changing an allocation before then.`
-                : `All known commitments fit inside the liquid part of your plan. Your tightest projected point still leaves ${Math.max(0, forecast.minimumAvailable).toLocaleString()} DT available.`}
-            </p>
+                ? `Your available DT first falls below zero on Day ${forecast.firstShortfallDay}. You would need to change an allocation before then.`
+                : `All known bills fit inside the available part of your plan. Your tightest projected point still leaves ${Math.max(0, forecast.minimumAvailable).toLocaleString()} DT available.`}
+            </BudgetInfoButton>
           </div>
         </aside>
       </div>
@@ -203,9 +207,7 @@ export default function BudgetForecastStage({
             <strong style={{ display: "block", marginTop: "3px", fontSize: isMobile ? "15px" : "17px" }}>
               What if the month does not go to plan?
             </strong>
-            <p style={{ ...introStyle, marginTop: "4px" }}>
-              These are hypothetical tests. They do not reveal the actual events waiting in the Live Month.
-            </p>
+            <div style={{ marginTop: "7px" }}><BudgetInfoButton title="Stress tests">These are practice shocks only. They help you see how much pressure your plan can handle without revealing the real events waiting in the Live Month.</BudgetInfoButton></div>
           </div>
           <span style={neutralBadgeStyle}>
             {stressTestsRun.length} / {stressTestDefinitions().length} tested
@@ -249,11 +251,8 @@ export default function BudgetForecastStage({
                 }}
               >
                 <span style={{ display: "flex", justifyContent: "space-between", gap: "7px", alignItems: "start" }}>
-                  <strong style={{ fontSize: "9px" }}>{test.label}</strong>
-                  {tested && <span style={{ color: "#a9ffd4", fontSize: "8px", fontWeight: 950 }}>✓</span>}
-                </span>
-                <span style={{ display: "block", marginTop: "6px", color: "rgba(255,255,255,.38)", fontSize: "7px", lineHeight: 1.5 }}>
-                  {test.description}
+                  <strong style={{ fontSize: "16px" }}>{test.label}</strong>
+                  {tested && <span style={{ color: "#a9ffd4", fontSize: "15px", fontWeight: 950 }}>✓</span>}
                 </span>
               </button>
             );
@@ -282,9 +281,12 @@ export default function BudgetForecastStage({
               <p style={{ ...sectionLabel, color: activeStressResult.commitmentsCoveredWithoutRebalance ? "#a9ffd4" : "#ffc0a9" }}>
                 {activeStressResult.shortLabel}
               </p>
-              <p style={{ margin: "5px 0 0", color: "rgba(255,255,255,.56)", fontSize: "8px", lineHeight: 1.6 }}>
-                {activeStressResult.interpretation}
-              </p>
+              <div style={{ marginTop: "8px", display: "flex", alignItems: "center", gap: "9px" }}>
+                <strong style={{ fontSize: "19px", color: activeStressResult.commitmentsCoveredWithoutRebalance ? "#a9ffd4" : "#ffc0a9" }}>
+                  {activeStressResult.commitmentsCoveredWithoutRebalance ? "Plan holds" : "Rebalance needed"}
+                </strong>
+                <BudgetInfoButton title={activeStressResult.shortLabel} accent={activeStressResult.commitmentsCoveredWithoutRebalance ? "#a9ffd4" : "#ffc0a9"}>{activeStressResult.interpretation}</BudgetInfoButton>
+              </div>
             </div>
             <Metric
               label="Tightest point"
@@ -292,7 +294,7 @@ export default function BudgetForecastStage({
               tone={activeStressResult.minimumAvailable < 0 ? "danger" : "cyan"}
             />
             <Metric
-              label="Liquidity gap"
+              label="Cash gap"
               value={`${activeStressResult.liquidityGap.toLocaleString()} DT`}
               tone={activeStressResult.liquidityGap > 0 ? "danger" : "green"}
             />
@@ -319,11 +321,12 @@ export default function BudgetForecastStage({
           padding: "10px",
         }}
       >
-        <p style={{ margin: 0, color: "rgba(255,255,255,.40)", fontSize: "8px", lineHeight: 1.5 }}>
-          {canConfirm
-            ? "You have tested the plan. Confirm it to begin the Live Month, or return to Stage 3 and rebalance first."
-            : "Run at least one stress test before confirming the budget."}
-        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+          <strong style={{ color: canConfirm ? "#a9ffd4" : "#ffd18a", fontSize: "18px" }}>
+            {canConfirm ? "Ready to run the month" : "Run 1 stress test to continue"}
+          </strong>
+          <BudgetInfoButton title="Before you confirm">{canConfirm ? "You have tested the plan. You can confirm it to begin the Live Month, or go back and adjust your budget first." : "Run at least one stress test before you confirm the budget."}</BudgetInfoButton>
+        </div>
         <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
           <button
             type="button"
@@ -343,7 +346,7 @@ export default function BudgetForecastStage({
               cursor: saving || !canConfirm ? "not-allowed" : "pointer",
             }}
           >
-            {saving ? "Saving..." : "Confirm budget →"}
+            {saving ? "Saving..." : "Run the month →"}
           </button>
         </div>
       </div>
@@ -370,10 +373,10 @@ function SummaryPill({
         minWidth: "105px",
       }}
     >
-      <span style={{ display: "block", color: "rgba(255,255,255,.31)", fontSize: "6px", fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
+      <span style={{ display: "block", color: "rgba(255,255,255,.31)", fontSize: "15px", fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
         {label}
       </span>
-      <strong style={{ display: "block", marginTop: "3px", color: warning ? "#ffc1c1" : "rgba(255,255,255,.76)", fontSize: "10px" }}>
+      <strong style={{ display: "block", marginTop: "3px", color: warning ? "#ffc1c1" : "rgba(255,255,255,.76)", fontSize: "17px" }}>
         {value}
       </strong>
     </div>
@@ -399,10 +402,10 @@ function Metric({
           : "#8ee8ff";
   return (
     <div style={{ borderRadius: "13px", border: "1px solid rgba(255,255,255,.07)", background: "rgba(0,0,0,.12)", padding: "9px" }}>
-      <span style={{ display: "block", color: "rgba(255,255,255,.30)", fontSize: "6px", fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
+      <span style={{ display: "block", color: "rgba(255,255,255,.30)", fontSize: "15px", fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
         {label}
       </span>
-      <strong style={{ display: "block", marginTop: "4px", color: colour, fontSize: "12px" }}>
+      <strong style={{ display: "block", marginTop: "4px", color: colour, fontSize: "18px" }}>
         {value}
       </strong>
     </div>
@@ -419,7 +422,7 @@ const panelStyle = {
 
 const eyebrowStyle = {
   color: "#8ee8ff",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   letterSpacing: "0.12em",
   textTransform: "uppercase" as const,
@@ -428,7 +431,7 @@ const eyebrowStyle = {
 const sectionLabel = {
   margin: 0,
   color: "rgba(255,255,255,.34)",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   letterSpacing: ".10em",
   textTransform: "uppercase" as const,
@@ -438,7 +441,7 @@ const introStyle = {
   margin: "6px 0 0",
   maxWidth: "680px",
   color: "rgba(255,255,255,.40)",
-  fontSize: "8px",
+  fontSize: "15px",
   lineHeight: 1.55,
 };
 
@@ -451,7 +454,7 @@ const neutralBadgeStyle = {
   color: "rgba(255,255,255,.45)",
   display: "inline-flex",
   alignItems: "center",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 900,
   letterSpacing: ".07em",
   textTransform: "uppercase" as const,
@@ -465,7 +468,7 @@ const secondaryButtonStyle = {
   background: "rgba(255,255,255,.035)",
   color: "rgba(255,255,255,.64)",
   fontFamily: "inherit",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   letterSpacing: ".08em",
   textTransform: "uppercase" as const,
@@ -480,7 +483,7 @@ const primaryButtonStyle = {
   background: "rgba(83,215,255,.12)",
   color: "#baf4ff",
   fontFamily: "inherit",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   letterSpacing: ".08em",
   textTransform: "uppercase" as const,

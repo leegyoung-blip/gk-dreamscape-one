@@ -50,7 +50,7 @@ export default function BudgetForecastChart({
           alignItems: "center",
           marginBottom: "8px",
           color: "rgba(255,255,255,.55)",
-          fontSize: "8px",
+          fontSize: "15px",
           fontWeight: 850,
         }}
       >
@@ -63,7 +63,7 @@ export default function BudgetForecastChart({
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label="Thirty-day Budget Simulator forecast showing Available DT, Protected DT and known payment dates"
-        style={{ display: "block", width: "100%", height: "auto", minHeight: "190px" }}
+        style={{ display: "block", width: "100%", height: "auto", minHeight: "270px" }}
       >
         <defs>
           <linearGradient id="availableFill" x1="0" y1="0" x2="0" y2="1">
@@ -87,7 +87,7 @@ export default function BudgetForecastChart({
               y={y(tick) + 4}
               textAnchor="end"
               fill="rgba(255,255,255,.30)"
-              fontSize="10"
+              fontSize="15"
             >
               {tick.toLocaleString()}
             </text>
@@ -101,7 +101,7 @@ export default function BudgetForecastChart({
             y={height - 13}
             textAnchor="middle"
             fill="rgba(255,255,255,.30)"
-            fontSize="10"
+            fontSize="15"
           >
             {day}
           </text>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { BankScreenMode } from "../lib/bank-types";
 import { BUDGET_SIMULATOR_ASSETS } from "../lib/budget-simulator-assets";
+import BudgetInfoButton from "./BudgetInfoButton";
 import {
   BUDGET_DIFFICULTIES,
   BUDGET_SCENARIOS,
@@ -193,7 +194,7 @@ export default function BudgetSimulatorLanding({
   }
 
   return (
-    <div style={{ marginTop: isMobile ? "10px" : "12px" }}>
+    <div style={{ marginTop: isMobile ? "10px" : "12px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       {run && resumeScenario && resumeDifficulty && (
         <section
           style={{
@@ -213,7 +214,7 @@ export default function BudgetSimulatorLanding({
             <div
               style={{
                 color: "#8ee8ff",
-                fontSize: "8px",
+                fontSize: "15px",
                 fontWeight: 950,
                 letterSpacing: "0.12em",
                 textTransform: "uppercase",
@@ -233,7 +234,7 @@ export default function BudgetSimulatorLanding({
               <strong style={{ fontSize: isMobile ? "19px" : "22px" }}>
                 {resumeScenario.title}
               </strong>
-              <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "10px" }}>
+              <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "17px" }}>
                 {resumeDifficulty.title} · Day {run.currentDay} · {run.currentStage.replaceAll("_", " ")}
               </span>
             </div>
@@ -254,7 +255,11 @@ export default function BudgetSimulatorLanding({
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundColor: "rgba(4,12,30,0.88)",
-          padding: isMobile ? "16px" : "20px",
+          padding: isMobile ? "18px" : "24px",
+          flex: 1,
+          minHeight: isMobile ? "calc(100dvh - 200px)" : "calc(100dvh - 220px)",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         <div
@@ -277,13 +282,13 @@ export default function BudgetSimulatorLanding({
                 fontWeight: 500,
               }}
             >
-              Build a budget that survives the month.
+              Build a budget that can handle surprises.
             </h2>
           </div>
           <span
             style={{
               color: "rgba(255,255,255,0.4)",
-              fontSize: "9px",
+              fontSize: "16px",
               fontWeight: 800,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
@@ -342,7 +347,7 @@ export default function BudgetSimulatorLanding({
               <span
                 style={{
                   color: "#8ee8ff",
-                  fontSize: "8px",
+                  fontSize: "15px",
                   fontWeight: 950,
                   letterSpacing: ".12em",
                   textTransform: "uppercase",
@@ -357,7 +362,7 @@ export default function BudgetSimulatorLanding({
                   background: "rgba(255,255,255,.035)",
                   color: DIFFICULTY_TONES[difficulty].accent,
                   padding: "3px 7px",
-                  fontSize: "7px",
+                  fontSize: "14px",
                   fontWeight: 900,
                   letterSpacing: ".08em",
                   textTransform: "uppercase",
@@ -396,7 +401,10 @@ export default function BudgetSimulatorLanding({
         </section>
 
         <div style={{ marginTop: "18px" }}>
-          <p style={sectionLabelStyle}>1 · Choose difficulty</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+            <p style={sectionLabelStyle}>1 · Choose your challenge</p>
+            <BudgetInfoButton title="Challenge levels">Standard keeps the month clearer while you learn the system. Complex adds more competing commitments. Strategic adds the most uncertainty, delayed consequences and overlapping decisions.</BudgetInfoButton>
+          </div>
           <div
             style={{
               marginTop: "8px",
@@ -443,7 +451,7 @@ export default function BudgetSimulatorLanding({
                       gap: "8px",
                     }}
                   >
-                    <strong style={{ display: "block", fontSize: "14px" }}>
+                    <strong style={{ display: "block", fontSize: "20px" }}>
                       {item.title}
                     </strong>
                     {active && (
@@ -453,7 +461,7 @@ export default function BudgetSimulatorLanding({
                           background: tone.accent,
                           color: "#07111f",
                           padding: "3px 7px",
-                          fontSize: "6px",
+                          fontSize: "15px",
                           fontWeight: 950,
                           letterSpacing: ".08em",
                           textTransform: "uppercase",
@@ -468,24 +476,13 @@ export default function BudgetSimulatorLanding({
                       display: "block",
                       marginTop: "5px",
                       color: tone.accent,
-                      fontSize: "8px",
+                      fontSize: "15px",
                       fontWeight: 900,
                       letterSpacing: ".06em",
                       textTransform: "uppercase",
                     }}
                   >
                     {tone.label} · {item.decisionRange}
-                  </span>
-                  <span
-                    style={{
-                      display: "block",
-                      marginTop: "6px",
-                      color: "rgba(255,255,255,0.47)",
-                      fontSize: "9px",
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    {item.description}
                   </span>
                 </button>
               );
@@ -494,7 +491,10 @@ export default function BudgetSimulatorLanding({
         </div>
 
         <div style={{ marginTop: "18px" }}>
-          <p style={sectionLabelStyle}>2 · Choose the month</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+            <p style={sectionLabelStyle}>2 · Choose the month</p>
+            <BudgetInfoButton title="Scenario types">Each month changes the pressure you face. Choose the situation you want to practise: tight cash flow, competing goals, opportunities, uncertain income, heavy commitments or a random mix.</BudgetInfoButton>
+          </div>
           <div
             style={{
               marginTop: "8px",
@@ -538,7 +538,7 @@ export default function BudgetSimulatorLanding({
                   <span
                     style={{
                       color: active ? accent : "rgba(255,255,255,0.35)",
-                      fontSize: "7px",
+                      fontSize: "14px",
                       fontWeight: 950,
                       letterSpacing: "0.1em",
                       textTransform: "uppercase",
@@ -547,7 +547,7 @@ export default function BudgetSimulatorLanding({
                     {scenario.emphasis}
                   </span>
                   <strong
-                    style={{ display: "block", marginTop: "5px", fontSize: "12px" }}
+                    style={{ display: "block", marginTop: "5px", fontSize: "18px" }}
                   >
                     {scenario.title}
                   </strong>
@@ -583,19 +583,11 @@ export default function BudgetSimulatorLanding({
                   boxShadow: `0 0 14px ${SCENARIO_ACCENTS[scenarioKey]}`,
                 }}
               />
-              <strong style={{ fontSize: "12px" }}>{activeScenario.title}</strong>
+              <strong style={{ fontSize: "18px" }}>{activeScenario.title}</strong>
             </div>
-            <p
-              style={{
-                margin: "4px 0 0 15px",
-                maxWidth: "760px",
-                color: "rgba(255,255,255,0.44)",
-                fontSize: "10px",
-                lineHeight: 1.5,
-              }}
-            >
-              {activeScenario.shortDescription}
-            </p>
+            <div style={{ marginTop: "8px", marginLeft: "15px" }}>
+              <BudgetInfoButton title={activeScenario.title}>{activeScenario.shortDescription}</BudgetInfoButton>
+            </div>
           </div>
           <button
             type="button"
@@ -615,8 +607,8 @@ export default function BudgetSimulatorLanding({
               : saving
                 ? "Starting…"
                 : run
-                  ? "Start new run →"
-                  : "Start simulation →"}
+                  ? "Start a new month →"
+                  : "Start month →"}
           </button>
         </div>
 
@@ -630,7 +622,7 @@ export default function BudgetSimulatorLanding({
               background: "rgba(255,80,80,0.085)",
               padding: "10px 12px",
               color: "#ffc1c1",
-              fontSize: "9px",
+              fontSize: "16px",
               lineHeight: 1.5,
             }}
           >
@@ -645,7 +637,7 @@ export default function BudgetSimulatorLanding({
 const eyebrowStyle = {
   margin: 0,
   color: "#8ee8ff",
-  fontSize: "8px",
+  fontSize: "15px",
   fontWeight: 950,
   letterSpacing: "0.14em",
   textTransform: "uppercase" as const,
@@ -654,7 +646,7 @@ const eyebrowStyle = {
 const sectionLabelStyle = {
   margin: 0,
   color: "rgba(255,255,255,0.55)",
-  fontSize: "8px",
+  fontSize: "15px",
   fontWeight: 950,
   letterSpacing: "0.11em",
   textTransform: "uppercase" as const,
@@ -670,7 +662,7 @@ const primaryButtonStyle = {
   color: "#bff6ff",
   cursor: "pointer",
   fontFamily: "inherit",
-  fontSize: "8px",
+  fontSize: "15px",
   fontWeight: 950,
   letterSpacing: "0.08em",
   textTransform: "uppercase" as const,

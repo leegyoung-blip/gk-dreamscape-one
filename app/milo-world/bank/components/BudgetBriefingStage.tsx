@@ -10,6 +10,7 @@ import type {
   BudgetSimulationRun,
 } from "../lib/budget-simulator-types";
 import { BUDGET_SIMULATOR_ASSETS } from "../lib/budget-simulator-assets";
+import BudgetInfoButton from "./BudgetInfoButton";
 
 export default function BudgetBriefingStage({
   run,
@@ -50,7 +51,10 @@ export default function BudgetBriefingStage({
       >
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
           <div>
-            <p style={eyebrowStyle}>Stage 1 · Briefing</p>
+            <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+              <p style={eyebrowStyle}>Stage 1 · Your starting point</p>
+              <BudgetInfoButton title="Your starting point">These are the headline numbers for the month. The next screen lets you inspect the actual payments, goals and uncertain signals before you decide how to allocate your DT.</BudgetInfoButton>
+            </div>
             <h3
               style={{
                 margin: "5px 0 0",
@@ -60,7 +64,7 @@ export default function BudgetBriefingStage({
                 lineHeight: 1.05,
               }}
             >
-              Your month
+              Start with the big picture
             </h3>
           </div>
           <span
@@ -71,7 +75,7 @@ export default function BudgetBriefingStage({
               background: "rgba(255,209,138,.06)",
               color: "#ffd18a",
               padding: "7px 10px",
-              fontSize: "7px",
+              fontSize: "14px",
               fontWeight: 900,
               letterSpacing: ".08em",
               textTransform: "uppercase",
@@ -91,7 +95,7 @@ export default function BudgetBriefingStage({
         >
           <Metric label="Monthly income" value={`${profile.monthlyIncome.toLocaleString()} DT`} />
           <Metric label="Available now" value={`${profile.availableNow.toLocaleString()} DT`} />
-          <Metric label="Known commitments" value={`${commitments.toLocaleString()} DT`} />
+          <Metric label="Bills to cover" value={`${commitments.toLocaleString()} DT`} />
           <Metric label="Active goals" value={String(profile.goals.length)} />
         </div>
 
@@ -121,24 +125,14 @@ export default function BudgetBriefingStage({
             gap: "12px",
           }}
         >
-          <p
-            style={{
-              margin: 0,
-              maxWidth: "620px",
-              color: "rgba(255,255,255,.44)",
-              fontSize: "10px",
-              lineHeight: 1.6,
-            }}
-          >
-            The numbers above are only the headline. The next screen gives you the underlying commitments, goals and signals. Decide what deserves your attention before you build the budget.
-          </p>
+<div />
           <button
             type="button"
             disabled={saving}
             onClick={() => void onContinue()}
             style={primaryButtonStyle}
           >
-            Open Financial Desk →
+            Check the details →
           </button>
         </div>
       </section>
@@ -191,7 +185,7 @@ export default function BudgetBriefingStage({
             style={{
               margin: "6px 0 0",
               color: "rgba(255,255,255,.76)",
-              fontSize: "10px",
+              fontSize: "17px",
               lineHeight: 1.55,
             }}
           >
@@ -201,7 +195,7 @@ export default function BudgetBriefingStage({
             style={{
               margin: "6px 0 0",
               color: "rgba(255,255,255,.40)",
-              fontSize: "8px",
+              fontSize: "15px",
               lineHeight: 1.5,
             }}
           >
@@ -229,7 +223,7 @@ function Metric({ label, value }: { label: string; value: string }) {
           display: "block",
           marginTop: "5px",
           color: "#ffd18a",
-          fontSize: "17px",
+          fontSize: "22px",
           lineHeight: 1.1,
         }}
       >
@@ -255,7 +249,7 @@ function MiniFact({ label, value }: { label: string; value: string }) {
           display: "block",
           marginTop: "3px",
           color: "rgba(255,255,255,.78)",
-          fontSize: "10px",
+          fontSize: "17px",
           lineHeight: 1.35,
         }}
       >
@@ -268,7 +262,7 @@ function MiniFact({ label, value }: { label: string; value: string }) {
 const eyebrowStyle = {
   margin: 0,
   color: "#8ee8ff",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   letterSpacing: ".13em",
   textTransform: "uppercase" as const,
@@ -277,7 +271,7 @@ const eyebrowStyle = {
 const metricLabelStyle = {
   display: "block",
   color: "rgba(255,255,255,.34)",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 850,
   letterSpacing: ".08em",
   textTransform: "uppercase" as const,
@@ -292,7 +286,7 @@ const primaryButtonStyle = {
   color: "#dffaff",
   cursor: "pointer",
   fontFamily: "inherit",
-  fontSize: "8px",
+  fontSize: "15px",
   fontWeight: 950,
   letterSpacing: ".08em",
   textTransform: "uppercase" as const,

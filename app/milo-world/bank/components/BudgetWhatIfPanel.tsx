@@ -12,9 +12,10 @@ import type {
   BudgetLiveMonthState,
   BudgetScenarioKey,
 } from "../lib/budget-simulator-types";
+import BudgetInfoButton from "./BudgetInfoButton";
 
 const CHOICES: Array<{ id: BudgetFinalWeekChoiceId; short: string }> = [
-  { id: "protect_position", short: "Protect liquidity" },
+  { id: "protect_position", short: "Protect cash" },
   { id: "balanced_commitment", short: "Measured commitment" },
   { id: "full_commitment", short: "Full opportunity" },
 ];
@@ -90,15 +91,13 @@ export default function BudgetWhatIfPanel({
         }}
       >
         <div>
-          <p style={eyebrowStyle}>What if?</p>
-          <h4 style={{ margin: "4px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "22px", fontWeight: 500 }}>
-            Replay the same decision with the same month
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><p style={eyebrowStyle}>What if?</p><BudgetInfoButton title="Same month, different choice" accent="#d6ceff">The scenario seed, commitments and your position before the Final Week stay fixed. Only the final decision changes, so you can compare the trade-off fairly.</BudgetInfoButton></div>
+          <h4 style={{ margin: "4px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "28px", fontWeight: 500 }}>
+            Compare another path
           </h4>
-          <p style={{ margin: "5px 0 0", maxWidth: "760px", color: "rgba(255,255,255,.38)", fontSize: "7px", lineHeight: 1.55 }}>
-            The scenario seed, commitments and pre-decision allocation stay fixed. Only the Final Week choice changes, so the comparison isolates the trade-off instead of inventing a different month.
-          </p>
+
         </div>
-        <span style={{ borderRadius: "999px", border: "1px solid rgba(184,168,255,.14)", background: "rgba(184,168,255,.05)", padding: "6px 8px", color: "#d6ceff", fontSize: "6px", fontWeight: 950, textTransform: "uppercase" }}>
+        <span style={{ borderRadius: "999px", border: "1px solid rgba(184,168,255,.14)", background: "rgba(184,168,255,.05)", padding: "6px 8px", color: "#d6ceff", fontSize: "15px", fontWeight: 950, textTransform: "uppercase" }}>
           Same seed · {scenarioSeed}
         </span>
       </div>
@@ -120,7 +119,7 @@ export default function BudgetWhatIfPanel({
                 padding: "0 11px",
                 color: active ? "#e0d9ff" : "rgba(255,255,255,.48)",
                 fontFamily: "inherit",
-                fontSize: "7px",
+                fontSize: "14px",
                 fontWeight: 900,
                 cursor: "pointer",
               }}
@@ -144,13 +143,13 @@ export default function BudgetWhatIfPanel({
             </linearGradient>
           </defs>
           <circle cx="76" cy="60" r="9" fill="#071128" stroke="rgba(255,255,255,.26)" strokeWidth="2" />
-          <text x="76" y="88" textAnchor="middle" fill="rgba(255,255,255,.38)" fontSize="10">Day 26</text>
+          <text x="76" y="88" textAnchor="middle" fill="rgba(255,255,255,.38)" fontSize="15">Day 26</text>
           <path className="budget-path-reveal" d="M86 60 C205 60 230 28 350 28 H675" fill="none" stroke="url(#actualPathGradient)" strokeWidth="4" strokeLinecap="round" />
           <path className="budget-path-reveal budget-path-reveal-alt" d="M86 60 C205 60 230 92 350 92 H675" fill="none" stroke="url(#altPathGradient)" strokeWidth="4" strokeLinecap="round" />
           <circle cx="685" cy="28" r="8" fill="#071128" stroke="#7ee8ff" strokeWidth="2" />
           <circle cx="685" cy="92" r="8" fill="#071128" stroke="#b8a8ff" strokeWidth="2" />
-          <text x="360" y="19" fill="#9defff" fontSize="11" fontWeight="700">Actual</text>
-          <text x="360" y="111" fill="#d6ceff" fontSize="11" fontWeight="700">Alternative</text>
+          <text x="360" y="19" fill="#9defff" fontSize="16" fontWeight="700">Actual</text>
+          <text x="360" y="111" fill="#d6ceff" fontSize="16" fontWeight="700">Alternative</text>
         </svg>
       </div>
 
@@ -177,13 +176,13 @@ export default function BudgetWhatIfPanel({
       {comparison.fundable && comparison.alternativeEndingAvailable !== null && comparison.alternativeEndingProtected !== null && (
         <div style={{ marginTop: "9px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))", gap: "8px" }}>
           <ComparisonBar
-            label="Month-end available DT"
+            label="Available DT at month end"
             actual={comparison.actualEndingAvailable}
             alternative={comparison.alternativeEndingAvailable}
             max={maxAvailable}
           />
           <ComparisonBar
-            label="Month-end protected DT"
+            label="Set-aside DT at month end"
             actual={comparison.actualEndingProtected}
             alternative={comparison.alternativeEndingProtected}
             max={maxProtected}
@@ -192,10 +191,10 @@ export default function BudgetWhatIfPanel({
       )}
 
       <div style={{ marginTop: "9px", borderRadius: "13px", border: "1px solid rgba(255,209,138,.10)", background: "rgba(255,209,138,.035)", padding: "9px 10px" }}>
-        <span style={{ display: "block", color: "#ffd18a", fontSize: "6px", fontWeight: 950, textTransform: "uppercase", letterSpacing: ".08em" }}>Milo's comparison</span>
-        <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,.48)", fontSize: "7px", lineHeight: 1.55 }}>
-          {comparison.interpretation}
-        </p>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "9px" }}>
+          <strong style={{ color: "#ffd18a", fontSize: "18px" }}>Milo's comparison</strong>
+          <BudgetInfoButton title="Milo's comparison" accent="#ffd18a">{comparison.interpretation}</BudgetInfoButton>
+        </div>
       </div>
 
       <style jsx>{`
@@ -241,14 +240,14 @@ function PathCard({
   const accent = tone === "actual" ? "#9defff" : "#d6ceff";
   return (
     <div style={{ borderRadius: "14px", border: `1px solid ${tone === "actual" ? "rgba(126,232,255,.13)" : "rgba(184,168,255,.13)"}`, background: tone === "actual" ? "rgba(126,232,255,.025)" : "rgba(184,168,255,.025)", padding: "10px" }}>
-      <span style={{ color: accent, fontSize: "6px", fontWeight: 950, textTransform: "uppercase", letterSpacing: ".08em" }}>{title}</span>
-      <strong style={{ display: "block", marginTop: "4px", fontSize: "9px", lineHeight: 1.4 }}>{choice}</strong>
+      <span style={{ color: accent, fontSize: "15px", fontWeight: 950, textTransform: "uppercase", letterSpacing: ".08em" }}>{title}</span>
+      <strong style={{ display: "block", marginTop: "4px", fontSize: "16px", lineHeight: 1.4 }}>{choice}</strong>
       <div style={{ marginTop: "7px", display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: "5px" }}>
         <TinyMetric label="Committed" value={`${committed.toLocaleString()} DT`} />
         <TinyMetric label="Available" value={available === null ? "—" : `${available.toLocaleString()} DT`} />
-        <TinyMetric label="Protected" value={protectedAmount === null ? "—" : `${protectedAmount.toLocaleString()} DT`} />
+        <TinyMetric label="Set aside" value={protectedAmount === null ? "—" : `${protectedAmount.toLocaleString()} DT`} />
       </div>
-      {unavailableDetail && <p style={{ margin: "7px 0 0", color: "#ffd3a0", fontSize: "7px", lineHeight: 1.45 }}>{unavailableDetail}</p>}
+      {unavailableDetail && <div style={{ marginTop: "7px" }}><BudgetInfoButton title="Why this path cannot be funded" accent="#ffd3a0">{unavailableDetail}</BudgetInfoButton></div>}
     </div>
   );
 }
@@ -256,8 +255,8 @@ function PathCard({
 function TinyMetric({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ minWidth: 0, borderRadius: "10px", background: "rgba(0,0,0,.15)", padding: "6px" }}>
-      <span style={{ display: "block", color: "rgba(255,255,255,.27)", fontSize: "5px", fontWeight: 900, textTransform: "uppercase" }}>{label}</span>
-      <strong style={{ display: "block", marginTop: "2px", color: "rgba(255,255,255,.7)", fontSize: "7px", overflowWrap: "anywhere" }}>{value}</strong>
+      <span style={{ display: "block", color: "rgba(255,255,255,.27)", fontSize: "14px", fontWeight: 900, textTransform: "uppercase" }}>{label}</span>
+      <strong style={{ display: "block", marginTop: "2px", color: "rgba(255,255,255,.7)", fontSize: "14px", overflowWrap: "anywhere" }}>{value}</strong>
     </div>
   );
 }
@@ -265,7 +264,7 @@ function TinyMetric({ label, value }: { label: string; value: string }) {
 function ComparisonBar({ label, actual, alternative, max }: { label: string; actual: number; alternative: number; max: number }) {
   return (
     <div style={{ borderRadius: "13px", border: "1px solid rgba(255,255,255,.06)", background: "rgba(255,255,255,.016)", padding: "9px" }}>
-      <span style={{ display: "block", color: "rgba(255,255,255,.42)", fontSize: "7px", fontWeight: 850 }}>{label}</span>
+      <span style={{ display: "block", color: "rgba(255,255,255,.42)", fontSize: "14px", fontWeight: 850 }}>{label}</span>
       <BarRow label="Actual" value={actual} width={(actual / max) * 100} tone="actual" />
       <BarRow label="Alternative" value={alternative} width={(alternative / max) * 100} tone="alternative" />
     </div>
@@ -275,11 +274,11 @@ function ComparisonBar({ label, actual, alternative, max }: { label: string; act
 function BarRow({ label, value, width, tone }: { label: string; value: number; width: number; tone: "actual" | "alternative" }) {
   return (
     <div style={{ marginTop: "6px", display: "grid", gridTemplateColumns: "62px minmax(0,1fr) 70px", gap: "6px", alignItems: "center" }}>
-      <span style={{ color: "rgba(255,255,255,.31)", fontSize: "6px" }}>{label}</span>
+      <span style={{ color: "rgba(255,255,255,.31)", fontSize: "15px" }}>{label}</span>
       <div style={{ height: "7px", borderRadius: "999px", background: "rgba(255,255,255,.035)", overflow: "hidden" }}>
         <div style={{ width: `${Math.max(0, Math.min(100, width))}%`, height: "100%", borderRadius: "inherit", background: tone === "actual" ? "#72dff4" : "#a995ff" }} />
       </div>
-      <strong style={{ textAlign: "right", color: tone === "actual" ? "#9defff" : "#d6ceff", fontSize: "6px" }}>{value.toLocaleString()} DT</strong>
+      <strong style={{ textAlign: "right", color: tone === "actual" ? "#9defff" : "#d6ceff", fontSize: "15px" }}>{value.toLocaleString()} DT</strong>
     </div>
   );
 }
@@ -294,7 +293,7 @@ const panelStyle = {
 const eyebrowStyle = {
   margin: 0,
   color: "#8ee8ff",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   letterSpacing: "0.12em",
   textTransform: "uppercase" as const,

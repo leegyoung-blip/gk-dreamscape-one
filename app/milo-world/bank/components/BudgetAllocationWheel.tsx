@@ -50,7 +50,7 @@ export default function BudgetAllocationWheel({
 
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ position: "relative", width: "min(100%, 390px)", margin: "0 auto" }}>
+      <div style={{ position: "relative", width: "min(100%, 460px)", margin: "0 auto" }}>
         <svg viewBox="0 0 320 320" role="img" aria-label="Budget allocation wheel" style={{ width: "100%", display: "block" }}>
           <circle cx="160" cy="160" r="116" fill="rgba(255,255,255,.018)" stroke="rgba(255,255,255,.06)" strokeWidth="2" />
           {arcs.map((arc) => {
@@ -71,13 +71,13 @@ export default function BudgetAllocationWheel({
             );
           })}
           <circle cx="160" cy="160" r="66" fill="rgba(3,10,25,.97)" stroke="rgba(255,255,255,.07)" />
-          <text x="160" y="145" textAnchor="middle" fill="rgba(255,255,255,.38)" fontSize="9" fontWeight="800" letterSpacing="1.2">
+          <text x="160" y="145" textAnchor="middle" fill="rgba(255,255,255,.38)" fontSize="14" fontWeight="800" letterSpacing="1.2">
             {formatBudgetAllocationLabel(selected).toUpperCase()}
           </text>
-          <text x="160" y="169" textAnchor="middle" fill={selected === "unallocated" ? "#c7ced8" : "#ffffff"} fontSize="20" fontWeight="900">
+          <text x="160" y="169" textAnchor="middle" fill={selected === "unallocated" ? "#c7ced8" : "#ffffff"} fontSize="25" fontWeight="900">
             {allocation[selected].toLocaleString()}
           </text>
-          <text x="160" y="185" textAnchor="middle" fill="#ffd18a" fontSize="9" fontWeight="900">
+          <text x="160" y="185" textAnchor="middle" fill="#ffd18a" fontSize="14" fontWeight="900">
             DT
           </text>
         </svg>
@@ -100,7 +100,7 @@ export default function BudgetAllocationWheel({
               type="button"
               onClick={() => onSelect(key)}
               style={{
-                minHeight: "34px",
+                minHeight: "44px",
                 borderRadius: "10px",
                 border: active ? `1px solid ${palette[key]}` : "1px solid rgba(255,255,255,.06)",
                 background: active ? "rgba(255,255,255,.045)" : "rgba(255,255,255,.015)",
@@ -116,10 +116,10 @@ export default function BudgetAllocationWheel({
               }}
             >
               <span style={{ width: "7px", height: "7px", borderRadius: "999px", background: palette[key] }} />
-              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "7px", fontWeight: 850 }}>
+              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "14px", fontWeight: 850 }}>
                 {formatBudgetAllocationLabel(key)}
               </span>
-              <span style={{ color: "rgba(255,255,255,.38)", fontSize: "7px" }}>{pct}%</span>
+              <span style={{ color: "rgba(255,255,255,.38)", fontSize: "14px" }}>{pct}%</span>
             </button>
           );
         })}

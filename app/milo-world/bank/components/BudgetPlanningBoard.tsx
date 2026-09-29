@@ -2,6 +2,7 @@
 
 import type { BankScreenMode } from "../lib/bank-types";
 import type { BudgetPlanningItem } from "../lib/budget-simulator-types";
+import BudgetInfoButton from "./BudgetInfoButton";
 
 export default function BudgetPlanningBoard({
   screenMode,
@@ -31,9 +32,12 @@ export default function BudgetPlanningBoard({
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: "10px" }}>
         <div>
-          <p style={eyebrowStyle}>Planning board</p>
-          <strong style={{ display: "block", marginTop: "4px", fontSize: "13px" }}>
-            What you decided matters
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <p style={eyebrowStyle}>Planning board</p>
+            <BudgetInfoButton title="Planning board">Pin the facts you think matter most. They stay visible while you build your budget, so you can check whether your decisions match your priorities.</BudgetInfoButton>
+          </div>
+          <strong style={{ display: "block", marginTop: "4px", fontSize: "19px" }}>
+            Keep important facts in view
           </strong>
         </div>
         <span
@@ -46,7 +50,7 @@ export default function BudgetPlanningBoard({
             display: "grid",
             placeItems: "center",
             color: "#9ceeff",
-            fontSize: "9px",
+            fontSize: "16px",
             fontWeight: 900,
           }}
         >
@@ -59,11 +63,11 @@ export default function BudgetPlanningBoard({
           style={{
             margin: "11px 0 0",
             color: "rgba(255,255,255,0.38)",
-            fontSize: "9px",
+            fontSize: "16px",
             lineHeight: 1.55,
           }}
         >
-          Pin facts, commitments or goals while you investigate. They stay visible when you build the budget.
+          Nothing pinned yet.
         </p>
       ) : (
         <div
@@ -96,24 +100,20 @@ export default function BudgetPlanningBoard({
                   style={{
                     display: "block",
                     color: "rgba(255,255,255,0.82)",
-                    fontSize: "9px",
+                    fontSize: "16px",
                     lineHeight: 1.3,
                   }}
                 >
                   {item.title}
                 </strong>
-                <span
-                  style={{
-                    display: "block",
-                    marginTop: "3px",
-                    color: "rgba(255,255,255,0.36)",
-                    fontSize: "7px",
-                    lineHeight: 1.45,
-                  }}
-                >
-                  {item.amount != null ? `${item.amount.toLocaleString()} DT · ` : ""}
-                  {item.detail}
-                </span>
+                <div style={{ marginTop: "5px", display: "flex", alignItems: "center", gap: "8px" }}>
+                  {item.amount != null && (
+                    <span style={{ color: "#ffd18a", fontSize: "17px", fontWeight: 900 }}>
+                      {item.amount.toLocaleString()} DT
+                    </span>
+                  )}
+                  <BudgetInfoButton title={item.title}>{item.detail}</BudgetInfoButton>
+                </div>
               </div>
               <button
                 type="button"
@@ -142,7 +142,7 @@ export default function BudgetPlanningBoard({
 const eyebrowStyle = {
   margin: 0,
   color: "#8ee8ff",
-  fontSize: "7px",
+  fontSize: "14px",
   fontWeight: 950,
   letterSpacing: "0.12em",
   textTransform: "uppercase" as const,
