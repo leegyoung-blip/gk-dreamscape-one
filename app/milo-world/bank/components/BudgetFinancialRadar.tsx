@@ -12,8 +12,8 @@ const axes = [
 
 export default function BudgetFinancialRadar({ values }: { values: BudgetRadarValues }) {
   const cx = 150;
-  const cy = 142;
-  const maxRadius = 88;
+  const cy = 112;
+  const maxRadius = 68;
   const axisPoints = axes.map((axis, index) => point(cx, cy, maxRadius, index, axes.length));
   const dataPoints = axes.map((axis, index) =>
     point(cx, cy, (maxRadius * Math.max(0, Math.min(100, values[axis.key]))) / 100, index, axes.length),
@@ -21,7 +21,7 @@ export default function BudgetFinancialRadar({ values }: { values: BudgetRadarVa
 
   return (
     <div>
-      <svg viewBox="0 0 300 286" role="img" aria-label="Financial health radar" style={{ width: "100%", maxWidth: "430px", display: "block", margin: "0 auto" }}>
+      <svg viewBox="0 0 300 224" role="img" aria-label="Financial health radar" style={{ width: "100%", maxWidth: "300px", display: "block", margin: "0 auto" }}>
         {[25, 50, 75, 100].map((level) => {
           const radius = (maxRadius * level) / 100;
           const polygon = axes.map((_, index) => point(cx, cy, radius, index, axes.length));
@@ -51,13 +51,13 @@ export default function BudgetFinancialRadar({ values }: { values: BudgetRadarVa
         ))}
 
         {axes.map((axis, index) => {
-          const labelPoint = point(cx, cy, maxRadius + 27, index, axes.length);
+          const labelPoint = point(cx, cy, maxRadius + 21, index, axes.length);
           return (
             <g key={axis.key}>
-              <text x={labelPoint.x} y={labelPoint.y - 2} textAnchor="middle" fill="rgba(255,255,255,.58)" fontSize="14" fontWeight="800">
+              <text x={labelPoint.x} y={labelPoint.y - 2} textAnchor="middle" fill="rgba(255,255,255,.58)" fontSize="12" fontWeight="800">
                 {axis.label}
               </text>
-              <text x={labelPoint.x} y={labelPoint.y + 10} textAnchor="middle" fill="rgba(255,209,138,.72)" fontSize="13" fontWeight="900">
+              <text x={labelPoint.x} y={labelPoint.y + 10} textAnchor="middle" fill="rgba(255,209,138,.72)" fontSize="11" fontWeight="900">
                 {Math.round(values[axis.key])}
               </text>
             </g>

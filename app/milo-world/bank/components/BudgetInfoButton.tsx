@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -15,105 +15,136 @@ export default function BudgetInfoButton({
   label?: string;
   accent?: string;
 }) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const closeTimerRef = useRef<number | null>(null);
   const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ left: 0, top: 0, side: "right" as "left" | "right" });
+
+  function clearCloseTimer() {
+    if (closeTimerRef.current != null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }
+
+  function updatePosition() {
+    const button = buttonRef.current;
+    if (!button || typeof window === "undefined") return;
+
+    const rect = button.getBoundingClientRect();
+    const tooltipWidth = Math.min(330, Math.max(260, window.innerWidth - 24));
+    const gap = 8;
+    const roomRight = window.innerWidth - rect.right;
+    const side = roomRight >= tooltipWidth + gap ? "right" : "left";
+    const rawLeft = side === "right" ? rect.right + gap : rect.left - tooltipWidth - gap;
+    const left = Math.max(12, Math.min(window.innerWidth - tooltipWidth - 12, rawLeft));
+    const top = Math.max(10, Math.min(window.innerHeight - 120, rect.top + rect.height / 2 - 32));
+
+    setPosition({ left, top, side });
+  }
+
+  function show() {
+    if (typeof window === "undefined") return;
+    clearCloseTimer();
+    updatePosition();
+    setOpen(true);
+  }
+
+  function scheduleHide() {
+    if (typeof window === "undefined") return;
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => setOpen(false), 110);
+  }
 
   useEffect(() => {
     if (!open) return;
+
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") setOpen(false);
     }
+
+    function onPointerDown(event: PointerEvent) {
+      const button = buttonRef.current;
+      if (button?.contains(event.target as Node)) return;
+      setOpen(false);
+    }
+
+    function reposition() {
+      updatePosition();
+    }
+
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    document.addEventListener("pointerdown", onPointerDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
   }, [open]);
 
-  const dialog = open && typeof document !== "undefined"
+  useEffect(() => () => clearCloseTimer(), []);
+
+  const tooltip = open && typeof document !== "undefined"
     ? createPortal(
         <div
-          role="presentation"
-          onClick={() => setOpen(false)}
+          role="tooltip"
+          onMouseEnter={clearCloseTimer}
+          onMouseLeave={scheduleHide}
           style={{
             position: "fixed",
-            inset: 0,
             zIndex: 10000,
-            display: "grid",
-            placeItems: "center",
-            padding: "20px",
-            background: "rgba(1,6,17,.72)",
-            backdropFilter: "blur(10px)",
+            left: `${position.left}px`,
+            top: `${position.top}px`,
+            width: "min(330px, calc(100vw - 24px))",
+            borderRadius: "12px",
+            border: `1px solid ${accent}42`,
+            background: "rgba(5,16,34,.97)",
+            boxShadow: "0 12px 30px rgba(0,0,0,.30)",
+            padding: "10px 11px",
+            color: "white",
+            pointerEvents: "auto",
           }}
         >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label={title}
-            onClick={(event) => event.stopPropagation()}
+          <strong
             style={{
-              width: "min(520px,100%)",
-              borderRadius: "22px",
-              border: `1px solid ${accent}55`,
-              background: "linear-gradient(160deg,rgba(8,24,49,.98),rgba(3,10,25,.98))",
-              boxShadow: "0 28px 90px rgba(0,0,0,.48)",
-              padding: "20px",
-              color: "white",
+              display: "block",
+              color: accent,
+              fontSize: "13px",
+              lineHeight: 1.25,
             }}
           >
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "14px" }}>
-              <div style={{ minWidth: 0 }}>
-                <span
-                  style={{
-                    display: "block",
-                    color: accent,
-                    fontSize: "15px",
-                    fontWeight: 950,
-                    letterSpacing: ".10em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Quick explanation
-                </span>
-                <h4
-                  style={{
-                    margin: "6px 0 0",
-                    fontFamily: 'Georgia, "Times New Roman", serif',
-                    fontSize: "26px",
-                    lineHeight: 1.1,
-                    fontWeight: 500,
-                  }}
-                >
-                  {title}
-                </h4>
-              </div>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="Close explanation"
-                style={{
-                  width: "42px",
-                  height: "42px",
-                  borderRadius: "50%",
-                  border: "1px solid rgba(255,255,255,.12)",
-                  background: "rgba(255,255,255,.05)",
-                  color: "rgba(255,255,255,.78)",
-                  cursor: "pointer",
-                  fontSize: "21px",
-                  fontWeight: 800,
-                  flexShrink: 0,
-                }}
-              >
-                ×
-              </button>
-            </div>
-            <div
-              style={{
-                marginTop: "14px",
-                color: "rgba(255,255,255,.74)",
-                fontSize: "18px",
-                lineHeight: 1.65,
-              }}
-            >
-              {children}
-            </div>
-          </section>
+            {title}
+          </strong>
+          <div
+            style={{
+              marginTop: "4px",
+              color: "rgba(255,255,255,.78)",
+              fontSize: "14px",
+              lineHeight: 1.45,
+            }}
+          >
+            {children}
+          </div>
+          <span
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              top: "18px",
+              [position.side === "right" ? "left" : "right"]: "-5px",
+              width: "9px",
+              height: "9px",
+              transform: "rotate(45deg)",
+              background: "rgba(5,16,34,.97)",
+              borderLeft: position.side === "right" ? `1px solid ${accent}42` : "none",
+              borderBottom: position.side === "right" ? `1px solid ${accent}42` : "none",
+              borderTop: position.side === "left" ? `1px solid ${accent}42` : "none",
+              borderRight: position.side === "left" ? `1px solid ${accent}42` : "none",
+            }}
+          />
         </div>,
         document.body,
       )
@@ -122,27 +153,34 @@ export default function BudgetInfoButton({
   return (
     <>
       <button
+        ref={buttonRef}
         type="button"
+        onMouseEnter={show}
+        onMouseLeave={scheduleHide}
+        onFocus={show}
+        onBlur={scheduleHide}
         onClick={(event) => {
           event.stopPropagation();
-          setOpen(true);
+          if (open) setOpen(false);
+          else show();
         }}
         aria-label={label}
+        aria-expanded={open}
         title={label}
         style={{
-          width: "34px",
-          height: "34px",
-          minWidth: "34px",
+          width: "24px",
+          height: "24px",
+          minWidth: "24px",
           borderRadius: "50%",
-          border: `1px solid ${accent}55`,
-          background: `${accent}14`,
+          border: `1px solid ${accent}52`,
+          background: `${accent}12`,
           color: accent,
           display: "inline-grid",
           placeItems: "center",
           padding: 0,
-          cursor: "pointer",
+          cursor: "help",
           fontFamily: 'Georgia, "Times New Roman", serif',
-          fontSize: "19px",
+          fontSize: "14px",
           fontStyle: "italic",
           fontWeight: 700,
           lineHeight: 1,
@@ -151,7 +189,7 @@ export default function BudgetInfoButton({
       >
         i
       </button>
-      {dialog}
+      {tooltip}
     </>
   );
 }

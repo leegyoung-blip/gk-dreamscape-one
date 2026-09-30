@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useBudgetSimulation } from "../hooks/useBudgetSimulation";
 import type { BankScreenMode } from "../lib/bank-types";
 import { createBudgetScenarioSeed } from "../lib/budget-simulator-scenarios";
@@ -26,6 +26,21 @@ export default function BudgetSimulator({
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
+
+  useEffect(() => {
+    if (screenMode === "mobile" || typeof document === "undefined") return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [screenMode]);
+
   useLayoutEffect(() => {
     if (screenMode === "mobile") return;
 
@@ -33,7 +48,7 @@ export default function BudgetSimulator({
       const node = viewportRef.current;
       if (!node) return;
       const top = node.getBoundingClientRect().top;
-      setViewportHeight(Math.max(0, Math.floor(window.innerHeight - top - 8)));
+      setViewportHeight(Math.max(0, Math.floor(window.innerHeight - top)));
     };
 
     measure();
@@ -67,6 +82,7 @@ export default function BudgetSimulator({
     overflow: "hidden" as const,
     display: "flex",
     flexDirection: "column" as const,
+    background: "#020814",
   };
 
   if (insideRun && simulation.run) {

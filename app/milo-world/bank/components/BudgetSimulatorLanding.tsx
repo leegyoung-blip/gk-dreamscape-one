@@ -86,8 +86,28 @@ const SCENARIO_GUIDANCE: Record<BudgetScenarioKey, string> = {
   random_month: "Random Month mixes pressures and opportunities for a less predictable replay.",
 };
 
-const GAME_OBJECTIVE =
-  "Your mission: reach the end of the month with your important bills covered and enough flexibility for surprises. Choose a challenge level on the left and a month on the right. Then you will build a plan, stress-test it, face changing events, rebalance when needed and compare your final choices with your first plan. There is no single perfect budget.";
+const GUIDE_SLIDE_ONE =
+  "Mission: finish the month with bills paid, cash for surprises and progress towards future goals. Build a plan, stress-test it, react to events and rebalance when needed.\n\nScore /100: Bills 30 · Cash buffer 20 · Emergency protection 20 · Saving & goals 15 · Decision quality 15. Hoarding cash alone will not maximise the score.";
+
+const CHALLENGE_STARS: Record<BudgetDifficulty, number> = {
+  standard: 2,
+  complex: 4,
+  strategic: 5,
+};
+
+const SCENARIO_STARS: Record<BudgetScenarioKey, number> = {
+  starter: 1,
+  tight_month: 3,
+  goal_conflict: 3,
+  opportunity_month: 3,
+  uncertain_income: 4,
+  high_commitments: 4,
+  random_month: 5,
+};
+
+function combinedDifficultyStars(difficulty: BudgetDifficulty, scenarioKey: BudgetScenarioKey) {
+  return Math.max(1, Math.min(5, Math.round((CHALLENGE_STARS[difficulty] + SCENARIO_STARS[scenarioKey]) / 2)));
+}
 
 function useTypewriter(text: string) {
   const [visible, setVisible] = useState("");
@@ -143,14 +163,17 @@ export default function BudgetSimulatorLanding({
   const compact = screenMode === "compact";
   const [difficulty, setDifficulty] = useState<BudgetDifficulty>("standard");
   const [scenarioKey, setScenarioKey] = useState<BudgetScenarioKey>("starter");
+  const [guideSlide, setGuideSlide] = useState<0 | 1>(0);
 
   const activeScenario = useMemo(() => getBudgetScenario(scenarioKey), [scenarioKey]);
   const activeDifficulty = useMemo(() => getBudgetDifficulty(difficulty), [difficulty]);
   const selectionMessage = useMemo(
-    () => `${GAME_OBJECTIVE}\n\nYou selected ${activeDifficulty.title} + ${activeScenario.title}. ${DIFFICULTY_GUIDANCE[difficulty]} ${SCENARIO_GUIDANCE[scenarioKey]}`,
+    () => `You selected ${activeDifficulty.title} + ${activeScenario.title}. ${DIFFICULTY_GUIDANCE[difficulty]} ${SCENARIO_GUIDANCE[scenarioKey]} Think about how much uncertainty you want before you start.`,
     [activeDifficulty.title, activeScenario.title, difficulty, scenarioKey],
   );
-  const typedGuideMessage = useTypewriter(selectionMessage);
+  const guideMessage = guideSlide === 0 ? GUIDE_SLIDE_ONE : selectionMessage;
+  const typedGuideMessage = useTypewriter(guideMessage);
+  const starRating = combinedDifficultyStars(difficulty, scenarioKey);
 
   const resumeScenario = run ? getBudgetScenario(run.scenarioKey) : null;
   const resumeDifficulty = run ? getBudgetDifficulty(run.difficulty) : null;
@@ -263,15 +286,40 @@ export default function BudgetSimulatorLanding({
             />
           </div>
           <div style={{ padding: "12px 16px 12px 0", minWidth: 0 }}>
-            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px" }}>
-              <span style={{ color: "#8ee8ff", fontSize: "15px", fontWeight: 950, letterSpacing: ".12em", textTransform: "uppercase" }}>Milo's guide</span>
-              <span style={{ borderRadius: "999px", border: `1px solid ${DIFFICULTY_TONES[difficulty].border}`, background: "rgba(255,255,255,.055)", color: DIFFICULTY_TONES[difficulty].accent, padding: "4px 8px", fontSize: "13px", fontWeight: 900, letterSpacing: ".06em", textTransform: "uppercase" }}>
-                {activeDifficulty.title} · {activeScenario.title}
-              </span>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px" }}>
+                <span style={{ color: "#8ee8ff", fontSize: "15px", fontWeight: 950, letterSpacing: ".12em", textTransform: "uppercase" }}>Milo's guide</span>
+                <span style={{ borderRadius: "999px", border: `1px solid ${DIFFICULTY_TONES[difficulty].border}`, background: "rgba(255,255,255,.055)", color: DIFFICULTY_TONES[difficulty].accent, padding: "4px 8px", fontSize: "13px", fontWeight: 900, letterSpacing: ".06em", textTransform: "uppercase" }}>
+                  {guideSlide === 0 ? "Mission · scoring" : `${activeDifficulty.title} · ${activeScenario.title}`}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                {[0, 1].map((slide) => (
+                  <button
+                    key={slide}
+                    type="button"
+                    onClick={() => setGuideSlide(slide as 0 | 1)}
+                    aria-label={`Show Milo guide slide ${slide + 1}`}
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "999px",
+                      border: guideSlide === slide ? "1px solid rgba(126,232,255,.44)" : "1px solid rgba(255,255,255,.09)",
+                      background: guideSlide === slide ? "rgba(126,232,255,.13)" : "rgba(255,255,255,.025)",
+                      color: guideSlide === slide ? "#bdf6ff" : "rgba(255,255,255,.46)",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      fontWeight: 950,
+                    }}
+                  >
+                    {slide + 1}
+                  </button>
+                ))}
+              </div>
             </div>
-            <p aria-live="polite" style={{ margin: "7px 0 0", minHeight: "68px", maxWidth: "1200px", color: "rgba(255,255,255,.84)", fontSize: compact ? "14px" : "15px", lineHeight: 1.48, whiteSpace: "pre-line" }}>
+            <p aria-live="polite" style={{ margin: "7px 0 0", minHeight: "74px", maxWidth: "1200px", color: "rgba(255,255,255,.84)", fontSize: compact ? "14px" : "15px", lineHeight: 1.46, whiteSpace: "pre-line" }}>
               {typedGuideMessage}
-              <span aria-hidden="true" style={{ display: "inline-block", width: "1px", height: "1em", marginLeft: "2px", verticalAlign: "-2px", background: "#8ee8ff", opacity: typedGuideMessage.length < selectionMessage.length ? 0.9 : 0.22 }} />
+              <span aria-hidden="true" style={{ display: "inline-block", width: "1px", height: "1em", marginLeft: "2px", verticalAlign: "-2px", background: "#8ee8ff", opacity: typedGuideMessage.length < guideMessage.length ? 0.9 : 0.22 }} />
             </p>
           </div>
         </section>
@@ -299,7 +347,7 @@ export default function BudgetSimulatorLanding({
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setDifficulty(item.id)}
+                    onClick={() => { setDifficulty(item.id); setGuideSlide(1); }}
                     aria-pressed={active}
                     style={{
                       position: "relative",
@@ -354,7 +402,7 @@ export default function BudgetSimulatorLanding({
                   <button
                     key={scenario.id}
                     type="button"
-                    onClick={() => setScenarioKey(scenario.id)}
+                    onClick={() => { setScenarioKey(scenario.id); setGuideSlide(1); }}
                     aria-pressed={active}
                     style={{
                       minHeight: 0,
@@ -397,11 +445,19 @@ export default function BudgetSimulatorLanding({
             flexShrink: 0,
           }}
         >
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span aria-hidden="true" style={{ width: "8px", height: "8px", borderRadius: "999px", background: SCENARIO_ACCENTS[scenarioKey], boxShadow: `0 0 14px ${SCENARIO_ACCENTS[scenarioKey]}` }} />
               <strong style={{ fontSize: "16px" }}>{activeDifficulty.title} · {activeScenario.title}</strong>
               <BudgetInfoButton title={activeScenario.title}>{activeScenario.shortDescription}</BudgetInfoButton>
+            </div>
+            <div aria-label={`${starRating} out of 5 difficulty`} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <span style={{ color: "rgba(255,255,255,.40)", fontSize: "12px", fontWeight: 900, letterSpacing: ".07em", textTransform: "uppercase" }}>Difficulty</span>
+              <span style={{ display: "inline-flex", gap: "2px" }}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <span key={star} aria-hidden="true" style={{ color: star <= starRating ? "#ffd166" : "rgba(255,255,255,.18)", fontSize: "17px", textShadow: star <= starRating ? "0 0 10px rgba(255,209,102,.28)" : "none" }}>★</span>
+                ))}
+              </span>
             </div>
           </div>
           <button

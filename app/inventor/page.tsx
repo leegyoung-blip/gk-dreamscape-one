@@ -199,6 +199,7 @@ type Zone = {
   href: string;
   icon: string;
   accent: string;
+  activityLabel: string;
   accessKey: NovaZoneKey;
   adminOnly?: boolean;
   statusLabel?: string;
@@ -209,9 +210,10 @@ type WalkthroughStep = {
   title: string;
   text: string;
   zoneNumber?: string;
+  showActivityLegend?: boolean;
 };
 
-const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v5";
+const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v6";
 const ROVER_ORIGIN_STORAGE_KEY = "dreamscape-rover-origin";
 const ROVER_NOVA_RETURN_PATH_STORAGE_KEY =
   "dreamscape-rover-nova-return-path";
@@ -237,6 +239,7 @@ const zones: Zone[] = [
     accessKey: "think_lab",
     icon: "◇",
     accent: "#53d7ff",
+    activityLabel: "Academic Challenge",
   },
   {
     id: "nova-home",
@@ -247,6 +250,7 @@ const zones: Zone[] = [
     accessKey: "nova_home",
     icon: "⌂",
     accent: "#c58cff",
+    activityLabel: "Play & Build",
   },
   {
     id: "missions-centre",
@@ -256,7 +260,8 @@ const zones: Zone[] = [
     href: "/learning-missions",
     accessKey: "missions_centre",
     icon: "✦",
-    accent: "#8dfcff",
+    accent: "#f6c453",
+    activityLabel: "Pure Academics",
   },
   {
     id: "knowledge-arena",
@@ -266,7 +271,8 @@ const zones: Zone[] = [
     href: "/learning-missions/knowledge-arena",
     accessKey: "knowledge_arena",
     icon: "◎",
-    accent: "#ffd27d",
+    accent: "#53d7ff",
+    activityLabel: "Academic Challenge",
   },
   {
     id: "skyforge-hangar",
@@ -276,7 +282,8 @@ const zones: Zone[] = [
     href: ROVER_FROM_NOVA_HREF,
     accessKey: "skyforge_hangar",
     icon: "⇧",
-    accent: "#8effc1",
+    accent: "#c58cff",
+    activityLabel: "Play & Build",
   },
 ];
 
@@ -284,7 +291,13 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     eyebrow: "Hi, I’m Nova",
     title: "Want me to show you around?",
-    text: "I can show you where we think, learn, earn rewards, build your own space, and launch your rover. It only takes a moment.",
+    text: "I’ll show you the three kinds of zones, how rewards work, and what you can do in each location. We’ll finish the tour before you choose where to go.",
+  },
+  {
+    eyebrow: "Three Activity Types",
+    title: "The colours tell you what kind of zone it is.",
+    text: "Blue zones are academic challenges, purple zones are for play and building, and the gold zone is for pure academics in English, Maths, and Science.",
+    showActivityLegend: true,
   },
   {
     eyebrow: "Your Rewards",
@@ -292,39 +305,39 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     text: "Dream Tokens, or DT, are used for play, upgrades, and building inside Dreamscape. Dream Gems, or DG, are special learning rewards earned through eligible activities.",
   },
   {
-    eyebrow: "Stop 1 of 5",
+    eyebrow: "Blue · Academic Challenge · Stop 1 of 5",
     title: "This is my Think Lab.",
-    text: "I come here to sharpen my logic, spot patterns, and stretch my reasoning. Want to try a game with me?",
+    text: "Think Lab is a blue academic challenge zone. Come here to sharpen logic, spot patterns, build memory, and stretch your reasoning through thinking games.",
     zoneNumber: "1",
   },
   {
-    eyebrow: "Stop 2 of 5",
+    eyebrow: "Purple · Play & Build · Stop 2 of 5",
     title: "This is Nova’s Home.",
-    text: "Earn Dream Tokens, unlock new spaces, play at home, and make Nova’s Home feel like yours.",
+    text: "Nova’s Home is a purple play zone. Use Dream Tokens to unlock spaces, customise the world around you, and enjoy activities you have earned through learning.",
     zoneNumber: "2",
   },
   {
-    eyebrow: "Stop 3 of 5",
+    eyebrow: "Gold · Pure Academics · Stop 3 of 5",
     title: "Our missions launch from here.",
-    text: "The Missions Centre is where we tackle English, Maths, Science, and bigger learning challenges together — with progress and rewards along the way.",
+    text: "The Missions Centre is the gold pure-academics zone. This is where you work through structured English, Maths, Science, and larger curriculum learning missions.",
     zoneNumber: "3",
   },
   {
-    eyebrow: "Stop 4 of 5",
-    title: "Ready for the Knowledge Arena?",
-    text: "Jump straight into the Knowledge Arena whenever you want a fast quiz challenge without going through the Missions Centre first.",
+    eyebrow: "Blue · Academic Challenge · Stop 4 of 5",
+    title: "This is the Knowledge Arena.",
+    text: "Knowledge Arena is a blue academic challenge zone. Test what you know in fast-paced quiz battles and turn curriculum practice into a challenge.",
     zoneNumber: "4",
   },
   {
-    eyebrow: "Stop 5 of 5",
+    eyebrow: "Purple · Play & Build · Stop 5 of 5",
     title: "And this is Skyforge Hangar.",
-    text: "This shortcut takes you straight to your rover, where you can check your build and head into rover challenges without going through Core Missions first.",
+    text: "Skyforge Hangar is a purple play zone. Check your rover, upgrade your build, and launch into rover challenges using what you have earned and unlocked.",
     zoneNumber: "5",
   },
   {
-    eyebrow: "You’re ready",
-    title: "Where should we go first?",
-    text: "Choose a place and I’ll meet you there. You can open Nova Guide again anytime you want a reminder.",
+    eyebrow: "Tour complete",
+    title: "Where do you want to start?",
+    text: "That’s the whole tour. Pick any location below and I’ll take you there. You can open Nova Guide again anytime you want a reminder.",
   },
 ];
 
@@ -2462,8 +2475,8 @@ function NovaHotspot({
           ? `1px solid ${zone.accent}`
           : `1px solid ${zone.accent}70`,
         background: isActive
-          ? "rgba(3,18,40,0.92)"
-          : "rgba(3,18,40,0.68)",
+          ? `linear-gradient(135deg, ${zone.accent}38, rgba(3,18,40,0.96))`
+          : `linear-gradient(135deg, ${zone.accent}20, rgba(3,18,40,0.78))`,
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         color: "white",
@@ -2555,8 +2568,7 @@ function NovaZoneHoverPopup({
         border: `${isHighlighted || isSelected ? 2 : 1}px solid ${
           zone.accent
         }${isHighlighted || isSelected ? "" : "aa"}`,
-        background:
-          "linear-gradient(145deg, rgba(8,35,70,0.97), rgba(3,13,34,0.985))",
+        background: `linear-gradient(145deg, ${zone.accent}24, rgba(3,13,34,0.985) 46%)`,
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
         boxShadow:
@@ -2605,7 +2617,7 @@ function NovaZoneHoverPopup({
           fontWeight: 850,
         }}
       >
-        Location {zone.number}
+        {zone.activityLabel} · Location {zone.number}
       </p>
 
       <h2
@@ -2713,8 +2725,7 @@ function CompactZoneInfoCard({
           transform: "translateX(-50%)",
           borderRadius: "22px",
           border: `1px solid ${zone.accent}aa`,
-          background:
-            "linear-gradient(145deg, rgba(7,31,64,0.985), rgba(3,11,29,0.99))",
+          background: `linear-gradient(145deg, ${zone.accent}24, rgba(3,11,29,0.99) 48%)`,
           boxShadow: `0 0 34px ${zone.accent}32, 0 28px 72px rgba(0,0,0,0.58)`,
           color: "white",
           padding: "20px",
@@ -2780,7 +2791,7 @@ function CompactZoneInfoCard({
                 fontWeight: 850,
               }}
             >
-              Nova’s World Location
+              {zone.activityLabel}
             </p>
             <h2
               style={{
@@ -2869,15 +2880,15 @@ function ZoneCard({
     padding: isMobile ? "16px" : "20px 24px 20px 20px",
     borderRadius: "16px",
     border: isEmphasised
-      ? "1px solid rgba(142,232,255,0.88)"
+      ? `1px solid ${zone.accent}e0`
       : isLocked
         ? "1px solid rgba(255,209,138,0.34)"
-        : "1px solid rgba(135,216,255,0.32)",
+        : `1px solid ${zone.accent}66`,
     background: isEmphasised
-      ? "rgba(4,22,48,0.95)"
+      ? `linear-gradient(145deg, ${zone.accent}34, rgba(3,11,29,0.96))`
       : isLocked
         ? "linear-gradient(145deg, rgba(42,30,35,0.82), rgba(14,18,38,0.82))"
-        : "rgba(7,20,45,0.72)",
+        : `linear-gradient(145deg, ${zone.accent}1c, rgba(7,20,45,0.78))`,
     color: "white",
     textDecoration: "none",
     textAlign: "left",
@@ -2885,12 +2896,12 @@ function ZoneCard({
     backdropFilter: "blur(18px)",
     WebkitBackdropFilter: "blur(18px)",
     boxShadow: walkthroughHighlighted
-      ? "0 0 0 3px rgba(83,215,255,0.18), 0 0 54px rgba(83,215,255,0.48), 0 28px 74px rgba(0,0,0,0.55)"
+      ? `0 0 0 3px ${zone.accent}24, 0 0 54px ${zone.accent}72, 0 28px 74px rgba(0,0,0,0.55)`
       : hovered && !isLocked
-        ? "0 0 42px rgba(83,215,255,0.28), 0 26px 70px rgba(0,0,0,0.42)"
+        ? `0 0 42px ${zone.accent}48, 0 26px 70px rgba(0,0,0,0.42)`
         : isLocked
           ? "0 14px 34px rgba(0,0,0,0.3), inset 0 0 24px rgba(255,186,94,0.04)"
-          : "0 14px 34px rgba(0,0,0,0.3)",
+          : `0 14px 34px rgba(0,0,0,0.3), inset 0 0 28px ${zone.accent}0b`,
     opacity:
       walkthroughActive && !walkthroughHighlighted
         ? 0.2
@@ -2927,16 +2938,16 @@ function ZoneCard({
           alignItems: "center",
           justifyContent: "center",
           fontSize: isMobile ? "20px" : "23px",
-          color: isLocked ? "#ffd18a" : "#8ee8ff",
+          color: isLocked ? "#ffd18a" : zone.accent,
           background: isLocked
             ? "radial-gradient(circle, rgba(255,186,94,0.18), rgba(23,14,24,0.92))"
-            : "radial-gradient(circle, rgba(83,215,255,0.22), rgba(2,8,19,0.9))",
+            : `radial-gradient(circle, ${zone.accent}32, rgba(2,8,19,0.9))`,
           border: isLocked
             ? "1px solid rgba(255,209,138,0.42)"
-            : "1px solid rgba(83,215,255,0.48)",
+            : `1px solid ${zone.accent}88`,
           boxShadow: isLocked
             ? "0 0 22px rgba(255,186,94,0.1), inset 0 0 18px rgba(255,186,94,0.05)"
-            : "0 0 22px rgba(83,215,255,0.22), inset 0 0 18px rgba(83,215,255,0.08)",
+            : `0 0 22px ${zone.accent}42, inset 0 0 18px ${zone.accent}18`,
         }}
       >
         {zone.icon}
@@ -2946,7 +2957,7 @@ function ZoneCard({
         style={{
           width: "1px",
           height: isMobile ? "52px" : "58px",
-          background: "rgba(255,255,255,0.16)",
+          background: `${zone.accent}38`,
         }}
       />
 
@@ -2962,7 +2973,7 @@ function ZoneCard({
             style={{
               flexShrink: 0,
               fontSize: isMobile ? "15px" : "18px",
-              color: "rgba(255,255,255,0.86)",
+              color: isLocked ? "#ffd18a" : zone.accent,
               lineHeight: 1.2,
             }}
           >
@@ -2991,6 +3002,27 @@ function ZoneCard({
               >
                 {zone.title}
               </h2>
+
+              <span
+                style={{
+                  minHeight: "22px",
+                  padding: "0 8px",
+                  borderRadius: "999px",
+                  border: `1px solid ${zone.accent}66`,
+                  background: `${zone.accent}16`,
+                  color: zone.accent,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: isMobile ? "7px" : "8px",
+                  fontWeight: 900,
+                  letterSpacing: "0.09em",
+                  textTransform: "uppercase",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {zone.activityLabel}
+              </span>
 
               {zone.statusLabel && (
                 <span
@@ -3065,15 +3097,15 @@ function ZoneCard({
           borderRadius: "999px",
           border: isLocked
             ? "1px solid rgba(255,209,138,0.3)"
-            : "1px solid rgba(126,232,255,0.16)",
+            : `1px solid ${zone.accent}42`,
           background: isLocked
             ? "rgba(255,186,94,0.08)"
-            : "rgba(83,215,255,0.05)",
+            : `${zone.accent}12`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           fontSize: isLocked ? (isMobile ? "16px" : "18px") : isMobile ? "22px" : "26px",
-          color: isLocked ? "#ffd18a" : "rgba(255,255,255,0.78)",
+          color: isLocked ? "#ffd18a" : zone.accent,
         }}
       >
         {isLocked ? "🔒" : "→"}
@@ -3590,7 +3622,8 @@ function GuidedWalkthrough({
   const isMobile = screenMode === "mobile";
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
   const isFirstStep = stepIndex === 0;
-  const isRewardsStep = stepIndex === 1;
+  const isRewardsStep = step.eyebrow === "Your Rewards";
+  const isActivityTypesStep = Boolean(step.showActivityLegend);
   const isThinkStep = step.zoneNumber === "1";
   const isHomeStep = step.zoneNumber === "2";
   const isMissionsStep = step.zoneNumber === "3";
@@ -3790,6 +3823,64 @@ function GuidedWalkthrough({
           )}
         </p>
 
+        {isActivityTypesStep && (
+          <div
+            style={{
+              marginTop: "16px",
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: "8px",
+            }}
+          >
+            {[
+              { label: "Academic Challenge", colour: "#53d7ff", note: "Think Lab · Knowledge Arena" },
+              { label: "Play & Build", colour: "#c58cff", note: "Nova’s Home · Skyforge Hangar" },
+              { label: "Pure Academics", colour: "#f6c453", note: "Missions Centre" },
+            ].map((item) => (
+              <div
+                key={item.label}
+                style={{
+                  minHeight: isMobile ? "86px" : "94px",
+                  padding: isMobile ? "10px 8px" : "12px 10px",
+                  borderRadius: "16px",
+                  border: `1px solid ${item.colour}66`,
+                  background: `linear-gradient(145deg, ${item.colour}20, rgba(3,11,29,0.72))`,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textAlign: "center",
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: "30px",
+                    height: "8px",
+                    borderRadius: "999px",
+                    background: item.colour,
+                    boxShadow: `0 0 18px ${item.colour}88`,
+                    marginBottom: "9px",
+                  }}
+                />
+                <strong style={{ fontSize: isMobile ? "9px" : "10px", color: item.colour }}>
+                  {item.label}
+                </strong>
+                <small
+                  style={{
+                    marginTop: "5px",
+                    fontSize: isMobile ? "7px" : "8px",
+                    lineHeight: 1.3,
+                    color: "rgba(255,255,255,0.62)",
+                  }}
+                >
+                  {item.note}
+                </small>
+              </div>
+            ))}
+          </div>
+        )}
+
         {isRewardsStep && (
           <div
             style={{
@@ -3859,131 +3950,26 @@ function GuidedWalkthrough({
                   onClick={() => onStepChange(1)}
                   style={actionStyle}
                 >
-                  Sure!
-                </button>
-              </>
-            ) : isThinkStep ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onStepChange(stepIndex + 1)}
-                  style={secondaryStyle}
-                >
-                  Keep touring
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate("/nova/thinking-skills-lab")}
-                  style={actionStyle}
-                >
-                  Sure! Let’s play
-                </button>
-              </>
-            ) : isHomeStep ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onStepChange(stepIndex + 1)}
-                  style={secondaryStyle}
-                >
-                  Keep touring
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate("/inventor/hub")}
-                  style={actionStyle}
-                >
-                  Visit Nova’s Home
-                </button>
-              </>
-            ) : isMissionsStep ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onStepChange(stepIndex + 1)}
-                  style={secondaryStyle}
-                >
-                  Keep touring
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate("/learning-missions")}
-                  style={actionStyle}
-                >
-                  Enter Missions Centre
-                </button>
-              </>
-            ) : isKnowledgeStep ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onStepChange(stepIndex + 1)}
-                  style={secondaryStyle}
-                >
-                  Keep touring
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate("/learning-missions/knowledge-arena")}
-                  style={actionStyle}
-                >
-                  Enter Knowledge Arena
-                </button>
-              </>
-            ) : isHangarStep ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onStepChange(stepIndex + 1)}
-                  style={secondaryStyle}
-                >
-                  Keep touring
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate(ROVER_FROM_NOVA_HREF)}
-                  style={actionStyle}
-                >
-                  Go to My Rover
+                  Start tour
                 </button>
               </>
             ) : isLastStep ? (
               <>
-                <button
-                  type="button"
-                  onClick={() => onNavigate("/nova/thinking-skills-lab")}
-                  style={secondaryStyle}
-                >
-                  Think Lab
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate("/inventor/hub")}
-                  style={secondaryStyle}
-                >
-                  Nova’s Home
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate("/learning-missions")}
-                  style={secondaryStyle}
-                >
-                  Missions Centre
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate("/learning-missions/knowledge-arena")}
-                  style={secondaryStyle}
-                >
-                  Knowledge Arena
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate(ROVER_FROM_NOVA_HREF)}
-                  style={actionStyle}
-                >
-                  Skyforge Hangar
-                </button>
+                {zones.map((zone) => (
+                  <button
+                    key={zone.id}
+                    type="button"
+                    onClick={() => onNavigate(zone.href)}
+                    style={{
+                      ...secondaryStyle,
+                      border: `1px solid ${zone.accent}88`,
+                      background: `${zone.accent}18`,
+                      color: zone.accent,
+                    }}
+                  >
+                    {zone.title}
+                  </button>
+                ))}
               </>
             ) : (
               <>

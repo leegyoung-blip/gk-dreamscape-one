@@ -19,6 +19,8 @@ export default function BudgetPlanningBoard({
   const pinned = pinnedIds
     .map((id) => items.find((item) => item.id === id))
     .filter((item): item is BudgetPlanningItem => Boolean(item));
+  const visiblePinned = pinned.slice(0, 3);
+  const hiddenCount = Math.max(0, pinned.length - visiblePinned.length);
 
   return (
     <aside
@@ -28,6 +30,9 @@ export default function BudgetPlanningBoard({
         background: "rgba(5,18,40,0.72)",
         padding: isMobile ? "12px" : "14px",
         minWidth: 0,
+        height: "100%",
+        minHeight: 0,
+        overflow: "hidden",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: "10px" }}>
@@ -80,7 +85,7 @@ export default function BudgetPlanningBoard({
             paddingBottom: isMobile ? "2px" : 0,
           }}
         >
-          {pinned.map((item) => (
+          {visiblePinned.map((item) => (
             <div
               key={item.id}
               style={{
@@ -133,6 +138,11 @@ export default function BudgetPlanningBoard({
               </button>
             </div>
           ))}
+        </div>
+      )}
+      {hiddenCount > 0 && (
+        <div style={{ marginTop: "6px", color: "rgba(255,255,255,.38)", fontSize: "13px", fontWeight: 800 }}>
+          +{hiddenCount} more pinned item{hiddenCount === 1 ? "" : "s"}
         </div>
       )}
     </aside>

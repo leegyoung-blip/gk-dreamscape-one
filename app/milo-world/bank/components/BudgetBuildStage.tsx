@@ -65,7 +65,7 @@ export default function BudgetBuildStage({
     : allocation.unallocated;
 
   return (
-    <div style={{ width: "100%" }}>
+    <div style={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div
         style={{
           display: "flex",
@@ -100,12 +100,15 @@ export default function BudgetBuildStage({
 
       <div
         style={{
-          marginTop: "12px",
+          marginTop: "5px",
           display: "grid",
           gridTemplateColumns:
-            isMobile ? "1fr" : screenMode === "compact" ? "1fr" : "minmax(0,1.2fr) minmax(330px,.8fr)",
-          gap: "12px",
-          alignItems: "start",
+            isMobile ? "1fr" : screenMode === "compact" ? "1fr" : "minmax(0,1.18fr) minmax(320px,.82fr)",
+          gap: "10px",
+          alignItems: "stretch",
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
         }}
       >
         <section
@@ -114,15 +117,20 @@ export default function BudgetBuildStage({
             borderRadius: "20px",
             border: "1px solid rgba(126,232,255,.13)",
             background: "rgba(4,12,30,.78)",
-            padding: isMobile ? "13px" : "16px",
+            padding: isMobile ? "12px" : "11px",
+            height: "100%",
+            minHeight: 0,
+            overflow: "hidden",
           }}
         >
           <div
             style={{
               display: "grid",
               gridTemplateColumns: isMobile ? "1fr" : "minmax(250px,.9fr) minmax(280px,1.1fr)",
-              gap: "14px",
-              alignItems: "start",
+              gap: "10px",
+              alignItems: "stretch",
+              height: "100%",
+              minHeight: 0,
             }}
           >
             <BudgetAllocationWheel
@@ -138,7 +146,7 @@ export default function BudgetBuildStage({
                   borderRadius: "16px",
                   border: "1px solid rgba(255,255,255,.07)",
                   background: "rgba(255,255,255,.02)",
-                  padding: "12px",
+                  padding: "9px 10px",
                 }}
               >
                 <p style={{ margin: 0, color: "rgba(255,255,255,.34)", fontSize: "14px", fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
@@ -148,13 +156,13 @@ export default function BudgetBuildStage({
                   <BudgetAssetIcon
                     src={budgetAllocationAsset(selected)}
                     alt={`${formatBudgetAllocationLabel(selected)} visual`}
-                    size={50}
+                    size={42}
                     muted={selected === "unallocated"}
                   />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline", flexWrap: "wrap" }}>
-                      <strong style={{ fontSize: "21px" }}>{formatBudgetAllocationLabel(selected)}</strong>
-                      <strong style={{ color: "#ffd18a", fontSize: "23px" }}>{`$${allocation[selected].toLocaleString()}`}</strong>
+                      <strong style={{ fontSize: "18px" }}>{formatBudgetAllocationLabel(selected)}</strong>
+                      <strong style={{ color: "#ffd18a", fontSize: "20px" }}>{`$${allocation[selected].toLocaleString()}`}</strong>
                     </div>
                     <div style={{ marginTop: "7px" }}>
                       <BudgetInfoButton title={formatBudgetAllocationLabel(selected)}>
@@ -185,9 +193,9 @@ export default function BudgetBuildStage({
                       step={10}
                       value={allocation[selected]}
                       onChange={(event: { target: { value: string } }) => setValue(selected as Exclude<BudgetAllocationKey, "unallocated">, Number(event.target.value))}
-                      style={{ width: "100%", marginTop: "12px", accentColor: "#7ee8ff" }}
+                      style={{ width: "100%", marginTop: "5px", accentColor: "#7ee8ff" }}
                     />
-                    <div style={{ marginTop: "8px", display: "grid", gridTemplateColumns: "minmax(0,1fr) 112px", gap: "8px", alignItems: "center" }}>
+                    <div style={{ marginTop: "6px", display: "grid", gridTemplateColumns: "minmax(0,1fr) 102px", gap: "8px", alignItems: "center" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <span style={{ color: "rgba(255,255,255,.58)", fontSize: "16px", fontWeight: 800 }}>Set amount</span>
                         <BudgetInfoButton title="Set an amount">Use the slider for quick changes or type an exact dollar amount. Any money you have not assigned stays in Still flexible.</BudgetInfoButton>
@@ -212,7 +220,7 @@ export default function BudgetBuildStage({
                 {selected === "investing" && <InvestmentReference />}
               </div>
 
-              <div style={{ marginTop: "8px", display: "grid", gap: "6px" }}>
+              <div style={{ marginTop: "6px", display: "grid", gap: "4px" }}>
                 {budgetAllocationKeys().map((key) => {
                   const max =
                     pool -
@@ -224,13 +232,13 @@ export default function BudgetBuildStage({
                       key={key}
                       style={{
                         display: "grid",
-                        gridTemplateColumns: isMobile ? "1fr" : "112px minmax(0,1fr) 88px",
+                        gridTemplateColumns: isMobile ? "1fr" : "108px minmax(0,1fr) 82px",
                         gap: "7px",
                         alignItems: "center",
                         borderRadius: "12px",
                         border: selected === key ? "1px solid rgba(126,232,255,.18)" : "1px solid rgba(255,255,255,.045)",
                         background: selected === key ? "rgba(83,215,255,.035)" : "rgba(255,255,255,.012)",
-                        padding: "7px 8px",
+                        padding: "5px 7px",
                       }}
                     >
                       <button
@@ -256,7 +264,7 @@ export default function BudgetBuildStage({
                           <BudgetAssetIcon
                             src={budgetAllocationAsset(key)}
                             alt=""
-                            size={24}
+                            size={21}
                             muted={selected !== key}
                           />
                         )}
@@ -283,7 +291,7 @@ export default function BudgetBuildStage({
           </div>
         </section>
 
-        <div style={{ minWidth: 0, display: "grid", gap: "10px" }}>
+        <div style={{ minWidth: 0, height: "100%", minHeight: 0, display: "grid", gridTemplateRows: "minmax(0,.78fr) auto minmax(0,1fr)", gap: "7px", overflow: "hidden" }}>
           <BudgetPlanningBoard
             screenMode={screenMode}
             items={planningItems}
@@ -296,7 +304,9 @@ export default function BudgetBuildStage({
               borderRadius: "19px",
               border: "1px solid rgba(255,255,255,.07)",
               background: "rgba(4,12,30,.76)",
-              padding: "13px",
+              padding: "9px 10px",
+              minHeight: 0,
+              overflow: "hidden",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline" }}>
@@ -309,7 +319,7 @@ export default function BudgetBuildStage({
               
             </div>
 
-            <div style={{ marginTop: "9px", display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "6px" }}>
+            <div style={{ marginTop: "6px", display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "5px" }}>
               {analysis.conditions.map((condition) => (
                 <ConditionCard key={condition.id} {...condition} />
               ))}
@@ -321,7 +331,9 @@ export default function BudgetBuildStage({
               borderRadius: "19px",
               border: "1px solid rgba(184,168,255,.12)",
               background: "rgba(12,10,32,.68)",
-              padding: "10px 12px 8px",
+              padding: "7px 9px 5px",
+              minHeight: 0,
+              overflow: "hidden",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline" }}>
@@ -339,7 +351,7 @@ export default function BudgetBuildStage({
 
       <div
         style={{
-          marginTop: "11px",
+          marginTop: "6px",
           display: "flex",
           flexDirection: isMobile ? "column" : "row",
           justifyContent: "space-between",
@@ -438,18 +450,18 @@ function ConditionCard({
           : { text: "#ffb8b8", border: "rgba(255,140,140,.16)", bg: "rgba(255,100,100,.035)" };
 
   return (
-    <div style={{ borderRadius: "13px", border: `1px solid ${tone.border}`, background: tone.bg, padding: "11px" }}>
+    <div style={{ borderRadius: "13px", border: `1px solid ${tone.border}`, background: tone.bg, padding: "7px 8px" }}>
       <span style={{ display: "block", color: "rgba(255,255,255,.34)", fontSize: "15px", fontWeight: 850, textTransform: "uppercase", letterSpacing: ".06em" }}>
         {label}
       </span>
       <div style={{ marginTop: "4px", display: "flex", justifyContent: "space-between", gap: "6px", alignItems: "baseline" }}>
-        <strong style={{ color: tone.text, fontSize: "17px", textTransform: "capitalize" }}>{level}</strong>
+        <strong style={{ color: tone.text, fontSize: "15px", textTransform: "capitalize" }}>{level}</strong>
         <span style={{ color: "rgba(255,255,255,.25)", fontSize: "14px" }}>{Math.round(value)}</span>
       </div>
-      <div style={{ marginTop: "6px", height: "3px", borderRadius: "999px", background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
+      <div style={{ marginTop: "4px", height: "3px", borderRadius: "999px", background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, value))}%`, background: tone.text, borderRadius: "999px" }} />
       </div>
-      <div style={{ marginTop: "8px" }}>
+      <div style={{ marginTop: "5px" }}>
         <BudgetInfoButton title={label} accent={tone.text}>{detail}</BudgetInfoButton>
       </div>
     </div>

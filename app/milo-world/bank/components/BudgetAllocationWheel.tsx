@@ -50,7 +50,7 @@ export default function BudgetAllocationWheel({
 
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ position: "relative", width: "min(100%, 460px)", margin: "0 auto" }}>
+      <div style={{ position: "relative", width: "min(100%, 330px)", margin: "0 auto" }}>
         <svg viewBox="0 0 320 320" role="img" aria-label="Budget allocation wheel" style={{ width: "100%", display: "block" }}>
           <circle cx="160" cy="160" r="116" fill="rgba(255,255,255,.018)" stroke="rgba(255,255,255,.06)" strokeWidth="2" />
           {arcs.map((arc) => {
@@ -97,12 +97,12 @@ export default function BudgetAllocationWheel({
               type="button"
               onClick={() => onSelect(key)}
               style={{
-                minHeight: "44px",
+                minHeight: "34px",
                 borderRadius: "10px",
                 border: active ? `1px solid ${palette[key]}` : "1px solid rgba(255,255,255,.06)",
                 background: active ? "rgba(255,255,255,.045)" : "rgba(255,255,255,.015)",
                 color: "white",
-                padding: "6px 8px",
+                padding: "4px 6px",
                 display: "grid",
                 gridTemplateColumns: "8px minmax(0,1fr) auto",
                 alignItems: "center",
@@ -113,10 +113,10 @@ export default function BudgetAllocationWheel({
               }}
             >
               <span style={{ width: "7px", height: "7px", borderRadius: "999px", background: palette[key] }} />
-              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "14px", fontWeight: 850 }}>
+              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 850 }}>
                 {formatBudgetAllocationLabel(key)}
               </span>
-              <span style={{ color: "rgba(255,255,255,.38)", fontSize: "14px" }}>{pct}%</span>
+              <span style={{ color: "rgba(255,255,255,.38)", fontSize: "12px" }}>{pct}%</span>
             </button>
           );
         })}
