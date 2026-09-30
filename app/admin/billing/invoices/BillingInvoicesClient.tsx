@@ -172,6 +172,12 @@ export default function BillingInvoicesClient() {
   const [extraLessonForm, setExtraLessonForm] =
     useState<ExtraLessonForm>(DEFAULT_EXTRA_LESSON_FORM);
 
+  const [lessonDateModalOpen, setLessonDateModalOpen] = useState(false);
+  const [editingLessonDateItem, setEditingLessonDateItem] =
+    useState<BillingInvoiceItem | null>(null);
+  const [selectedLessonOccurrenceIds, setSelectedLessonOccurrenceIds] =
+    useState<string[]>([]);
+
   const [itemModalOpen, setItemModalOpen] = useState(false);
   const [editingItemId, setEditingItemId] = useState("");
   const [itemForm, setItemForm] = useState<ItemForm>(DEFAULT_ITEM_FORM);
@@ -435,6 +441,23 @@ export default function BillingInvoicesClient() {
       return true;
     });
   }, [lessonSchedule]);
+
+  const editableLessonOccurrences = useMemo(() => {
+    if (!editingLessonDateItem?.enrolment_id) return [];
+
+    return lessonSchedule
+      .filter(
+        (lesson) =>
+          lesson.enrolment_id === editingLessonDateItem.enrolment_id &&
+          lesson.lesson_date >= periodStart &&
+          lesson.lesson_date <= periodEnd,
+      )
+      .sort((a, b) => {
+        const dateCompare = a.lesson_date.localeCompare(b.lesson_date);
+        if (dateCompare !== 0) return dateCompare;
+        return String(a.start_time || "").localeCompare(String(b.start_time || ""));
+      });
+  }, [editingLessonDateItem?.enrolment_id, lessonSchedule, periodEnd, periodStart]);
 
   async function syncLessonDates() {
     setWorking(true);
@@ -957,6 +980,76 @@ export default function BillingInvoicesClient() {
       setExtraLessonModalOpen(false);
       setNotice("Replacement or extra lesson added. Regenerate drafts to apply it.");
       await loadMonth(selectedInvoiceId);
+    }
+
+    setWorking(false);
+  }
+
+  function openEditLessonDates(item: BillingInvoiceItem) {
+    if (!editableInvoice || !item.enrolment_id) return;
+
+    const occurrences = lessonSchedule
+      .filter(
+        (lesson) =>
+          lesson.enrolment_id === item.enrolment_id &&
+          lesson.lesson_date >= periodStart &&
+          lesson.lesson_date <= periodEnd,
+      )
+      .sort((a, b) => a.lesson_date.localeCompare(b.lesson_date));
+
+    if (occurrences.length === 0) {
+      setLoadError(
+        "No lesson dates were found for this programme in the selected billing month.",
+      );
+      return;
+    }
+
+    setEditingLessonDateItem(item);
+    setSelectedLessonOccurrenceIds(
+      occurrences.filter((lesson) => lesson.is_billable).map((lesson) => lesson.id),
+    );
+    setFormError("");
+    setLessonDateModalOpen(true);
+  }
+
+  function toggleInvoiceLessonDate(lessonId: string) {
+    setSelectedLessonOccurrenceIds((current) =>
+      current.includes(lessonId)
+        ? current.filter((id) => id !== lessonId)
+        : [...current, lessonId],
+    );
+  }
+
+  async function saveInvoiceLessonDates(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedInvoice || !editingLessonDateItem || !editableInvoice) return;
+
+    setWorking(true);
+    setFormError("");
+    setLoadError("");
+
+    const { error } = await supabase.rpc(
+      "gkp_update_invoice_item_lesson_dates",
+      {
+        p_invoice_item_id: editingLessonDateItem.id,
+        p_lesson_occurrence_ids: selectedLessonOccurrenceIds,
+      },
+    );
+
+    if (error) {
+      setFormError(error.message);
+    } else {
+      const selectedCount = selectedLessonOccurrenceIds.length;
+      setLessonDateModalOpen(false);
+      setEditingLessonDateItem(null);
+      setSelectedLessonOccurrenceIds([]);
+      setNotice(
+        `${editingLessonDateItem.description}: ${selectedCount} lesson${
+          selectedCount === 1 ? "" : "s"
+        } selected for billing.`,
+      );
+      await loadMonth(selectedInvoice.id);
     }
 
     setWorking(false);
@@ -1627,6 +1720,17 @@ export default function BillingInvoicesClient() {
                               <div className="flex justify-end gap-2">
                                 {editableInvoice && (
                                   <>
+                                    {item.enrolment_id &&
+                                      item.metadata?.billing_frequency ===
+                                        "per_lesson" && (
+                                        <button
+                                          type="button"
+                                          onClick={() => openEditLessonDates(item)}
+                                          className="rounded-full border border-[#c9b27d] bg-[#fffaf0] px-3 py-2 text-[11px] font-bold text-[#8a6325]"
+                                        >
+                                          Edit dates
+                                        </button>
+                                      )}
                                     <button
                                       type="button"
                                       onClick={() => openEditItem(item)}
@@ -1777,6 +1881,103 @@ export default function BillingInvoicesClient() {
             <TextField label="Start time" type="time" value={extraLessonForm.start_time} onChange={(value) => setExtraLessonForm((current) => ({ ...current, start_time: value }))} />
           </div>
           <TextField label="Notes" value={extraLessonForm.notes} onChange={(value) => setExtraLessonForm((current) => ({ ...current, notes: value }))} />
+        </form>
+      </BillingModal>
+
+      <BillingModal
+        open={lessonDateModalOpen}
+        onClose={() => {
+          if (working) return;
+          setLessonDateModalOpen(false);
+          setEditingLessonDateItem(null);
+          setSelectedLessonOccurrenceIds([]);
+          setFormError("");
+        }}
+        eyebrow="Invoice lesson dates"
+        title="Choose billable lessons"
+        description="Untick any lesson the student will not attend. Saving updates both the lesson schedule and this draft invoice immediately."
+        footer={
+          <ModalFooter
+            formId="invoice-lesson-dates-form"
+            saving={working}
+            submitLabel="Save lesson dates"
+            onCancel={() => {
+              setLessonDateModalOpen(false);
+              setEditingLessonDateItem(null);
+              setSelectedLessonOccurrenceIds([]);
+              setFormError("");
+            }}
+          />
+        }
+      >
+        <form
+          id="invoice-lesson-dates-form"
+          onSubmit={saveInvoiceLessonDates}
+          className="grid gap-4"
+        >
+          {formError && <Alert tone="error">{formError}</Alert>}
+
+          {editingLessonDateItem && (
+            <div className="rounded-2xl border border-[#ded5c4] bg-[#fbfaf7] p-4">
+              <strong className="block text-sm text-[#15233b]">
+                {editingLessonDateItem.description}
+              </strong>
+              <span className="mt-1 block text-xs text-[#81796d]">
+                {selectedLessonOccurrenceIds.length} of {editableLessonOccurrences.length}{" "}
+                lesson{editableLessonOccurrences.length === 1 ? "" : "s"} selected
+              </span>
+            </div>
+          )}
+
+          <div className="grid gap-2">
+            {editableLessonOccurrences.map((lesson) => {
+              const checked = selectedLessonOccurrenceIds.includes(lesson.id);
+
+              return (
+                <label
+                  key={lesson.id}
+                  className={`flex cursor-pointer items-center justify-between gap-4 rounded-2xl border p-4 transition ${
+                    checked
+                      ? "border-[#c9b27d] bg-[#fffaf0]"
+                      : "border-[#ded5c4] bg-white"
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleInvoiceLessonDate(lesson.id)}
+                      className="h-4 w-4 rounded border-[#cbbd9f]"
+                    />
+                    <span className="min-w-0">
+                      <strong className="block text-sm text-[#15233b]">
+                        {formatDate(lesson.lesson_date)}
+                      </strong>
+                      <span className="mt-1 block text-xs text-[#81796d]">
+                        {formatTime(lesson.start_time)} · {lesson.status}
+                        {lesson.source === "manual" ? " · manually adjusted" : ""}
+                      </span>
+                    </span>
+                  </span>
+
+                  <span
+                    className={`shrink-0 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.08em] ${
+                      checked
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-red-200 bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {checked ? "Bill" : "Exclude"}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+
+          <p className="text-xs leading-5 text-[#81796d]">
+            This is available only while the invoice is in Draft or Review. Once an
+            invoice is issued, its lesson dates remain locked for billing history.
+          </p>
         </form>
       </BillingModal>
 
