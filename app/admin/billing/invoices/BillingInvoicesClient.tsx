@@ -363,6 +363,16 @@ export default function BillingInvoicesClient() {
     [invoices],
   );
 
+  const issuableInvoiceCount = useMemo(
+    () =>
+      invoices.filter(
+        (invoice) =>
+          ["draft", "review"].includes(invoice.status) &&
+          numberValue(invoice.total_amount) > 0,
+      ).length,
+    [invoices],
+  );
+
   useEffect(() => {
     if (
       !showVoidedInvoices &&
@@ -467,7 +477,11 @@ export default function BillingInvoicesClient() {
         | undefined;
 
       setNotice(
-        `${Number(result?.invoice_count || 0)} invoice drafts generated with ${Number(result?.billable_lesson_count || 0)} billable lessons.`,
+        `${Number(result?.invoice_count || 0)} drafts created or refreshed · ${Number(
+          result?.skipped_account_count || 0,
+        )} families skipped · ${Number(
+          result?.billable_lesson_count || 0,
+        )} billable lessons.`,
       );
       await loadMonth(selectedInvoiceId);
     }
@@ -1154,7 +1168,7 @@ export default function BillingInvoicesClient() {
           <ProcessStep number="1" title="Set schedules" text="Each active per-lesson enrolment needs a regular weekday." />
           <ProcessStep number="2" title="Record closures" text="Add dates when the centre will not conduct lessons." />
           <ProcessStep number="3" title="Review dates" text="Cancel, restore or add replacement lessons." />
-          <ProcessStep number="4" title="Generate drafts" text="The actual lesson count becomes the invoice quantity." />
+          <ProcessStep number="4" title="Generate drafts" text="Create missing invoices and refresh drafts. Issued invoices stay unchanged." />
         </div>
       </section>
 
@@ -1652,7 +1666,7 @@ export default function BillingInvoicesClient() {
               A closure excludes the generated lesson for every affected enrolment. Replacement lessons can be added manually in the lesson-date review.
             </p>
           </div>
-          {batch && batch.status === "draft" && invoices.length > 0 && (
+          {batch && issuableInvoiceCount > 0 && (
             <button
               type="button"
               onClick={() => void issueWholeBatch()}
