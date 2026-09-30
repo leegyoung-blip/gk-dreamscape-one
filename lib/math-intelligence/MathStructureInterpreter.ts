@@ -11,6 +11,11 @@ import {
   buildMathLearnerVisibleEvidence,
   mathClassificationText,
 } from "./MathLearnerVisibleEvidence";
+import {
+  parseVisibleAdditiveComparison,
+  parseVisibleDataPairs,
+  parseVisibleRatioRelation,
+} from "./MathSourceParsing";
 
 function sourceText(input: MathIntelligenceQuestionInput) {
   return mathClassificationText(input);
@@ -382,6 +387,56 @@ function cubeInterpretation(input: MathIntelligenceQuestionInput): MathInterpret
 }
 
 function comparisonInterpretation(input: MathIntelligenceQuestionInput): MathInterpretationResult | null {
+  const parsed = parseVisibleAdditiveComparison(input.prompt);
+  if (parsed) {
+    const knownHasValue = parsed.left_value != null && Number.isFinite(parsed.left_value);
+    const leftLabel = parsed.left_label || "first quantity";
+    const rightLabel = parsed.right_label || "second quantity";
+
+    // The generator expresses relationship.type from the unknown quantity's
+    // perspective. When the left source quantity is known, the right side is
+    // the unknown; otherwise the left side becomes the unknown and the right
+    // side is a source-labelled anchor with an unknown value.
+    const known = knownHasValue
+      ? quantity("known_quantity", "known", parsed.left_value, leftLabel, parsed.left_value_unit || parsed.unit)
+      : quantity("known_quantity", "known", null, rightLabel, parsed.unit);
+    const unknown = knownHasValue
+      ? quantity("unknown_quantity", "unknown", null, rightLabel, parsed.unit)
+      : quantity("unknown_quantity", "unknown", null, leftLabel, parsed.unit);
+
+    const unknownIsLarger = knownHasValue ? !parsed.left_is_larger : parsed.left_is_larger;
+    return {
+      resolved: true,
+      interpretation: {
+        domain: parsed.unit === "sgd" || parsed.unit === "cent"
+          ? "money"
+          : parsed.unit
+            ? "measurement"
+            : "word_problem",
+        problem_structure: "comparison",
+        quantities: [
+          known,
+          quantity("difference", "difference", parsed.difference, "difference", parsed.unit),
+          unknown,
+        ],
+        relationships: [
+          {
+            type: unknownIsLarger ? "greater_than" : "less_than",
+            left_id: "unknown_quantity",
+            right_id: "known_quantity",
+            value: parsed.difference,
+            unit: parsed.unit,
+          },
+        ],
+        target: target("quantity", unknown.label, "unknown_quantity"),
+      },
+      confidence: knownHasValue ? 0.97 : 0.93,
+      reason_codes: ["WORD_PROBLEM_COMPARISON"],
+    };
+  }
+
+  // Backward-compatible fallback for compact wording where entity labels are
+  // difficult to isolate but the difference and one source value are explicit.
   const text = input.prompt;
   const comparison = text.match(/\b(\d+(?:\.\d+)?)\s+(fewer|less|more|greater)(?:\s+[a-z]+){0,4}\s+than\b/i);
   const values = valuesFromText(text);
@@ -496,21 +551,15 @@ function partWholeInterpretation(input: MathIntelligenceQuestionInput): MathInte
 
 function ratioInterpretation(input: MathIntelligenceQuestionInput): MathInterpretationResult | null {
   const text = bodyText(input);
-  if (!text.includes("ratio")) return null;
+  const parsed = parseVisibleRatioRelation(text);
+  if (!parsed) return null;
 
-  const ratioMatch = text.match(/\b(\d+)\s*:\s*(\d+)\b/) || text.match(/\b(\d+)\s+to\s+(\d+)\b/);
-  if (!ratioMatch) return null;
-  const leftValue = Number(ratioMatch[1]);
-  const rightValue = Number(ratioMatch[2]);
-  if (!Number.isInteger(leftValue) || !Number.isInteger(rightValue) || leftValue <= 0 || rightValue <= 0) return null;
-
-  let leftLabel: string | null = null;
-  let rightLabel: string | null = null;
-  const labelled = text.match(/ratio\s+of\s+([a-z][a-z\s-]{0,32}?)\s+to\s+([a-z][a-z\s-]{0,32}?)\s+(?:is|=)\s*\d+\s*:\s*\d+/i);
-  if (labelled) {
-    leftLabel = labelled[1].trim();
-    rightLabel = labelled[2].trim();
-  }
+  if (
+    !Number.isInteger(parsed.left_units) ||
+    !Number.isInteger(parsed.right_units) ||
+    parsed.left_units <= 0 ||
+    parsed.right_units <= 0
+  ) return null;
 
   return {
     resolved: true,
@@ -518,8 +567,8 @@ function ratioInterpretation(input: MathIntelligenceQuestionInput): MathInterpre
       domain: "ratio",
       problem_structure: "ratio_relationship",
       quantities: [
-        quantity("ratio_a", "factor", leftValue, leftLabel),
-        quantity("ratio_b", "factor", rightValue, rightLabel),
+        quantity("ratio_a", "factor", parsed.left_units, parsed.left_label),
+        quantity("ratio_b", "factor", parsed.right_units, parsed.right_label),
       ],
       relationships: [{
         type: "ratio",
@@ -530,7 +579,7 @@ function ratioInterpretation(input: MathIntelligenceQuestionInput): MathInterpre
       }],
       target: target("relationship", "ratio"),
     },
-    confidence: 0.96,
+    confidence: 0.97,
     reason_codes: ["WORD_PROBLEM_RATIO"],
   };
 }
@@ -575,29 +624,15 @@ function numberLineInterpretation(input: MathIntelligenceQuestionInput): MathInt
   };
 }
 
-function dataPairs(text: string) {
-  const result: Array<{ label: string; value: number }> = [];
-  for (const match of text.matchAll(/\b([a-z][a-z0-9 '&/-]{0,28}?)\s*(?::|=|-)\s*(-?\d+(?:\.\d+)?)\b/gi)) {
-    const label = match[1].trim().replace(/^(?:and|the)\s+/i, "");
-    const value = Number(match[2]);
-    if (!label || !Number.isFinite(value)) continue;
-    if (/^(?:p\d|q\d|option|answer)$/i.test(label)) continue;
-    if (!result.some((item) => item.label.toLocaleLowerCase() === label.toLocaleLowerCase())) {
-      result.push({ label, value });
-    }
-  }
-  return result;
-}
-
 function dataInterpretation(input: MathIntelligenceQuestionInput): MathInterpretationResult | null {
   const text = bodyText(input);
   const source = sourceText(input);
-  const pairs = dataPairs(text);
+  const pairs = parseVisibleDataPairs(text);
   if (pairs.length < 2) return null;
 
   const strategyText = source.includes("bar chart") || source.includes("bar graph")
     ? "bar"
-    : source.includes("table")
+    : source.includes("table") || /\bfollowing amounts\b|\bsaved the following\b/i.test(text)
       ? "table"
       : null;
   if (!strategyText) return null;
@@ -607,10 +642,12 @@ function dataInterpretation(input: MathIntelligenceQuestionInput): MathInterpret
     interpretation: makeInterpretation(
       "data",
       "data_reading",
-      pairs.slice(0, 12).map((pair, index) => quantity(`datum_${index + 1}`, "count", pair.value, pair.label)),
+      pairs.slice(0, 12).map((pair, index) =>
+        quantity(`datum_${index + 1}`, "count", pair.value, pair.label, pair.unit),
+      ),
       target("category_value", strategyText === "bar" ? "bar chart" : "table"),
     ),
-    confidence: 0.94,
+    confidence: 0.97,
     reason_codes: [strategyText === "bar" ? "DATA_REQUIRED" : "TABLE_REQUIRED"],
   };
 }
@@ -661,7 +698,7 @@ function inferDomain(input: MathIntelligenceQuestionInput): MathDomain {
 }
 
 /**
- * Phase 2I coverage expansion pass 1 deterministic structure interpreter.
+ * Phase 2I coverage expansion pass 2 deterministic structure interpreter.
  *
  * This remains intentionally source-bound: it extracts only mathematics that
  * is explicit in instruction/prompt text. Correct answers and explanations are

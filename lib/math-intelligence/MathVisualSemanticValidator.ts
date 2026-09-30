@@ -38,7 +38,7 @@ import type {
   MathVisualSemanticValidationResult,
 } from "./MathVisualSemanticTypes";
 
-export const MATH_VISUAL_SEMANTIC_VALIDATOR_VERSION = "2I-P1.1";
+export const MATH_VISUAL_SEMANTIC_VALIDATOR_VERSION = "2I-P2.1";
 
 const GENERIC_LABELS = new Set([
   "answer",
@@ -319,7 +319,9 @@ function checkQuantitySource(
 ) {
   if (!quantity || !finite(quantity.value)) return;
   requireSourceNumber(context, quantity.value, source, objectId);
-  requireSourceUnit(context, quantity.unit, source, objectId);
+  // Units inferred by an interpreter are not themselves source evidence. The
+  // rendered label/object is checked separately; only learner-visible units
+  // are allowed to appear in the final visual.
 }
 
 function checkMeasurementLabel(
@@ -341,9 +343,18 @@ function checkMeasurementLabel(
     objectId,
   );
 
-  if (quantity.unit) {
+  const actualUnit = measurementLabelUnit(label);
+  if (actualUnit && !evidenceContainsUnit(context.evidence, actualUnit)) {
+    addIssue(
+      context,
+      "SOURCE_UNIT_NOT_VISIBLE",
+      `${source} displays unit “${actualUnit}”, but that unit is not learner-visible.`,
+      { visual_id: context.visual.id, object_id: objectId, actual: actualUnit },
+    );
+  }
+
+  if (quantity.unit && evidenceContainsUnit(context.evidence, quantity.unit)) {
     const expectedUnit = normaliseMathUnit(quantity.unit);
-    const actualUnit = measurementLabelUnit(label);
     checkFact(
       context,
       `${objectId}.unit`,
@@ -523,7 +534,13 @@ function validateCuboid(context: ValidationContext) {
 
 function expectedDataQuantities(context: ValidationContext) {
   return visibleFiniteQuantities(context.analysis)
-    .filter((quantity) => Boolean(quantity.label?.trim()))
+    .filter((quantity) => {
+      if (!quantity.label?.trim() || !finite(quantity.value)) return false;
+      if (!evidenceContainsNumber(context.evidence, quantity.value)) return false;
+      if (!evidenceContainsLabel(context.evidence, quantity.label)) return false;
+      if (quantity.unit && !evidenceContainsUnit(context.evidence, quantity.unit)) return false;
+      return true;
+    })
     .slice(0, 12);
 }
 
@@ -629,7 +646,7 @@ function dimensionObject(visual: MathVisual, id: string) {
 }
 
 function validateComparisonBarModel(context: ValidationContext) {
-  const known = quantityByRole(context.analysis, "known");
+  const known = context.analysis.interpretation.quantities.find((quantity) => quantity.role === "known") || null;
   const difference = quantityByRole(context.analysis, "difference");
   const unknown = context.analysis.interpretation.quantities.find((quantity) => quantity.role === "unknown") || null;
   const relationship = context.analysis.interpretation.relationships.find((item) => ["greater_than", "less_than", "difference"].includes(item.type));
@@ -639,12 +656,25 @@ function validateComparisonBarModel(context: ValidationContext) {
   const knownBar = context.visual.objects.find((object) => object.id === "known_bar" && object.type === "rectangle") as MathRectangleObject | undefined;
   const unknownBar = context.visual.objects.find((object) => object.id === "unknown_bar" && object.type === "rectangle") as MathRectangleObject | undefined;
 
-  if (!known || !difference || !unknown || !relationship || !knownText || !unknownText || !differenceDimension || !knownBar || !unknownBar || !finite(known.value) || !finite(difference.value)) {
+  if (!known || !difference || !unknown || !relationship || !knownText || !unknownText || !differenceDimension || !knownBar || !unknownBar || !finite(difference.value)) {
     addIssue(context, "MISSING_EXPECTED_OBJECT", "The comparison bar model is missing required interpreted quantities, relationship, or visual objects.", { visual_id: context.visual.id });
     return;
   }
 
-  checkMeasurementLabel(context, knownText.text, known, "comparison known quantity", knownText.id);
+  if (finite(known.value)) {
+    checkMeasurementLabel(context, knownText.text, known, "comparison known quantity", knownText.id);
+  } else {
+    checkFact(
+      context,
+      `${knownText.id}.unknown`,
+      "source comparison anchor",
+      "?",
+      knownText.text.trim(),
+      knownText.text.trim() === "?",
+      "UNKNOWN_VALUE_REVEALED",
+      knownText.id,
+    );
+  }
   checkMeasurementLabel(context, differenceDimension.label, difference, "comparison difference", differenceDimension.id);
   checkFact(context, `${unknownText.id}.unknown`, "unknown comparison quantity", "?", unknownText.text.trim(), unknownText.text.trim() === "?", "UNKNOWN_VALUE_REVEALED", unknownText.id);
 
@@ -738,8 +768,36 @@ function validateRatioBarModel(context: ValidationContext) {
     approx(rightSegments.length, right.value),
     "VALUE_MISMATCH",
   );
-  requireSourceNumber(context, left.value, "left ratio term");
-  requireSourceNumber(context, right.value, "right ratio term");
+  const normalisedSource = context.evidence.normalised_text;
+  const timesAsManyMatch = normalisedSource.match(
+    /\b(twice|thrice|\d+\s+times?|two\s+times|three\s+times|four\s+times)\s+as\s+many\b/i,
+  );
+  const timesMultiplier = (() => {
+    if (!timesAsManyMatch) return null;
+    const raw = timesAsManyMatch[1].toLocaleLowerCase();
+    if (raw.startsWith("twice") || raw.startsWith("two")) return 2;
+    if (raw.startsWith("thrice") || raw.startsWith("three")) return 3;
+    if (raw.startsWith("four")) return 4;
+    const parsed = Number(raw.match(/\d+/)?.[0]);
+    return Number.isFinite(parsed) ? parsed : null;
+  })();
+
+  // “N times as many A as B” explicitly defines the multiplicative
+  // relationship N:1 even though the source does not literally print the
+  // numeral 1. Treat only that relationship-bound unit as supported; do not
+  // add 1 to the global learner-visible numeric evidence.
+  const implicitOneSupported =
+    timesMultiplier != null &&
+    ((approx(left.value, timesMultiplier) && approx(right.value, 1)) ||
+      (approx(right.value, timesMultiplier) && approx(left.value, 1)));
+
+  if (!implicitOneSupported) {
+    requireSourceNumber(context, left.value, "left ratio term");
+    requireSourceNumber(context, right.value, "right ratio term");
+  } else {
+    const explicitFactor = approx(left.value, 1) ? right.value : left.value;
+    requireSourceNumber(context, explicitFactor, "ratio multiplier");
+  }
 
   const allSegments = [...leftSegments, ...rightSegments];
   const referenceWidth = allSegments[0]?.width ?? null;

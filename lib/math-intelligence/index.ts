@@ -15,6 +15,7 @@ export * from "./ai/LunaTeachingSchemas";
 export * from "./MathVisualGenerationTypes";
 export * from "./MathVisualSpecGenerator";
 export * from "./MathLearnerVisibleEvidence";
+export * from "./MathSourceParsing";
 export * from "./MathVisualSemanticTypes";
 export * from "./MathVisualSemanticValidator";
 export * from "./MathTeachingVisualTypes";

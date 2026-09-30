@@ -527,7 +527,7 @@ export default function MathIntelligenceQAView() {
                   <tr>
                     <th style={th}>Strategy</th>
                     <th style={th}>N</th>
-                    <th style={th}>Generated</th>
+                    <th style={th}>Resolved</th>
                     <th style={th}>Auto review</th>
                     <th style={th}>Luna</th>
                     <th style={th}>Pass</th>
@@ -574,7 +574,7 @@ export default function MathIntelligenceQAView() {
               <div>
                 <p style={eyebrow}>QA DRILL-DOWN</p>
                 <h2 style={heading}>Inspect the questions behind each result</h2>
-                <p style={muted}>Click a strategy, Auto review count or Luna count above, or filter directly below.</p>
+                <p style={muted}>Click a strategy, Resolved, Auto review or Luna count above, or filter directly below.</p>
               </div>
               <div style={buttonRow}>
                 <button type="button" onClick={() => { setStatusFilter("auto_review"); setSourceFilter("all"); }} style={secondaryButton}>Auto-review items</button>

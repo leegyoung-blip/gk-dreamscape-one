@@ -3,7 +3,12 @@ import type {
   MathRuleEvaluation,
   MathVisualStrategy,
 } from "./MathIntelligenceTypes";
-import { mathClassificationText } from "./MathLearnerVisibleEvidence";
+import { learnerVisibleQuestionText, mathClassificationText } from "./MathLearnerVisibleEvidence";
+import {
+  parseVisibleAdditiveComparison,
+  parseVisibleDataPairs,
+  parseVisibleRatioRelation,
+} from "./MathSourceParsing";
 
 function haystack(input: MathIntelligenceQuestionInput) {
   return mathClassificationText(input);
@@ -34,6 +39,31 @@ function looksVisuallyDependent(source: string) {
     "marked angle",
     "angle marked",
   ]);
+}
+
+function learnerQuestionRequiresVisual(source: string) {
+  if (containsAny(source, [
+    "shown below",
+    "shown above",
+    "diagram",
+    "figure",
+    "photograph",
+    "image",
+    "graph",
+    "chart",
+    "table",
+    "number line",
+    "clock face",
+    "shaded",
+    "unshaded",
+    "not drawn to scale",
+    "marked angle",
+    "angle marked",
+  ])) return true;
+
+  // “picture” is common ordinary prose (“framing a picture”). Treat it as a
+  // visual dependency only when the question actually refers to picture media.
+  return /\b(?:source|given|following|the)\s+picture\b|\bpicture\s+(?:shown|below|above|graph)\b|\bstudy\b[^.!?]{0,30}\bpicture\b/i.test(source);
 }
 
 function expressionOnlyPrompt(prompt: string) {
@@ -149,6 +179,84 @@ function routineTextOnlyTask(
   return conciseQuestion && taskLead.test(prompt) && curriculumTextOnlyDomain;
 }
 
+
+function routineSelfContainedNoVisualTask(
+  input: MathIntelligenceQuestionInput,
+  source: string,
+  topicSkill: string,
+) {
+  // Use learner-visible question wording for dependency checks. Topic/skill
+  // names such as “Length Picture Problems” must not create a fake visual
+  // dependency for an otherwise self-contained text question.
+  const learnerSource = learnerVisibleQuestionText(input).toLocaleLowerCase();
+  if (learnerQuestionRequiresVisual(learnerSource)) return false;
+  if (
+    input.existing_media.has_real_image ||
+    input.existing_media.has_legacy_svg ||
+    input.existing_media.has_option_images
+  ) return false;
+
+  const prompt = input.prompt.trim().toLocaleLowerCase();
+  if (!prompt) return false;
+
+  // Explicit source structures that our visual engine can represent keep
+  // priority over this no-visual gate.
+  if (parseVisibleAdditiveComparison(input.prompt)) return false;
+  if (parseVisibleRatioRelation(input.prompt)) return false;
+  if (parseVisibleDataPairs(input.prompt).length >= 2 && /\b(?:bar\s+(?:graph|chart)|table)\b/i.test(input.prompt)) return false;
+
+  // Questions that explicitly refer to missing source media are review cases,
+  // not routine text questions.
+  if (/\b(?:source|given|following)\s+(?:diagram|figure|graph|chart|table|picture)\b/i.test(prompt)) return false;
+
+  // Verbal shape-property questions are self-contained when no picture/figure
+  // is referenced. A generated shape is unnecessary assessment decoration.
+  if (
+    /^(?:which|what)\s+(?:solid|shape)\b/i.test(prompt) &&
+    /\b(?:face|faces|surface|surfaces|side|sides|vertex|vertices|edge|edges|rolls|stacks)\b/i.test(prompt)
+  ) return true;
+
+  // Lists, raw-number statistics and ordinary data arithmetic do not need a
+  // prompt chart merely because the curriculum topic is Data.
+  if (
+    /\buse the list\b/i.test(prompt) ||
+    /\b(?:find|what is)\s+the\s+(?:mean|median|mode|range|total)\b/i.test(prompt) ||
+    /\b(?:remaining votes|how many times|how many more)\b/i.test(prompt) && !/\b(?:graph|chart|table)\b/i.test(prompt)
+  ) return true;
+
+  // Symbol equations, number patterns, arithmetic/remainder/factor tasks, unit
+  // conversions, averages, money arithmetic and rate calculations are solved
+  // from text unless a representation is explicitly requested.
+  const strongTextOnlySkill = containsAny(topicSkill, [
+    "whole number", "whole numbers", "number relationship", "number clues",
+    "addition", "subtraction", "multiplication", "division", "operations",
+    "factor", "multiple", "remainder", "equation", "unknown", "algebra",
+    "pattern", "sequence", "logic", "deduction", "average", "mean", "median",
+    "money", "cost", "profit", "discount", "percentage", "percent",
+    "decimal", "rounding", "place value", "conversion", "speed", "rate",
+    "elapsed time", "unit rate", "scoring", "age", "working backwards",
+  ]);
+
+  const asksForComputedResult =
+    /\b(?:what|which|how many|how much|how old|how far|how long|find|calculate|work out|evaluate|solve|determine|write|express|complete|arrange|order|subtract|add|multiply|divide|compare|choose)\b/i.test(prompt) ||
+    /\b(?:is|are)\s+equal\s+to\b/i.test(prompt) ||
+    /\b(?:sum|difference|product|quotient)\s+of\b/i.test(prompt) ||
+    /_{2,}|□/.test(prompt);
+  const hasMathFacts = /\d|[+\-×÷=/%$¢]|\b(?:twice|thrice|half|quarter|times)\b/i.test(prompt);
+  if (strongTextOnlySkill && asksForComputedResult && hasMathFacts) return true;
+
+  // A self-contained word problem with explicit numbers but without a supported
+  // visual relationship is deliberately text-only. This is the main Pass 2
+  // Luna-reduction gate: ambiguity about the arithmetic method is not the same
+  // as ambiguity about whether a prompt diagram is needed.
+  const wordProblemShape = prompt.length <= 650 && asksForComputedResult && hasMathFacts;
+  const supportedVisualRelation =
+    /\b(?:shaded|unshaded|number line|clock face|draw|construct)\b/i.test(prompt) ||
+    /\b(?:area|perimeter)\b/i.test(prompt) && /\brectangle\b/i.test(prompt);
+
+  return wordProblemShape && !supportedVisualRelation;
+}
+
 function resolved(
   values: Omit<MathRuleEvaluation, "resolved">,
 ): MathRuleEvaluation {
@@ -171,7 +279,7 @@ function ambiguous(
 }
 
 /**
- * Phase 2I coverage expansion pass 1 — deterministic decision layer.
+ * Phase 2I coverage expansion pass 2 — deterministic decision layer.
  *
  * The ordering is deliberate:
  * 1. preserve existing learner media;
@@ -220,10 +328,47 @@ export function evaluateMathVisualNeed(
     });
   }
 
+  // Some old questions verbally reference a source figure/picture but the QA
+  // payload contains no corresponding media. Luna cannot recover an unseen
+  // source safely, so flag these deterministically instead of paying for an
+  // AI call or inventing the missing diagram.
+  if (
+    /\b(?:source|given|following)\s+(?:diagram|figure|graph|chart|table|picture)\b/i.test(prompt) ||
+    /\bsource\s+picture\s+graph\b/i.test(prompt) ||
+    /\bmoney\s+picture\s+graph\b/i.test(prompt) ||
+    (/\bmirror\b/i.test(prompt) && /\(a\).*\(b\).*\(c\).*\(d\)/i.test(prompt)) ||
+    /\bview\s+from\s+above\b.*\bside\s+view\b/i.test(prompt)
+  ) {
+    return resolved({
+      visual_need: "required",
+      disposition: "needs_review",
+      candidate_strategies: [],
+      confidence: 0.99,
+      reason_codes: ["INSUFFICIENT_STRUCTURED_DATA"],
+    });
+  }
+
+  // A few source-derived questions use the word “diagram” even though the
+  // complete mathematics is already written as a symbolic equation. With no
+  // actual media present, a generated prompt visual adds nothing.
+  if (
+    /^the\s+diagram\s+shows\b/i.test(prompt.trim()) &&
+    /[=+\-×÷*]/.test(prompt) &&
+    !/\b(?:shape|angle|graph|chart|table|number line|shaded|clock)\b/i.test(prompt)
+  ) {
+    return resolved({
+      visual_need: "unnecessary",
+      disposition: "skip",
+      candidate_strategies: ["none"],
+      confidence: 0.98,
+      reason_codes: ["DIRECT_CALCULATION"],
+    });
+  }
+
   if (
     containsAny(source, ["clock face", "time shown on the clock", "clock shows"]) ||
     (containsAny(topicSkill, ["time", "clock"]) &&
-      containsAny(prompt, ["draw", "show", "clock", "face"]))
+      /\b(?:draw|show|clock|face)\b/i.test(prompt))
   ) {
     return resolved({
       visual_need: "required",
@@ -257,7 +402,8 @@ export function evaluateMathVisualNeed(
       "shaded part",
       "unshaded part",
       "equal parts are shaded",
-    ])
+    ]) &&
+    /\b(?:diagram|figure|model|bar|grid|shown|showing|draw|represent)\b/i.test(prompt)
   ) {
     return resolved({
       visual_need: "required",
@@ -293,7 +439,7 @@ export function evaluateMathVisualNeed(
 
   if (
     containsAny(source, ["bar graph", "bar chart", "pictogram", "pie chart", "line graph"]) &&
-    containsAny(source, ["shown", "below", "above", "study", "according to", "represents", "draw", "construct", "make"])
+    containsAny(source, ["shown", "shows", "showing", "below", "above", "study", "according to", "represents", "draw", "construct", "make"])
   ) {
     const candidates: MathVisualStrategy[] = containsAny(source, ["bar graph", "bar chart"])
       ? ["bar_chart"]
@@ -309,6 +455,27 @@ export function evaluateMathVisualNeed(
       candidate_strategies: candidates,
       confidence: candidates.length === 1 ? 0.97 : 0.82,
       reason_codes: ["DATA_REQUIRED"],
+    });
+  }
+
+  const explicitDataPairs = parseVisibleDataPairs(input.prompt);
+  if (explicitDataPairs.length >= 2 && /\b(?:bar\s+(?:graph|chart))\b/i.test(input.prompt)) {
+    return resolved({
+      visual_need: "useful",
+      disposition: "generate",
+      candidate_strategies: ["bar_chart"],
+      confidence: 0.97,
+      reason_codes: ["DATA_REQUIRED"],
+    });
+  }
+
+  if (explicitDataPairs.length >= 4 && /\b(?:following amounts|saved the following|data are|data is|table)\b/i.test(input.prompt)) {
+    return resolved({
+      visual_need: "useful",
+      disposition: "generate",
+      candidate_strategies: ["table"],
+      confidence: 0.95,
+      reason_codes: ["TABLE_REQUIRED"],
     });
   }
 
@@ -328,10 +495,10 @@ export function evaluateMathVisualNeed(
   if (containsAny(source, ["net of a cube", "net of a cuboid", "which net", "solid net"])) {
     return resolved({
       visual_need: "required",
-      disposition: "generate",
+      disposition: "needs_review",
       candidate_strategies: ["solid_net"],
       confidence: 0.98,
-      reason_codes: ["NET_REQUIRED"],
+      reason_codes: ["NET_REQUIRED", "INSUFFICIENT_STRUCTURED_DATA"],
     });
   }
 
@@ -353,10 +520,10 @@ export function evaluateMathVisualNeed(
   ) {
     return resolved({
       visual_need: "required",
-      disposition: "generate",
+      disposition: "needs_review",
       candidate_strategies: ["symmetry_diagram"],
-      confidence: 0.96,
-      reason_codes: ["SYMMETRY_REQUIRED"],
+      confidence: 0.98,
+      reason_codes: ["SYMMETRY_REQUIRED", "INSUFFICIENT_STRUCTURED_DATA"],
     });
   }
 
@@ -374,8 +541,9 @@ export function evaluateMathVisualNeed(
   }
 
   if (
-    containsAny(topicSkill, ["cube", "cuboid", "volume"]) &&
-    containsAny(source, ["cube", "cuboid", "volume", "length", "width", "height", "edge", "side"])
+    /\b(?:cube|cuboid)\b/i.test(prompt) ||
+    (containsAny(topicSkill, ["volume"]) &&
+      /\blength\b/i.test(prompt) && /\b(?:width|breadth)\b/i.test(prompt) && /\bheight\b/i.test(prompt))
   ) {
     return resolved({
       visual_need: "useful",
@@ -400,9 +568,22 @@ export function evaluateMathVisualNeed(
     });
   }
 
+  const parsedRatioRelation = parseVisibleRatioRelation(input.prompt);
+  if (parsedRatioRelation) {
+    return resolved({
+      visual_need: "useful",
+      disposition: "generate",
+      candidate_strategies: ["bar_model_ratio"],
+      confidence: 0.96,
+      reason_codes: ["WORD_PROBLEM_RATIO"],
+    });
+  }
+
+  const parsedAdditiveComparison = parseVisibleAdditiveComparison(input.prompt);
   if (
-    /\b(fewer|less|more|greater)(?:\s+[a-z]+){0,4}\s+than\b/i.test(input.prompt) &&
-    /\b(has|have|had|owns|bought|collected|made|scored|received|is|are|was|were)\b/i.test(input.prompt)
+    parsedAdditiveComparison ||
+    (/\b(fewer|less|more|greater|shorter|longer)(?:\s+[a-z]+){0,4}\s+than\b/i.test(input.prompt) &&
+      /\b(has|have|had|owns|bought|collected|made|scored|received|is|are|was|were|costs?|measures?)\b/i.test(input.prompt))
   ) {
     return resolved({
       visual_need: "useful",
@@ -448,6 +629,38 @@ export function evaluateMathVisualNeed(
       candidate_strategies: ["bar_model_part_whole"],
       confidence: 0.86,
       reason_codes: ["WORD_PROBLEM_PART_WHOLE"],
+    });
+  }
+
+  // Some visual families are deliberately not generated yet. Sending these to
+  // Luna cannot create the missing deterministic topology, so stop at review.
+  if (containsAny(source, ["line of symmetry", "lines of symmetry", "symmetrical", "symmetry line"])) {
+    return resolved({
+      visual_need: "required",
+      disposition: "needs_review",
+      candidate_strategies: ["symmetry_diagram"],
+      confidence: 0.98,
+      reason_codes: ["SYMMETRY_REQUIRED", "INSUFFICIENT_STRUCTURED_DATA"],
+    });
+  }
+
+  if (containsAny(source, ["net of a cube", "net of a cuboid", "which net", "solid net"])) {
+    return resolved({
+      visual_need: "required",
+      disposition: "needs_review",
+      candidate_strategies: ["solid_net"],
+      confidence: 0.98,
+      reason_codes: ["NET_REQUIRED", "INSUFFICIENT_STRUCTURED_DATA"],
+    });
+  }
+
+  if (routineSelfContainedNoVisualTask(input, source, topicSkill)) {
+    return resolved({
+      visual_need: "unnecessary",
+      disposition: "skip",
+      candidate_strategies: ["none"],
+      confidence: 0.94,
+      reason_codes: ["DIRECT_CALCULATION"],
     });
   }
 

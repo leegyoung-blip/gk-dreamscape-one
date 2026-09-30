@@ -79,14 +79,15 @@ export async function analyseMathQuestion(
   const ruleEvaluation = evaluateMathVisualNeed(input);
   const interpretationResult = interpretMathStructureWithRules(input);
 
-  // Preserve/skip decisions do not require AI interpretation. We deliberately
-  // avoid spending a Luna call when Dreamscape already knows that generation
-  // should not occur.
+  // Preserve/skip/review decisions do not require AI interpretation. We
+  // deliberately avoid spending a Luna call when Dreamscape already knows
+  // that generation should not occur or the current V2 schema cannot safely
+  // represent the source.
   if (
     ruleEvaluation.resolved &&
     ruleEvaluation.visual_need &&
     ruleEvaluation.disposition &&
-    ["skip", "preserve_existing", "preserve_media"].includes(ruleEvaluation.disposition)
+    ["skip", "preserve_existing", "preserve_media", "needs_review"].includes(ruleEvaluation.disposition)
   ) {
     const strategyResult = resolveMathVisualStrategyWithRules(
       input,

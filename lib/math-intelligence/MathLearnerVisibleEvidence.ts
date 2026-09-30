@@ -34,6 +34,11 @@ const TENS_NUMBER_WORDS: Record<string, number> = {
   ninety: 90,
 };
 
+const MULTIPLICATIVE_NUMBER_WORDS: Record<string, number> = {
+  twice: 2,
+  thrice: 3,
+};
+
 const FRACTION_DENOMINATOR_WORDS: Record<string, number> = {
   half: 2,
   halves: 2,
@@ -145,6 +150,24 @@ export function extractNumericLiterals(text: string) {
     const value = Number(match[1].replace(/,/g, ""));
     if (Number.isFinite(value)) values.push(value);
   }
+
+  // Ordinal positions are learner-visible numeric facts too: 4th, 23rd, etc.
+  for (const match of text.matchAll(/\b(\d[\d,]*)(?:st|nd|rd|th)\b/gi)) {
+    const value = Number(match[1].replace(/,/g, ""));
+    if (Number.isFinite(value)) values.push(value);
+  }
+
+  // Exact simple fractions may be rendered numerically by deterministic
+  // representations such as number lines. Their decimal value is equivalent
+  // source evidence, not answer reconstruction.
+  for (const match of text.matchAll(/\b(\d+)\s*\/\s*(\d+)\b/g)) {
+    const numerator = Number(match[1]);
+    const denominator = Number(match[2]);
+    if (Number.isFinite(numerator) && Number.isFinite(denominator) && denominator !== 0) {
+      values.push(numerator / denominator);
+    }
+  }
+
   return values;
 }
 
@@ -175,6 +198,11 @@ function extractNumberWords(text: string) {
     if (token in TENS_NUMBER_WORDS) {
       current += TENS_NUMBER_WORDS[token];
       active = true;
+      continue;
+    }
+    if (token in MULTIPLICATIVE_NUMBER_WORDS) {
+      flush();
+      values.push(MULTIPLICATIVE_NUMBER_WORDS[token]);
       continue;
     }
     if (token === "hundred" && active) {
@@ -314,7 +342,19 @@ export function evidenceContainsLabel(
 ) {
   const clean = normaliseText(String(label || ""));
   if (!clean) return true;
-  return evidence.normalised_text.includes(clean);
+  if (evidence.normalised_text.includes(clean)) return true;
+
+  // Structured source labels are often assembled from learner-visible tokens
+  // that are separated in prose, e.g. “September: Allan $80” becomes
+  // “September Allan”. Require every meaningful token rather than an exact
+  // contiguous paraphrase. This is conservative: invented nouns still fail.
+  const generic = new Set([
+    "the", "a", "an", "of", "for", "to", "and", "in", "at", "on",
+    "amount", "value", "values", "number", "numbers", "saving", "savings",
+    "initial", "initially", "after", "afterward", "afterwards", "before",
+  ]);
+  const tokens = clean.split(/\s+/).filter((token) => token.length >= 2 && !generic.has(token));
+  return tokens.length > 0 && tokens.every((token) => evidence.normalised_text.includes(token));
 }
 
 export function evidenceContainsTime(

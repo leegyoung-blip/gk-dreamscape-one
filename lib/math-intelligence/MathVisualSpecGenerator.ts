@@ -21,6 +21,12 @@ import {
 } from "../../components/core-math/visual-engine/MathVisualTypes";
 import { validateMathVisualSpec } from "../../components/core-math/visual-engine/MathVisualValidator";
 import { validateMathVisualSemantics } from "./MathVisualSemanticValidator";
+import {
+  buildMathLearnerVisibleEvidence,
+  evidenceContainsLabel,
+  evidenceContainsNumber,
+  evidenceContainsUnit,
+} from "./MathLearnerVisibleEvidence";
 import type {
   MathIntelligenceAnalysis,
   MathIntelligenceQuestionInput,
@@ -33,7 +39,7 @@ import type {
   MathVisualSpecGenerationResult,
 } from "./MathVisualGenerationTypes";
 
-export const MATH_VISUAL_SPEC_GENERATOR_VERSION = "2I-P1.1";
+export const MATH_VISUAL_SPEC_GENERATOR_VERSION = "2I-P2.1";
 
 const PROMPT_VISUAL_ID = "main";
 
@@ -768,6 +774,40 @@ function visibleDataQuantities(analysis: MathIntelligenceAnalysis) {
   );
 }
 
+function sourceBackedDataQuantities(
+  input: MathIntelligenceQuestionInput,
+  analysis: MathIntelligenceAnalysis,
+) {
+  const evidence = buildMathLearnerVisibleEvidence(input);
+  return visibleDataQuantities(analysis).filter((quantity) => {
+    if (!finite(quantity.value) || !quantity.label?.trim()) return false;
+    if (!evidenceContainsNumber(evidence, quantity.value)) return false;
+    if (!evidenceContainsLabel(evidence, quantity.label)) return false;
+    if (quantity.unit && !evidenceContainsUnit(evidence, quantity.unit)) return false;
+    return true;
+  });
+}
+
+function sourceSafeLabel(
+  input: MathIntelligenceQuestionInput,
+  label: string | null | undefined,
+) {
+  if (!label?.trim()) return null;
+  return evidenceContainsLabel(buildMathLearnerVisibleEvidence(input), label)
+    ? label.trim()
+    : null;
+}
+
+function sourceSafeUnit(
+  input: MathIntelligenceQuestionInput,
+  unit: string | null | undefined,
+) {
+  if (!unit) return null;
+  return evidenceContainsUnit(buildMathLearnerVisibleEvidence(input), unit)
+    ? unit
+    : null;
+}
+
 function niceMaximum(maximum: number) {
   if (maximum <= 0) return 1;
   const magnitude = 10 ** Math.floor(Math.log10(maximum));
@@ -780,7 +820,7 @@ function generateBarChart(
   input: MathIntelligenceQuestionInput,
   analysis: MathIntelligenceAnalysis,
 ) {
-  const quantities = visibleDataQuantities(analysis).filter((quantity) => quantity.label?.trim());
+  const quantities = sourceBackedDataQuantities(input, analysis);
   if (quantities.length < 2) {
     return noSpec(
       analysis,
@@ -833,8 +873,8 @@ function generatePieChart(
   input: MathIntelligenceQuestionInput,
   analysis: MathIntelligenceAnalysis,
 ) {
-  const quantities = visibleDataQuantities(analysis).filter(
-    (quantity) => quantity.label?.trim() && (quantity.value as number) > 0,
+  const quantities = sourceBackedDataQuantities(input, analysis).filter(
+    (quantity) => (quantity.value as number) > 0,
   );
   if (quantities.length < 2) {
     return noSpec(
@@ -875,7 +915,7 @@ function generateTable(
   input: MathIntelligenceQuestionInput,
   analysis: MathIntelligenceAnalysis,
 ) {
-  const quantities = visibleDataQuantities(analysis).filter((quantity) => quantity.label?.trim());
+  const quantities = sourceBackedDataQuantities(input, analysis);
   if (quantities.length < 2) {
     return noSpec(
       analysis,
@@ -973,21 +1013,23 @@ function generateComparisonBarModel(
   input: MathIntelligenceQuestionInput,
   analysis: MathIntelligenceAnalysis,
 ) {
-  const known = quantityByRole(analysis, "known");
+  const known = analysis.interpretation.quantities.find((quantity) => quantity.role === "known") ?? null;
   const difference = quantityByRole(analysis, "difference");
   const unknown = analysis.interpretation.quantities.find((quantity) => quantity.role === "unknown") ?? null;
   const relationship = comparisonRelationship(analysis);
 
-  if (!known || !difference || !unknown || !finite(known.value) || !finite(difference.value) || !relationship) {
+  if (!known || !difference || !unknown || !finite(difference.value) || !relationship) {
     return noSpec(
       analysis,
       "needs_review",
       issue(
         "MISSING_REQUIRED_RELATIONSHIP",
-        "A comparison bar model needs a known quantity, a difference, an unknown quantity, and the comparison direction.",
+        "A comparison bar model needs two source quantities, an explicit difference, and the comparison direction.",
       ),
     );
   }
+
+  const knownHasValue = finite(known.value);
 
   const x = 115;
   const y = 80;
@@ -1014,7 +1056,7 @@ function generateComparisonBarModel(
       type: "text",
       x: x + knownWidth / 2,
       y: y + 39,
-      text: formatMeasurement(known.value, known.unit),
+      text: knownHasValue ? formatMeasurement(known.value as number, sourceSafeUnit(input, known.unit)) : "?",
       anchor: "middle",
       role: "value",
     } as MathTextObject,
@@ -1041,7 +1083,7 @@ function generateComparisonBarModel(
       type: "dimension",
       from: { x: x + shortWidth, y: y + gap + barHeight + 20 },
       to: { x: x + longWidth, y: y + gap + barHeight + 20 },
-      label: formatMeasurement(difference.value, difference.unit || known.unit),
+      label: formatMeasurement(difference.value, sourceSafeUnit(input, difference.unit || known.unit)),
       offset: 18,
       extension_lines: false,
       style: { tone: "warning" },
@@ -1058,24 +1100,26 @@ function generateComparisonBarModel(
     } as MathTextObject,
   ];
 
-  if (known.label) {
+  const knownLabel = sourceSafeLabel(input, known.label);
+  const unknownLabel = sourceSafeLabel(input, unknown.label);
+  if (knownLabel) {
     objects.push({
       id: "known_label",
       type: "text",
       x: x - 18,
       y: y + 39,
-      text: known.label,
+      text: knownLabel,
       anchor: "end",
       role: "label",
     } as MathTextObject);
   }
-  if (unknown.label) {
+  if (unknownLabel) {
     objects.push({
       id: "unknown_label",
       type: "text",
       x: x - 18,
       y: y + gap + 39,
-      text: unknown.label,
+      text: unknownLabel,
       anchor: "end",
       role: "label",
     } as MathTextObject);
@@ -1086,7 +1130,9 @@ function generateComparisonBarModel(
     analysis,
     visual(
       "bar_model",
-      `Comparison bar model with known quantity ${formatMeasurement(known.value, known.unit)} and difference ${formatMeasurement(difference.value, difference.unit || known.unit)}`,
+      knownHasValue
+        ? `Comparison bar model with known quantity ${formatMeasurement(known.value as number, sourceSafeUnit(input, known.unit))} and difference ${formatMeasurement(difference.value, sourceSafeUnit(input, difference.unit || known.unit))}`
+        : `Comparison bar model showing a source-stated difference of ${formatMeasurement(difference.value, sourceSafeUnit(input, difference.unit || known.unit))}`,
       { width: 720, height: 340, padding: 28, background: "paper" },
       objects,
     ),
@@ -1255,25 +1301,27 @@ function generateRatioBarModel(
     } as MathRectangleObject);
   }
 
-  if (left.label?.trim()) {
+  const leftLabel = sourceSafeLabel(input, left.label);
+  const rightLabel = sourceSafeLabel(input, right.label);
+  if (leftLabel) {
     objects.push({
       id: "ratio_a_label",
       type: "text",
       x: x - 18,
       y: firstY + 37,
-      text: left.label.trim(),
+      text: leftLabel,
       anchor: "end",
       role: "label",
     } as MathTextObject);
   }
 
-  if (right.label?.trim()) {
+  if (rightLabel) {
     objects.push({
       id: "ratio_b_label",
       type: "text",
       x: x - 18,
       y: secondY + 37,
-      text: right.label.trim(),
+      text: rightLabel,
       anchor: "end",
       role: "label",
     } as MathTextObject);
