@@ -169,6 +169,8 @@ export function buildMathAuthoringProposal(
       combined: visualOk && teachingOk,
     },
     decision: {
+      quiz_visual_requirement: result.rule_evaluation.quiz_visual_requirement,
+      auto_generate_v2: result.rule_evaluation.auto_generate_v2,
       visual_need: result.analysis.visual_need,
       disposition: result.analysis.disposition,
       strategy: result.analysis.strategy,

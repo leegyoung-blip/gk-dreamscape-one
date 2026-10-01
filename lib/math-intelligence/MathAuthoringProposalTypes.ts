@@ -6,6 +6,7 @@ import type {
   MathIntelligenceReasonCode,
   MathIntelligenceSource,
   MathProblemStructure,
+  MathQuizVisualRequirement,
   MathTarget,
   MathVisualNeed,
   MathVisualStrategy,
@@ -40,6 +41,9 @@ export type MathAuthoringProposalIssue = {
 };
 
 export type MathAuthoringProposalDecision = {
+  /** Added in Phase 3A. Optional so older saved QA proposals remain readable. */
+  quiz_visual_requirement?: MathQuizVisualRequirement;
+  auto_generate_v2?: boolean;
   visual_need: MathVisualNeed;
   disposition: MathGenerationDisposition;
   strategy: MathVisualStrategy;

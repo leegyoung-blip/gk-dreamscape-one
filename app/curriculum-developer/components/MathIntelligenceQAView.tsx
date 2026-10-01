@@ -504,6 +504,23 @@ export default function MathIntelligenceQAView() {
           <section style={card}>
             <div style={sectionHeader}>
               <div>
+                <p style={eyebrow}>PHASE 3A FILTER</p>
+                <h2 style={heading}>Quiz visual eligibility</h2>
+                <p style={muted}>Only “Required V2” questions are allowed into automatic quiz diagram generation.</p>
+              </div>
+            </div>
+            <div style={metricGrid}>
+              <Metric label="Required V2" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "required").length} />
+              <Metric label="Existing media" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "existing_media").length} />
+              <Metric label="Optional media" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "optional_enrichment").length} />
+              <Metric label="No visual" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "not_needed").length} />
+              <Metric label="Missing media" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "missing_required_media").length} />
+            </div>
+          </section>
+
+          <section style={card}>
+            <div style={sectionHeader}>
+              <div>
                 <p style={eyebrow}>COVERAGE REPORT</p>
                 <h2 style={heading}>Strategy performance</h2>
                 <p style={muted}>Human verdicts are intentionally separate from automatic validator results.</p>
@@ -650,6 +667,9 @@ export default function MathIntelligenceQAView() {
                     <span style={pillRow}>
                       <small style={miniPill}>{item.sample_stratum.replaceAll("_", " ")}</small>
                       <small style={miniPill}>{result?.proposal?.decision.strategy || "not run"}</small>
+                      {result?.proposal ? (
+                        <small style={miniPill}>Quiz: {(result.proposal.decision.quiz_visual_requirement || result.proposal.decision.visual_need).replaceAll("_", " ")}</small>
+                      ) : null}
                       <small style={miniPill}>{result?.status || "not run"}</small>
                       <small style={miniPill}>{!result?.proposal ? "No proposal" : (result.proposal.sources.interpretation.source === "luna" || result.proposal.sources.teaching.source === "luna") ? "Luna used" : "Rules only"}</small>
                       <small style={reviewPill(review?.verdict || "unreviewed")}>{review?.verdict || "unreviewed"}</small>

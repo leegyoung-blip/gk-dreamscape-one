@@ -52,6 +52,19 @@ export function resolveMathVisualStrategyWithRules(
   }
 
   const candidates = [...new Set(decision.candidate_strategies)];
+
+  // Phase 3A: a missing/unsupported required quiz visual must never be
+  // reinterpreted as an explanatory bar model merely because the text also
+  // contains a part-whole/comparison relationship. Keep the eligibility gate
+  // authoritative while still exposing one known required strategy for review.
+  if (decision.disposition === "needs_review") {
+    return {
+      resolved: true,
+      strategy: candidates.length === 1 ? candidates[0] : "none",
+      confidence: decision.confidence,
+      reason_codes: decision.reason_codes,
+    };
+  }
   if (candidates.length === 1) {
     return {
       resolved: true,

@@ -1,5 +1,6 @@
 export * from "./MathIntelligenceTypes";
 export * from "./MathQuestionNormalizer";
+export * from "./MathQuizVisualEligibility";
 export * from "./MathVisualDecisionEngine";
 export * from "./MathStructureInterpreter";
 export * from "./MathVisualStrategyResolver";

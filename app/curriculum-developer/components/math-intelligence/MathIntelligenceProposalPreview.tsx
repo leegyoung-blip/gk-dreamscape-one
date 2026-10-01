@@ -76,7 +76,14 @@ export default function MathIntelligenceProposalPreview({
       </div>
 
       <div style={decisionGrid}>
-        <DecisionItem label="Visual need" value={humanise(proposal.decision.visual_need)} />
+        <DecisionItem
+          label="Quiz visual"
+          value={humanise(quizVisualRequirement(proposal))}
+        />
+        <DecisionItem
+          label="Auto V2"
+          value={proposal.decision.auto_generate_v2 === true ? "Allowed" : "No"}
+        />
         <DecisionItem label="Strategy" value={humanise(proposal.decision.strategy)} />
         <DecisionItem
           label="Interpretation"
@@ -307,7 +314,10 @@ function proposalEmptyText(proposal: MathAuthoringProposal, mode: PreviewMode) {
   }
 
   if (proposal.status === "not_needed") {
-    return "No mathematical visual recommended. Dreamscape determined that this question is clearer without a generated diagram.";
+    if (quizVisualRequirement(proposal) === "optional_enrichment") {
+      return "No automatic quiz diagram. A high-quality illustration may be added through the existing media uploader if it improves the question.";
+    }
+    return "No quiz visual required. Dreamscape will keep this question text-only unless an author adds media manually.";
   }
   if (proposal.status === "preserved") {
     return "Existing learner-facing media should be preserved rather than replaced by a generated V2 visual.";
@@ -319,6 +329,15 @@ function proposalEmptyText(proposal: MathAuthoringProposal, mode: PreviewMode) {
     return "The generated proposal failed validation and cannot be accepted.";
   }
   return "No generated V2 diagram is available.";
+}
+
+function quizVisualRequirement(proposal: MathAuthoringProposal) {
+  const explicit = proposal.decision.quiz_visual_requirement;
+  if (explicit) return explicit;
+  if (proposal.status === "preserved") return "existing_media";
+  if (proposal.decision.disposition === "generate") return "required";
+  if (proposal.decision.visual_need === "useful") return "optional_enrichment";
+  return "not_needed";
 }
 
 function teachingSourceLabel(proposal: MathAuthoringProposal) {
@@ -333,8 +352,11 @@ function sourceLabel(source: "rules" | "luna", model: string | null) {
 }
 
 function proposalTitle(proposal: MathAuthoringProposal) {
-  if (proposal.status === "generated") return "Generated visual + teaching proposal";
-  if (proposal.status === "not_needed") return "No visual recommended";
+  if (proposal.status === "generated") return "Generated quiz visual proposal";
+  if (proposal.status === "not_needed" && quizVisualRequirement(proposal) === "optional_enrichment") {
+    return "Optional enrichment — use media uploader if desired";
+  }
+  if (proposal.status === "not_needed") return "No quiz visual required";
   if (proposal.status === "preserved") return "Preserve existing media";
   if (proposal.status === "needs_review") return "Manual review required";
   return "Proposal failed validation";

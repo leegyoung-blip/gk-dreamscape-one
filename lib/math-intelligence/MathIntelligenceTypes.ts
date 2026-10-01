@@ -5,11 +5,28 @@
  * 1. Dreamscape deterministic rules.
  * 2. OpenAI Luna for questions the deterministic layer cannot resolve safely.
  *
- * This layer decides WHETHER a visual is useful and WHAT representation should
- * be used. It does not generate Math Visual V2 objects yet (Phase 2D).
+ * Phase 3A adds a conservative quiz-visual eligibility gate before the older
+ * representation logic. Automatic V2 quiz diagrams are now limited to tasks
+ * where the visual is intrinsic to the assessment; explanatory/enrichment
+ * visuals are left to uploaded media or, later, the Teaching Engine.
  */
 
 export type MathIntelligenceSource = "rules" | "luna";
+
+export type MathQuizVisualRequirement =
+  | "required"
+  | "existing_media"
+  | "optional_enrichment"
+  | "not_needed"
+  | "missing_required_media";
+
+export type MathQuizVisualEligibility = {
+  requirement: MathQuizVisualRequirement;
+  auto_generate_v2: boolean;
+  candidate_strategies: MathVisualStrategy[];
+  confidence: number;
+  reason_codes: MathIntelligenceReasonCode[];
+};
 
 export type MathVisualNeed =
   | "required"
@@ -204,7 +221,15 @@ export type MathIntelligenceReasonCode =
   | "MULTIPLE_STRATEGIES_PLAUSIBLE"
   | "INSUFFICIENT_STRUCTURED_DATA"
   | "AMBIGUOUS_LANGUAGE"
-  | "LUNA_CLASSIFIED";
+  | "LUNA_CLASSIFIED"
+  | "QUIZ_VISUAL_REQUIRED"
+  | "QUIZ_VISUAL_EXISTING_MEDIA"
+  | "QUIZ_VISUAL_OPTIONAL_ENRICHMENT"
+  | "QUIZ_VISUAL_NOT_NEEDED"
+  | "QUIZ_VISUAL_MISSING_REQUIRED_MEDIA"
+  | "QUIZ_VISUAL_MANUAL_MEDIA_PREFERRED"
+  | "QUIZ_VISUAL_AUTO_V2_ALLOWED"
+  | "QUIZ_VISUAL_REQUIRED_UNSUPPORTED";
 
 export type MathExistingMediaSummary = {
   has_math_visual_v2: boolean;
@@ -236,6 +261,8 @@ export type MathIntelligenceQuestionInput = {
 
 export type MathRuleEvaluation = {
   resolved: boolean;
+  quiz_visual_requirement: MathQuizVisualRequirement;
+  auto_generate_v2: boolean;
   visual_need: MathVisualNeed | null;
   disposition: MathGenerationDisposition | null;
   candidate_strategies: MathVisualStrategy[];

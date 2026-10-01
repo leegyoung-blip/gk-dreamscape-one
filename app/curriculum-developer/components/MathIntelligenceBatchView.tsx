@@ -456,7 +456,7 @@ export default function MathIntelligenceBatchView() {
                     </div>
                     {proposal ? (
                       <div style={resultFacts}>
-                        <span>Need: {proposal.decision.visual_need}</span>
+                        <span>Quiz visual: {proposal.decision.quiz_visual_requirement || proposal.decision.visual_need}</span>
                         <span>Strategy: {proposal.decision.strategy}</span>
                         <span>
                           Interpretation: {proposal.sources.interpretation.source === "luna" ? "Luna" : "Rules"}

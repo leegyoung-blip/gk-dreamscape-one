@@ -77,6 +77,8 @@ type MiloClubProfile = {
   role: string | null;
 };
 
+type MiloZoneCategory = "learn" | "apply" | "play";
+
 type Zone = {
   number: string;
   icon: string;
@@ -84,6 +86,9 @@ type Zone = {
   description: string;
   href: string;
   accessKey: MiloZoneKey;
+  category: MiloZoneCategory;
+  categoryLabel: string;
+  primary?: boolean;
   adminOnly?: boolean;
   statusLabel?: string;
 };
@@ -96,51 +101,64 @@ type WalkthroughStep = {
 };
 
 
-const WALKTHROUGH_STORAGE_KEY = "milo-world-walkthrough-completed-v2";
+const WALKTHROUGH_STORAGE_KEY = "milo-world-walkthrough-completed-v3";
 
 const ZONES: Zone[] = [
   {
     number: "1",
     icon: "▣",
     title: "Activity Lab",
-    description: "Daily challenges and social games where you can earn Dream Tokens.",
+    description:
+      "Play quick challenges, practise what you know and earn Dream Tokens along the way.",
     href: "/milo-world/activity-lab",
     accessKey: "activity_lab",
+    category: "play",
+    categoryLabel: "Play & Learn",
   },
   {
     number: "2",
     icon: "◈",
     title: "Milo’s Exchange",
-    description: "Where you put your Dream Tokens to work.",
+    description:
+      "Put financial knowledge into practice through fictional stocks, property and market decisions.",
     href: "/milo-world/exchange",
     accessKey: "exchange",
+    category: "apply",
+    categoryLabel: "Apply Your Knowledge",
   },
   {
     number: "3",
     icon: "★",
     title: "Milo’s Business Builder",
     description:
-      "Where ideas become businesses — and your decisions shape what happens next.",
+      "Build a business, make real trade-offs and see how your decisions affect what happens next.",
     href: "/milo-world/club",
     accessKey: "business_builder",
+    category: "apply",
+    categoryLabel: "Apply Your Knowledge",
   },
   {
     number: "4",
     icon: "◆",
     title: "Milo’s Bank",
     description:
-      "Save your Dream Tokens, grow them over time, and learn how money works.",
+      "Start here to build strong financial basics, learn how money works and practise smarter money decisions.",
     href: "/milo-world/bank",
     accessKey: "bank",
+    category: "learn",
+    categoryLabel: "Start Here · Learn",
+    primary: true,
   },
   {
     number: "5",
     icon: "◉",
-    title: "Milo’s Quiz Hall",
+    title: "Creator Clubs",
     description:
-      "Enter creator clubs or test yourself in Dreamscape’s official Categories Hub.",
+      "Join interest-based communities, create and play challenges, and explore Dreamscape’s Categories activities.",
     href: "/milo-world/quiz-hall",
     accessKey: "quiz_hall",
+    category: "play",
+    categoryLabel: "Play & Learn",
   },
 ];
 
@@ -158,56 +176,56 @@ const DESKTOP_ZONE_MARKERS: Record<
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     eyebrow: "Welcome",
-    title: "Want me to show you around?",
+    title: "Milo’s World has a path.",
     text:
-      "Hey! I’m Milo. I’ll show you how to earn Dream Tokens, save and grow them, put them to work, build something of your own and test what you know.",
+      "Hey! I’m Milo. Instead of five equal places, I’ll show you the easiest way to use this world: learn the basics first, put them into practice, then explore and play.",
   },
   {
-    eyebrow: "Your Money",
-    title: "Dream Tokens are your starting point.",
+    eyebrow: "The Milo Path",
+    title: "Learn → Apply → Play & Explore",
     text:
-      "Earn DT through activities, then choose what to do with them. Save them, invest them, spend them wisely, or use them as you build your way through Milo’s World.",
+      "Gold is your learning hub, emerald is where you apply financial and business ideas, and blue is for lighter challenges, clubs and exploration. You can visit anywhere, but this path gives you the clearest place to begin.",
   },
   {
-    eyebrow: "Stop 1 of 5",
-    title: "Need some Dream Tokens? Start here.",
+    eyebrow: "Step 1 · Learn",
+    title: "Start at Milo’s Bank.",
     text:
-      "The Activity Lab has daily challenges and social games where you can play, compete and earn your first Dream Tokens.",
-    zoneNumber: "1",
-  },
-  {
-    eyebrow: "Stop 2 of 5",
-    title: "Now put those Tokens to work.",
-    text:
-      "Milo’s Exchange lets you experiment with fictional stocks and property without risking real money — and see how value, risk and returns can change.",
-    zoneNumber: "2",
-  },
-  {
-    eyebrow: "Stop 3 of 5",
-    title: "What if you built the business yourself?",
-    text:
-      "In Business Builder, you’ll make decisions about costs, staff, operations and growth, then see what happens to the business you create.",
-    zoneNumber: "3",
-  },
-  {
-    eyebrow: "Stop 4 of 5",
-    title: "What will you do with your Tokens?",
-    text:
-      "Milo’s Bank is where you can manage your Dream Tokens, save towards goals, buy Bank Bonds, and learn how money can grow over time.",
+      "Milo’s Bank is the main financial learning hub. Build strong money basics here first through lessons, practice and simulations, then take those ideas into the rest of Milo’s World.",
     zoneNumber: "4",
   },
   {
-    eyebrow: "Stop 5 of 5",
-    title: "Welcome to Milo’s Quiz Hall.",
+    eyebrow: "Step 2 · Apply",
+    title: "Use what you learn in Milo’s Exchange.",
     text:
-      "Enter creator-led quiz clubs built around different interests, or head to Dreamscape’s Categories Hub to test your knowledge, build mastery and compete.",
+      "The Exchange lets you practise with fictional stocks, property and market decisions without risking real money. It is where financial concepts start becoming choices.",
+    zoneNumber: "2",
+  },
+  {
+    eyebrow: "Step 2 · Apply",
+    title: "Then build with Business Builder.",
+    text:
+      "Business Builder turns knowledge into entrepreneurship. Make decisions about costs, operations, people and growth, then see how those decisions shape your business.",
+    zoneNumber: "3",
+  },
+  {
+    eyebrow: "Step 3 · Play & Learn",
+    title: "Activity Lab keeps learning light.",
+    text:
+      "Use Activity Lab for quick challenges, social games and practice. It is a lower-pressure way to keep learning, compete and earn Dream Tokens.",
+    zoneNumber: "1",
+  },
+  {
+    eyebrow: "Step 3 · Play & Learn",
+    title: "Creator Clubs adds community.",
+    text:
+      "Join interest-based communities, create and play challenges, and explore Categories activities with other learners. This is the social and creative side of Milo’s World.",
     zoneNumber: "5",
   },
   {
     eyebrow: "Your Turn",
-    title: "Where do you want to start?",
+    title: "Ready to begin?",
     text:
-      "That’s the idea: earn, explore, compete, build and decide what happens next. Pick a place and let’s go.",
+      "If you’re new to Milo’s World, I recommend starting with Milo’s Bank. You can also jump straight into applying your knowledge or choose a play-and-learn activity.",
   },
 ];
 
@@ -315,6 +333,64 @@ function ResponsiveMiloStyles() {
   );
 }
 
+const MILO_ZONE_THEMES: Record<
+  MiloZoneCategory,
+  {
+    accent: string;
+    border: string;
+    borderStrong: string;
+    glow: string;
+    glowStrong: string;
+    iconBackground: string;
+    cardBackground: string;
+    cardBackgroundStrong: string;
+  }
+> = {
+  learn: {
+    accent: "#ffd67a",
+    border: "rgba(255,208,92,0.42)",
+    borderStrong: "rgba(255,216,122,0.92)",
+    glow: "rgba(255,190,65,0.18)",
+    glowStrong: "rgba(255,190,65,0.42)",
+    iconBackground:
+      "radial-gradient(circle, rgba(255,208,92,0.24), rgba(31,22,5,0.9))",
+    cardBackground:
+      "linear-gradient(145deg, rgba(42,30,7,0.82), rgba(10,13,22,0.9))",
+    cardBackgroundStrong:
+      "linear-gradient(145deg, rgba(64,44,8,0.96), rgba(12,15,24,0.98))",
+  },
+  apply: {
+    accent: "#8ff1c5",
+    border: "rgba(91,220,163,0.38)",
+    borderStrong: "rgba(143,241,197,0.9)",
+    glow: "rgba(67,209,145,0.16)",
+    glowStrong: "rgba(67,209,145,0.4)",
+    iconBackground:
+      "radial-gradient(circle, rgba(67,209,145,0.2), rgba(3,31,24,0.9))",
+    cardBackground:
+      "linear-gradient(145deg, rgba(5,43,31,0.8), rgba(6,15,24,0.9))",
+    cardBackgroundStrong:
+      "linear-gradient(145deg, rgba(6,63,44,0.95), rgba(6,17,26,0.98))",
+  },
+  play: {
+    accent: "#8ee8ff",
+    border: "rgba(83,215,255,0.36)",
+    borderStrong: "rgba(142,232,255,0.9)",
+    glow: "rgba(83,215,255,0.16)",
+    glowStrong: "rgba(83,215,255,0.4)",
+    iconBackground:
+      "radial-gradient(circle, rgba(83,215,255,0.2), rgba(2,8,19,0.88))",
+    cardBackground:
+      "linear-gradient(145deg, rgba(5,31,52,0.8), rgba(5,13,28,0.9))",
+    cardBackgroundStrong:
+      "linear-gradient(145deg, rgba(7,47,76,0.95), rgba(5,14,30,0.98))",
+  },
+};
+
+function getZoneTheme(zone: Zone) {
+  return MILO_ZONE_THEMES[zone.category];
+}
+
 function ZoneCard({
   zone,
   screenMode,
@@ -334,10 +410,18 @@ function ZoneCard({
   const isMobile = screenMode === "mobile";
   const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
   const isEmphasised = hovered || walkthroughHighlighted;
+  const theme = getZoneTheme(zone);
+  const isPrimary = Boolean(zone.primary);
 
   const cardStyle: CSSProperties = {
     position: "relative",
-    minHeight: isMobile ? "82px" : "94px",
+    minHeight: isPrimary
+      ? isMobile
+        ? "118px"
+        : "132px"
+      : isMobile
+        ? "82px"
+        : "94px",
     width: "100%",
     display: "grid",
     gridTemplateColumns: isMobile
@@ -348,15 +432,15 @@ function ZoneCard({
     padding: isMobile ? "16px" : "20px 24px 20px 20px",
     borderRadius: "16px",
     border: isEmphasised
-      ? "1px solid rgba(142, 232, 255, 0.88)"
+      ? `1px solid ${theme.borderStrong}`
       : isUnavailable
         ? "1px solid rgba(255,190,105,0.3)"
-        : "1px solid rgba(132, 218, 255, 0.32)",
+        : `1px solid ${theme.border}`,
     background: isEmphasised
-      ? "rgba(5, 18, 36, 0.94)"
+      ? theme.cardBackgroundStrong
       : isUnavailable
         ? "rgba(30,20,18,0.72)"
-        : "rgba(5, 13, 28, 0.68)",
+        : theme.cardBackground,
     color: "white",
     textDecoration: "none",
     textAlign: "left",
@@ -364,10 +448,12 @@ function ZoneCard({
     backdropFilter: "blur(18px)",
     WebkitBackdropFilter: "blur(18px)",
     boxShadow: walkthroughHighlighted
-      ? "0 0 0 3px rgba(83,215,255,0.18), 0 0 54px rgba(83,215,255,0.48), 0 28px 74px rgba(0,0,0,0.55)"
+      ? `0 0 0 3px ${theme.glow}, 0 0 54px ${theme.glowStrong}, 0 28px 74px rgba(0,0,0,0.55)`
       : hovered && !isUnavailable
-        ? "0 0 42px rgba(83,215,255,0.28), 0 26px 70px rgba(0,0,0,0.42)"
-        : "0 14px 34px rgba(0,0,0,0.3)",
+        ? `0 0 42px ${theme.glowStrong}, 0 26px 70px rgba(0,0,0,0.42)`
+        : isPrimary
+          ? `0 0 34px ${theme.glow}, 0 18px 42px rgba(0,0,0,0.34)`
+          : "0 14px 34px rgba(0,0,0,0.3)",
     opacity:
       walkthroughActive && !walkthroughHighlighted
         ? 0.2
@@ -404,16 +490,16 @@ function ZoneCard({
           alignItems: "center",
           justifyContent: "center",
           fontSize: isMobile ? "20px" : "23px",
-          color: isUnavailable ? "#ffd18a" : "#8ee8ff",
+          color: isUnavailable ? "#ffd18a" : theme.accent,
           background: isUnavailable
             ? "radial-gradient(circle, rgba(255,189,115,0.18), rgba(24,14,12,0.9))"
-            : "radial-gradient(circle, rgba(83,215,255,0.2), rgba(2,8,19,0.88))",
+            : theme.iconBackground,
           border: isUnavailable
             ? "1px solid rgba(255,189,115,0.4)"
-            : "1px solid rgba(83,215,255,0.45)",
+            : `1px solid ${theme.border}`,
           boxShadow: isUnavailable
             ? "0 0 20px rgba(255,189,115,0.12)"
-            : "0 0 22px rgba(83,215,255,0.22), inset 0 0 18px rgba(83,215,255,0.08)",
+            : `0 0 22px ${theme.glow}, inset 0 0 18px ${theme.glow}`,
         }}
       >
         {zone.icon}
@@ -455,6 +541,24 @@ function ZoneCard({
                 gap: "8px",
               }}
             >
+              {isPrimary && (
+                <span
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: "999px",
+                    border: `1px solid ${theme.border}`,
+                    background: theme.glow,
+                    color: theme.accent,
+                    fontSize: "9px",
+                    fontWeight: 900,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Start Here
+                </span>
+              )}
               <h3
                 style={{
                   margin: 0,
@@ -488,6 +592,22 @@ function ZoneCard({
                 </span>
               )}
             </div>
+
+            {!isMobile && (
+              <p
+                style={{
+                  margin: "7px 0 0",
+                  color: theme.accent,
+                  fontSize: "9px",
+                  lineHeight: 1.35,
+                  fontWeight: 900,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {zone.categoryLabel}
+              </p>
+            )}
 
             {!isMobile && (
               <p
@@ -565,6 +685,8 @@ function MiloZoneHotspot({
 }) {
   const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
   const position = DESKTOP_ZONE_MARKERS[zone.number];
+  const theme = getZoneTheme(zone);
+  const isPrimary = Boolean(zone.primary);
 
   return (
     <button
@@ -587,24 +709,24 @@ function MiloZoneHotspot({
         zIndex: isHighlighted ? 92 : isActive ? 35 : 25,
         left: position.left,
         top: position.top,
-        minHeight: "38px",
-        padding: "4px 11px 4px 4px",
+        minHeight: isPrimary ? "46px" : "38px",
+        padding: isPrimary ? "5px 14px 5px 5px" : "4px 11px 4px 4px",
         transform: isActive
-          ? "translate(-50%, -50%) scale(1.08)"
-          : "translate(-50%, -50%)",
+          ? `translate(-50%, -50%) scale(${isPrimary ? 1.14 : 1.08})`
+          : `translate(-50%, -50%) scale(${isPrimary ? 1.06 : 1})`,
         borderRadius: "999px",
         border: isActive
           ? isUnavailable
             ? "1px solid rgba(255,209,138,0.92)"
-            : "1px solid rgba(142,232,255,0.92)"
+            : `1px solid ${theme.borderStrong}`
           : isUnavailable
             ? "1px solid rgba(255,209,138,0.5)"
-            : "1px solid rgba(126,232,255,0.46)",
+            : `1px solid ${theme.border}`,
         background: isActive
-          ? "rgba(3,18,40,0.93)"
+          ? theme.cardBackgroundStrong
           : isUnavailable
             ? "rgba(48,31,21,0.72)"
-            : "rgba(3,18,40,0.68)",
+            : theme.cardBackground,
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         color: isUnavailable ? "#ffd18a" : "white",
@@ -618,10 +740,12 @@ function MiloZoneHotspot({
         boxShadow: isActive
           ? isUnavailable
             ? "0 0 0 3px rgba(255,209,138,0.10), 0 0 24px rgba(255,209,138,0.28), 0 12px 28px rgba(0,0,0,0.34)"
-            : "0 0 0 3px rgba(83,215,255,0.12), 0 0 24px rgba(83,215,255,0.42), 0 12px 28px rgba(0,0,0,0.34)"
+            : `0 0 0 3px ${theme.glow}, 0 0 28px ${theme.glowStrong}, 0 12px 28px rgba(0,0,0,0.34)`
           : isUnavailable
             ? "0 0 15px rgba(255,209,138,0.12), 0 10px 24px rgba(0,0,0,0.24)"
-            : "0 0 15px rgba(83,215,255,0.16), 0 10px 24px rgba(0,0,0,0.24)",
+            : isPrimary
+              ? `0 0 28px ${theme.glowStrong}, 0 12px 30px rgba(0,0,0,0.26)`
+              : `0 0 15px ${theme.glow}, 0 10px 24px rgba(0,0,0,0.24)`,
         opacity:
           isWalkthroughActive && !isHighlighted
             ? 0.14
@@ -652,11 +776,11 @@ function MiloZoneHotspot({
           flexShrink: 0,
           border: isUnavailable
             ? "1px solid rgba(255,209,138,0.78)"
-            : "1px solid rgba(142,232,255,0.78)",
+            : `1px solid ${theme.borderStrong}`,
           background: isUnavailable
             ? "rgba(255,209,138,0.08)"
-            : "rgba(83,215,255,0.10)",
-          color: isUnavailable ? "#ffd18a" : "#8ee8ff",
+            : theme.glow,
+          color: isUnavailable ? "#ffd18a" : theme.accent,
           fontSize: "11px",
           fontWeight: 950,
           boxShadow: isUnavailable
@@ -677,6 +801,23 @@ function MiloZoneHotspot({
       >
         {zone.title}
       </span>
+
+      {isPrimary && !isUnavailable && (
+        <span
+          style={{
+            padding: "3px 7px",
+            borderRadius: "999px",
+            background: theme.glow,
+            color: theme.accent,
+            fontSize: "8px",
+            fontWeight: 950,
+            letterSpacing: "0.11em",
+            textTransform: "uppercase",
+          }}
+        >
+          Start Here
+        </span>
+      )}
     </button>
   );
 }
@@ -698,6 +839,7 @@ function MiloZoneHoverPopup({
 }) {
   const marker = DESKTOP_ZONE_MARKERS[zone.number];
   const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
+  const theme = getZoneTheme(zone);
   const shouldOpenBelow = zone.number === "1" || zone.number === "4";
   const isLeftSideZone = zone.number === "1" || zone.number === "2";
   const horizontalPopupTransform = isLeftSideZone ? "-12%" : "-50%";
@@ -720,20 +862,19 @@ function MiloZoneHoverPopup({
             }`,
         borderRadius: "20px",
         border: `${isHighlighted || isSelected ? 2 : 1}px solid ${
-          isUnavailable
-            ? "rgba(255,209,138,0.86)"
-            : "rgba(126,232,255,0.72)"
+          isUnavailable ? "rgba(255,209,138,0.86)" : theme.borderStrong
         }`,
-        background:
-          "linear-gradient(145deg, rgba(8,35,70,0.97), rgba(3,13,34,0.985))",
+        background: isUnavailable
+          ? "linear-gradient(145deg, rgba(48,31,21,0.97), rgba(16,12,10,0.985))"
+          : theme.cardBackgroundStrong,
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
         boxShadow:
           isHighlighted || isSelected
             ? isUnavailable
               ? "0 0 0 6px rgba(255,209,138,0.08), 0 0 38px rgba(255,209,138,0.22), 0 24px 60px rgba(0,0,0,0.52)"
-              : "0 0 0 6px rgba(83,215,255,0.10), 0 0 40px rgba(83,215,255,0.30), 0 24px 60px rgba(0,0,0,0.52)"
-            : "0 0 24px rgba(83,215,255,0.15), 0 20px 48px rgba(0,0,0,0.42)",
+              : `0 0 0 6px ${theme.glow}, 0 0 40px ${theme.glowStrong}, 0 24px 60px rgba(0,0,0,0.52)`
+            : `0 0 24px ${theme.glow}, 0 20px 48px rgba(0,0,0,0.42)`,
         padding: isSelected ? "22px 23px 20px" : "20px 22px",
         pointerEvents: isSelected ? "auto" : "none",
         color: "white",
@@ -767,7 +908,7 @@ function MiloZoneHoverPopup({
       <p
         style={{
           margin: 0,
-          color: isUnavailable ? "#ffd18a" : "#8ee8ff",
+          color: isUnavailable ? "#ffd18a" : theme.accent,
           fontSize: "10px",
           letterSpacing: "0.17em",
           textTransform: "uppercase",
@@ -831,9 +972,8 @@ function MiloZoneHoverPopup({
               width: "100%",
               minHeight: "44px",
               borderRadius: "13px",
-              border: "1px solid rgba(126,232,255,0.55)",
-              background:
-                "linear-gradient(135deg, rgba(83,215,255,0.24), rgba(15,58,100,0.92))",
+              border: `1px solid ${theme.borderStrong}`,
+              background: theme.cardBackgroundStrong,
               color: "white",
               cursor: "pointer",
               fontFamily: "inherit",
@@ -879,6 +1019,7 @@ function CompactMiloZoneInfoCard({
   onEnter: () => void;
 }) {
   const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
+  const theme = getZoneTheme(zone);
 
   return (
     <>
@@ -912,12 +1053,13 @@ function CompactMiloZoneInfoCard({
           borderRadius: "22px",
           border: isUnavailable
             ? "1px solid rgba(255,209,138,0.58)"
-            : "1px solid rgba(126,232,255,0.62)",
-          background:
-            "linear-gradient(145deg, rgba(7,31,64,0.985), rgba(3,11,29,0.99))",
+            : `1px solid ${theme.borderStrong}`,
+          background: isUnavailable
+            ? "linear-gradient(145deg, rgba(48,31,21,0.985), rgba(17,12,10,0.99))"
+            : theme.cardBackgroundStrong,
           boxShadow: isUnavailable
             ? "0 0 30px rgba(255,209,138,0.14), 0 28px 72px rgba(0,0,0,0.58)"
-            : "0 0 30px rgba(83,215,255,0.18), 0 28px 72px rgba(0,0,0,0.58)",
+            : `0 0 30px ${theme.glowStrong}, 0 28px 72px rgba(0,0,0,0.58)`,
           color: "white",
           padding: "20px",
         }}
@@ -958,11 +1100,11 @@ function CompactMiloZoneInfoCard({
               borderRadius: "999px",
               border: isUnavailable
                 ? "1px solid rgba(255,209,138,0.72)"
-                : "1px solid rgba(142,232,255,0.72)",
+                : `1px solid ${theme.borderStrong}`,
               background: isUnavailable
                 ? "rgba(255,209,138,0.08)"
-                : "rgba(83,215,255,0.10)",
-              color: isUnavailable ? "#ffd18a" : "#8ee8ff",
+                : theme.glow,
+              color: isUnavailable ? "#ffd18a" : theme.accent,
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
@@ -978,7 +1120,7 @@ function CompactMiloZoneInfoCard({
             <p
               style={{
                 margin: 0,
-                color: isUnavailable ? "#ffd18a" : "#8ee8ff",
+                color: isUnavailable ? "#ffd18a" : theme.accent,
                 fontSize: "9px",
                 letterSpacing: "0.16em",
                 textTransform: "uppercase",
@@ -1043,9 +1185,8 @@ function CompactMiloZoneInfoCard({
               width: "100%",
               minHeight: "46px",
               borderRadius: "14px",
-              border: "1px solid rgba(126,232,255,0.58)",
-              background:
-                "linear-gradient(135deg, rgba(83,215,255,0.24), rgba(15,58,100,0.94))",
+              border: `1px solid ${theme.borderStrong}`,
+              background: theme.cardBackgroundStrong,
               color: "white",
               cursor: "pointer",
               fontFamily: "inherit",
@@ -1194,96 +1335,15 @@ function GuidedWalkthrough({
     if (stepIndex === 0) {
       return (
         <>
-          <button type="button" onClick={() => onStepChange(1)} style={primaryActionStyle}>
-            Sure!
+          <button
+            type="button"
+            onClick={() => onStepChange(1)}
+            style={primaryActionStyle}
+          >
+            Show me the path
           </button>
           <button type="button" onClick={onClose} style={secondaryActionStyle}>
             Maybe later
-          </button>
-        </>
-      );
-    }
-
-    if (stepIndex === 2) {
-      return (
-        <>
-          <button
-            type="button"
-            onClick={() => onNavigate("/milo-world/activity-lab")}
-            style={primaryActionStyle}
-          >
-            Let’s play!
-          </button>
-          <button type="button" onClick={() => onStepChange(3)} style={secondaryActionStyle}>
-            Keep touring
-          </button>
-        </>
-      );
-    }
-
-    if (stepIndex === 3) {
-      return (
-        <>
-          <button
-            type="button"
-            onClick={() => onNavigate("/milo-world/exchange")}
-            style={primaryActionStyle}
-          >
-            Visit the Exchange
-          </button>
-          <button type="button" onClick={() => onStepChange(4)} style={secondaryActionStyle}>
-            Keep touring
-          </button>
-        </>
-      );
-    }
-
-    if (stepIndex === 4) {
-      return (
-        <>
-          <button
-            type="button"
-            onClick={() => onNavigate("/milo-world/club")}
-            style={primaryActionStyle}
-          >
-            Visit Business Builder
-          </button>
-          <button type="button" onClick={() => onStepChange(5)} style={secondaryActionStyle}>
-            Keep touring
-          </button>
-        </>
-      );
-    }
-
-    if (stepIndex === 5) {
-      return (
-        <>
-          <button
-            type="button"
-            onClick={() => onNavigate("/milo-world/bank")}
-            style={primaryActionStyle}
-          >
-            Visit Milo’s Bank
-          </button>
-          <button type="button" onClick={() => onStepChange(6)} style={secondaryActionStyle}>
-            Keep touring
-          </button>
-        </>
-      );
-    }
-
-    if (stepIndex === 6) {
-      return (
-        <>
-          <button
-            type="button"
-            onClick={() => onNavigate("/milo-world/quiz-hall")}
-            style={primaryActionStyle}
-          >
-            Enter Quiz Hall
-          </button>
-          <button type="button" onClick={() => onStepChange(7)} style={secondaryActionStyle}>
-            Keep touring
           </button>
         </>
       );
@@ -1298,49 +1358,67 @@ function GuidedWalkthrough({
         justifyContent: "center",
       };
 
+      const bankChoiceStyle: CSSProperties = {
+        ...choiceStyle,
+        border: "1px solid rgba(255,216,122,0.72)",
+        background:
+          "linear-gradient(135deg, rgba(255,199,79,0.24), rgba(81,55,8,0.92))",
+        color: "#fff4cf",
+        boxShadow: "0 0 24px rgba(255,190,65,0.16)",
+      };
+
       return (
         <div
           style={{
             width: "100%",
-            display: "flex",
-            flexWrap: "wrap",
+            display: "grid",
+            gridTemplateColumns: isMobile
+              ? "1fr"
+              : "repeat(2, minmax(0, 1fr))",
             gap: "8px",
           }}
         >
           <button
             type="button"
-            onClick={() => onNavigate("/milo-world/activity-lab")}
-            style={choiceStyle}
+            onClick={() => onNavigate("/milo-world/bank")}
+            style={{
+              ...bankChoiceStyle,
+              gridColumn: isMobile ? "auto" : "1 / -1",
+            }}
           >
-            Play & Earn
+            Start at Milo’s Bank
           </button>
+
           <button
             type="button"
             onClick={() => onNavigate("/milo-world/exchange")}
             style={choiceStyle}
           >
-            Invest
+            Explore the Exchange
           </button>
+
           <button
             type="button"
             onClick={() => onNavigate("/milo-world/club")}
             style={choiceStyle}
           >
-            Business Builder
+            Build a Business
           </button>
+
           <button
             type="button"
-            onClick={() => onNavigate("/milo-world/bank")}
+            onClick={() => onNavigate("/milo-world/activity-lab")}
             style={choiceStyle}
           >
-            Milo’s Bank
+            Activity Lab
           </button>
+
           <button
             type="button"
             onClick={() => onNavigate("/milo-world/quiz-hall")}
             style={choiceStyle}
           >
-            Quiz Hall
+            Creator Clubs
           </button>
         </div>
       );
@@ -1348,12 +1426,19 @@ function GuidedWalkthrough({
 
     return (
       <>
-        {!isFirstStep && (
-          <button type="button" onClick={() => onStepChange(stepIndex - 1)} style={secondaryActionStyle}>
-            Back
-          </button>
-        )}
-        <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={primaryActionStyle}>
+        <button
+          type="button"
+          onClick={() => onStepChange(stepIndex - 1)}
+          style={secondaryActionStyle}
+        >
+          Back
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onStepChange(stepIndex + 1)}
+          style={primaryActionStyle}
+        >
           Next
         </button>
       </>
@@ -2731,6 +2816,10 @@ export default function MiloWorldPage() {
     };
   });
 
+  const bankZone = worldZones.find((zone) => zone.accessKey === "bank") ?? null;
+  const applyZones = worldZones.filter((zone) => zone.category === "apply");
+  const playZones = worldZones.filter((zone) => zone.category === "play");
+
   const activeWalkthroughZoneNumber = walkthroughOpen
     ? WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber ?? null
     : null;
@@ -3450,7 +3539,67 @@ export default function MiloWorldPage() {
           >
             ›
           </span>
-          Choose a location to begin
+          Start with the Bank, then put what you learn into practice
+        </div>
+
+        <div
+          aria-label="Milo learning path"
+          style={{
+            marginTop: isMobile ? "16px" : "18px",
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: isMobile ? "7px" : "9px",
+          }}
+        >
+          {[
+            ["1", "Learn", "#ffd67a", "rgba(255,190,65,0.14)", "rgba(255,208,92,0.38)"],
+            ["2", "Apply", "#8ff1c5", "rgba(67,209,145,0.12)", "rgba(91,220,163,0.34)"],
+            ["3", "Play & Learn", "#8ee8ff", "rgba(83,215,255,0.12)", "rgba(83,215,255,0.32)"],
+          ].map(([number, label, color, background, border], index) => (
+            <div
+              key={String(label)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "7px",
+              }}
+            >
+              {index > 0 && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    color: "rgba(255,255,255,0.34)",
+                    fontSize: "12px",
+                  }}
+                >
+                  →
+                </span>
+              )}
+
+              <span
+                style={{
+                  minHeight: "28px",
+                  padding: "0 10px",
+                  borderRadius: "999px",
+                  border: `1px solid ${border}`,
+                  background,
+                  color,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: isMobile ? "9px" : "10px",
+                  fontWeight: 900,
+                  letterSpacing: "0.09em",
+                  textTransform: "uppercase",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <strong>{number}</strong>
+                {label}
+              </span>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -3522,20 +3671,163 @@ export default function MiloWorldPage() {
             )}
           </>
         ) : (
-          worldZones.map((zone) => (
-            <div key={zone.number}>
-              <ZoneCard
-                zone={zone}
-                screenMode={screenMode}
-                isAdmin={isAdmin}
-                onClick={() => selectZone(zone)}
-                walkthroughActive={walkthroughOpen}
-                walkthroughHighlighted={
-                  activeWalkthroughZoneNumber === zone.number
-                }
-              />
-            </div>
-          ))
+          <div style={{ display: "grid", gap: isMobile ? "18px" : "22px" }}>
+            {bankZone && (
+              <section aria-label="Start with Milo's Bank">
+                <div
+                  style={{
+                    marginBottom: "9px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "9px",
+                  }}
+                >
+                  <span
+                    style={{
+                      color: "#ffd67a",
+                      fontSize: "10px",
+                      fontWeight: 950,
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    1 · Learn
+                  </span>
+                  <span
+                    style={{
+                      height: "1px",
+                      flex: 1,
+                      background:
+                        "linear-gradient(90deg, rgba(255,208,92,0.38), transparent)",
+                    }}
+                  />
+                </div>
+
+                <ZoneCard
+                  zone={bankZone}
+                  screenMode={screenMode}
+                  isAdmin={isAdmin}
+                  onClick={() => selectZone(bankZone)}
+                  walkthroughActive={walkthroughOpen}
+                  walkthroughHighlighted={
+                    activeWalkthroughZoneNumber === bankZone.number
+                  }
+                />
+              </section>
+            )}
+
+            <section aria-label="Apply what you learn">
+              <div
+                style={{
+                  marginBottom: "9px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "9px",
+                }}
+              >
+                <span
+                  style={{
+                    color: "#8ff1c5",
+                    fontSize: "10px",
+                    fontWeight: 950,
+                    letterSpacing: "0.16em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  2 · Apply Your Knowledge
+                </span>
+                <span
+                  style={{
+                    height: "1px",
+                    flex: 1,
+                    background:
+                      "linear-gradient(90deg, rgba(91,220,163,0.34), transparent)",
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    !isMobile && !walkthroughOpen
+                      ? "repeat(2, minmax(0, 1fr))"
+                      : "1fr",
+                  gap: isMobile ? "12px" : "14px",
+                }}
+              >
+                {applyZones.map((zone) => (
+                  <ZoneCard
+                    key={zone.number}
+                    zone={zone}
+                    screenMode={screenMode}
+                    isAdmin={isAdmin}
+                    onClick={() => selectZone(zone)}
+                    walkthroughActive={walkthroughOpen}
+                    walkthroughHighlighted={
+                      activeWalkthroughZoneNumber === zone.number
+                    }
+                  />
+                ))}
+              </div>
+            </section>
+
+            <section aria-label="Play and learn">
+              <div
+                style={{
+                  marginBottom: "9px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "9px",
+                }}
+              >
+                <span
+                  style={{
+                    color: "#8ee8ff",
+                    fontSize: "10px",
+                    fontWeight: 950,
+                    letterSpacing: "0.16em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  3 · Play & Learn
+                </span>
+                <span
+                  style={{
+                    height: "1px",
+                    flex: 1,
+                    background:
+                      "linear-gradient(90deg, rgba(83,215,255,0.32), transparent)",
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    !isMobile && !walkthroughOpen
+                      ? "repeat(2, minmax(0, 1fr))"
+                      : "1fr",
+                  gap: isMobile ? "12px" : "14px",
+                }}
+              >
+                {playZones.map((zone) => (
+                  <ZoneCard
+                    key={zone.number}
+                    zone={zone}
+                    screenMode={screenMode}
+                    isAdmin={isAdmin}
+                    onClick={() => selectZone(zone)}
+                    walkthroughActive={walkthroughOpen}
+                    walkthroughHighlighted={
+                      activeWalkthroughZoneNumber === zone.number
+                    }
+                  />
+                ))}
+              </div>
+            </section>
+          </div>
         )}
       </section>
 

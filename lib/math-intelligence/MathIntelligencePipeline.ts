@@ -38,6 +38,85 @@ function safeInterpretation(
   );
 }
 
+
+function enforceQuizVisualGateAfterLuna(
+  analysis: MathIntelligenceAnalysis,
+  ruleEvaluation: ReturnType<typeof evaluateMathVisualNeed>,
+): MathIntelligenceAnalysis {
+  // Phase 3A: Luna is not allowed to broaden quiz visual eligibility. It is
+  // only a second-level interpreter for questions that the deterministic gate
+  // already classified as intrinsically visual and safe for V2 generation.
+  if (
+    ruleEvaluation.quiz_visual_requirement !== "required" ||
+    !ruleEvaluation.auto_generate_v2
+  ) {
+    return {
+      ...analysis,
+      visual_need:
+        ruleEvaluation.quiz_visual_requirement === "optional_enrichment"
+          ? "useful"
+          : ruleEvaluation.quiz_visual_requirement === "not_needed"
+            ? "unnecessary"
+            : "required",
+      disposition:
+        ruleEvaluation.quiz_visual_requirement === "optional_enrichment" ||
+        ruleEvaluation.quiz_visual_requirement === "not_needed"
+          ? "skip"
+          : "needs_review",
+      strategy: "none",
+      confidence: Math.min(analysis.confidence, ruleEvaluation.confidence),
+      reason_codes: uniqueReasonCodes([
+        ...ruleEvaluation.reason_codes,
+        ...analysis.reason_codes,
+      ]),
+    };
+  }
+
+  const allowed = ruleEvaluation.candidate_strategies.filter(
+    (strategy) => strategy !== "none" && strategy !== "preserve_media",
+  );
+
+  if (allowed.length > 0 && !allowed.some((strategy) => strategy === analysis.strategy)) {
+    return {
+      ...analysis,
+      visual_need: "required",
+      disposition: "needs_review",
+      strategy: "none",
+      confidence: Math.min(analysis.confidence, ruleEvaluation.confidence),
+      reason_codes: uniqueReasonCodes([
+        ...ruleEvaluation.reason_codes,
+        ...analysis.reason_codes,
+        "INSUFFICIENT_STRUCTURED_DATA",
+      ]),
+    };
+  }
+
+  if (analysis.disposition !== "generate" || analysis.visual_need !== "required") {
+    return {
+      ...analysis,
+      visual_need: "required",
+      disposition: "needs_review",
+      strategy: allowed.length === 1 ? allowed[0] : analysis.strategy,
+      confidence: Math.min(analysis.confidence, ruleEvaluation.confidence),
+      reason_codes: uniqueReasonCodes([
+        ...ruleEvaluation.reason_codes,
+        ...analysis.reason_codes,
+      ]),
+    };
+  }
+
+  return {
+    ...analysis,
+    visual_need: "required",
+    disposition: "generate",
+    confidence: Math.min(analysis.confidence, ruleEvaluation.confidence),
+    reason_codes: uniqueReasonCodes([
+      ...ruleEvaluation.reason_codes,
+      ...analysis.reason_codes,
+    ]),
+  };
+}
+
 function finalRulesAnalysis(
   visualNeed: NonNullable<ReturnType<typeof evaluateMathVisualNeed>["visual_need"]>,
   disposition: NonNullable<ReturnType<typeof evaluateMathVisualNeed>["disposition"]>,
@@ -148,7 +227,8 @@ export async function analyseMathQuestion(
   // Any uncertainty in need, mathematical structure, or representation is
   // escalated once to Luna. Luna returns the complete analysis in one call.
   const aiProvider = options.aiProvider || new OpenAILunaProvider();
-  const analysis = await aiProvider.analyse(input);
+  const lunaAnalysis = await aiProvider.analyse(input);
+  const analysis = enforceQuizVisualGateAfterLuna(lunaAnalysis, ruleEvaluation);
 
   return {
     input,

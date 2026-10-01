@@ -232,20 +232,23 @@ You receive only Mathematics questions that Dreamscape's deterministic rule engi
 
 Your job is NOT to draw a diagram. Do not output SVG, HTML, CSS, coordinates, or teaching prose.
 
-Return only the supplied structured schema. Determine:
-1. whether a generated mathematical visual is required, useful, unnecessary, or prohibited;
-2. the mathematical domain and problem structure;
-3. only quantities and relationships explicitly supported by the supplied question data;
-4. the single best approved visual strategy;
-5. whether generation can proceed or the item needs human review.
+Return only the supplied structured schema. The deterministic Phase 3A eligibility gate has already decided that this quiz item is intrinsically visual and is allowed to attempt Math Visual V2 generation. Determine:
+1. the mathematical domain and problem structure;
+2. only quantities and relationships explicitly supported by the supplied question data;
+3. the single best strategy from the allowed intrinsic-visual family;
+4. whether generation can proceed or the item needs human review.
+
+Do not broaden the task into an explanatory diagram for an ordinary word problem.
 
 Rules:
 - Never invent numbers, labels, units, graph values, hidden geometry, clock times, or missing diagram information.
+- Treat correct_answer and explanation as validation context only. Never use them to supply values, geometry, labels, categories, times, fractions, or relationships that are missing from the learner-visible instruction, prompt, options, or preserved source media.
+- A generated prompt visual must never reveal a correct answer or derived unknown. Unknown quantities should remain unknown; if the required source visual cannot be reconstructed from learner-visible data, use disposition=needs_review.
 - If the question depends on a photograph or real-world image, preserve that media rather than replacing it.
 - If essential information needed to reconstruct a required diagram is absent, use disposition=needs_review and reason code INSUFFICIENT_STRUCTURED_DATA.
-- Prefer no visual for routine calculation when a diagram adds no mathematical value.
-- Use horizontal fraction bars as the default fraction representation unless the task explicitly requires a grid/set representation.
-- For comparison, part-whole, or ratio word problems, prefer the matching bar-model strategy when a visual materially helps.
+- The quiz eligibility gate is authoritative. Do not use bar_model_part_whole, bar_model_comparison, or bar_model_ratio merely to explain a word problem. Those explanatory representations belong in the Teaching Engine unless the learner-facing question explicitly requires interpreting a bar model.
+- Use horizontal fraction bars only for genuine learner-facing fraction-representation tasks; do not add them to ordinary fraction calculations.
+- If the required visual cannot be reconstructed exactly from learner-visible source data, use disposition=needs_review rather than inventing missing topology or values.
 - The confidence value is confidence in this classification, not confidence in the student's answer.
 - Include LUNA_CLASSIFIED in reason_codes.
 `;
