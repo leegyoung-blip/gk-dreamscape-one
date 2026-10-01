@@ -214,7 +214,7 @@ type WalkthroughStep = {
   showWorldPath?: boolean;
 };
 
-const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v10";
+const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v11";
 const ROVER_ORIGIN_STORAGE_KEY = "dreamscape-rover-origin";
 const ROVER_NOVA_RETURN_PATH_STORAGE_KEY =
   "dreamscape-rover-nova-return-path";
@@ -2519,7 +2519,13 @@ function getNovaMarkerPosition(zoneId: string): CSSProperties {
       // Keep Think Lab exactly where it is today: bottom-left platform.
       return { left: "19%", top: "61%" };
     case "nova-home":
-      return { left: "29%", top: "34%" };
+      // Keep Nova's Home clear of the page subtitle on shorter landscape screens.
+      // Large desktops stay close to the original position; iPad/shorter
+      // landscape viewports push the marker down automatically.
+      return {
+        left: "29%",
+        top: "clamp(34%, calc(34% + (850px - 100vh) * 0.055), 42%)",
+      };
     case "missions-centre":
       return { left: "55%", top: "54%" };
     case "knowledge-arena":
@@ -2691,6 +2697,7 @@ function NovaZoneHoverPopup({
 
   return (
     <div
+      id={`nova-zone-popup-${zone.number}`}
       style={{
         position: "absolute",
         zIndex: isSelected ? 72 : 62,
@@ -3816,7 +3823,7 @@ function GuidedWalkthrough({
         ? viewportWidth - margin * 2
         : isTablet
           ? Math.min(620, viewportWidth - 48)
-          : Math.min(570, viewportWidth - 60);
+          : Math.min(step.zoneNumber ? 760 : 640, viewportWidth - 72);
 
       setGuideAnchor({
         left: `${Math.max(margin, (viewportWidth - guideWidth) / 2)}px`,
@@ -3851,22 +3858,47 @@ function GuidedWalkthrough({
           ? viewportWidth - margin * 2
           : isTablet
             ? Math.min(620, viewportWidth - 48)
-            : Math.min(570, viewportWidth - 60));
+            : Math.min(step.zoneNumber ? 760 : 640, viewportWidth - 72));
       const guideHeight =
         guideRect?.height ||
-        (isMobile ? Math.min(360, viewportHeight * 0.48) : 360);
+        (isMobile
+          ? Math.min(360, viewportHeight * 0.48)
+          : isDesktop && step.zoneNumber
+            ? Math.min(430, viewportHeight - 64)
+            : 360);
 
       const targetRect = target.getBoundingClientRect();
-      const targetCentreX = targetRect.left + targetRect.width / 2;
-      const targetCentreY = targetRect.top + targetRect.height / 2;
 
-      const spaceAbove = targetRect.top - margin - gap;
-      const spaceBelow = viewportHeight - targetRect.bottom - margin - gap;
-      const spaceLeft = targetRect.left - margin - gap;
-      const spaceRight = viewportWidth - targetRect.right - margin - gap;
+      // In widescreen walkthrough mode the large location information card is
+      // visible as well as the hotspot. Treat both as one occupied area so the
+      // guide never lands on top of either one.
+      const popup = isDesktop
+        ? document.getElementById(`nova-zone-popup-${step.zoneNumber}`)
+        : null;
+      const popupRect = popup?.getBoundingClientRect();
 
-      // On landscape/desktop, attach to a side whenever there is room.
-      // On portrait/tablet/mobile, attach directly above or below the card.
+      const occupied = popupRect
+        ? {
+            left: Math.min(targetRect.left, popupRect.left),
+            right: Math.max(targetRect.right, popupRect.right),
+            top: Math.min(targetRect.top, popupRect.top),
+            bottom: Math.max(targetRect.bottom, popupRect.bottom),
+          }
+        : {
+            left: targetRect.left,
+            right: targetRect.right,
+            top: targetRect.top,
+            bottom: targetRect.bottom,
+          };
+
+      const centreX = (occupied.left + occupied.right) / 2;
+      const centreY = (occupied.top + occupied.bottom) / 2;
+
+      const spaceAbove = occupied.top - margin - gap;
+      const spaceBelow = viewportHeight - occupied.bottom - margin - gap;
+      const spaceLeft = occupied.left - margin - gap;
+      const spaceRight = viewportWidth - occupied.right - margin - gap;
+
       const candidates: Array<{
         side: "right" | "left" | "below" | "above";
         x: number;
@@ -3879,9 +3911,9 @@ function GuidedWalkthrough({
         candidates.push(
           {
             side: "right",
-            x: targetRect.right + gap,
+            x: occupied.right + gap,
             y: clamp(
-              targetCentreY - guideHeight / 2,
+              centreY - guideHeight / 2,
               margin,
               viewportHeight - guideHeight - margin,
             ),
@@ -3890,9 +3922,9 @@ function GuidedWalkthrough({
           },
           {
             side: "left",
-            x: targetRect.left - gap - guideWidth,
+            x: occupied.left - gap - guideWidth,
             y: clamp(
-              targetCentreY - guideHeight / 2,
+              centreY - guideHeight / 2,
               margin,
               viewportHeight - guideHeight - margin,
             ),
@@ -3906,34 +3938,35 @@ function GuidedWalkthrough({
         {
           side: "below",
           x: clamp(
-            targetCentreX - guideWidth / 2,
+            centreX - guideWidth / 2,
             margin,
             viewportWidth - guideWidth - margin,
           ),
-          y: targetRect.bottom + gap,
+          y: occupied.bottom + gap,
           fits: spaceBelow >= guideHeight,
           room: spaceBelow,
         },
         {
           side: "above",
           x: clamp(
-            targetCentreX - guideWidth / 2,
+            centreX - guideWidth / 2,
             margin,
             viewportWidth - guideWidth - margin,
           ),
-          y: targetRect.top - gap - guideHeight,
+          y: occupied.top - gap - guideHeight,
           fits: spaceAbove >= guideHeight,
           room: spaceAbove,
         },
       );
 
-      let chosen =
+      const chosen =
         candidates.find((candidate) => candidate.fits) ||
         [...candidates].sort((a, b) => b.room - a.room)[0];
 
       if (
         allowScrollAdjustment &&
         !chosen.fits &&
+        !isDesktop &&
         (chosen.side === "above" || chosen.side === "below")
       ) {
         const missing = Math.max(0, guideHeight - chosen.room + 20);
@@ -4079,14 +4112,18 @@ function GuidedWalkthrough({
           width: isMobile
             ? "calc(100vw - 24px)"
             : isDesktop
-              ? "min(570px, calc(100vw - 60px))"
+              ? step.zoneNumber
+                ? "min(760px, calc(100vw - 72px))"
+                : "min(640px, calc(100vw - 72px))"
               : "min(620px, calc(100vw - 48px))",
           maxHeight: isMobile
             ? "min(500px, 56dvh)"
             : isDesktop
-              ? "min(620px, calc(100dvh - 48px))"
+              ? step.zoneNumber
+                ? "min(430px, calc(100dvh - 64px))"
+                : "min(560px, calc(100dvh - 64px))"
               : "min(560px, 52dvh)",
-          overflowY: "auto",
+          overflowY: isDesktop && step.zoneNumber ? "hidden" : "auto",
           overflowX: "hidden",
           borderRadius: isMobile ? "20px" : "26px",
           border: "1px solid rgba(142,232,255,0.42)",
@@ -4097,11 +4134,13 @@ function GuidedWalkthrough({
           color: "white",
           padding: isMobile
             ? "16px"
-            : useFullWalkthroughLayout
-              ? "26px 28px 24px 190px"
+            : isDesktop
+              ? step.zoneNumber
+                ? "24px 28px 22px 188px"
+                : "26px 28px 24px 190px"
               : "20px 22px 20px",
           transition:
-            "left 480ms cubic-bezier(.2,.82,.24,1), top 480ms cubic-bezier(.2,.82,.24,1), bottom 480ms cubic-bezier(.2,.82,.24,1), transform 480ms cubic-bezier(.2,.82,.24,1), max-height 300ms ease",
+            "left 480ms cubic-bezier(.2,.82,.24,1), top 480ms cubic-bezier(.2,.82,.24,1), bottom 480ms cubic-bezier(.2,.82,.24,1), transform 480ms cubic-bezier(.2,.82,.24,1), max-height 300ms ease, width 300ms ease",
           willChange: "left, top, bottom, transform",
         }}
       >
@@ -4133,10 +4172,12 @@ function GuidedWalkthrough({
             alt="Nova"
             style={{
               position: isDesktop ? "absolute" : "relative",
-              left: isDesktop ? "3px" : "auto",
-              bottom: isDesktop ? "-8px" : "auto",
+              left: isDesktop ? (step.zoneNumber ? "22px" : "3px") : "auto",
+              bottom: isDesktop ? (step.zoneNumber ? "18px" : "-8px") : "auto",
               height: isDesktop
-                ? "250px"
+                ? step.zoneNumber
+                  ? "235px"
+                  : "250px"
                 : step.zoneNumber
                   ? isMobile
                     ? "62px"
@@ -4144,6 +4185,9 @@ function GuidedWalkthrough({
                   : isMobile
                     ? "68px"
                     : "86px",
+              maxHeight: isDesktop && step.zoneNumber
+                ? "calc(100% - 36px)"
+                : undefined,
               width: "auto",
               objectFit: "contain",
               display: "block",
@@ -4171,7 +4215,13 @@ function GuidedWalkthrough({
           style={{
             margin: isMobile ? "6px 34px 0 0" : "8px 42px 0 0",
             fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: isMobile ? "22px" : isTablet ? "30px" : "35px",
+            fontSize: isMobile
+              ? "22px"
+              : isTablet
+                ? "30px"
+                : step.zoneNumber
+                  ? "31px"
+                  : "35px",
             lineHeight: 1.08,
             fontWeight: 500,
           }}
@@ -4182,10 +4232,16 @@ function GuidedWalkthrough({
         <p
           style={{
             margin: isMobile ? "9px 0 0" : "12px 0 0",
-            minHeight: isDesktop ? "72px" : "0",
+            minHeight: isDesktop && !step.zoneNumber ? "72px" : "0",
             color: "rgba(255,255,255,0.78)",
-            fontSize: isMobile ? "13px" : isTablet ? "14px" : "16px",
-            lineHeight: isMobile ? 1.46 : 1.55,
+            fontSize: isMobile
+              ? "13px"
+              : isTablet
+                ? "14px"
+                : step.zoneNumber
+                  ? "15px"
+                  : "16px",
+            lineHeight: isMobile ? 1.46 : step.zoneNumber ? 1.5 : 1.55,
           }}
         >
           {step.text.slice(0, typedLength)}
@@ -4412,7 +4468,11 @@ function GuidedWalkthrough({
 
         <div
           style={{
-            marginTop: isMobile ? "12px" : "18px",
+            marginTop: isMobile
+              ? "12px"
+              : isDesktop && step.zoneNumber
+                ? "14px"
+                : "18px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
