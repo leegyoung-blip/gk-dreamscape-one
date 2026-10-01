@@ -86,8 +86,10 @@ type WalkthroughStepId =
   | "welcome"
   | "path"
   | "rewards"
-  | "learn"
-  | "challenge"
+  | "core"
+  | "science"
+  | "knowledge"
+  | "think"
   | "review"
   | "ready";
 
@@ -314,7 +316,7 @@ const missionZones: MissionZone[] = [
   },
 ];
 
-const WALKTHROUGH_STORAGE_KEY = "learning-missions-walkthrough-completed-v4";
+const WALKTHROUGH_STORAGE_KEY = "learning-missions-walkthrough-completed-v5";
 
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
@@ -337,26 +339,39 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     text: "Dream Tokens are used across Dreamscape. Eligible learning missions can also award Dream Gems as you progress.",
   },
   {
-    id: "learn",
-    eyebrow: "Step 1 · Learn",
-    title: "Build your curriculum foundations.",
-    text: "Core Missions covers English and Mathematics. Science Missions covers Science. These are your main structured learning paths.",
-    zoneIds: ["core-missions", "science-missions"],
+    id: "core",
+    eyebrow: "Learn · Core Missions",
+    title: "Start with your main learning path.",
+    text: "Core Missions builds English and Mathematics through structured curriculum missions. This is the main starting point for most learners.",
+    zoneId: "core-missions",
   },
   {
-    id: "challenge",
-    eyebrow: "Step 2 · Challenge",
-    title: "Now test and stretch yourself.",
-    text: "Knowledge Arena turns curriculum practice into fast quiz battles. Think Missions develops logic, reasoning and problem-solving.",
-    zoneIds: ["knowledge-arena", "think-missions"],
+    id: "science",
+    eyebrow: "Learn · Science Missions",
+    title: "Explore Science through structured missions.",
+    text: "Science Missions covers Primary 1 to Primary 6 concepts through concept, practice, investigation and mastery missions.",
+    zoneId: "science-missions",
+  },
+  {
+    id: "knowledge",
+    eyebrow: "Challenge · Knowledge Arena",
+    title: "Now test what you know.",
+    text: "Knowledge Arena turns curriculum practice into fast-paced quiz battles that help you apply what you have learned.",
+    zoneId: "knowledge-arena",
+  },
+  {
+    id: "think",
+    eyebrow: "Challenge · Think Missions",
+    title: "Stretch how you think.",
+    text: "Think Missions develops reasoning, logic, pattern spotting and HAP-style problem-solving through deeper challenges.",
+    zoneId: "think-missions",
   },
   {
     id: "review",
-    eyebrow: "Step 3 · Review",
+    eyebrow: "Review · Teaching Dashboard",
     title: "See how learning is progressing.",
     text: "The Teaching Dashboard brings together completed missions, scores and progress so learners, parents and teachers can understand what is happening.",
     zoneId: "progress-rewards",
-    zoneIds: ["progress-rewards"],
   },
   {
     id: "ready",
@@ -793,22 +808,6 @@ export default function LearningMissionsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!walkthroughOpen) return;
-
-    const guideStep = WALKTHROUGH_STEPS[walkthroughStep];
-    const zoneId = guideStep?.zoneId || guideStep?.zoneIds?.[0];
-    if (!zoneId || screenMode === "desktop") return;
-
-    const timeout = window.setTimeout(() => {
-      document.getElementById(`mission-zone-${zoneId}`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }, 120);
-
-    return () => window.clearTimeout(timeout);
-  }, [screenMode, walkthroughOpen, walkthroughStep]);
 
   function isZoneReleased(zone: MissionZone) {
     if (!zone.accessKey) return true;
@@ -966,16 +965,13 @@ export default function LearningMissionsPage() {
 
   const walkthroughStartScrollY = useRef(0);
 
-  const activeWalkthroughZoneIds = walkthroughOpen
-    ? (
-        WALKTHROUGH_STEPS[walkthroughStep]?.zoneIds ||
-        (WALKTHROUGH_STEPS[walkthroughStep]?.zoneId
-          ? [WALKTHROUGH_STEPS[walkthroughStep]!.zoneId!]
-          : [])
-      )
-    : [];
+  const activeWalkthroughZoneId = walkthroughOpen
+    ? (WALKTHROUGH_STEPS[walkthroughStep]?.zoneId ?? null)
+    : null;
 
-  const activeWalkthroughZoneId = activeWalkthroughZoneIds[0] ?? null;
+  const activeWalkthroughZoneIds = activeWalkthroughZoneId
+    ? [activeWalkthroughZoneId]
+    : [];
 
   const activeWalkthroughZone = activeWalkthroughZoneId
     ? (missionZones.find((zone) => zone.id === activeWalkthroughZoneId) ?? null)
@@ -2898,7 +2894,7 @@ function MissionHotspot({
           ? "translate(-50%, -50%) scale(1.055)"
           : "translate(-50%, -50%)",
         transition:
-          "transform 220ms ease, opacity 220ms ease, filter 220ms ease, border-color 220ms ease, background 220ms ease, box-shadow 220ms ease",
+          "transform 420ms cubic-bezier(.2,.82,.24,1), opacity 360ms ease, filter 360ms ease, border-color 360ms ease, background 360ms ease, box-shadow 360ms ease",
         pointerEvents: isWalkthroughActive && !isHighlighted ? "none" : "auto",
       }}
       aria-label={
@@ -2981,7 +2977,7 @@ function MissionCard({
         filter: isLocked && !isHighlighted ? "saturate(0.45)" : "none",
         transform: isHighlighted ? "translateY(-4px)" : "none",
         transition:
-          "opacity 220ms ease, border 220ms ease, box-shadow 220ms ease, transform 220ms ease",
+          "opacity 360ms ease, border 360ms ease, box-shadow 360ms ease, transform 420ms cubic-bezier(.2,.82,.24,1)",
       }}
     >
       <p
@@ -3267,13 +3263,17 @@ function MissionGuidedWalkthrough({
 }) {
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
+  const isTablet = screenMode === "tablet";
   const isMobile = screenMode === "mobile";
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
   const zoneState = step.zoneId ? zoneStates[step.zoneId] : null;
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
+  const isLocationStep = Boolean(step.zoneId);
 
   const [typedLength, setTypedLength] = useState(0);
+  const guideRef = useRef<HTMLDivElement | null>(null);
+  const [guideAnchor, setGuideAnchor] = useState<CSSProperties>({});
 
   const dynamicText = getInteractiveGuideText(step, zoneState, isAdmin);
   const zoneStatus = getInteractiveGuideZoneStatus(step, zoneState);
@@ -3309,13 +3309,242 @@ function MissionGuidedWalkthrough({
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [open, onClose]);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return;
 
-  const guidePosition = getInteractiveGuidePosition(
-    step.zoneId,
+    let cancelled = false;
+    let settleTimer: number | null = null;
+    let resizeTimer: number | null = null;
+
+    const clamp = (value: number, min: number, max: number) =>
+      Math.min(Math.max(value, min), Math.max(min, max));
+
+    function setNeutralPosition() {
+      if (cancelled) return;
+
+      const viewportWidth = window.innerWidth;
+      const margin = isMobile ? 12 : 20;
+      const guideWidth = isMobile
+        ? viewportWidth - margin * 2
+        : isTablet
+          ? Math.min(620, viewportWidth - 48)
+          : Math.min(570, viewportWidth - 60);
+
+      setGuideAnchor({
+        left: `${Math.max(margin, (viewportWidth - guideWidth) / 2)}px`,
+        top: "auto",
+        right: "auto",
+        bottom: isMobile ? "14px" : "24px",
+        transform: "none",
+      });
+    }
+
+    function positionAtLocation(allowScrollAdjustment = true) {
+      if (cancelled || !step.zoneId) {
+        setNeutralPosition();
+        return;
+      }
+
+      const target = document.getElementById(`mission-zone-${step.zoneId}`);
+      if (!target) {
+        setNeutralPosition();
+        return;
+      }
+
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const margin = isMobile ? 12 : 20;
+      const gap = isMobile ? 14 : 18;
+
+      const guideRect = guideRef.current?.getBoundingClientRect();
+      const guideWidth =
+        guideRect?.width ||
+        (isMobile
+          ? viewportWidth - margin * 2
+          : isTablet
+            ? Math.min(620, viewportWidth - 48)
+            : Math.min(570, viewportWidth - 60));
+      const guideHeight =
+        guideRect?.height ||
+        (isMobile ? Math.min(390, viewportHeight * 0.5) : 360);
+
+      const targetRect = target.getBoundingClientRect();
+      const targetCentreX = targetRect.left + targetRect.width / 2;
+      const targetCentreY = targetRect.top + targetRect.height / 2;
+
+      const spaceAbove = targetRect.top - margin - gap;
+      const spaceBelow = viewportHeight - targetRect.bottom - margin - gap;
+      const spaceLeft = targetRect.left - margin - gap;
+      const spaceRight = viewportWidth - targetRect.right - margin - gap;
+
+      const candidates: Array<{
+        side: "right" | "left" | "below" | "above";
+        x: number;
+        y: number;
+        fits: boolean;
+        room: number;
+      }> = [];
+
+      if (isDesktop) {
+        candidates.push(
+          {
+            side: "right",
+            x: targetRect.right + gap,
+            y: clamp(
+              targetCentreY - guideHeight / 2,
+              margin,
+              viewportHeight - guideHeight - margin,
+            ),
+            fits: spaceRight >= guideWidth,
+            room: spaceRight,
+          },
+          {
+            side: "left",
+            x: targetRect.left - gap - guideWidth,
+            y: clamp(
+              targetCentreY - guideHeight / 2,
+              margin,
+              viewportHeight - guideHeight - margin,
+            ),
+            fits: spaceLeft >= guideWidth,
+            room: spaceLeft,
+          },
+        );
+      }
+
+      candidates.push(
+        {
+          side: "below",
+          x: clamp(
+            targetCentreX - guideWidth / 2,
+            margin,
+            viewportWidth - guideWidth - margin,
+          ),
+          y: targetRect.bottom + gap,
+          fits: spaceBelow >= guideHeight,
+          room: spaceBelow,
+        },
+        {
+          side: "above",
+          x: clamp(
+            targetCentreX - guideWidth / 2,
+            margin,
+            viewportWidth - guideWidth - margin,
+          ),
+          y: targetRect.top - gap - guideHeight,
+          fits: spaceAbove >= guideHeight,
+          room: spaceAbove,
+        },
+      );
+
+      const chosen =
+        candidates.find((candidate) => candidate.fits) ||
+        [...candidates].sort((a, b) => b.room - a.room)[0];
+
+      if (
+        allowScrollAdjustment &&
+        !chosen.fits &&
+        (chosen.side === "above" || chosen.side === "below")
+      ) {
+        const missing = Math.max(0, guideHeight - chosen.room + 20);
+
+        if (missing > 4) {
+          window.scrollBy({
+            top: chosen.side === "below" ? missing : -missing,
+            behavior: "smooth",
+          });
+
+          settleTimer = window.setTimeout(
+            () => positionAtLocation(false),
+            360,
+          );
+          return;
+        }
+      }
+
+      const x = clamp(
+        chosen.x,
+        margin,
+        viewportWidth - guideWidth - margin,
+      );
+      const y = clamp(
+        chosen.y,
+        margin,
+        viewportHeight - guideHeight - margin,
+      );
+
+      if (!cancelled) {
+        setGuideAnchor({
+          left: `${x}px`,
+          top: `${y}px`,
+          right: "auto",
+          bottom: "auto",
+          transform: "none",
+        });
+      }
+    }
+
+    if (!isLocationStep) {
+      setNeutralPosition();
+    } else {
+      const target = document.getElementById(`mission-zone-${step.zoneId}`);
+
+      if (target) {
+        const targetRect = target.getBoundingClientRect();
+        const fullyVisible =
+          targetRect.top >= 80 &&
+          targetRect.bottom <= window.innerHeight - 80;
+
+        if (!fullyVisible) {
+          target.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+
+          settleTimer = window.setTimeout(
+            () => positionAtLocation(true),
+            340,
+          );
+        } else {
+          settleTimer = window.setTimeout(
+            () => positionAtLocation(true),
+            60,
+          );
+        }
+      } else {
+        setNeutralPosition();
+      }
+    }
+
+    function handleResize() {
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(
+        () =>
+          isLocationStep
+            ? positionAtLocation(false)
+            : setNeutralPosition(),
+        120,
+      );
+    }
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      cancelled = true;
+      if (settleTimer) window.clearTimeout(settleTimer);
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [
     isDesktop,
+    isLocationStep,
     isMobile,
-  );
+    isTablet,
+    open,
+    step.zoneId,
+  ]);
+
+  if (!open) return null;
 
   function goForward() {
     if (isLastStep) {
@@ -3343,35 +3572,38 @@ function MissionGuidedWalkthrough({
         role="dialog"
         aria-modal="true"
         aria-label="Nova Learning Missions guide"
+        ref={guideRef}
         style={{
           position: "fixed",
-          ...guidePosition,
+          ...guideAnchor,
           zIndex: 100,
-          width: isDesktop
-            ? "min(570px, calc(100vw - 48px))"
-            : isMobile
-              ? "calc(100vw - 16px)"
-              : "min(720px, calc(100vw - 36px))",
-          maxHeight: isDesktop
-            ? "min(620px, calc(100dvh - 48px))"
-            : isMobile
-              ? "58dvh"
-              : "min(470px, 54dvh)",
+          width: isMobile
+            ? "calc(100vw - 24px)"
+            : isDesktop
+              ? "min(570px, calc(100vw - 60px))"
+              : "min(620px, calc(100vw - 48px))",
+          maxHeight: isMobile
+            ? "min(500px, 56dvh)"
+            : isDesktop
+              ? "min(620px, calc(100dvh - 48px))"
+              : "min(560px, 52dvh)",
           overflowY: "auto",
+          overflowX: "hidden",
           borderRadius: isMobile ? "20px" : "26px",
           border: "1px solid rgba(142,232,255,0.42)",
           background:
             "linear-gradient(145deg, rgba(4,21,47,0.985), rgba(3,9,24,0.99))",
           boxShadow:
             "0 32px 90px rgba(0,0,0,0.68), 0 0 40px rgba(83,215,255,0.14)",
-          transition:
-            "top 260ms ease, right 260ms ease, bottom 260ms ease, left 260ms ease, transform 260ms ease",
           color: "white",
           padding: isMobile
             ? "18px"
             : isDesktop
               ? "26px 28px 24px 190px"
-              : "22px 24px 22px 170px",
+              : "20px 22px 20px",
+          transition:
+            "left 480ms cubic-bezier(.2,.82,.24,1), top 480ms cubic-bezier(.2,.82,.24,1), bottom 480ms cubic-bezier(.2,.82,.24,1), transform 480ms cubic-bezier(.2,.82,.24,1), max-height 300ms ease",
+          willChange: "left, top, bottom, transform",
         }}
       >
         <button
@@ -3396,22 +3628,32 @@ function MissionGuidedWalkthrough({
           ×
         </button>
 
-        <img
-          src="/nova/nova-character.png"
-          alt="Nova"
-          style={{
-            position: isMobile ? "relative" : "absolute",
-            left: isMobile ? "auto" : "4px",
-            bottom: isMobile ? "auto" : "-8px",
-            height: isMobile ? "92px" : isDesktop ? "245px" : "205px",
-            width: "auto",
-            objectFit: "contain",
-            display: "block",
-            margin: isMobile ? "0 auto 10px" : 0,
-            filter: "drop-shadow(0 18px 36px rgba(0,0,0,0.52))",
-            pointerEvents: "none",
-          }}
-        />
+        {step.id !== "path" && step.id !== "rewards" && (
+          <img
+            src="/nova/nova-character.png"
+            alt="Nova"
+            style={{
+              position: isDesktop ? "absolute" : "relative",
+              left: isDesktop ? "4px" : "auto",
+              bottom: isDesktop ? "-8px" : "auto",
+              height: isDesktop
+                ? "245px"
+                : isLocationStep
+                  ? isMobile
+                    ? "64px"
+                    : "78px"
+                  : isMobile
+                    ? "72px"
+                    : "88px",
+              width: "auto",
+              objectFit: "contain",
+              display: "block",
+              margin: isDesktop ? 0 : "0 0 6px",
+              filter: "drop-shadow(0 18px 36px rgba(0,0,0,0.52))",
+              pointerEvents: "none",
+            }}
+          />
+        )}
 
         <div
           style={{
@@ -3461,7 +3703,7 @@ function MissionGuidedWalkthrough({
           style={{
             margin: "9px 42px 0 0",
             fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: isMobile ? "25px" : "35px",
+            fontSize: isMobile ? "22px" : isTablet ? "30px" : "35px",
             lineHeight: 1.08,
             fontWeight: 500,
           }}
@@ -3471,11 +3713,11 @@ function MissionGuidedWalkthrough({
 
         <p
           style={{
-            margin: "14px 0 0",
-            minHeight: isMobile ? "76px" : "80px",
+            margin: isMobile ? "10px 0 0" : "14px 0 0",
+            minHeight: isDesktop ? "80px" : "0",
             color: "rgba(255,255,255,0.79)",
-            fontSize: isMobile ? "14px" : "16px",
-            lineHeight: 1.58,
+            fontSize: isMobile ? "13px" : isTablet ? "14px" : "16px",
+            lineHeight: isMobile ? 1.48 : 1.58,
           }}
         >
           {dynamicText.slice(0, typedLength)}
@@ -3494,7 +3736,12 @@ function MissionGuidedWalkthrough({
           )}
         </p>
 
-        {(step.showPath || step.id === "learn" || step.id === "challenge" || step.id === "review") && (
+        {(step.showPath ||
+          step.id === "core" ||
+          step.id === "science" ||
+          step.id === "knowledge" ||
+          step.id === "think" ||
+          step.id === "review") && (
           <div
             style={{
               marginTop: "16px",
@@ -3514,8 +3761,10 @@ function MissionGuidedWalkthrough({
             >
               {MISSION_PATH.map((item, index) => {
                 const isActive =
-                  (step.id === "learn" && item.label === "Learn") ||
-                  (step.id === "challenge" && item.label === "Challenge") ||
+                  ((step.id === "core" || step.id === "science") &&
+                    item.label === "Learn") ||
+                  ((step.id === "knowledge" || step.id === "think") &&
+                    item.label === "Challenge") ||
                   (step.id === "review" && item.label === "Review");
 
                 return (
@@ -3785,14 +4034,19 @@ function getInteractiveGuideText(
 ) {
   if (!zoneState || !step.zoneId) return step.text;
 
-  if (step.id === "review") {
-    if (zoneState.unlocked) {
-      return `${step.text} This account can open the dashboard after the tour.`;
-    }
-    return `${step.text} This account does not currently have access to the dashboard, so I’ll explain it without sending you into a locked page.`;
+  if (zoneState.adminPreview) {
+    return `${step.text} Learner Access is currently OFF, but you can still preview this area as an admin.`;
   }
 
-  return step.text;
+  if (!zoneState.released) {
+    return `${step.text} This area is not currently open to learners, so I’ll show you where it is without sending you into a locked page.`;
+  }
+
+  if (zoneState.unlocked) {
+    return `${step.text} This account can access it after the tour.`;
+  }
+
+  return `${step.text} This account does not currently have access, so I’ll explain it without sending you into a locked page.`;
 }
 
 function getInteractiveGuideZoneStatus(
@@ -3835,39 +4089,6 @@ function getInteractiveGuideZoneStatus(
     background: "rgba(245,158,11,0.09)",
   };
 }
-
-function getInteractiveGuidePosition(
-  zoneId: string | undefined,
-  isDesktop: boolean,
-  isMobile: boolean,
-): CSSProperties {
-  if (!isDesktop) {
-    const shouldOpenAtTop =
-      zoneId === "think-missions" || zoneId === "progress-rewards";
-
-    return {
-      top: isMobile ? (shouldOpenAtTop ? "8px" : "auto") : "18px",
-      right: "auto",
-      bottom: isMobile ? (shouldOpenAtTop ? "auto" : "8px") : "auto",
-      left: "50%",
-      transform: "translateX(-50%)",
-    };
-  }
-
-  switch (zoneId) {
-    case "science-missions":
-      return { left: "24px", bottom: "24px" };
-    case "think-missions":
-      return { left: "24px", top: "24px" };
-    case "progress-rewards":
-      return { right: "24px", top: "110px" };
-    case "knowledge-arena":
-    case "core-missions":
-    default:
-      return { right: "24px", bottom: "24px" };
-  }
-}
-
 
 const controlButtonStyle: CSSProperties = {
   height: "46px",
