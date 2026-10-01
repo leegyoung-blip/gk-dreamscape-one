@@ -316,7 +316,7 @@ const missionZones: MissionZone[] = [
   },
 ];
 
-const WALKTHROUGH_STORAGE_KEY = "learning-missions-walkthrough-completed-v5";
+const WALKTHROUGH_STORAGE_KEY = "learning-missions-walkthrough-completed-v6";
 
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
@@ -1168,11 +1168,18 @@ export default function LearningMissionsPage() {
             <div
               style={{
                 marginTop: "22px",
-                display: "flex",
+                display: "inline-flex",
                 alignItems: "center",
                 gap: "9px",
                 flexWrap: "wrap",
                 pointerEvents: "none",
+                padding: "8px 10px",
+                borderRadius: "999px",
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(32,36,43,0.72)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                boxShadow: "0 12px 30px rgba(0,0,0,0.24)",
               }}
             >
               {MISSION_PATH.map((item, index) => (
@@ -3363,10 +3370,16 @@ function MissionGuidedWalkthrough({
           ? viewportWidth - margin * 2
           : isTablet
             ? Math.min(620, viewportWidth - 48)
-            : Math.min(570, viewportWidth - 60));
+            : isLocationStep
+            ? Math.min(760, viewportWidth - 72)
+            : Math.min(640, viewportWidth - 72));
       const guideHeight =
         guideRect?.height ||
-        (isMobile ? Math.min(390, viewportHeight * 0.5) : 360);
+        (isMobile
+          ? Math.min(390, viewportHeight * 0.5)
+          : isDesktop && isLocationStep
+            ? Math.min(430, viewportHeight - 64)
+            : 360);
 
       const targetRect = target.getBoundingClientRect();
       const targetCentreX = targetRect.left + targetRect.width / 2;
@@ -3580,14 +3593,18 @@ function MissionGuidedWalkthrough({
           width: isMobile
             ? "calc(100vw - 24px)"
             : isDesktop
-              ? "min(570px, calc(100vw - 60px))"
+              ? isLocationStep
+                ? "min(760px, calc(100vw - 72px))"
+                : "min(640px, calc(100vw - 72px))"
               : "min(620px, calc(100vw - 48px))",
           maxHeight: isMobile
             ? "min(500px, 56dvh)"
             : isDesktop
-              ? "min(620px, calc(100dvh - 48px))"
+              ? isLocationStep
+                ? "min(430px, calc(100dvh - 64px))"
+                : "min(560px, calc(100dvh - 64px))"
               : "min(560px, 52dvh)",
-          overflowY: "auto",
+          overflowY: isDesktop && isLocationStep ? "hidden" : "auto",
           overflowX: "hidden",
           borderRadius: isMobile ? "20px" : "26px",
           border: "1px solid rgba(142,232,255,0.42)",
@@ -3599,10 +3616,12 @@ function MissionGuidedWalkthrough({
           padding: isMobile
             ? "18px"
             : isDesktop
-              ? "26px 28px 24px 190px"
+              ? isLocationStep
+                ? "24px 28px 22px"
+                : "26px 28px 24px 190px"
               : "20px 22px 20px",
           transition:
-            "left 480ms cubic-bezier(.2,.82,.24,1), top 480ms cubic-bezier(.2,.82,.24,1), bottom 480ms cubic-bezier(.2,.82,.24,1), transform 480ms cubic-bezier(.2,.82,.24,1), max-height 300ms ease",
+            "left 480ms cubic-bezier(.2,.82,.24,1), top 480ms cubic-bezier(.2,.82,.24,1), bottom 480ms cubic-bezier(.2,.82,.24,1), transform 480ms cubic-bezier(.2,.82,.24,1), max-height 300ms ease, width 300ms ease",
           willChange: "left, top, bottom, transform",
         }}
       >
@@ -3629,32 +3648,55 @@ function MissionGuidedWalkthrough({
         </button>
 
         {step.id !== "path" && step.id !== "rewards" && (
-          <img
-            src="/nova/nova-character.png"
-            alt="Nova"
+          <div
             style={{
-              position: isDesktop ? "absolute" : "relative",
-              left: isDesktop ? "4px" : "auto",
-              bottom: isDesktop ? "-8px" : "auto",
-              height: isDesktop
-                ? "245px"
-                : isLocationStep
-                  ? isMobile
-                    ? "64px"
-                    : "78px"
-                  : isMobile
-                    ? "72px"
-                    : "88px",
-              width: "auto",
-              objectFit: "contain",
-              display: "block",
-              margin: isDesktop ? 0 : "0 0 6px",
-              filter: "drop-shadow(0 18px 36px rgba(0,0,0,0.52))",
+              position: isDesktop && isLocationStep ? "absolute" : "relative",
+              left: isDesktop && isLocationStep ? "22px" : "auto",
+              bottom: isDesktop && isLocationStep ? "18px" : "auto",
+              width: isDesktop && isLocationStep ? "155px" : "auto",
+              height: isDesktop && isLocationStep ? "calc(100% - 36px)" : "auto",
+              display: "flex",
+              alignItems: isDesktop && isLocationStep ? "flex-end" : "flex-start",
+              justifyContent: isDesktop && isLocationStep ? "center" : "flex-start",
               pointerEvents: "none",
+              zIndex: 1,
             }}
-          />
+          >
+            <img
+              src="/nova/nova-character.png"
+              alt="Nova"
+              style={{
+                position: "relative",
+                height: isDesktop
+                  ? isLocationStep
+                    ? "240px"
+                    : "245px"
+                  : isLocationStep
+                    ? isMobile
+                      ? "64px"
+                      : "78px"
+                    : isMobile
+                      ? "72px"
+                      : "88px",
+                maxHeight: isDesktop && isLocationStep ? "100%" : undefined,
+                width: "auto",
+                objectFit: "contain",
+                display: "block",
+                margin: isDesktop ? 0 : "0 0 6px",
+                filter: "drop-shadow(0 18px 36px rgba(0,0,0,0.52))",
+              }}
+            />
+          </div>
         )}
 
+        <div
+          style={{
+            marginLeft: isDesktop && isLocationStep ? "170px" : 0,
+            minWidth: 0,
+            position: "relative",
+            zIndex: 2,
+          }}
+        >
         <div
           style={{
             display: "flex",
@@ -3703,7 +3745,13 @@ function MissionGuidedWalkthrough({
           style={{
             margin: "9px 42px 0 0",
             fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: isMobile ? "22px" : isTablet ? "30px" : "35px",
+            fontSize: isMobile
+              ? "22px"
+              : isTablet
+                ? "30px"
+                : isLocationStep
+                  ? "31px"
+                  : "35px",
             lineHeight: 1.08,
             fontWeight: 500,
           }}
@@ -3714,10 +3762,16 @@ function MissionGuidedWalkthrough({
         <p
           style={{
             margin: isMobile ? "10px 0 0" : "14px 0 0",
-            minHeight: isDesktop ? "80px" : "0",
+            minHeight: isDesktop && !isLocationStep ? "80px" : "0",
             color: "rgba(255,255,255,0.79)",
-            fontSize: isMobile ? "13px" : isTablet ? "14px" : "16px",
-            lineHeight: isMobile ? 1.48 : 1.58,
+            fontSize: isMobile
+              ? "13px"
+              : isTablet
+                ? "14px"
+                : isLocationStep
+                  ? "15px"
+                  : "16px",
+            lineHeight: isMobile ? 1.48 : isLocationStep ? 1.52 : 1.58,
           }}
         >
           {dynamicText.slice(0, typedLength)}
@@ -3736,12 +3790,7 @@ function MissionGuidedWalkthrough({
           )}
         </p>
 
-        {(step.showPath ||
-          step.id === "core" ||
-          step.id === "science" ||
-          step.id === "knowledge" ||
-          step.id === "think" ||
-          step.id === "review") && (
+        {step.showPath && (
           <div
             style={{
               marginTop: "16px",
@@ -3760,12 +3809,7 @@ function MissionGuidedWalkthrough({
               }}
             >
               {MISSION_PATH.map((item, index) => {
-                const isActive =
-                  ((step.id === "core" || step.id === "science") &&
-                    item.label === "Learn") ||
-                  ((step.id === "knowledge" || step.id === "think") &&
-                    item.label === "Challenge") ||
-                  (step.id === "review" && item.label === "Review");
+                const isActive = false;
 
                 return (
                   <div key={item.label} style={{ display: "contents" }}>
@@ -3868,7 +3912,7 @@ function MissionGuidedWalkthrough({
 
         <div
           style={{
-            marginTop: "17px",
+            marginTop: isDesktop && isLocationStep ? "14px" : "17px",
             display: "flex",
             flexWrap: "wrap",
             gap: "9px",
@@ -3927,8 +3971,8 @@ function MissionGuidedWalkthrough({
 
         <div
           style={{
-            marginTop: "19px",
-            paddingTop: "15px",
+            marginTop: isDesktop && isLocationStep ? "14px" : "19px",
+            paddingTop: isDesktop && isLocationStep ? "12px" : "15px",
             borderTop: "1px solid rgba(142,232,255,0.12)",
             display: "flex",
             alignItems: "center",
@@ -3985,6 +4029,7 @@ function MissionGuidedWalkthrough({
 
 
           </div>
+        </div>
         </div>
       </div>
     </>
