@@ -83,6 +83,8 @@ type ClassForm = {
 
 const DEFAULT_LEVELS = ["K2", "P1", "P2", "P3", "P4", "P5", "P6"];
 const DEFAULT_SUBJECTS = ["English", "Math", "High Ability", "Science"];
+const ALL_LEVELS = "__all_levels__";
+const ALL_SUBJECTS = "__all_subjects__";
 const WEEKDAYS: Array<[string, string]> = [
   ["1", "Monday"],
   ["2", "Tuesday"],
@@ -120,8 +122,8 @@ export default function LessonSchedulingClient() {
   const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const [selectedLevel, setSelectedLevel] = useState("P1");
-  const [selectedSubject, setSelectedSubject] = useState("English");
+  const [selectedLevel, setSelectedLevel] = useState(ALL_LEVELS);
+  const [selectedSubject, setSelectedSubject] = useState(ALL_SUBJECTS);
   const [availableOnly, setAvailableOnly] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
 
@@ -158,12 +160,15 @@ export default function LessonSchedulingClient() {
     setProgrammes((programmeResult.data || []) as Programme[]);
 
     if (nextSchedules.length > 0) {
-      const stillValid = nextSchedules.some(
-        (item) =>
-          item.academic_levels.includes(selectedLevel) &&
-          item.subject === selectedSubject,
-      );
-      if (!stillValid) {
+      const stillValid = nextSchedules.some((item) => {
+        const levelMatches =
+          selectedLevel === ALL_LEVELS || item.academic_levels.includes(selectedLevel);
+        const subjectMatches =
+          selectedSubject === ALL_SUBJECTS || item.subject === selectedSubject;
+        return levelMatches && subjectMatches;
+      });
+
+      if (!stillValid && selectedLevel !== ALL_LEVELS && selectedSubject !== ALL_SUBJECTS) {
         setSelectedLevel(
           nextSchedules[0].academic_levels[0] || nextSchedules[0].academic_level,
         );
@@ -204,8 +209,15 @@ export default function LessonSchedulingClient() {
 
   const filteredSchedules = useMemo(() => {
     return schedules.filter((item) => {
-      if (!item.academic_levels.includes(selectedLevel)) return false;
-      if (item.subject !== selectedSubject) return false;
+      if (
+        selectedLevel !== ALL_LEVELS &&
+        !item.academic_levels.includes(selectedLevel)
+      ) {
+        return false;
+      }
+      if (selectedSubject !== ALL_SUBJECTS && item.subject !== selectedSubject) {
+        return false;
+      }
       if (!showInactive && item.status !== "active") return false;
       if (
         availableOnly &&
@@ -218,12 +230,13 @@ export default function LessonSchedulingClient() {
   }, [availableOnly, schedules, selectedLevel, selectedSubject, showInactive]);
 
   const summary = useMemo(() => {
-    const active = schedules.filter(
-      (item) =>
-        item.academic_levels.includes(selectedLevel) &&
-        item.subject === selectedSubject &&
-        item.status === "active",
-    );
+    const active = schedules.filter((item) => {
+      const levelMatches =
+        selectedLevel === ALL_LEVELS || item.academic_levels.includes(selectedLevel);
+      const subjectMatches =
+        selectedSubject === ALL_SUBJECTS || item.subject === selectedSubject;
+      return levelMatches && subjectMatches && item.status === "active";
+    });
 
     return {
       classCount: active.length,
@@ -239,7 +252,10 @@ export default function LessonSchedulingClient() {
   }, [schedules, selectedLevel, selectedSubject]);
 
   function openAddClass() {
-    const next = defaultForm(selectedLevel, selectedSubject);
+    const next = defaultForm(
+      selectedLevel === ALL_LEVELS ? DEFAULT_LEVELS[1] : selectedLevel,
+      selectedSubject === ALL_SUBJECTS ? DEFAULT_SUBJECTS[0] : selectedSubject,
+    );
     next.programme_id = programmes[0]?.id || "";
     setEditingClassId("");
     setClassForm(next);
@@ -555,25 +571,40 @@ export default function LessonSchedulingClient() {
   }
 
   async function copyAvailability() {
-    const current = schedules.filter(
-      (item) =>
-        item.academic_levels.includes(selectedLevel) &&
-        item.subject === selectedSubject &&
+    const current = schedules.filter((item) => {
+      const levelMatches =
+        selectedLevel === ALL_LEVELS || item.academic_levels.includes(selectedLevel);
+      const subjectMatches =
+        selectedSubject === ALL_SUBJECTS || item.subject === selectedSubject;
+      return (
+        levelMatches &&
+        subjectMatches &&
         item.status === "active" &&
-        item.available_spaces > 0,
-    );
+        item.available_spaces > 0
+      );
+    });
 
     if (current.length === 0) {
-      setNotice(`No available ${selectedLevel} ${selectedSubject} classes to copy.`);
+      setNotice("No available classes in the current view to copy.");
       return;
     }
 
-    const lines = current.map(
-      (item) =>
-        `• ${weekdayShort(item.regular_weekday)} ${formatTime(item.start_time)}–${formatTime(item.end_time)} — ${item.available_spaces} ${item.available_spaces === 1 ? "space" : "spaces"}`,
-    );
+    const broadView =
+      selectedLevel === ALL_LEVELS || selectedSubject === ALL_SUBJECTS;
 
-    const text = `${selectedLevel} ${selectedSubject} available classes:\n${lines.join("\n")}`;
+    const lines = current.map((item) => {
+      const classPrefix = broadView
+        ? `${item.academic_levels.join("/")} ${item.subject} · `
+        : "";
+      return `• ${classPrefix}${weekdayShort(item.regular_weekday)} ${formatTime(item.start_time)}–${formatTime(item.end_time)} — ${item.available_spaces} ${item.available_spaces === 1 ? "space" : "spaces"}`;
+    });
+
+    const heading =
+      selectedLevel === ALL_LEVELS && selectedSubject === ALL_SUBJECTS
+        ? "Available classes"
+        : `${selectedLevel === ALL_LEVELS ? "All levels" : selectedLevel} · ${selectedSubject === ALL_SUBJECTS ? "All subjects" : selectedSubject} available classes`;
+
+    const text = `${heading}:\n${lines.join("\n")}`;
 
     try {
       await navigator.clipboard.writeText(text);
@@ -636,13 +667,19 @@ export default function LessonSchedulingClient() {
             label="Level"
             value={selectedLevel}
             onChange={setSelectedLevel}
-            options={levelOptions.map((value) => [value, value])}
+            options={[
+              [ALL_LEVELS, "All levels"],
+              ...levelOptions.map((value) => [value, value] as [string, string]),
+            ]}
           />
           <SelectField
             label="Subject"
             value={selectedSubject}
             onChange={setSelectedSubject}
-            options={subjectOptions.map((value) => [value, value])}
+            options={[
+              [ALL_SUBJECTS, "All subjects"],
+              ...subjectOptions.map((value) => [value, value] as [string, string]),
+            ]}
           />
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             <ToggleButton
@@ -689,7 +726,13 @@ export default function LessonSchedulingClient() {
               Current classes
             </p>
             <h2 className="mt-1 text-2xl font-semibold text-[#15233b]">
-              {selectedLevel} {selectedSubject}
+              {selectedLevel === ALL_LEVELS && selectedSubject === ALL_SUBJECTS
+                ? "All classes"
+                : `${selectedLevel === ALL_LEVELS ? "All levels" : selectedLevel} · ${
+                    selectedSubject === ALL_SUBJECTS
+                      ? "All subjects"
+                      : selectedSubject
+                  }`}
             </h2>
           </div>
           <p className="text-sm text-[#81796d]">
@@ -708,7 +751,7 @@ export default function LessonSchedulingClient() {
             </div>
             <h3 className="mt-4 text-lg font-semibold">No classes match this view</h3>
             <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#81796d]">
-              Add the first {selectedLevel} {selectedSubject} class, or turn off the availability filter if the existing classes are full.
+              No classes match the selected filters. Change the level or subject, or turn off the availability filter if matching classes are full.
             </p>
             <button
               type="button"
