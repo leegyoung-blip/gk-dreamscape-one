@@ -214,7 +214,7 @@ type WalkthroughStep = {
   showWorldPath?: boolean;
 };
 
-const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v8";
+const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v9";
 const ROVER_ORIGIN_STORAGE_KEY = "dreamscape-rover-origin";
 const ROVER_NOVA_RETURN_PATH_STORAGE_KEY =
   "dreamscape-rover-nova-return-path";
@@ -233,7 +233,7 @@ function rememberNovaRoverOrigin() {
 const zones: Zone[] = [
   {
     id: "thinking-skills-lab",
-    number: "1",
+    number: "2",
     title: "Think Lab",
     description: "Where Nova sharpens her mind — and challenges yours.",
     href: "/nova/thinking-skills-lab",
@@ -244,7 +244,7 @@ const zones: Zone[] = [
   },
   {
     id: "nova-home",
-    number: "2",
+    number: "5",
     title: "Nova’s Home",
     description: "Your space. Build it your way.",
     href: "/inventor/hub",
@@ -255,7 +255,7 @@ const zones: Zone[] = [
   },
   {
     id: "missions-centre",
-    number: "3",
+    number: "1",
     title: "Missions Centre",
     description: "Your launch point for English, Maths, Science, and bigger learning missions.",
     href: "/learning-missions",
@@ -266,7 +266,7 @@ const zones: Zone[] = [
   },
   {
     id: "knowledge-arena",
-    number: "4",
+    number: "3",
     title: "Knowledge Arena",
     description: "Jump straight into fast-paced quiz challenges and test what you know.",
     href: "/learning-missions/knowledge-arena",
@@ -277,7 +277,7 @@ const zones: Zone[] = [
   },
   {
     id: "skyforge-hangar",
-    number: "5",
+    number: "4",
     title: "Skyforge Hangar",
     description: "Head straight to your rover, upgrades, and driving challenges.",
     href: ROVER_FROM_NOVA_HREF,
@@ -290,23 +290,23 @@ const zones: Zone[] = [
 
 
 const NOVA_WORLD_PATH = [
-  { label: "Think Lab", colour: "#53d7ff", zone: "Academic Challenge", symbol: "1" },
-  { label: "Nova’s Home", colour: "#c58cff", zone: "Play & Build", symbol: "2" },
-  { label: "Missions Centre", colour: "#f6c453", zone: "Pure Academics", symbol: "3" },
-  { label: "Knowledge Arena", colour: "#53d7ff", zone: "Academic Challenge", symbol: "4" },
-  { label: "Skyforge Hangar", colour: "#c58cff", zone: "Play & Build", symbol: "5" },
+  { label: "Missions Centre", colour: "#f6c453", zone: "Pure Academics", symbol: "1" },
+  { label: "Think Lab", colour: "#53d7ff", zone: "Academic Challenge", symbol: "2" },
+  { label: "Knowledge Arena", colour: "#53d7ff", zone: "Academic Challenge", symbol: "3" },
+  { label: "Skyforge Hangar", colour: "#c58cff", zone: "Play & Build", symbol: "4" },
+  { label: "Nova’s Home", colour: "#c58cff", zone: "Play & Build", symbol: "5" },
 ];
 
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     eyebrow: "Hi, I’m Nova",
-    title: "Want me to show you around?",
-    text: "I’ll show you the three kinds of zones, the path through Nova’s World, how rewards work, and what you can do in each location. We’ll finish the tour before you choose where to go.",
+    title: "Let me show you the best way through Nova’s World.",
+    text: "There are three sections. Start with the Missions Centre for your main learning, move into Think Lab and Knowledge Arena for academic challenges, then head to Skyforge Hangar and Nova’s Home for play and building.",
   },
   {
     eyebrow: "Nova’s World Path",
     title: "Follow the locations from 1 to 5.",
-    text: "The numbers give you a simple route through Nova’s World. The colours tell you what kind of activity each stop contains: blue for academic challenges, purple for play and building, and gold for pure academics.",
+    text: "The numbers show the recommended route. Gold is your main academic starting point, blue is for academic challenges, and purple is for play and building.",
     showActivityLegend: true,
     showWorldPath: true,
   },
@@ -316,39 +316,39 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     text: "Dream Tokens, or DT, are used for play, upgrades, and building inside Dreamscape. Dream Gems, or DG, are special learning rewards earned through eligible activities.",
   },
   {
-    eyebrow: "Blue · Academic Challenge · Stop 1 of 5",
-    title: "Start by stretching your thinking.",
-    text: "Think Lab is a blue academic challenge zone. Come here to sharpen logic, spot patterns, build memory, and stretch your reasoning through thinking games.",
+    eyebrow: "Gold · Pure Academics · Location 1",
+    title: "Start at the Missions Centre.",
+    text: "This is your main learning hub for structured English, Maths, Science, and larger curriculum missions.",
     zoneNumber: "1",
   },
   {
-    eyebrow: "Purple · Play & Build · Stop 2 of 5",
-    title: "Then explore what you have unlocked.",
-    text: "Nova’s Home is a purple play zone. Use Dream Tokens to unlock spaces, customise the world around you, and enjoy activities you have earned through learning.",
+    eyebrow: "Blue · Academic Challenge · Location 2",
+    title: "Next, sharpen your thinking.",
+    text: "Think Lab helps you build logic, memory, pattern recognition, and reasoning through thinking challenges.",
     zoneNumber: "2",
   },
   {
-    eyebrow: "Gold · Pure Academics · Stop 3 of 5",
-    title: "This is your main learning route.",
-    text: "The Missions Centre is the gold pure-academics zone. This is where you work through structured English, Maths, Science, and larger curriculum learning missions.",
+    eyebrow: "Blue · Academic Challenge · Location 3",
+    title: "Then test what you know.",
+    text: "Knowledge Arena turns curriculum practice into fast-paced quiz battles where you can challenge yourself and apply what you have learned.",
     zoneNumber: "3",
   },
   {
-    eyebrow: "Blue · Academic Challenge · Stop 4 of 5",
-    title: "Now put your knowledge under pressure.",
-    text: "Knowledge Arena is a blue academic challenge zone. Test what you know in fast-paced quiz battles and turn curriculum practice into a challenge.",
+    eyebrow: "Purple · Play & Build · Location 4",
+    title: "Now head to Skyforge Hangar.",
+    text: "Check your rover, upgrade your build, and launch into rover challenges using what you have earned and unlocked.",
     zoneNumber: "4",
   },
   {
-    eyebrow: "Purple · Play & Build · Stop 5 of 5",
-    title: "Finish by building and playing.",
-    text: "Skyforge Hangar is a purple play zone. Check your rover, upgrade your build, and launch into rover challenges using what you have earned and unlocked.",
+    eyebrow: "Purple · Play & Build · Location 5",
+    title: "Finish at Nova’s Home.",
+    text: "Use Dream Tokens to unlock spaces, customise your world, and enjoy activities you have earned through learning.",
     zoneNumber: "5",
   },
   {
     eyebrow: "Tour Complete",
-    title: "Choose where you want to begin.",
-    text: "That’s the full 1-to-5 route through Nova’s World. Pick any location below, or follow the numbered path whenever you want more direction.",
+    title: "Where do you want to start?",
+    text: "That’s the full route: Missions Centre first, then academic challenges, then play and building. Pick any location below, or follow the numbered path whenever you want more direction.",
     showWorldPath: true,
   },
 ];
@@ -763,8 +763,8 @@ export default function NovaWorldPage() {
       const zoneNumber = Number(activeZoneNumber);
 
       if (isMobile) {
-        // Zones 1–3 keep Nova's guide at the bottom and the highlighted card
-        // in the upper half. Zones 4–5 reverse that arrangement.
+        // Locations 1–3 keep Nova's guide at the bottom and the highlighted
+        // card in the upper half. Locations 4–5 reverse that arrangement.
         const guideAtTop = zoneNumber >= 4;
 
         target.scrollIntoView({
@@ -3659,7 +3659,7 @@ function GuidedWalkthrough({
   const isHangarStep = step.zoneNumber === "5";
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
   const dockGuideAtTop =
-    isMobile && (isKnowledgeStep || isHangarStep);
+    isMobile && (isHangarStep || isHomeStep);
   const dockGuideAtRight = isDesktop && (isThinkStep || isHomeStep);
   const [typedLength, setTypedLength] = useState(0);
 
@@ -3771,8 +3771,8 @@ function GuidedWalkthrough({
               : "min(560px, calc(100vw - 48px))",
           maxHeight: isMobile
             ? dockGuideAtTop
-              ? "42dvh"
-              : "46dvh"
+              ? "44dvh"
+              : "48dvh"
             : isDesktop
               ? "min(620px, calc(100dvh - 48px))"
               : "52dvh",
@@ -3820,11 +3820,11 @@ function GuidedWalkthrough({
             position: isMobile ? "relative" : "absolute",
             left: isMobile ? "auto" : "3px",
             bottom: isMobile ? "auto" : "-8px",
-            height: isMobile ? (step.zoneNumber ? "76px" : "105px") : "250px",
+            height: isMobile ? (step.zoneNumber ? "72px" : "74px") : "250px",
             width: "auto",
             objectFit: "contain",
             display: "block",
-            margin: isMobile ? "0 auto 8px" : 0,
+            margin: isMobile ? "0 auto 4px" : 0,
             filter: "drop-shadow(0 18px 36px rgba(0,0,0,0.52))",
             pointerEvents: "none",
           }}
@@ -3845,9 +3845,9 @@ function GuidedWalkthrough({
 
         <h2
           style={{
-            margin: "9px 42px 0 0",
+            margin: isMobile ? "7px 34px 0 0" : "9px 42px 0 0",
             fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: isMobile ? "26px" : "35px",
+            fontSize: isMobile ? "22px" : "35px",
             lineHeight: 1.08,
             fontWeight: 500,
           }}
@@ -3857,11 +3857,11 @@ function GuidedWalkthrough({
 
         <p
           style={{
-            margin: "14px 0 0",
-            minHeight: isMobile ? "64px" : "72px",
+            margin: isMobile ? "10px 0 0" : "14px 0 0",
+            minHeight: isMobile ? "0" : "72px",
             color: "rgba(255,255,255,0.78)",
-            fontSize: isMobile ? "14px" : "16px",
-            lineHeight: 1.58,
+            fontSize: isMobile ? "13px" : "16px",
+            lineHeight: isMobile ? 1.46 : 1.58,
           }}
         >
           {step.text.slice(0, typedLength)}
@@ -4083,7 +4083,7 @@ function GuidedWalkthrough({
 
         <div
           style={{
-            marginTop: "18px",
+            marginTop: isMobile ? "12px" : "18px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
