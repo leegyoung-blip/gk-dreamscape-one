@@ -17,7 +17,8 @@ type Programme = {
 type ClassSchedule = {
   id: string;
   class_name: string | null;
-  academic_level: string;
+  academic_level: string; // legacy primary level kept by the database
+  academic_levels: string[];
   subject: string;
   programme_id: string;
   programme_code: string;
@@ -30,6 +31,8 @@ type ClassSchedule = {
   room: string | null;
   notes: string | null;
   status: "active" | "inactive";
+  tracked_enrolled_count: number;
+  manual_enrolled_count: number;
   enrolled_count: number;
   available_spaces: number;
   created_at: string;
@@ -64,7 +67,7 @@ type CandidateRow = {
 
 type ClassForm = {
   class_name: string;
-  academic_level: string;
+  academic_levels: string[];
   subject_choice: string;
   other_subject: string;
   programme_id: string;
@@ -72,6 +75,7 @@ type ClassForm = {
   start_time: string;
   end_time: string;
   capacity: string;
+  manual_enrolled_count: string;
   teacher_name: string;
   room: string;
   notes: string;
@@ -93,7 +97,7 @@ function defaultForm(level = "P1", subject = "English"): ClassForm {
   const commonSubject = DEFAULT_SUBJECTS.includes(subject) ? subject : "Other";
   return {
     class_name: "",
-    academic_level: level,
+    academic_levels: [level],
     subject_choice: commonSubject,
     other_subject: commonSubject === "Other" ? subject : "",
     programme_id: "",
@@ -101,6 +105,7 @@ function defaultForm(level = "P1", subject = "English"): ClassForm {
     start_time: "15:30",
     end_time: "17:30",
     capacity: "8",
+    manual_enrolled_count: "0",
     teacher_name: "",
     room: "",
     notes: "",
@@ -137,7 +142,7 @@ export default function LessonSchedulingClient() {
     setLoadError("");
 
     const [scheduleResult, programmeResult] = await Promise.all([
-      supabase.rpc("gkp_list_class_schedules"),
+      supabase.rpc("gkp_list_class_schedules_v2"),
       supabase.rpc("gkp_list_scheduling_programmes"),
     ]);
 
@@ -155,10 +160,13 @@ export default function LessonSchedulingClient() {
     if (nextSchedules.length > 0) {
       const stillValid = nextSchedules.some(
         (item) =>
-          item.academic_level === selectedLevel && item.subject === selectedSubject,
+          item.academic_levels.includes(selectedLevel) &&
+          item.subject === selectedSubject,
       );
       if (!stillValid) {
-        setSelectedLevel(nextSchedules[0].academic_level);
+        setSelectedLevel(
+          nextSchedules[0].academic_levels[0] || nextSchedules[0].academic_level,
+        );
         setSelectedSubject(nextSchedules[0].subject);
       }
     }
@@ -177,7 +185,7 @@ export default function LessonSchedulingClient() {
       Array.from(
         new Set([
           ...DEFAULT_LEVELS,
-          ...schedules.map((item) => item.academic_level).filter(Boolean),
+          ...schedules.flatMap((item) => item.academic_levels || []).filter(Boolean),
         ]),
       ),
     [schedules],
@@ -196,7 +204,7 @@ export default function LessonSchedulingClient() {
 
   const filteredSchedules = useMemo(() => {
     return schedules.filter((item) => {
-      if (item.academic_level !== selectedLevel) return false;
+      if (!item.academic_levels.includes(selectedLevel)) return false;
       if (item.subject !== selectedSubject) return false;
       if (!showInactive && item.status !== "active") return false;
       if (
@@ -212,7 +220,7 @@ export default function LessonSchedulingClient() {
   const summary = useMemo(() => {
     const active = schedules.filter(
       (item) =>
-        item.academic_level === selectedLevel &&
+        item.academic_levels.includes(selectedLevel) &&
         item.subject === selectedSubject &&
         item.status === "active",
     );
@@ -247,7 +255,9 @@ export default function LessonSchedulingClient() {
     setEditingClassId(item.id);
     setClassForm({
       class_name: item.class_name || "",
-      academic_level: item.academic_level,
+      academic_levels: item.academic_levels.length
+        ? item.academic_levels
+        : [item.academic_level],
       subject_choice: commonSubject,
       other_subject: commonSubject === "Other" ? item.subject : "",
       programme_id: item.programme_id,
@@ -255,6 +265,7 @@ export default function LessonSchedulingClient() {
       start_time: item.start_time?.slice(0, 5) || "",
       end_time: item.end_time?.slice(0, 5) || "",
       capacity: String(item.capacity),
+      manual_enrolled_count: String(item.manual_enrolled_count || 0),
       teacher_name: item.teacher_name || "",
       room: item.room || "",
       notes: item.notes || "",
@@ -276,6 +287,11 @@ export default function LessonSchedulingClient() {
       return;
     }
 
+    if (classForm.academic_levels.length === 0) {
+      setFormError("Choose at least one level.");
+      return;
+    }
+
     if (!classForm.programme_id) {
       setFormError("Choose the billing programme used by this class.");
       return;
@@ -292,21 +308,28 @@ export default function LessonSchedulingClient() {
       return;
     }
 
+    const manualEnrolledCount = Number(classForm.manual_enrolled_count);
+    if (!Number.isInteger(manualEnrolledCount) || manualEnrolledCount < 0) {
+      setFormError("Other students must be a whole number of zero or more.");
+      return;
+    }
+
     setWorking(true);
     setFormError("");
     setLoadError("");
     setNotice("");
 
-    const { error } = await supabase.rpc("gkp_upsert_class_schedule", {
+    const { error } = await supabase.rpc("gkp_upsert_class_schedule_v2", {
       p_class_id: editingClassId || null,
       p_class_name: optionalText(classForm.class_name),
-      p_academic_level: classForm.academic_level,
+      p_academic_levels: classForm.academic_levels,
       p_subject: subject,
       p_programme_id: classForm.programme_id,
       p_regular_weekday: Number(classForm.regular_weekday),
       p_start_time: classForm.start_time,
       p_end_time: classForm.end_time,
       p_capacity: capacity,
+      p_manual_enrolled_count: manualEnrolledCount,
       p_teacher_name: optionalText(classForm.teacher_name),
       p_room: optionalText(classForm.room),
       p_notes: optionalText(classForm.notes),
@@ -316,7 +339,7 @@ export default function LessonSchedulingClient() {
       setFormError(error.message);
     } else {
       setClassModalOpen(false);
-      setSelectedLevel(classForm.academic_level);
+      setSelectedLevel(classForm.academic_levels[0]);
       setSelectedSubject(subject);
       setNotice(editingClassId ? "Class schedule updated." : "Class schedule added.");
       await loadData();
@@ -394,9 +417,9 @@ export default function LessonSchedulingClient() {
 
     if (
       candidate.class_schedule_id !== selectedClass.id &&
-      roster.length >= selectedClass.capacity &&
+      roster.length + selectedClass.manual_enrolled_count >= selectedClass.capacity &&
       !window.confirm(
-        `${classLabel(selectedClass)} is already at its stated capacity (${roster.length}/${selectedClass.capacity}). Assign ${candidate.student_name} anyway?`,
+        `${classLabel(selectedClass)} is already at its stated capacity (${roster.length + selectedClass.manual_enrolled_count}/${selectedClass.capacity}). Assign ${candidate.student_name} anyway?`,
       )
     ) {
       return;
@@ -460,7 +483,7 @@ export default function LessonSchedulingClient() {
   async function matchExistingStudents() {
     if (
       !window.confirm(
-        "Match existing active enrolments to classes where programme, recorded level, weekday and start time identify exactly one class? Ambiguous records will be left unchanged.",
+        "Match existing active enrolments to classes where programme, one of the class levels, weekday and start time identify exactly one class? Ambiguous records will be left unchanged.",
       )
     ) {
       return;
@@ -484,10 +507,57 @@ export default function LessonSchedulingClient() {
     setWorking(false);
   }
 
+  async function changeManualCount(item: ClassSchedule, nextCount: number) {
+    const safeCount = Math.max(0, Math.floor(nextCount));
+    if (safeCount === item.manual_enrolled_count) return;
+
+    setWorking(true);
+    setLoadError("");
+    setNotice("");
+
+    const { error } = await supabase.rpc(
+      "gkp_set_class_manual_enrolled_count",
+      {
+        p_class_id: item.id,
+        p_manual_enrolled_count: safeCount,
+      },
+    );
+
+    if (error) {
+      setLoadError(error.message);
+    } else {
+      setNotice(`Manual class count updated for ${classLabel(item)}.`);
+      setSchedules((current) =>
+        current.map((currentItem) => {
+          if (currentItem.id !== item.id) return currentItem;
+          const total = currentItem.tracked_enrolled_count + safeCount;
+          return {
+            ...currentItem,
+            manual_enrolled_count: safeCount,
+            enrolled_count: total,
+            available_spaces: Math.max(0, currentItem.capacity - total),
+          };
+        }),
+      );
+      setSelectedClass((current) => {
+        if (!current || current.id !== item.id) return current;
+        const total = current.tracked_enrolled_count + safeCount;
+        return {
+          ...current,
+          manual_enrolled_count: safeCount,
+          enrolled_count: total,
+          available_spaces: Math.max(0, current.capacity - total),
+        };
+      });
+    }
+
+    setWorking(false);
+  }
+
   async function copyAvailability() {
     const current = schedules.filter(
       (item) =>
-        item.academic_level === selectedLevel &&
+        item.academic_levels.includes(selectedLevel) &&
         item.subject === selectedSubject &&
         item.status === "active" &&
         item.available_spaces > 0,
@@ -535,7 +605,7 @@ export default function LessonSchedulingClient() {
     <BillingAdminShell
       eyebrow="Weekly class timetable"
       title="Lesson Scheduling"
-      description="Keep one live reference for class times, current enrolment and available spaces. Assigning a student to a class also keeps their billing weekday and start time aligned."
+      description="Keep one live reference for class times, multi-level groups, total class numbers and available spaces. Named billing students and manually counted existing students can be tracked together."
       actions={
         <div className="flex flex-wrap gap-2">
           <button
@@ -658,6 +728,9 @@ export default function LessonSchedulingClient() {
                 onEdit={() => openEditClass(item)}
                 onRoster={() => void openRoster(item)}
                 onStatus={() => void setClassStatus(item)}
+                onManualChange={(nextCount) =>
+                  void changeManualCount(item, nextCount)
+                }
               />
             ))}
           </div>
@@ -669,7 +742,7 @@ export default function LessonSchedulingClient() {
         onClose={() => !working && setClassModalOpen(false)}
         eyebrow={editingClassId ? "Class timetable" : "New weekly class"}
         title={editingClassId ? "Edit class" : "Add class"}
-        description="The selected billing programme controls which student enrolments can be assigned to this class."
+        description="A class can cover multiple levels. Add a manual count for existing students who are not in the billing system; named billing students are counted separately."
         widthClass="max-w-3xl"
         footer={
           <ModalFooter
@@ -696,17 +769,19 @@ export default function LessonSchedulingClient() {
                 setClassForm((current) => ({ ...current, class_name: value }))
               }
             />
-            <SelectField
-              label="Level"
-              value={classForm.academic_level}
-              onChange={(value) =>
-                setClassForm((current) => ({
-                  ...current,
-                  academic_level: value,
-                }))
-              }
-              options={levelOptions.map((value) => [value, value])}
-            />
+            <div className="md:col-span-2">
+              <MultiLevelField
+                label="Levels"
+                values={classForm.academic_levels}
+                options={levelOptions}
+                onChange={(values) =>
+                  setClassForm((current) => ({
+                    ...current,
+                    academic_levels: values,
+                  }))
+                }
+              />
+            </div>
             <SelectField
               label="Subject"
               value={classForm.subject_choice}
@@ -781,6 +856,20 @@ export default function LessonSchedulingClient() {
               required
             />
             <TextField
+              label="Other students (not in billing system)"
+              type="number"
+              min="0"
+              step="1"
+              value={classForm.manual_enrolled_count}
+              onChange={(value) =>
+                setClassForm((current) => ({
+                  ...current,
+                  manual_enrolled_count: value,
+                }))
+              }
+              required
+            />
+            <TextField
               label="Start time"
               type="time"
               value={classForm.start_time}
@@ -827,7 +916,7 @@ export default function LessonSchedulingClient() {
           />
 
           <div className="rounded-2xl border border-[#decda9] bg-[#f8f1e3] p-4 text-xs leading-5 text-[#6d6250]">
-            When a student is assigned to this class, the enrolment's regular weekday and start time are updated automatically. If you later move this class to another day/time, assigned students move with it for future lesson generation.
+            The class total combines named billing students and the manual count above. When a named student is assigned, their enrolment weekday and start time stay aligned with this class.
           </div>
         </form>
       </BillingModal>
@@ -859,12 +948,24 @@ export default function LessonSchedulingClient() {
           </div>
         ) : (
           <div className="grid gap-6">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <SummaryCell label="Enrolled" value={roster.length} />
-              <SummaryCell label="Capacity" value={selectedClass.capacity} />
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <SummaryCell
+                label="Total enrolled"
+                value={roster.length + selectedClass.manual_enrolled_count}
+              />
+              <SummaryCell label="Named billing students" value={roster.length} />
+              <SummaryCell
+                label="Other students"
+                value={selectedClass.manual_enrolled_count}
+              />
               <SummaryCell
                 label="Available"
-                value={Math.max(0, selectedClass.capacity - roster.length)}
+                value={Math.max(
+                  0,
+                  selectedClass.capacity -
+                    roster.length -
+                    selectedClass.manual_enrolled_count,
+                )}
               />
             </div>
 
@@ -920,7 +1021,7 @@ export default function LessonSchedulingClient() {
                   </p>
                   <h3 className="mt-1 text-lg font-semibold">Add or move students</h3>
                   <p className="mt-1 text-xs leading-5 text-[#81796d]">
-                    This list shows active students enrolled in {selectedClass.programme_name}. Their recorded level is shown so combined programme records can still be managed safely.
+                    This list shows active students enrolled in {selectedClass.programme_name} whose recorded level matches {levelsLabel(selectedClass)}. Students without a recorded level are also shown.
                   </p>
                 </div>
                 <TextField
@@ -997,12 +1098,14 @@ function ClassCard({
   onEdit,
   onRoster,
   onStatus,
+  onManualChange,
 }: {
   item: ClassSchedule;
   disabled: boolean;
   onEdit: () => void;
   onRoster: () => void;
   onStatus: () => void;
+  onManualChange: (nextCount: number) => void;
 }) {
   const full = item.enrolled_count >= item.capacity;
   const over = item.enrolled_count > item.capacity;
@@ -1057,6 +1160,42 @@ function ClassCard({
         <MiniMetric label="Enrolled" value={item.enrolled_count} />
         <MiniMetric label="Capacity" value={item.capacity} />
         <MiniMetric label="Available" value={item.available_spaces} />
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-[#e6ddcd] bg-[#fbfaf7] px-3 py-3">
+        <div className="min-w-0">
+          <span className="block text-[9px] font-black uppercase tracking-[0.1em] text-[#8a8378]">
+            Other students
+          </span>
+          <span className="mt-1 block text-[11px] text-[#81796d]">
+            {item.tracked_enrolled_count} named + {item.manual_enrolled_count} manual
+          </span>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              onManualChange(Math.max(0, item.manual_enrolled_count - 1))
+            }
+            disabled={disabled || item.manual_enrolled_count <= 0}
+            className="grid h-9 w-9 place-items-center rounded-full border border-[#d7c9ae] bg-white text-lg font-bold disabled:opacity-40"
+            aria-label="Remove one manual student"
+          >
+            −
+          </button>
+          <strong className="min-w-8 text-center text-lg text-[#15233b]">
+            {item.manual_enrolled_count}
+          </strong>
+          <button
+            type="button"
+            onClick={() => onManualChange(item.manual_enrolled_count + 1)}
+            disabled={disabled}
+            className="grid h-9 w-9 place-items-center rounded-full bg-[#15233b] text-lg font-bold text-white disabled:opacity-40"
+            aria-label="Add one manual student"
+          >
+            +
+          </button>
+        </div>
       </div>
 
       {(item.teacher_name || item.room) && (
@@ -1270,6 +1409,57 @@ function SelectField({
   );
 }
 
+function MultiLevelField({
+  label,
+  values,
+  options,
+  onChange,
+}: {
+  label: string;
+  values: string[];
+  options: string[];
+  onChange: (values: string[]) => void;
+}) {
+  function toggle(value: string) {
+    if (values.includes(value)) {
+      onChange(values.filter((item) => item !== value));
+    } else {
+      onChange([...values, value]);
+    }
+  }
+
+  return (
+    <div>
+      <span className="text-[11px] font-black uppercase tracking-[0.13em] text-[#82796d]">
+        {label}
+      </span>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map((option) => {
+          const active = values.includes(option);
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => toggle(option)}
+              className={`min-h-10 rounded-full border px-4 text-xs font-bold transition ${
+                active
+                  ? "border-[#15233b] bg-[#15233b] text-white"
+                  : "border-[#d7c9ae] bg-white text-[#554d40]"
+              }`}
+            >
+              {active ? "✓ " : ""}
+              {option}
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-xs text-[#8a8378]">
+        Choose one or more levels for this class.
+      </p>
+    </div>
+  );
+}
+
 function ModalFooter({
   formId,
   saving,
@@ -1308,8 +1498,15 @@ function optionalText(value: string) {
   return trimmed || null;
 }
 
+function levelsLabel(item: ClassSchedule) {
+  const levels = item.academic_levels?.length
+    ? item.academic_levels
+    : [item.academic_level];
+  return levels.join("/");
+}
+
 function classLabel(item: ClassSchedule) {
-  return item.class_name?.trim() || `${item.academic_level} ${item.subject}`;
+  return item.class_name?.trim() || `${levelsLabel(item)} ${item.subject}`;
 }
 
 function weekdayName(value: number) {

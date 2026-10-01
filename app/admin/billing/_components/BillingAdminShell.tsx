@@ -49,6 +49,13 @@ const NAV_ITEMS: NavItem[] = [
     icon: "▤",
     href: "/admin/billing/programmes",
   },
+
+  {
+     label: "Lesson Scheduling",
+     icon: "◫",
+     href: "/admin/billing/lesson-scheduling",
+  },
+
   {
     label: "Invoices",
     icon: "□",

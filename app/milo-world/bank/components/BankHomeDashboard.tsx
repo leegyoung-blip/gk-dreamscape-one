@@ -32,6 +32,7 @@ type DashboardCard = {
   accent: string;
   border: string;
   glow: string;
+  image: string;
 };
 
 const DASHBOARD_CARDS: DashboardCard[] = [
@@ -45,6 +46,7 @@ const DASHBOARD_CARDS: DashboardCard[] = [
     accent: "#8ee8ff",
     border: "rgba(126,232,255,0.22)",
     glow: "rgba(83,215,255,0.13)",
+    image: "/milo-world/bank/overview/learn-cover.png",
   },
   {
     section: "practise",
@@ -56,6 +58,7 @@ const DASHBOARD_CARDS: DashboardCard[] = [
     accent: "#b9a7ff",
     border: "rgba(185,167,255,0.22)",
     glow: "rgba(150,123,255,0.12)",
+    image: "/milo-world/bank/overview/practise-cover.png",
   },
   {
     section: "money",
@@ -67,6 +70,7 @@ const DASHBOARD_CARDS: DashboardCard[] = [
     accent: "#9fffd2",
     border: "rgba(159,255,210,0.22)",
     glow: "rgba(99,255,190,0.11)",
+    image: "/milo-world/bank/overview/money-cover.png",
   },
   {
     section: "progress",
@@ -78,6 +82,7 @@ const DASHBOARD_CARDS: DashboardCard[] = [
     accent: "#ffd18a",
     border: "rgba(255,209,138,0.22)",
     glow: "rgba(255,185,92,0.11)",
+    image: "/milo-world/bank/overview/progress-cover.png",
   },
 ];
 
@@ -115,9 +120,10 @@ function DashboardCardButton({
         overflow: "hidden",
         borderRadius: compact ? "18px" : "22px",
         border: `1px solid ${hovered ? card.accent : card.border}`,
-        background: hovered
-          ? `radial-gradient(circle at 94% 7%, ${card.glow}, transparent 30%), linear-gradient(145deg, rgba(8,25,46,0.94), rgba(4,12,30,0.94))`
-          : `radial-gradient(circle at 94% 7%, ${card.glow}, transparent 30%), linear-gradient(145deg, rgba(6,21,40,0.86), rgba(3,11,28,0.9))`,
+        backgroundImage: `linear-gradient(90deg, rgba(3,11,28,0.95) 0%, rgba(3,11,28,0.83) 42%, rgba(3,11,28,0.52) 72%, rgba(3,11,28,0.36) 100%), radial-gradient(circle at 88% 18%, ${card.glow}, transparent 34%), url("${card.image}")`,
+        backgroundSize: hovered ? "105% auto" : "100% auto",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
         boxShadow: hovered
           ? `0 18px 44px rgba(0,0,0,0.34), 0 0 28px ${card.glow}`
           : "0 14px 34px rgba(0,0,0,0.22)",
@@ -133,7 +139,7 @@ function DashboardCardButton({
         fontFamily: "inherit",
         transform: hovered ? "translateY(-2px)" : "translateY(0)",
         transition:
-          "transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease",
+          "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background-size 420ms ease",
       }}
     >
       <div
@@ -143,7 +149,7 @@ function DashboardCardButton({
           inset: 0,
           pointerEvents: "none",
           background:
-            "linear-gradient(115deg, rgba(255,255,255,0.025), transparent 44%)",
+            "linear-gradient(115deg, rgba(255,255,255,0.03), transparent 38%), linear-gradient(0deg, rgba(0,0,0,0.08), rgba(0,0,0,0.08))",
         }}
       />
 
