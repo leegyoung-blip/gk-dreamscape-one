@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 import ObjectivesPanel, {
@@ -214,7 +214,7 @@ type WalkthroughStep = {
   showWorldPath?: boolean;
 };
 
-const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v9";
+const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v10";
 const ROVER_ORIGIN_STORAGE_KEY = "dreamscape-rover-origin";
 const ROVER_NOVA_RETURN_PATH_STORAGE_KEY =
   "dreamscape-rover-nova-return-path";
@@ -750,46 +750,6 @@ export default function NovaWorldPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!walkthroughOpen) return;
-
-    const activeZoneNumber = WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber;
-    if (!activeZoneNumber || isDesktop) return;
-
-    const timeout = window.setTimeout(() => {
-      const target = document.getElementById(`nova-zone-${activeZoneNumber}`);
-      if (!target) return;
-
-      const zoneNumber = Number(activeZoneNumber);
-
-      if (isMobile) {
-        // Locations 1–3 keep Nova's guide at the bottom and the highlighted
-        // card in the upper half. Locations 4–5 reverse that arrangement.
-        const guideAtTop = zoneNumber >= 4;
-
-        target.scrollIntoView({
-          behavior: "smooth",
-          block: guideAtTop ? "end" : "start",
-        });
-
-        // Add breathing room so the highlighted card never touches the guide.
-        window.setTimeout(() => {
-          window.scrollBy({
-            top: guideAtTop ? 86 : -86,
-            behavior: "smooth",
-          });
-        }, 180);
-      } else {
-        // Tablet keeps the card centred while the guide is docked away from it.
-        target.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
-      }
-    }, 120);
-
-    return () => window.clearTimeout(timeout);
-  }, [isDesktop, isMobile, walkthroughOpen, walkthroughStep]);
 
   const worldZones: Zone[] = zones.map((zone) => {
     const enabled = zoneAccessSettings[zone.accessKey];
@@ -1198,33 +1158,181 @@ export default function NovaWorldPage() {
           style={{
             position: "relative",
             zIndex: activeWalkthroughZoneNumber ? 90 : 20,
-            width: isTablet && walkthroughOpen
-              ? "min(420px, calc(100% - 48px))"
-              : "min(720px, calc(100% - 28px))",
-            margin: isTablet && walkthroughOpen ? "0 24px 0 auto" : "0 auto",
-            display: "grid",
-            gridTemplateColumns: "1fr",
-            gap: isMobile ? "10px" : "12px",
+            width: "min(790px, calc(100% - 28px))",
+            margin: "0 auto",
             paddingBottom: "24px",
           }}
         >
-          {worldZones
-            .slice()
-            .sort((a, b) => Number(a.number) - Number(b.number))
-            .map((zone) => (
-              <ZoneCard
-                key={zone.id}
-                zone={zone}
-                screenMode={screenMode}
-                isAdmin={isAdmin}
-                onClick={() => selectZone(zone)}
-                walkthroughActive={walkthroughOpen}
-                walkthroughHighlighted={
-                  walkthroughOpen &&
-                  WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
-                }
-              />
-            ))}
+          {(() => {
+            const missionZone = worldZones.find((zone) => zone.number === "1");
+            const challengeZones = worldZones
+              .filter((zone) => zone.number === "2" || zone.number === "3")
+              .sort((a, b) => Number(a.number) - Number(b.number));
+            const playZones = worldZones
+              .filter((zone) => zone.number === "4" || zone.number === "5")
+              .sort((a, b) => Number(a.number) - Number(b.number));
+
+            return (
+              <div style={{ display: "grid", gap: isMobile ? "18px" : "22px" }}>
+                {missionZone && (
+                  <section aria-label="Learn">
+                    <div
+                      style={{
+                        marginBottom: "9px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "9px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "#f6c453",
+                          fontSize: "10px",
+                          fontWeight: 950,
+                          letterSpacing: "0.16em",
+                          textTransform: "uppercase",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        1 · Learn
+                      </span>
+                      <span
+                        style={{
+                          height: "1px",
+                          flex: 1,
+                          background:
+                            "linear-gradient(90deg, rgba(246,196,83,0.42), transparent)",
+                        }}
+                      />
+                    </div>
+
+                    <ZoneCard
+                      zone={missionZone}
+                      screenMode={screenMode}
+                      isAdmin={isAdmin}
+                      onClick={() => selectZone(missionZone)}
+                      walkthroughActive={walkthroughOpen}
+                      walkthroughHighlighted={
+                        activeWalkthroughZoneNumber === missionZone.number
+                      }
+                    />
+                  </section>
+                )}
+
+                <section aria-label="Academic Challenge">
+                  <div
+                    style={{
+                      marginBottom: "9px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "9px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: "#53d7ff",
+                        fontSize: "10px",
+                        fontWeight: 950,
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      2 · Academic Challenge
+                    </span>
+                    <span
+                      style={{
+                        height: "1px",
+                        flex: 1,
+                        background:
+                          "linear-gradient(90deg, rgba(83,215,255,0.36), transparent)",
+                      }}
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: isMobile
+                        ? "1fr"
+                        : "repeat(2, minmax(0, 1fr))",
+                      gap: isMobile ? "12px" : "14px",
+                    }}
+                  >
+                    {challengeZones.map((zone) => (
+                      <ZoneCard
+                        key={zone.id}
+                        zone={zone}
+                        screenMode={screenMode}
+                        isAdmin={isAdmin}
+                        onClick={() => selectZone(zone)}
+                        walkthroughActive={walkthroughOpen}
+                        walkthroughHighlighted={
+                          activeWalkthroughZoneNumber === zone.number
+                        }
+                      />
+                    ))}
+                  </div>
+                </section>
+
+                <section aria-label="Play and Build">
+                  <div
+                    style={{
+                      marginBottom: "9px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "9px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: "#c58cff",
+                        fontSize: "10px",
+                        fontWeight: 950,
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      3 · Play & Build
+                    </span>
+                    <span
+                      style={{
+                        height: "1px",
+                        flex: 1,
+                        background:
+                          "linear-gradient(90deg, rgba(197,140,255,0.36), transparent)",
+                      }}
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: isMobile
+                        ? "1fr"
+                        : "repeat(2, minmax(0, 1fr))",
+                      gap: isMobile ? "12px" : "14px",
+                    }}
+                  >
+                    {playZones.map((zone) => (
+                      <ZoneCard
+                        key={zone.id}
+                        zone={zone}
+                        screenMode={screenMode}
+                        isAdmin={isAdmin}
+                        onClick={() => selectZone(zone)}
+                        walkthroughActive={walkthroughOpen}
+                        walkthroughHighlighted={
+                          activeWalkthroughZoneNumber === zone.number
+                        }
+                      />
+                    ))}
+                  </div>
+                </section>
+              </div>
+            );
+          })()}
         </section>
       )}
 
@@ -2522,7 +2630,7 @@ function NovaHotspot({
             : "none",
         pointerEvents: isWalkthroughActive && !isHighlighted ? "none" : "auto",
         transition:
-          "transform 200ms ease, opacity 200ms ease, filter 200ms ease, border-color 200ms ease, background 200ms ease, box-shadow 200ms ease",
+          "transform 420ms cubic-bezier(.2,.82,.24,1), opacity 360ms ease, filter 360ms ease, border-color 360ms ease, background 360ms ease, box-shadow 360ms ease",
       }}
     >
       <span
@@ -2946,7 +3054,7 @@ function ZoneCard({
     transform:
       isEmphasised && !isLocked ? "translateY(-4px) scale(1.012)" : "none",
     transition:
-      "transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease, opacity 260ms ease, filter 260ms ease, background 260ms ease",
+      "transform 420ms cubic-bezier(.2,.82,.24,1), box-shadow 360ms ease, border-color 360ms ease, opacity 360ms ease, filter 360ms ease, background 360ms ease",
     cursor: walkthroughActive ? "default" : isLocked ? "not-allowed" : "pointer",
     pointerEvents: walkthroughActive ? "none" : "auto",
     appearance: "none",
@@ -3646,22 +3754,17 @@ function GuidedWalkthrough({
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
   const isDesktop = screenMode === "desktop";
-  const useFullWalkthroughLayout = !isMobile;
+  const isTablet = screenMode === "tablet";
+  const useFullWalkthroughLayout = isDesktop;
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
   const isFirstStep = stepIndex === 0;
   const isRewardsStep = step.eyebrow === "Your Rewards";
   const isActivityTypesStep = Boolean(step.showActivityLegend);
   const isWorldPathStep = Boolean(step.showWorldPath);
-  const isThinkStep = step.zoneNumber === "1";
-  const isHomeStep = step.zoneNumber === "2";
-  const isMissionsStep = step.zoneNumber === "3";
-  const isKnowledgeStep = step.zoneNumber === "4";
-  const isHangarStep = step.zoneNumber === "5";
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
-  const dockGuideAtTop =
-    isMobile && (isHangarStep || isHomeStep);
-  const dockGuideAtRight = isDesktop && (isThinkStep || isHomeStep);
   const [typedLength, setTypedLength] = useState(0);
+  const guideRef = useRef<HTMLDivElement | null>(null);
+  const [guideAnchor, setGuideAnchor] = useState<CSSProperties>({});
 
   useEffect(() => {
     if (!open) {
@@ -3693,6 +3796,236 @@ function GuidedWalkthrough({
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+    let settleTimer: number | null = null;
+    let resizeTimer: number | null = null;
+
+    const clamp = (value: number, min: number, max: number) =>
+      Math.min(Math.max(value, min), Math.max(min, max));
+
+    function setNeutralPosition() {
+      if (cancelled) return;
+
+      const viewportWidth = window.innerWidth;
+      const margin = isMobile ? 12 : 20;
+      const guideWidth = isMobile
+        ? viewportWidth - margin * 2
+        : isTablet
+          ? Math.min(620, viewportWidth - 48)
+          : Math.min(570, viewportWidth - 60);
+
+      setGuideAnchor({
+        left: `${Math.max(margin, (viewportWidth - guideWidth) / 2)}px`,
+        top: "auto",
+        right: "auto",
+        bottom: isMobile ? "14px" : "24px",
+        transform: "none",
+      });
+    }
+
+    function positionAtLocation(allowScrollAdjustment = true) {
+      if (cancelled || !step.zoneNumber) {
+        setNeutralPosition();
+        return;
+      }
+
+      const target = document.getElementById(`nova-zone-${step.zoneNumber}`);
+      if (!target) {
+        setNeutralPosition();
+        return;
+      }
+
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const margin = isMobile ? 12 : 20;
+      const gap = isMobile ? 14 : 18;
+
+      const guideRect = guideRef.current?.getBoundingClientRect();
+      const guideWidth =
+        guideRect?.width ||
+        (isMobile
+          ? viewportWidth - margin * 2
+          : isTablet
+            ? Math.min(620, viewportWidth - 48)
+            : Math.min(570, viewportWidth - 60));
+      const guideHeight =
+        guideRect?.height ||
+        (isMobile ? Math.min(360, viewportHeight * 0.48) : 360);
+
+      const targetRect = target.getBoundingClientRect();
+      const targetCentreX = targetRect.left + targetRect.width / 2;
+      const targetCentreY = targetRect.top + targetRect.height / 2;
+
+      const spaceAbove = targetRect.top - margin - gap;
+      const spaceBelow = viewportHeight - targetRect.bottom - margin - gap;
+      const spaceLeft = targetRect.left - margin - gap;
+      const spaceRight = viewportWidth - targetRect.right - margin - gap;
+
+      // On landscape/desktop, attach to a side whenever there is room.
+      // On portrait/tablet/mobile, attach directly above or below the card.
+      const candidates: Array<{
+        side: "right" | "left" | "below" | "above";
+        x: number;
+        y: number;
+        fits: boolean;
+        room: number;
+      }> = [];
+
+      if (isDesktop) {
+        candidates.push(
+          {
+            side: "right",
+            x: targetRect.right + gap,
+            y: clamp(
+              targetCentreY - guideHeight / 2,
+              margin,
+              viewportHeight - guideHeight - margin,
+            ),
+            fits: spaceRight >= guideWidth,
+            room: spaceRight,
+          },
+          {
+            side: "left",
+            x: targetRect.left - gap - guideWidth,
+            y: clamp(
+              targetCentreY - guideHeight / 2,
+              margin,
+              viewportHeight - guideHeight - margin,
+            ),
+            fits: spaceLeft >= guideWidth,
+            room: spaceLeft,
+          },
+        );
+      }
+
+      candidates.push(
+        {
+          side: "below",
+          x: clamp(
+            targetCentreX - guideWidth / 2,
+            margin,
+            viewportWidth - guideWidth - margin,
+          ),
+          y: targetRect.bottom + gap,
+          fits: spaceBelow >= guideHeight,
+          room: spaceBelow,
+        },
+        {
+          side: "above",
+          x: clamp(
+            targetCentreX - guideWidth / 2,
+            margin,
+            viewportWidth - guideWidth - margin,
+          ),
+          y: targetRect.top - gap - guideHeight,
+          fits: spaceAbove >= guideHeight,
+          room: spaceAbove,
+        },
+      );
+
+      let chosen =
+        candidates.find((candidate) => candidate.fits) ||
+        [...candidates].sort((a, b) => b.room - a.room)[0];
+
+      if (
+        allowScrollAdjustment &&
+        !chosen.fits &&
+        (chosen.side === "above" || chosen.side === "below")
+      ) {
+        const missing = Math.max(0, guideHeight - chosen.room + 20);
+
+        if (missing > 4) {
+          window.scrollBy({
+            top: chosen.side === "below" ? missing : -missing,
+            behavior: "smooth",
+          });
+
+          settleTimer = window.setTimeout(
+            () => positionAtLocation(false),
+            360,
+          );
+          return;
+        }
+      }
+
+      const x = clamp(
+        chosen.x,
+        margin,
+        viewportWidth - guideWidth - margin,
+      );
+      const y = clamp(
+        chosen.y,
+        margin,
+        viewportHeight - guideHeight - margin,
+      );
+
+      if (!cancelled) {
+        setGuideAnchor({
+          left: `${x}px`,
+          top: `${y}px`,
+          right: "auto",
+          bottom: "auto",
+          transform: "none",
+        });
+      }
+    }
+
+    if (!step.zoneNumber) {
+      setNeutralPosition();
+    } else {
+      const target = document.getElementById(`nova-zone-${step.zoneNumber}`);
+
+      if (target) {
+        const targetRect = target.getBoundingClientRect();
+        const fullyVisible =
+          targetRect.top >= 80 &&
+          targetRect.bottom <= window.innerHeight - 80;
+
+        if (!fullyVisible) {
+          target.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+
+          settleTimer = window.setTimeout(
+            () => positionAtLocation(true),
+            340,
+          );
+        } else {
+          settleTimer = window.setTimeout(
+            () => positionAtLocation(true),
+            60,
+          );
+        }
+      } else {
+        setNeutralPosition();
+      }
+    }
+
+    function handleResize() {
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(
+        () =>
+          step.zoneNumber
+            ? positionAtLocation(false)
+            : setNeutralPosition(),
+        120,
+      );
+    }
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      cancelled = true;
+      if (settleTimer) window.clearTimeout(settleTimer);
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [isDesktop, isMobile, isTablet, open, step.zoneNumber]);
 
   if (!open) return null;
 
@@ -3738,45 +4071,23 @@ function GuidedWalkthrough({
         role="dialog"
         aria-modal="true"
         aria-label="Nova’s World interactive guide"
+        ref={guideRef}
         style={{
           position: "fixed",
-          left: isMobile
-            ? "12px"
-            : isDesktop
-              ? dockGuideAtRight
-                ? "auto"
-                : "30px"
-              : "50%",
-          right: isMobile
-            ? "12px"
-            : isDesktop
-              ? dockGuideAtRight
-                ? "30px"
-                : "auto"
-              : "auto",
-          top: isMobile && dockGuideAtTop ? "12px" : "auto",
-          bottom: isMobile
-            ? dockGuideAtTop
-              ? "auto"
-              : "12px"
-            : isDesktop
-              ? "24px"
-              : "18px",
-          transform: !isDesktop && !isMobile ? "translateX(-50%)" : "none",
+          ...guideAnchor,
           zIndex: 100,
           width: isMobile
-            ? "auto"
+            ? "calc(100vw - 24px)"
             : isDesktop
               ? "min(570px, calc(100vw - 60px))"
-              : "min(560px, calc(100vw - 48px))",
+              : "min(620px, calc(100vw - 48px))",
           maxHeight: isMobile
-            ? dockGuideAtTop
-              ? "44dvh"
-              : "48dvh"
+            ? "min(500px, 56dvh)"
             : isDesktop
               ? "min(620px, calc(100dvh - 48px))"
-              : "52dvh",
+              : "min(560px, 52dvh)",
           overflowY: "auto",
+          overflowX: "hidden",
           borderRadius: isMobile ? "20px" : "26px",
           border: "1px solid rgba(142,232,255,0.42)",
           background:
@@ -3785,10 +4096,13 @@ function GuidedWalkthrough({
             "0 32px 90px rgba(0,0,0,0.68), 0 0 40px rgba(83,215,255,0.14)",
           color: "white",
           padding: isMobile
-            ? "18px"
+            ? "16px"
             : useFullWalkthroughLayout
               ? "26px 28px 24px 190px"
-              : "20px",
+              : "20px 22px 20px",
+          transition:
+            "left 480ms cubic-bezier(.2,.82,.24,1), top 480ms cubic-bezier(.2,.82,.24,1), bottom 480ms cubic-bezier(.2,.82,.24,1), transform 480ms cubic-bezier(.2,.82,.24,1), max-height 300ms ease",
+          willChange: "left, top, bottom, transform",
         }}
       >
         <button
@@ -3813,22 +4127,32 @@ function GuidedWalkthrough({
           ×
         </button>
 
-        <img
-          src="/nova/nova-character.png"
-          alt="Nova"
-          style={{
-            position: isMobile ? "relative" : "absolute",
-            left: isMobile ? "auto" : "3px",
-            bottom: isMobile ? "auto" : "-8px",
-            height: isMobile ? (step.zoneNumber ? "72px" : "74px") : "250px",
-            width: "auto",
-            objectFit: "contain",
-            display: "block",
-            margin: isMobile ? "0 auto 4px" : 0,
-            filter: "drop-shadow(0 18px 36px rgba(0,0,0,0.52))",
-            pointerEvents: "none",
-          }}
-        />
+        {(!isWorldPathStep && !isRewardsStep) && (
+          <img
+            src="/nova/nova-character.png"
+            alt="Nova"
+            style={{
+              position: isDesktop ? "absolute" : "relative",
+              left: isDesktop ? "3px" : "auto",
+              bottom: isDesktop ? "-8px" : "auto",
+              height: isDesktop
+                ? "250px"
+                : step.zoneNumber
+                  ? isMobile
+                    ? "62px"
+                    : "78px"
+                  : isMobile
+                    ? "68px"
+                    : "86px",
+              width: "auto",
+              objectFit: "contain",
+              display: "block",
+              margin: isDesktop ? 0 : "0 0 5px",
+              filter: "drop-shadow(0 18px 36px rgba(0,0,0,0.52))",
+              pointerEvents: "none",
+            }}
+          />
+        )}
 
         <p
           style={{
@@ -3845,9 +4169,9 @@ function GuidedWalkthrough({
 
         <h2
           style={{
-            margin: isMobile ? "7px 34px 0 0" : "9px 42px 0 0",
+            margin: isMobile ? "6px 34px 0 0" : "8px 42px 0 0",
             fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: isMobile ? "22px" : "35px",
+            fontSize: isMobile ? "22px" : isTablet ? "30px" : "35px",
             lineHeight: 1.08,
             fontWeight: 500,
           }}
@@ -3857,11 +4181,11 @@ function GuidedWalkthrough({
 
         <p
           style={{
-            margin: isMobile ? "10px 0 0" : "14px 0 0",
-            minHeight: isMobile ? "0" : "72px",
+            margin: isMobile ? "9px 0 0" : "12px 0 0",
+            minHeight: isDesktop ? "72px" : "0",
             color: "rgba(255,255,255,0.78)",
-            fontSize: isMobile ? "13px" : "16px",
-            lineHeight: isMobile ? 1.46 : 1.58,
+            fontSize: isMobile ? "13px" : isTablet ? "14px" : "16px",
+            lineHeight: isMobile ? 1.46 : 1.55,
           }}
         >
           {step.text.slice(0, typedLength)}
@@ -3897,19 +4221,24 @@ function GuidedWalkthrough({
                 alignItems: "center",
                 gap: isMobile ? "8px" : "7px",
                 overflowX: isMobile ? "visible" : "auto",
-                paddingBottom: isMobile ? 0 : "2px",
+                overflowY: "hidden",
+                paddingBottom: isMobile ? 0 : "6px",
+                scrollbarWidth: "thin",
               }}
             >
               {NOVA_WORLD_PATH.map((item, index) => (
                 <div
                   key={item.label}
                   style={{
-                    display: "contents",
+                    display: isMobile ? "contents" : "flex",
+                    alignItems: "center",
+                    gap: "7px",
+                    flex: "0 0 auto",
                   }}
                 >
                   <div
                     style={{
-                      minWidth: 0,
+                      minWidth: isMobile ? 0 : "112px",
                       borderRadius: "14px",
                       border: `1px solid ${item.colour}66`,
                       background: `linear-gradient(145deg, ${item.colour}20, rgba(3,11,29,0.7))`,

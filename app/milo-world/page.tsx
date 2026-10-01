@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 import ObjectivesPanel, {
@@ -101,7 +101,7 @@ type WalkthroughStep = {
 };
 
 
-const WALKTHROUGH_STORAGE_KEY = "milo-world-walkthrough-completed-v3";
+const WALKTHROUGH_STORAGE_KEY = "milo-world-walkthrough-completed-v4";
 
 const ZONES: Zone[] = [
   {
@@ -761,7 +761,7 @@ function MiloZoneHotspot({
         pointerEvents:
           isWalkthroughActive && !isHighlighted ? "none" : "auto",
         transition:
-          "transform 200ms ease, opacity 200ms ease, filter 200ms ease, border-color 200ms ease, background 200ms ease, box-shadow 200ms ease",
+          "transform 420ms cubic-bezier(.2,.82,.24,1), opacity 360ms ease, filter 360ms ease, border-color 360ms ease, background 360ms ease, box-shadow 360ms ease",
       }}
     >
       <span
@@ -1205,48 +1205,6 @@ function CompactMiloZoneInfoCard({
 }
 
 
-function getMiloGuidePosition(
-  zoneNumber: string | undefined,
-  screenMode: ScreenMode,
-): CSSProperties {
-  const isDesktop = screenMode === "desktop";
-  const isMobile = screenMode === "mobile";
-
-  if (!isDesktop) {
-    const openAtTop = Boolean(
-      zoneNumber && ["2", "3", "5"].includes(zoneNumber),
-    );
-
-    return {
-      left: isMobile ? "12px" : "50%",
-      right: isMobile ? "12px" : "auto",
-      top: openAtTop ? (isMobile ? "12px" : "18px") : "auto",
-      bottom: openAtTop ? "auto" : isMobile ? "12px" : "18px",
-      transform: isMobile ? "none" : "translateX(-50%)",
-    };
-  }
-
-  switch (zoneNumber) {
-    case "1":
-      // Activity Lab: marker is upper-left, so keep Milo lower-right.
-      return { right: "26px", bottom: "26px" };
-    case "2":
-      // Exchange: marker is lower-left. This fixes the old Slide 4 overlap.
-      return { right: "26px", top: "92px" };
-    case "3":
-      // Business Builder: marker is lower-right.
-      return { left: "26px", top: "92px" };
-    case "4":
-      // Milo’s Bank: marker is upper-right.
-      return { left: "26px", bottom: "26px" };
-    case "5":
-      // Quiz Hall: marker is lower-centre.
-      return { right: "26px", top: "92px" };
-    default:
-      return { left: "26px", bottom: "26px" };
-  }
-}
-
 function GuidedWalkthrough({
   open,
   stepIndex,
@@ -1264,15 +1222,17 @@ function GuidedWalkthrough({
 }) {
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
+  const isTablet = screenMode === "tablet";
   const isMobile = screenMode === "mobile";
-  const useFullWalkthroughLayout = !isMobile;
+  const useFullWalkthroughLayout = isDesktop;
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
   const isCurrencyStep = stepIndex === 1;
   const isLocationStep = Boolean(step.zoneNumber);
   const [typedLength, setTypedLength] = useState(0);
-  const guidePosition = getMiloGuidePosition(step.zoneNumber, screenMode);
+  const guideRef = useRef<HTMLDivElement | null>(null);
+  const [guideAnchor, setGuideAnchor] = useState<CSSProperties>({});
 
   useEffect(() => {
     if (!open) {
@@ -1304,6 +1264,243 @@ function GuidedWalkthrough({
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+    let settleTimer: number | null = null;
+    let resizeTimer: number | null = null;
+
+    const clamp = (value: number, min: number, max: number) =>
+      Math.min(Math.max(value, min), Math.max(min, max));
+
+    function setNeutralPosition() {
+      if (cancelled) return;
+
+      const viewportWidth = window.innerWidth;
+      const margin = isMobile ? 12 : 20;
+      const guideWidth = isMobile
+        ? viewportWidth - margin * 2
+        : isTablet
+          ? Math.min(620, viewportWidth - 48)
+          : Math.min(560, viewportWidth - 72);
+
+      setGuideAnchor({
+        left: `${Math.max(margin, (viewportWidth - guideWidth) / 2)}px`,
+        top: "auto",
+        right: "auto",
+        bottom: isMobile ? "14px" : "24px",
+        transform: "none",
+      });
+    }
+
+    function positionAtLocation(allowScrollAdjustment = true) {
+      if (cancelled || !step.zoneNumber) {
+        setNeutralPosition();
+        return;
+      }
+
+      const target = document.getElementById(`milo-zone-${step.zoneNumber}`);
+      if (!target) {
+        setNeutralPosition();
+        return;
+      }
+
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const margin = isMobile ? 12 : 20;
+      const gap = isMobile ? 14 : 18;
+
+      const guideRect = guideRef.current?.getBoundingClientRect();
+      const guideWidth =
+        guideRect?.width ||
+        (isMobile
+          ? viewportWidth - margin * 2
+          : isTablet
+            ? Math.min(620, viewportWidth - 48)
+            : Math.min(560, viewportWidth - 72));
+      const guideHeight =
+        guideRect?.height ||
+        (isMobile ? Math.min(390, viewportHeight * 0.5) : 360);
+
+      const targetRect = target.getBoundingClientRect();
+      const targetCentreX = targetRect.left + targetRect.width / 2;
+      const targetCentreY = targetRect.top + targetRect.height / 2;
+
+      const spaceAbove = targetRect.top - margin - gap;
+      const spaceBelow = viewportHeight - targetRect.bottom - margin - gap;
+      const spaceLeft = targetRect.left - margin - gap;
+      const spaceRight = viewportWidth - targetRect.right - margin - gap;
+
+      const candidates: Array<{
+        side: "right" | "left" | "below" | "above";
+        x: number;
+        y: number;
+        fits: boolean;
+        room: number;
+      }> = [];
+
+      // Landscape desktop can naturally place Milo beside a hotspot/card.
+      if (isDesktop) {
+        candidates.push(
+          {
+            side: "right",
+            x: targetRect.right + gap,
+            y: clamp(
+              targetCentreY - guideHeight / 2,
+              margin,
+              viewportHeight - guideHeight - margin,
+            ),
+            fits: spaceRight >= guideWidth,
+            room: spaceRight,
+          },
+          {
+            side: "left",
+            x: targetRect.left - gap - guideWidth,
+            y: clamp(
+              targetCentreY - guideHeight / 2,
+              margin,
+              viewportHeight - guideHeight - margin,
+            ),
+            fits: spaceLeft >= guideWidth,
+            room: spaceLeft,
+          },
+        );
+      }
+
+      // Portrait/tablet/mobile prefer above/below the exact location card.
+      candidates.push(
+        {
+          side: "below",
+          x: clamp(
+            targetCentreX - guideWidth / 2,
+            margin,
+            viewportWidth - guideWidth - margin,
+          ),
+          y: targetRect.bottom + gap,
+          fits: spaceBelow >= guideHeight,
+          room: spaceBelow,
+        },
+        {
+          side: "above",
+          x: clamp(
+            targetCentreX - guideWidth / 2,
+            margin,
+            viewportWidth - guideWidth - margin,
+          ),
+          y: targetRect.top - gap - guideHeight,
+          fits: spaceAbove >= guideHeight,
+          room: spaceAbove,
+        },
+      );
+
+      const chosen =
+        candidates.find((candidate) => candidate.fits) ||
+        [...candidates].sort((a, b) => b.room - a.room)[0];
+
+      if (
+        allowScrollAdjustment &&
+        !chosen.fits &&
+        (chosen.side === "above" || chosen.side === "below")
+      ) {
+        const missing = Math.max(0, guideHeight - chosen.room + 20);
+
+        if (missing > 4) {
+          window.scrollBy({
+            top: chosen.side === "below" ? missing : -missing,
+            behavior: "smooth",
+          });
+
+          settleTimer = window.setTimeout(
+            () => positionAtLocation(false),
+            360,
+          );
+          return;
+        }
+      }
+
+      const x = clamp(
+        chosen.x,
+        margin,
+        viewportWidth - guideWidth - margin,
+      );
+      const y = clamp(
+        chosen.y,
+        margin,
+        viewportHeight - guideHeight - margin,
+      );
+
+      if (!cancelled) {
+        setGuideAnchor({
+          left: `${x}px`,
+          top: `${y}px`,
+          right: "auto",
+          bottom: "auto",
+          transform: "none",
+        });
+      }
+    }
+
+    if (!isLocationStep) {
+      setNeutralPosition();
+    } else {
+      const target = document.getElementById(`milo-zone-${step.zoneNumber}`);
+
+      if (target) {
+        const targetRect = target.getBoundingClientRect();
+        const fullyVisible =
+          targetRect.top >= 80 &&
+          targetRect.bottom <= window.innerHeight - 80;
+
+        if (!fullyVisible) {
+          target.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+
+          settleTimer = window.setTimeout(
+            () => positionAtLocation(true),
+            340,
+          );
+        } else {
+          settleTimer = window.setTimeout(
+            () => positionAtLocation(true),
+            60,
+          );
+        }
+      } else {
+        setNeutralPosition();
+      }
+    }
+
+    function handleResize() {
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(
+        () =>
+          isLocationStep
+            ? positionAtLocation(false)
+            : setNeutralPosition(),
+        120,
+      );
+    }
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      cancelled = true;
+      if (settleTimer) window.clearTimeout(settleTimer);
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [
+    isDesktop,
+    isLocationStep,
+    isMobile,
+    isTablet,
+    open,
+    step.zoneNumber,
+  ]);
 
   if (!open) return null;
 
@@ -1463,13 +1660,23 @@ function GuidedWalkthrough({
         role="dialog"
         aria-modal="true"
         aria-label="Milo’s World guided walkthrough"
+        ref={guideRef}
         style={{
           position: "fixed",
-          ...guidePosition,
+          ...guideAnchor,
           zIndex: 80,
-          width: isMobile ? "auto" : "min(560px, calc(100vw - 72px))",
-          maxHeight: isMobile ? "48dvh" : "none",
-          overflowY: isMobile ? "auto" : "visible",
+          width: isMobile
+            ? "calc(100vw - 24px)"
+            : isDesktop
+              ? "min(560px, calc(100vw - 72px))"
+              : "min(620px, calc(100vw - 48px))",
+          maxHeight: isMobile
+            ? "min(500px, 56dvh)"
+            : isDesktop
+              ? "min(620px, calc(100dvh - 48px))"
+              : "min(560px, 52dvh)",
+          overflowY: "auto",
+          overflowX: "hidden",
           borderRadius: isMobile ? "20px" : "26px",
           border: "1px solid rgba(142,232,255,0.4)",
           background:
@@ -1481,7 +1688,10 @@ function GuidedWalkthrough({
             ? "18px"
             : useFullWalkthroughLayout
               ? "26px 28px 24px 190px"
-              : "20px",
+              : "20px 22px 20px",
+          transition:
+            "left 480ms cubic-bezier(.2,.82,.24,1), top 480ms cubic-bezier(.2,.82,.24,1), bottom 480ms cubic-bezier(.2,.82,.24,1), transform 480ms cubic-bezier(.2,.82,.24,1), max-height 300ms ease",
+          willChange: "left, top, bottom, transform",
         }}
       >
         <button
@@ -1506,22 +1716,32 @@ function GuidedWalkthrough({
           ×
         </button>
 
-        <img
-          src="/milo-world/milo-character.png"
-          alt="Milo"
-          style={{
-            position: isMobile ? "relative" : "absolute",
-            left: isMobile ? "auto" : "18px",
-            bottom: isMobile ? "auto" : "-8px",
-            height: isMobile ? (isLocationStep ? "78px" : "92px") : "245px",
-            width: "auto",
-            objectFit: "contain",
-            display: "block",
-            margin: isMobile ? "0 auto 8px" : 0,
-            filter: "drop-shadow(0 18px 36px rgba(0,0,0,0.52))",
-            pointerEvents: "none",
-          }}
-        />
+        {!isCurrencyStep && (
+          <img
+            src="/milo-world/milo-character.png"
+            alt="Milo"
+            style={{
+              position: isDesktop ? "absolute" : "relative",
+              left: isDesktop ? "18px" : "auto",
+              bottom: isDesktop ? "-8px" : "auto",
+              height: isDesktop
+                ? "245px"
+                : isLocationStep
+                  ? isMobile
+                    ? "64px"
+                    : "78px"
+                  : isMobile
+                    ? "72px"
+                    : "88px",
+              width: "auto",
+              objectFit: "contain",
+              display: "block",
+              margin: isDesktop ? 0 : "0 0 6px",
+              filter: "drop-shadow(0 18px 36px rgba(0,0,0,0.52))",
+              pointerEvents: "none",
+            }}
+          />
+        )}
 
         <p
           style={{
@@ -2666,24 +2886,6 @@ export default function MiloWorldPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!walkthroughOpen) return;
-
-    const activeZoneNumber = WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber;
-    if (!activeZoneNumber) return;
-
-    const timeout = window.setTimeout(() => {
-      document.getElementById(`milo-zone-${activeZoneNumber}`)?.scrollIntoView({
-        behavior: "smooth",
-        block:
-          isMobile && ["3", "4", "5"].includes(activeZoneNumber)
-            ? "end"
-            : "center",
-      });
-    }, 120);
-
-    return () => window.clearTimeout(timeout);
-  }, [isMobile, walkthroughOpen, walkthroughStep]);
 
   function startWalkthrough() {
     setProfileAssetsOpen(false);
