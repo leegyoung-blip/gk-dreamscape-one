@@ -61,6 +61,48 @@ const PALETTES: Record<string, Palette> = {
     light: "#fee2e2",
     text: "#991b1b",
   },
+  red: {
+    stroke: "#991b1b",
+    fill: "#ef4444",
+    light: "#fee2e2",
+    text: "#991b1b",
+  },
+  blue: {
+    stroke: "#1d4ed8",
+    fill: "#3b82f6",
+    light: "#dbeafe",
+    text: "#1e40af",
+  },
+  green: {
+    stroke: "#166534",
+    fill: "#22c55e",
+    light: "#dcfce7",
+    text: "#166534",
+  },
+  yellow: {
+    stroke: "#a16207",
+    fill: "#facc15",
+    light: "#fef9c3",
+    text: "#854d0e",
+  },
+  brown: {
+    stroke: "#78350f",
+    fill: "#a16207",
+    light: "#fef3c7",
+    text: "#78350f",
+  },
+  purple: {
+    stroke: "#6b21a8",
+    fill: "#a855f7",
+    light: "#f3e8ff",
+    text: "#6b21a8",
+  },
+  orange: {
+    stroke: "#c2410c",
+    fill: "#f97316",
+    light: "#ffedd5",
+    text: "#9a3412",
+  },
 };
 
 export type ResolvedPrimitiveStyle = {

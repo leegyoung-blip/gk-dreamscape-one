@@ -9,6 +9,7 @@ import {
   type MathDimensionObject,
   type MathFractionBarObject,
   type MathFractionGridObject,
+  type MathGridObject,
   type MathLineObject,
   type MathNumberLineObject,
   type MathPieChartObject,
@@ -34,12 +35,13 @@ import type {
   MathRelationship,
   MathVisualStrategy,
 } from "./MathIntelligenceTypes";
+import { buildMathQuizVisualContract, type MathQuizVisualContract } from "./MathQuizVisualContract";
 import type {
   MathVisualGenerationIssue,
   MathVisualSpecGenerationResult,
 } from "./MathVisualGenerationTypes";
 
-export const MATH_VISUAL_SPEC_GENERATOR_VERSION = "2I-P2.1";
+export const MATH_VISUAL_SPEC_GENERATOR_VERSION = "3B.1";
 
 const PROMPT_VISUAL_ID = "main";
 
@@ -234,6 +236,150 @@ function visual(
     canvas,
     objects,
   };
+}
+
+function contractUnitLabel(unit: string | null) {
+  if (!unit) return null;
+  if (unit === "sgd") return "$";
+  if (unit === "cent") return "¢";
+  if (unit === "deg") return "°";
+  return unit;
+}
+
+function generateFractionRegionFromContract(
+  input: MathIntelligenceQuestionInput,
+  analysis: MathIntelligenceAnalysis,
+  contract: Extract<MathQuizVisualContract, { kind: "fraction_region" }>,
+) {
+  if (contract.strategy === "fraction_grid") {
+    const shape = gridShape(contract.total_parts);
+    if (!shape) {
+      return noSpec(analysis, "needs_review", issue("UNSUPPORTED_STRATEGY", "The required fraction grid cannot be laid out safely."));
+    }
+    const object: MathFractionGridObject = {
+      id: "fraction_region_1",
+      type: "fraction_grid",
+      x: 135, y: 70, width: 450, height: 220,
+      rows: shape.rows, columns: shape.columns,
+      shaded_cells: Array.from({ length: contract.shaded_parts }, (_, index) => index),
+      show_fraction_label: false,
+      style: { tone: "accent" },
+    };
+    return generated(input, analysis, visual(
+      "fraction",
+      `${contract.total_parts} equal parts with ${contract.shaded_parts} shaded and ${contract.unshaded_parts} unshaded`,
+      { width: 720, height: 360, padding: 28, background: "paper" },
+      [object],
+    ));
+  }
+
+  const object: MathFractionBarObject = {
+    id: "fraction_region_1",
+    type: "fraction_bar",
+    x: 90, y: 95, width: 540, height: 100,
+    numerator: contract.shaded_parts,
+    denominator: contract.total_parts,
+    orientation: "horizontal",
+    show_fraction_label: false,
+    style: { tone: "accent" },
+  };
+  return generated(input, analysis, visual(
+    "fraction",
+    `${contract.total_parts} equal parts with ${contract.shaded_parts} shaded and ${contract.unshaded_parts} unshaded`,
+    { width: 720, height: 290, padding: 28, background: "paper" },
+    [object],
+  ));
+}
+
+function generateDataFromContract(
+  input: MathIntelligenceQuestionInput,
+  analysis: MathIntelligenceAnalysis,
+  contract: Extract<MathQuizVisualContract, { kind: "data_series" }>,
+) {
+  if (contract.strategy === "table") {
+    const unit = contractUnitLabel(contract.unit);
+    const object: MathTableObject = {
+      id: "table_1",
+      type: "table",
+      x: 110, y: 55, width: 500,
+      height: clamp(95 + contract.data.length * 44, 180, 430),
+      columns: ["Category", unit ? `Value (${unit})` : "Value"],
+      rows: contract.data.map((datum) => [datum.label, datum.value]),
+    };
+    return generated(input, analysis, visual(
+      "table", `Data table with ${contract.data.length} source categories`,
+      { width: 720, height: clamp(190 + contract.data.length * 44, 320, 650), padding: 28, background: "paper" },
+      [object],
+    ));
+  }
+
+  const values = contract.data.map((datum) => datum.value);
+  if (values.some((value) => value < 0)) {
+    return noSpec(analysis, "needs_review", issue("UNSUPPORTED_STRATEGY", "Negative bar-chart values are not generated automatically."));
+  }
+  const yMax = niceMaximum(Math.max(...values));
+  const unit = contractUnitLabel(contract.unit);
+  const object: MathBarChartObject = {
+    id: "bar_chart_1",
+    type: "bar_chart",
+    x: 70, y: 45, width: 580, height: 335,
+    data: contract.data.map((datum) => ({
+      id: datum.id,
+      label: datum.label,
+      value: datum.value,
+      ...(datum.tone ? { tone: datum.tone } : {}),
+    })),
+    y_label: unit ? `Value (${unit})` : "Value",
+    y_min: 0, y_max: yMax, y_step: yMax / 5,
+    // Reading the scale is part of the graph task; avoid duplicating every
+    // value above its bar unless the source explicitly provided a table.
+    show_values: false,
+  };
+  return generated(input, analysis, visual(
+    "data", `Bar chart with ${contract.data.length} source categories`,
+    { width: 720, height: 440, padding: 28, background: "paper" },
+    [object],
+  ));
+}
+
+function generateSquareGridFromContract(
+  input: MathIntelligenceQuestionInput,
+  analysis: MathIntelligenceAnalysis,
+  contract: Extract<MathQuizVisualContract, { kind: "square_grid" }>,
+) {
+  const maxDimension = Math.max(contract.rows, contract.columns);
+  const cell = Math.min(82, Math.floor(430 / maxDimension));
+  const width = contract.columns * cell;
+  const height = contract.rows * cell;
+  const object: MathGridObject = {
+    id: "square_grid_1",
+    type: "grid",
+    x: (720 - width) / 2,
+    y: 55 + (360 - height) / 2,
+    width, height,
+    rows: contract.rows,
+    columns: contract.columns,
+    style: { tone: "default", stroke_width: 4 },
+    aria_label: `${contract.rows} by ${contract.columns} grid of equal squares`,
+  };
+  return generated(input, analysis, visual(
+    "geometry", `${contract.rows} by ${contract.columns} grid of equal squares`,
+    { width: 720, height: 470, padding: 28, background: "paper" },
+    [object],
+  ));
+}
+
+function generateApprovedQuizContractVisual(
+  input: MathIntelligenceQuestionInput,
+  analysis: MathIntelligenceAnalysis,
+  contract: MathQuizVisualContract,
+) {
+  if (contract.strategy !== analysis.strategy) {
+    return noSpec(analysis, "needs_review", issue("UNSUPPORTED_STRATEGY", "The selected strategy does not match the Phase 3B learner-visible visual contract."));
+  }
+  if (contract.kind === "fraction_region") return generateFractionRegionFromContract(input, analysis, contract);
+  if (contract.kind === "data_series") return generateDataFromContract(input, analysis, contract);
+  return generateSquareGridFromContract(input, analysis, contract);
 }
 
 type FractionPair = {
@@ -1525,10 +1671,28 @@ export function generateMathVisualSpec(
     return noSpec(
       analysis,
       "skipped",
-      issue("NO_GENERATION_REQUIRED", "Dreamscape determined that this question does not benefit from a generated mathematical visual."),
+      issue("NO_GENERATION_REQUIRED", "Dreamscape determined that this question does not require a generated mathematical visual."),
     );
   }
 
+  const quizVisualContract = buildMathQuizVisualContract(input);
+  if (quizVisualContract) {
+    return generateApprovedQuizContractVisual(input, analysis, quizVisualContract);
+  }
+
+  // Phase 3B: an automatically generated quiz visual must have an approved
+  // source contract. Legacy strategies remain available for manual authoring
+  // and the future Teaching Engine, but are not used as best-effort quiz
+  // generators.
+  return noSpec(
+    analysis,
+    "needs_review",
+    issue("UNSUPPORTED_STRATEGY", "No approved Phase 3B learner-visible quiz visual contract could be built from the question source."),
+  );
+
+  /* Legacy/manual strategy implementations retained below for Teaching/manual
+   * tooling. They are intentionally unreachable from automatic quiz generation.
+   */
   switch (analysis.strategy) {
     case "fraction_bar":
       return generateFractionBar(input, analysis);

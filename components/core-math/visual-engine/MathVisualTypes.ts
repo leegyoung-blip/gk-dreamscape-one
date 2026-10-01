@@ -72,7 +72,14 @@ export type MathVisualTone =
   | "accent"
   | "success"
   | "warning"
-  | "danger";
+  | "danger"
+  | "red"
+  | "blue"
+  | "green"
+  | "yellow"
+  | "brown"
+  | "purple"
+  | "orange";
 
 export type MathVisualFill = "none" | "solid" | "light" | "hatched";
 export type MathVisualStroke = "solid" | "dashed" | "dotted";
@@ -377,6 +384,8 @@ export type MathBarChartDatum = {
   id: string;
   label: string;
   value: number;
+  /** Optional controlled semantic colour, used only when category colour is mathematical information. */
+  tone?: MathVisualTone;
 };
 
 export type MathBarChartObject = MathVisualObjectBase & {

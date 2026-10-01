@@ -7,8 +7,9 @@ import type {
 } from "./MathIntelligenceTypes";
 import { learnerVisibleQuestionText } from "./MathLearnerVisibleEvidence";
 import { parseVisibleDataPairs } from "./MathSourceParsing";
+import { buildMathQuizVisualContract } from "./MathQuizVisualContract";
 
-export const MATH_QUIZ_VISUAL_ELIGIBILITY_VERSION = "3A.1" as const;
+export const MATH_QUIZ_VISUAL_ELIGIBILITY_VERSION = "3B.1" as const;
 
 function text(input: MathIntelligenceQuestionInput) {
   return learnerVisibleQuestionText(input).replace(/\s+/g, " ").trim();
@@ -254,6 +255,31 @@ export function evaluateMathQuizVisualEligibility(
     );
   }
 
+  // Phase 3B: automatic quiz generation is contract-first. Only a fully
+  // source-determined contract for one of the approved intrinsic visual tasks
+  // may enable V2 generation.
+  const contract = buildMathQuizVisualContract(input);
+  if (contract) {
+    const reason = contract.kind === "fraction_region"
+      ? "FRACTION_SHADED_WHOLE"
+      : contract.kind === "data_series"
+        ? (contract.strategy === "table" ? "TABLE_REQUIRED" : "DATA_REQUIRED")
+        : "GEOMETRY_REQUIRED";
+
+    return result(
+      "required",
+      true,
+      [contract.strategy],
+      0.995,
+      [
+        "QUIZ_VISUAL_REQUIRED",
+        "QUIZ_VISUAL_AUTO_V2_ALLOWED",
+        "QUIZ_VISUAL_CONTRACT_RESOLVED",
+        reason,
+      ],
+    );
+  }
+
   // Some source-derived questions retain the word “diagram” even though the
   // complete learner-facing mathematics is already written symbolically. Do
   // not treat that wording alone as a missing-media dependency.
@@ -303,13 +329,14 @@ export function evaluateMathQuizVisualEligibility(
 
     return result(
       "required",
-      fractionHasEnoughSourceData(source),
+      false,
       chooseFractionStrategies(source),
       0.98,
       [
         "QUIZ_VISUAL_REQUIRED",
-        fractionHasEnoughSourceData(source) ? "QUIZ_VISUAL_AUTO_V2_ALLOWED" : "QUIZ_VISUAL_REQUIRED_UNSUPPORTED",
+        "QUIZ_VISUAL_REQUIRED_UNSUPPORTED",
         /\bequivalent|same fraction\b/i.test(source) ? "FRACTION_EQUIVALENCE" : "FRACTION_SHADED_WHOLE",
+        "INSUFFICIENT_STRUCTURED_DATA",
       ],
     );
   }
@@ -326,10 +353,10 @@ export function evaluateMathQuizVisualEligibility(
     }
     return result(
       "required",
-      true,
+      false,
       ["number_line"],
       0.98,
-      ["QUIZ_VISUAL_REQUIRED", "QUIZ_VISUAL_AUTO_V2_ALLOWED", "NUMBER_LINE_LANGUAGE"],
+      ["QUIZ_VISUAL_REQUIRED", "QUIZ_VISUAL_REQUIRED_UNSUPPORTED", "NUMBER_LINE_LANGUAGE"],
     );
   }
 
@@ -345,10 +372,10 @@ export function evaluateMathQuizVisualEligibility(
     }
     return result(
       "required",
-      true,
+      false,
       ["clock"],
       0.98,
-      ["QUIZ_VISUAL_REQUIRED", "QUIZ_VISUAL_AUTO_V2_ALLOWED", "CLOCK_REPRESENTATION"],
+      ["QUIZ_VISUAL_REQUIRED", "QUIZ_VISUAL_REQUIRED_UNSUPPORTED", "CLOCK_REPRESENTATION"],
     );
   }
 
@@ -369,13 +396,14 @@ export function evaluateMathQuizVisualEligibility(
     }
     return result(
       "required",
-      true,
+      false,
       strategies,
       0.97,
       [
         "QUIZ_VISUAL_REQUIRED",
-        "QUIZ_VISUAL_AUTO_V2_ALLOWED",
+        "QUIZ_VISUAL_REQUIRED_UNSUPPORTED",
         strategies.includes("table") ? "TABLE_REQUIRED" : "DATA_REQUIRED",
+        "INSUFFICIENT_STRUCTURED_DATA",
       ],
     );
   }

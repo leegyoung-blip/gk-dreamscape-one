@@ -7,6 +7,7 @@ import type {
   MathDimensionObject,
   MathFractionBarObject,
   MathFractionGridObject,
+  MathGridObject,
   MathNumberLineObject,
   MathPieChartObject,
   MathRectangleObject,
@@ -25,6 +26,7 @@ import {
   extractNumericLiterals,
   normaliseMathUnit,
 } from "./MathLearnerVisibleEvidence";
+import { buildMathQuizVisualContract, type MathQuizVisualContract } from "./MathQuizVisualContract";
 import type {
   MathIntelligenceAnalysis,
   MathIntelligenceQuestionInput,
@@ -38,7 +40,7 @@ import type {
   MathVisualSemanticValidationResult,
 } from "./MathVisualSemanticTypes";
 
-export const MATH_VISUAL_SEMANTIC_VALIDATOR_VERSION = "2I-P2.1";
+export const MATH_VISUAL_SEMANTIC_VALIDATOR_VERSION = "3B.1";
 
 const GENERIC_LABELS = new Set([
   "answer",
@@ -216,6 +218,7 @@ type ValidationContext = {
   answerNumbers: number[];
   issues: MathVisualSemanticIssue[];
   checked: MathVisualSemanticCheckedFact[];
+  quiz_contract: MathQuizVisualContract | null;
 };
 
 function addIssue(
@@ -871,7 +874,93 @@ function validateMeasurement(context: ValidationContext) {
   checkMeasurementLabel(context, dimension.label, measurement, "measurement value", dimension.id);
 }
 
+function validateApprovedQuizContract(
+  context: ValidationContext,
+  contract: MathQuizVisualContract,
+) {
+  if (contract.strategy !== context.analysis.strategy) {
+    addIssue(context, "STRATEGY_KIND_MISMATCH", "The generated strategy does not match the approved quiz visual contract.", {
+      visual_id: context.visual.id,
+      expected: contract.strategy,
+      actual: context.analysis.strategy,
+    });
+    return;
+  }
+
+  if (contract.kind === "fraction_region") {
+    if (contract.strategy === "fraction_grid") {
+      const grid = objectOfType(context.visual, "fraction_grid") as MathFractionGridObject | undefined;
+      if (!grid) {
+        addIssue(context, "MISSING_EXPECTED_OBJECT", "The fraction-region contract requires a fraction grid.", { visual_id: context.visual.id });
+        return;
+      }
+      checkFact(context, `${grid.id}.total_parts`, "fraction source contract", contract.total_parts, grid.rows * grid.columns, grid.rows * grid.columns === contract.total_parts, "VALUE_MISMATCH", grid.id);
+      checkFact(context, `${grid.id}.shaded_parts`, "fraction source contract", contract.shaded_parts, new Set(grid.shaded_cells || []).size, new Set(grid.shaded_cells || []).size === contract.shaded_parts, "VALUE_MISMATCH", grid.id);
+      if (grid.show_fraction_label !== false) addIssue(context, "ANSWER_LEAK_RISK", "Quiz fraction regions must not print the derived fraction label beside the visual.", { visual_id: context.visual.id, object_id: grid.id });
+      return;
+    }
+
+    const bar = objectOfType(context.visual, "fraction_bar") as MathFractionBarObject | undefined;
+    if (!bar) {
+      addIssue(context, "MISSING_EXPECTED_OBJECT", "The fraction-region contract requires a fraction bar.", { visual_id: context.visual.id });
+      return;
+    }
+    checkFact(context, `${bar.id}.denominator`, "fraction source contract", contract.total_parts, bar.denominator, bar.denominator === contract.total_parts, "VALUE_MISMATCH", bar.id);
+    checkFact(context, `${bar.id}.shaded_parts`, "fraction source contract", contract.shaded_parts, bar.numerator, bar.numerator === contract.shaded_parts, "VALUE_MISMATCH", bar.id);
+    if (bar.show_fraction_label !== false) addIssue(context, "ANSWER_LEAK_RISK", "Quiz fraction regions must not print the derived fraction label beside the visual.", { visual_id: context.visual.id, object_id: bar.id });
+    return;
+  }
+
+  if (contract.kind === "data_series") {
+    if (contract.strategy === "table") {
+      const table = objectOfType(context.visual, "table") as MathTableObject | undefined;
+      if (!table) {
+        addIssue(context, "MISSING_EXPECTED_OBJECT", "The data contract requires a table.", { visual_id: context.visual.id });
+        return;
+      }
+      checkFact(context, `${table.id}.row_count`, "data source contract", contract.data.length, table.rows.length, table.rows.length === contract.data.length, "VALUE_MISMATCH", table.id);
+      contract.data.forEach((datum, index) => {
+        const row = table.rows[index] || [];
+        checkFact(context, `${table.id}.row_${index + 1}_label`, "data category", datum.label, String(row[0] ?? ""), normaliseLabel(String(row[0] ?? "")) === normaliseLabel(datum.label), "VALUE_MISMATCH", table.id);
+        checkFact(context, `${table.id}.row_${index + 1}_value`, "data value", datum.value, Number(row[1]), Number(row[1]) === datum.value, "VALUE_MISMATCH", table.id);
+      });
+      return;
+    }
+
+    const chart = objectOfType(context.visual, "bar_chart") as MathBarChartObject | undefined;
+    if (!chart) {
+      addIssue(context, "MISSING_EXPECTED_OBJECT", "The data contract requires a bar chart.", { visual_id: context.visual.id });
+      return;
+    }
+    checkFact(context, `${chart.id}.count`, "data source contract", contract.data.length, chart.data.length, chart.data.length === contract.data.length, "VALUE_MISMATCH", chart.id);
+    contract.data.forEach((datum) => {
+      const actual = chart.data.find((item) => normaliseLabel(item.label) === normaliseLabel(datum.label));
+      if (!actual) {
+        addIssue(context, "VALUE_MISMATCH", `The source category “${datum.label}” is missing from the generated chart.`, { visual_id: context.visual.id, object_id: chart.id });
+        return;
+      }
+      checkFact(context, `${chart.id}.${datum.id}.value`, `data value for ${datum.label}`, datum.value, actual.value, actual.value === datum.value, "VALUE_MISMATCH", chart.id);
+      if (datum.tone) {
+        checkFact(context, `${chart.id}.${datum.id}.tone`, `semantic colour for ${datum.label}`, datum.tone, actual.tone || null, actual.tone === datum.tone, "RELATIONSHIP_MISMATCH", chart.id);
+      }
+    });
+    return;
+  }
+
+  const grid = objectOfType(context.visual, "grid") as MathGridObject | undefined;
+  if (!grid) {
+    addIssue(context, "MISSING_EXPECTED_OBJECT", "The square-grid contract requires a grid object.", { visual_id: context.visual.id });
+    return;
+  }
+  checkFact(context, `${grid.id}.rows`, "square-grid source contract", contract.rows, grid.rows, grid.rows === contract.rows, "VALUE_MISMATCH", grid.id);
+  checkFact(context, `${grid.id}.columns`, "square-grid source contract", contract.columns, grid.columns, grid.columns === contract.columns, "VALUE_MISMATCH", grid.id);
+}
+
 function runStrategyValidation(context: ValidationContext) {
+  if (context.quiz_contract) {
+    validateApprovedQuizContract(context, context.quiz_contract);
+    return;
+  }
   switch (context.analysis.strategy) {
     case "fraction_bar":
     case "aligned_fraction_bars":
@@ -978,6 +1067,7 @@ export function validateMathVisualSemantics(
     answerNumbers: validationContextNumbers(input),
     issues,
     checked,
+    quiz_contract: buildMathQuizVisualContract(input),
   };
 
   const kind = expectedKind(analysis.strategy);

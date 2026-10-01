@@ -129,7 +129,7 @@ function renderBarChart({
           width: barWidth,
           height: rectHeight,
           style: mergeStyle(object.style, {
-            tone: DATA_TONES[index % DATA_TONES.length],
+            tone: datum.tone || DATA_TONES[index % DATA_TONES.length],
             fill: "solid",
           }),
         };

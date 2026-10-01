@@ -15,6 +15,11 @@ import { normaliseMathIntelligenceQuestion } from "./MathQuestionNormalizer";
 import { evaluateMathVisualNeed } from "./MathVisualDecisionEngine";
 import { resolveMathVisualStrategyWithRules } from "./MathVisualStrategyResolver";
 import { generateMathVisualSpec } from "./MathVisualSpecGenerator";
+import {
+  buildMathQuizVisualContract,
+  interpretationFromMathQuizVisualContract,
+  strategyFromMathQuizVisualContract,
+} from "./MathQuizVisualContract";
 import type { MathVisualGenerationPipelineResult } from "./MathVisualGenerationTypes";
 import type { MathTeachingAIProvider } from "./ai/TeachingAIProvider";
 import { generateMathTeachingVisualWithFallback } from "./MathTeachingVisualPipeline";
@@ -156,6 +161,31 @@ export async function analyseMathQuestion(
 ): Promise<MathIntelligencePipelineResult> {
   const input = normaliseMathIntelligenceQuestion(question);
   const ruleEvaluation = evaluateMathVisualNeed(input);
+  const quizVisualContract = buildMathQuizVisualContract(input);
+
+  // Phase 3B: a complete learner-visible quiz contract is stronger than the
+  // old generic structure interpreter. These narrow contracts are deterministic
+  // and must not be sent to Luna merely because the general-purpose interpreter
+  // cannot express the task cleanly.
+  if (
+    ruleEvaluation.quiz_visual_requirement === "required" &&
+    ruleEvaluation.auto_generate_v2 &&
+    quizVisualContract
+  ) {
+    return {
+      input,
+      rule_evaluation: ruleEvaluation,
+      analysis: finalRulesAnalysis(
+        "required",
+        "generate",
+        interpretationFromMathQuizVisualContract(quizVisualContract),
+        strategyFromMathQuizVisualContract(quizVisualContract),
+        Math.min(0.995, ruleEvaluation.confidence),
+        [...ruleEvaluation.reason_codes, "QUIZ_VISUAL_CONTRACT_RESOLVED"],
+      ),
+    };
+  }
+
   const interpretationResult = interpretMathStructureWithRules(input);
 
   // Preserve/skip/review decisions do not require AI interpretation. We

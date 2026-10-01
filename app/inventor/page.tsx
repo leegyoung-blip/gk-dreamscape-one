@@ -211,9 +211,10 @@ type WalkthroughStep = {
   text: string;
   zoneNumber?: string;
   showActivityLegend?: boolean;
+  showWorldPath?: boolean;
 };
 
-const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v6";
+const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v7";
 const ROVER_ORIGIN_STORAGE_KEY = "dreamscape-rover-origin";
 const ROVER_NOVA_RETURN_PATH_STORAGE_KEY =
   "dreamscape-rover-nova-return-path";
@@ -287,17 +288,25 @@ const zones: Zone[] = [
   },
 ];
 
+
+const NOVA_WORLD_PATH = [
+  { label: "Learn", colour: "#f6c453", zone: "Missions Centre", symbol: "1" },
+  { label: "Challenge", colour: "#53d7ff", zone: "Think Lab · Knowledge Arena", symbol: "2" },
+  { label: "Play & Build", colour: "#c58cff", zone: "Nova’s Home · Skyforge Hangar", symbol: "3" },
+];
+
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     eyebrow: "Hi, I’m Nova",
     title: "Want me to show you around?",
-    text: "I’ll show you the three kinds of zones, how rewards work, and what you can do in each location. We’ll finish the tour before you choose where to go.",
+    text: "I’ll show you the three kinds of zones, the path through Nova’s World, how rewards work, and what you can do in each location. We’ll finish the tour before you choose where to go.",
   },
   {
-    eyebrow: "Three Activity Types",
-    title: "The colours tell you what kind of zone it is.",
-    text: "Blue zones are academic challenges, purple zones are for play and building, and the gold zone is for pure academics in English, Maths, and Science.",
+    eyebrow: "Nova’s World Path",
+    title: "Use the colours to know where to go next.",
+    text: "Gold is your main academic route, blue is for academic challenges, and purple is for play and building. Think of Nova’s World as Learn → Challenge → Play.",
     showActivityLegend: true,
+    showWorldPath: true,
   },
   {
     eyebrow: "Your Rewards",
@@ -306,38 +315,39 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   },
   {
     eyebrow: "Blue · Academic Challenge · Stop 1 of 5",
-    title: "This is my Think Lab.",
+    title: "Start by stretching your thinking.",
     text: "Think Lab is a blue academic challenge zone. Come here to sharpen logic, spot patterns, build memory, and stretch your reasoning through thinking games.",
     zoneNumber: "1",
   },
   {
     eyebrow: "Purple · Play & Build · Stop 2 of 5",
-    title: "This is Nova’s Home.",
+    title: "Then explore what you have unlocked.",
     text: "Nova’s Home is a purple play zone. Use Dream Tokens to unlock spaces, customise the world around you, and enjoy activities you have earned through learning.",
     zoneNumber: "2",
   },
   {
     eyebrow: "Gold · Pure Academics · Stop 3 of 5",
-    title: "Our missions launch from here.",
+    title: "This is your main learning route.",
     text: "The Missions Centre is the gold pure-academics zone. This is where you work through structured English, Maths, Science, and larger curriculum learning missions.",
     zoneNumber: "3",
   },
   {
     eyebrow: "Blue · Academic Challenge · Stop 4 of 5",
-    title: "This is the Knowledge Arena.",
+    title: "Now put your knowledge under pressure.",
     text: "Knowledge Arena is a blue academic challenge zone. Test what you know in fast-paced quiz battles and turn curriculum practice into a challenge.",
     zoneNumber: "4",
   },
   {
     eyebrow: "Purple · Play & Build · Stop 5 of 5",
-    title: "And this is Skyforge Hangar.",
+    title: "Finish by building and playing.",
     text: "Skyforge Hangar is a purple play zone. Check your rover, upgrade your build, and launch into rover challenges using what you have earned and unlocked.",
     zoneNumber: "5",
   },
   {
-    eyebrow: "Tour complete",
-    title: "Where do you want to start?",
-    text: "That’s the whole tour. Pick any location below and I’ll take you there. You can open Nova Guide again anytime you want a reminder.",
+    eyebrow: "Tour Complete",
+    title: "Choose where you want to begin.",
+    text: "That’s the full route: learn, challenge yourself, then build and play. Pick any location below, or follow the suggested path when you want more direction.",
+    showWorldPath: true,
   },
 ];
 
@@ -1177,28 +1187,102 @@ export default function NovaWorldPage() {
             position: "relative",
             zIndex: activeWalkthroughZoneNumber ? 90 : 20,
             width: isTablet && walkthroughOpen
-              ? "min(360px, calc(100% - 48px))"
-              : "min(680px, calc(100% - 28px))",
+              ? "min(420px, calc(100% - 48px))"
+              : "min(720px, calc(100% - 28px))",
             margin: isTablet && walkthroughOpen ? "0 24px 0 auto" : "0 auto",
             display: "grid",
             gridTemplateColumns: "1fr",
-            gap: isMobile ? "12px" : "14px",
+            gap: isMobile ? "16px" : "18px",
             paddingBottom: "24px",
           }}
         >
-          {worldZones.map((zone) => (
-            <ZoneCard
-              key={zone.id}
-              zone={zone}
-              screenMode={screenMode}
-              isAdmin={isAdmin}
-              onClick={() => selectZone(zone)}
-              walkthroughActive={walkthroughOpen}
-              walkthroughHighlighted={
-                walkthroughOpen &&
-                WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
-              }
-            />
+          {[
+            {
+              title: "LEARN",
+              subtitle: "Your main academic route",
+              colour: "#f6c453",
+              zoneNumbers: ["3"],
+            },
+            {
+              title: "CHALLENGE",
+              subtitle: "Test and strengthen what you know",
+              colour: "#53d7ff",
+              zoneNumbers: ["1", "4"],
+            },
+            {
+              title: "PLAY & BUILD",
+              subtitle: "Use what you earn and unlock",
+              colour: "#c58cff",
+              zoneNumbers: ["2", "5"],
+            },
+          ].map((group) => (
+            <div key={group.title}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  margin: "0 2px 9px",
+                }}
+              >
+                <span
+                  style={{
+                    width: "34px",
+                    height: "4px",
+                    borderRadius: "999px",
+                    background: group.colour,
+                    boxShadow: `0 0 16px ${group.colour}88`,
+                    flexShrink: 0,
+                  }}
+                />
+                <div>
+                  <p
+                    style={{
+                      margin: 0,
+                      color: group.colour,
+                      fontSize: isMobile ? "9px" : "10px",
+                      fontWeight: 900,
+                      letterSpacing: "0.16em",
+                    }}
+                  >
+                    {group.title}
+                  </p>
+                  <p
+                    style={{
+                      margin: "2px 0 0",
+                      color: "rgba(255,255,255,0.48)",
+                      fontSize: isMobile ? "10px" : "11px",
+                    }}
+                  >
+                    {group.subtitle}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gap: isMobile ? "10px" : "12px",
+                }}
+              >
+                {worldZones
+                  .filter((zone) => group.zoneNumbers.includes(zone.number))
+                  .map((zone) => (
+                    <ZoneCard
+                      key={zone.id}
+                      zone={zone}
+                      screenMode={screenMode}
+                      isAdmin={isAdmin}
+                      onClick={() => selectZone(zone)}
+                      walkthroughActive={walkthroughOpen}
+                      walkthroughHighlighted={
+                        walkthroughOpen &&
+                        WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
+                      }
+                    />
+                  ))}
+              </div>
+            </div>
           ))}
         </section>
       )}
@@ -3620,10 +3704,13 @@ function GuidedWalkthrough({
 }) {
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
+  const isDesktop = screenMode === "desktop";
+  const useFullWalkthroughLayout = !isMobile;
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
   const isFirstStep = stepIndex === 0;
   const isRewardsStep = step.eyebrow === "Your Rewards";
   const isActivityTypesStep = Boolean(step.showActivityLegend);
+  const isWorldPathStep = Boolean(step.showWorldPath);
   const isThinkStep = step.zoneNumber === "1";
   const isHomeStep = step.zoneNumber === "2";
   const isMissionsStep = step.zoneNumber === "3";
@@ -3632,7 +3719,7 @@ function GuidedWalkthrough({
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
   const dockGuideAtTop =
     isMobile && (isMissionsStep || isKnowledgeStep || isHangarStep);
-  const dockGuideAtRight = !isMobile && (isThinkStep || isHomeStep);
+  const dockGuideAtRight = isDesktop && (isThinkStep || isHomeStep);
   const [typedLength, setTypedLength] = useState(0);
 
   useEffect(() => {
@@ -3712,26 +3799,55 @@ function GuidedWalkthrough({
         aria-label="Nova’s World interactive guide"
         style={{
           position: "fixed",
-          left: isMobile ? "10px" : dockGuideAtRight ? "auto" : "30px",
-          right: isMobile ? "10px" : dockGuideAtRight ? "30px" : "auto",
-          top: dockGuideAtTop ? "10px" : "auto",
-          bottom: isMobile ? (dockGuideAtTop ? "auto" : "10px") : "24px",
+          left: isMobile
+            ? "12px"
+            : isDesktop
+              ? dockGuideAtRight
+                ? "auto"
+                : "30px"
+              : "50%",
+          right: isMobile
+            ? "12px"
+            : isDesktop
+              ? dockGuideAtRight
+                ? "30px"
+                : "auto"
+              : "auto",
+          top: isMobile && dockGuideAtTop ? "12px" : "auto",
+          bottom: isMobile
+            ? dockGuideAtTop
+              ? "auto"
+              : "12px"
+            : isDesktop
+              ? "24px"
+              : "18px",
+          transform: !isDesktop && !isMobile ? "translateX(-50%)" : "none",
           zIndex: 100,
-          width: isMobile ? "auto" : "min(570px, calc(100vw - 60px))",
+          width: isMobile
+            ? "auto"
+            : isDesktop
+              ? "min(570px, calc(100vw - 60px))"
+              : "min(560px, calc(100vw - 48px))",
           maxHeight: isMobile
             ? dockGuideAtTop
               ? "48dvh"
-              : "62dvh"
-            : "min(620px, calc(100dvh - 48px))",
+              : "58dvh"
+            : isDesktop
+              ? "min(620px, calc(100dvh - 48px))"
+              : "52dvh",
           overflowY: "auto",
-          borderRadius: isMobile ? "20px" : "28px",
+          borderRadius: isMobile ? "20px" : "26px",
           border: "1px solid rgba(142,232,255,0.42)",
           background:
             "radial-gradient(circle at 10% 0%, rgba(83,215,255,0.12), transparent 34%), linear-gradient(145deg, rgba(4,21,47,0.985), rgba(3,9,24,0.985))",
           boxShadow:
             "0 32px 90px rgba(0,0,0,0.68), 0 0 40px rgba(83,215,255,0.14)",
           color: "white",
-          padding: isMobile ? "18px" : "26px 28px 24px 190px",
+          padding: isMobile
+            ? "18px"
+            : useFullWalkthroughLayout
+              ? "26px 28px 24px 190px"
+              : "20px",
         }}
       >
         <button
@@ -3822,6 +3938,125 @@ function GuidedWalkthrough({
             />
           )}
         </p>
+
+        {isWorldPathStep && (
+          <div
+            style={{
+              marginTop: "16px",
+              borderRadius: "18px",
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.035)",
+              padding: isMobile ? "13px 12px" : "14px 16px",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "auto 1fr auto 1fr auto",
+                alignItems: "center",
+                gap: isMobile ? "8px" : "10px",
+              }}
+            >
+              {NOVA_WORLD_PATH.map((item, index) => (
+                <div
+                  key={item.label}
+                  style={{
+                    display: "contents",
+                  }}
+                >
+                  <div
+                    style={{
+                      minWidth: 0,
+                      borderRadius: "14px",
+                      border: `1px solid ${item.colour}66`,
+                      background: `linear-gradient(145deg, ${item.colour}20, rgba(3,11,29,0.7))`,
+                      padding: "10px 11px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "24px",
+                          height: "24px",
+                          borderRadius: "999px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                          border: `1px solid ${item.colour}`,
+                          background: `${item.colour}18`,
+                          color: item.colour,
+                          fontSize: "10px",
+                          fontWeight: 950,
+                        }}
+                      >
+                        {item.symbol}
+                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        <strong
+                          style={{
+                            display: "block",
+                            color: item.colour,
+                            fontSize: isMobile ? "10px" : "11px",
+                            letterSpacing: "0.08em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {item.label}
+                        </strong>
+                        <small
+                          style={{
+                            display: "block",
+                            marginTop: "3px",
+                            color: "rgba(255,255,255,0.58)",
+                            fontSize: isMobile ? "8px" : "9px",
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {item.zone}
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+
+                  {index < NOVA_WORLD_PATH.length - 1 && (
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        height: isMobile ? "18px" : "2px",
+                        width: isMobile ? "2px" : "100%",
+                        margin: isMobile ? "0 auto" : 0,
+                        borderRadius: "999px",
+                        background:
+                          "linear-gradient(90deg, rgba(255,255,255,0.18), rgba(255,255,255,0.58), rgba(255,255,255,0.18))",
+                        position: "relative",
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: "absolute",
+                          right: isMobile ? "50%" : "-2px",
+                          bottom: isMobile ? "-3px" : "50%",
+                          transform: isMobile ? "translateX(50%) rotate(90deg)" : "translateY(50%)",
+                          color: "rgba(255,255,255,0.68)",
+                          fontSize: "13px",
+                        }}
+                      >
+                        ›
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {isActivityTypesStep && (
           <div
