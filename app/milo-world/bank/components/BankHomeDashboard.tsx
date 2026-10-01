@@ -1,57 +1,263 @@
 "use client";
 
-import type { BankAccountSnapshot, BankScreenMode, BankSection } from "../lib/bank-types";
+import { useState } from "react";
+import type { CSSProperties } from "react";
+import type { BankSection, BankScreenMode } from "../lib/bank-types";
 
-function formatDt(value: number) {
-  return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DT`;
-}
+type AccountSnapshot = {
+  available: number;
+  savings: number;
+  bonds: number;
+};
 
-const AREAS: Array<{
-  id: BankSection;
+type Props = {
+  account: AccountSnapshot;
+  loading: boolean;
+  screenMode: BankScreenMode;
+  unlockedCount: number;
+  totalMilestones: number;
+  milestoneProgress: number;
+  foundationCompleted: number;
+  foundationTotal: number;
+  onOpenSection: (section: BankSection) => void;
+};
+
+type DashboardCard = {
+  section: BankSection;
   eyebrow: string;
   title: string;
   description: string;
-  meta: string;
+  footer: string;
   icon: string;
   accent: string;
-}> = [
+  border: string;
+  glow: string;
+};
+
+const DASHBOARD_CARDS: DashboardCard[] = [
   {
-    id: "learn",
+    section: "learn",
     eyebrow: "Financial Learning",
     title: "Learn",
     description: "Courses in money, banking, markets, decisions and enterprise.",
-    meta: "Structured courses",
+    footer: "Foundations · 5 courses",
     icon: "▦",
     accent: "#8ee8ff",
+    border: "rgba(126,232,255,0.22)",
+    glow: "rgba(83,215,255,0.13)",
   },
   {
-    id: "practise",
+    section: "practise",
     eyebrow: "Decision Studio",
     title: "Practise",
     description: "Apply ideas through simulations, cases and financial decisions.",
-    meta: "Simulations & cases",
+    footer: "Simulations & cases",
     icon: "◇",
-    accent: "#b8a8ff",
+    accent: "#b9a7ff",
+    border: "rgba(185,167,255,0.22)",
+    glow: "rgba(150,123,255,0.12)",
   },
   {
-    id: "money",
+    section: "money",
     eyebrow: "Personal Finance",
     title: "My Money",
     description: "Your DT wallet, savings goals, Bank Bonds and statements.",
-    meta: "Wallet · Savings · Bonds",
+    footer: "Wallet · savings · bonds",
     icon: "◆",
     accent: "#9fffd2",
+    border: "rgba(159,255,210,0.22)",
+    glow: "rgba(99,255,190,0.11)",
   },
   {
-    id: "progress",
+    section: "progress",
     eyebrow: "Financial Development",
     title: "My Progress",
     description: "See course progress, skill evidence, history and milestones.",
-    meta: "Skills & evidence",
+    footer: "Skills & milestones",
     icon: "◎",
     accent: "#ffd18a",
+    border: "rgba(255,209,138,0.22)",
+    glow: "rgba(255,185,92,0.11)",
   },
 ];
+
+function money(value: number) {
+  return `${Math.max(0, Math.round(Number(value || 0))).toLocaleString("en-SG")} DT`;
+}
+
+function safeRatio(completed: number, total: number) {
+  if (!Number.isFinite(total) || total <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((completed / total) * 100)));
+}
+
+function DashboardCardButton({
+  card,
+  onClick,
+  compact,
+}: {
+  card: DashboardCard;
+  onClick: () => void;
+  compact: boolean;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: "relative",
+        minWidth: 0,
+        minHeight: compact ? "150px" : 0,
+        height: "100%",
+        overflow: "hidden",
+        borderRadius: compact ? "18px" : "22px",
+        border: `1px solid ${hovered ? card.accent : card.border}`,
+        background: hovered
+          ? `radial-gradient(circle at 94% 7%, ${card.glow}, transparent 30%), linear-gradient(145deg, rgba(8,25,46,0.94), rgba(4,12,30,0.94))`
+          : `radial-gradient(circle at 94% 7%, ${card.glow}, transparent 30%), linear-gradient(145deg, rgba(6,21,40,0.86), rgba(3,11,28,0.9))`,
+        boxShadow: hovered
+          ? `0 18px 44px rgba(0,0,0,0.34), 0 0 28px ${card.glow}`
+          : "0 14px 34px rgba(0,0,0,0.22)",
+        color: "white",
+        padding: compact ? "18px" : "clamp(18px, 2.1vh, 26px)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "stretch",
+        justifyContent: "space-between",
+        gap: "12px",
+        textAlign: "left",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        transform: hovered ? "translateY(-2px)" : "translateY(0)",
+        transition:
+          "transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease",
+      }}
+    >
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          background:
+            "linear-gradient(115deg, rgba(255,255,255,0.025), transparent 44%)",
+        }}
+      />
+
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "16px",
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              color: card.accent,
+              fontSize: compact ? "9px" : "10px",
+              fontWeight: 900,
+              letterSpacing: "0.09em",
+              textTransform: "uppercase",
+            }}
+          >
+            {card.eyebrow}
+          </div>
+
+          <h2
+            style={{
+              margin: compact ? "5px 0 0" : "7px 0 0",
+              fontFamily: 'Georgia, "Times New Roman", serif',
+              fontSize: compact ? "24px" : "clamp(25px, 2.1vw, 34px)",
+              fontWeight: 400,
+              lineHeight: 1,
+              color: "white",
+            }}
+          >
+            {card.title}
+          </h2>
+        </div>
+
+        <span
+          aria-hidden="true"
+          style={{
+            flex: "0 0 auto",
+            width: compact ? "34px" : "38px",
+            height: compact ? "34px" : "38px",
+            borderRadius: "12px",
+            border: `1px solid ${card.border}`,
+            background: card.glow,
+            color: card.accent,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: compact ? "14px" : "16px",
+            fontWeight: 900,
+          }}
+        >
+          {card.icon}
+        </span>
+      </div>
+
+      <p
+        style={{
+          position: "relative",
+          zIndex: 1,
+          margin: 0,
+          maxWidth: "680px",
+          color: "rgba(255,255,255,0.58)",
+          fontSize: compact ? "11px" : "clamp(11px, 0.88vw, 13px)",
+          lineHeight: 1.45,
+        }}
+      >
+        {card.description}
+      </p>
+
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "12px",
+          marginTop: "auto",
+        }}
+      >
+        <span
+          style={{
+            color: "rgba(255,255,255,0.38)",
+            fontSize: compact ? "8px" : "9px",
+            fontWeight: 850,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          {card.footer}
+        </span>
+
+        <span
+          aria-hidden="true"
+          style={{
+            color: card.accent,
+            fontSize: "16px",
+            lineHeight: 1,
+            transform: hovered ? "translateX(3px)" : "translateX(0)",
+            transition: "transform 160ms ease",
+          }}
+        >
+          →
+        </span>
+      </div>
+    </button>
+  );
+}
 
 export default function BankHomeDashboard({
   account,
@@ -63,350 +269,230 @@ export default function BankHomeDashboard({
   foundationCompleted,
   foundationTotal,
   onOpenSection,
-}: {
-  account: BankAccountSnapshot;
-  loading: boolean;
-  screenMode: BankScreenMode;
-  unlockedCount: number;
-  totalMilestones: number;
-  milestoneProgress: number;
-  foundationCompleted: number;
-  foundationTotal: number;
-  onOpenSection: (section: BankSection) => void;
-}) {
-  const isMobile = screenMode === "mobile";
+}: Props) {
   const isDesktop = screenMode === "desktop";
+  const isMobile = screenMode === "mobile";
+
+  const totalMoney =
+    Number(account.available || 0) +
+    Number(account.savings || 0) +
+    Number(account.bonds || 0);
+
+  const journeyPercent = Math.max(
+    0,
+    Math.min(100, Math.round(Number(milestoneProgress || 0))),
+  );
+
+  const shellStyle: CSSProperties = {
+    width: "100%",
+    height: isDesktop ? "100%" : undefined,
+    minHeight: isDesktop ? 0 : undefined,
+    display: "grid",
+    gridTemplateRows: isDesktop
+      ? "minmax(142px, 0.78fr) minmax(0, 1.65fr)"
+      : undefined,
+    gap: isDesktop ? "10px" : isMobile ? "10px" : "12px",
+  };
 
   return (
-    <div
-      style={{
-        marginTop: isMobile ? "12px" : "14px",
-        display: "grid",
-        gap: isDesktop ? "10px" : "12px",
-      }}
-    >
+    <div style={shellStyle}>
       <section
         style={{
-          borderRadius: isMobile ? "20px" : "24px",
-          border: "1px solid rgba(126,232,255,0.16)",
-          background:
-            "radial-gradient(circle at 8% 0%, rgba(83,215,255,0.10), transparent 30%), radial-gradient(circle at 96% 8%, rgba(157,111,255,0.09), transparent 28%), linear-gradient(145deg, rgba(5,21,40,0.86), rgba(5,10,27,0.92))",
-          boxShadow: "0 24px 70px rgba(0,0,0,0.22)",
-          minHeight: isDesktop ? "184px" : undefined,
-          padding: isDesktop ? "22px 24px" : isMobile ? "20px" : "24px",
+          minHeight: 0,
+          display: "grid",
+          gridTemplateColumns: isDesktop
+            ? "minmax(0, 1.2fr) minmax(430px, 0.9fr)"
+            : "1fr",
+          gap: isDesktop ? "10px" : "12px",
         }}
       >
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: isDesktop ? "1.15fr 0.85fr" : "1fr",
-            gap: isDesktop ? "28px" : "16px",
-            alignItems: "center",
+            minWidth: 0,
+            borderRadius: isMobile ? "18px" : "22px",
+            border: "1px solid rgba(126,232,255,0.14)",
+            background:
+              "radial-gradient(circle at 8% 18%, rgba(83,215,255,0.09), transparent 30%), linear-gradient(145deg, rgba(7,28,50,0.82), rgba(5,15,34,0.74))",
+            boxShadow: "0 16px 42px rgba(0,0,0,0.2)",
+            padding: isMobile ? "18px" : "clamp(18px, 2.2vh, 26px)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            overflow: "hidden",
           }}
         >
-          <div>
-            <p style={eyebrowStyle}>At a glance</p>
-            <h2
-              style={{
-                margin: "6px 0 0",
-                maxWidth: "900px",
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isDesktop ? "34px" : isMobile ? "29px" : "38px",
-                lineHeight: 1.03,
-                fontWeight: 500,
-                letterSpacing: "-0.03em",
-              }}
-            >
-              Your money, learning and progress in one place.
-            </h2>
-            {!isDesktop && (
-              <p
-                style={{
-                  margin: "10px 0 0",
-                  maxWidth: "760px",
-                  color: "rgba(255,255,255,0.50)",
-                  fontSize: "11px",
-                  lineHeight: 1.55,
-                }}
-              >
-                Move between structured learning, practice, your own DT tools and evidence of the skills you are building.
-              </p>
-            )}
-            <div
-              style={{
-                marginTop: isDesktop ? "15px" : "13px",
-                display: "flex",
-                gap: "7px",
-                flexWrap: "wrap",
-              }}
-            >
-              <MiniStatus
-                label="Foundations"
-                value={`${foundationCompleted}/${foundationTotal || 0} complete`}
-              />
-              <MiniStatus
-                label="Milestones"
-                value={`${unlockedCount}/${totalMilestones || 0} unlocked`}
-              />
-              <MiniStatus label="Journey" value={`${milestoneProgress}%`} />
-            </div>
-          </div>
+          <span
+            style={{
+              color: "#8ee8ff",
+              fontSize: "9px",
+              fontWeight: 900,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+            }}
+          >
+            At a glance
+          </span>
+
+          <h1
+            style={{
+              margin: "8px 0 0",
+              fontFamily: 'Georgia, "Times New Roman", serif',
+              fontSize: isMobile ? "26px" : "clamp(27px, 2.25vw, 39px)",
+              fontWeight: 400,
+              lineHeight: 1.04,
+              color: "white",
+            }}
+          >
+            Your money, learning and progress in one place.
+          </h1>
 
           <div
             style={{
-              borderRadius: "20px",
-              border: "1px solid rgba(255,209,138,0.20)",
-              background: "linear-gradient(145deg, rgba(7,18,38,0.78), rgba(7,10,26,0.86))",
-              padding: isDesktop ? "18px 20px" : "17px",
-              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.018), 0 16px 38px rgba(0,0,0,0.16)",
+              marginTop: isDesktop ? "12px" : "15px",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "7px",
             }}
           >
-            <div
-              style={{
-                color: "rgba(255,255,255,0.38)",
-                fontSize: "9px",
-                fontWeight: 900,
-                letterSpacing: "0.13em",
-                textTransform: "uppercase",
-              }}
-            >
-              Financial snapshot
-            </div>
-            <strong
-              style={{
-                display: "block",
-                marginTop: "7px",
-                color: "#ffd18a",
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isDesktop ? "39px" : "34px",
-                lineHeight: 1,
-                fontWeight: 600,
-                letterSpacing: "-0.035em",
-                textShadow: "0 10px 26px rgba(255,190,90,0.10)",
-              }}
-            >
-              {loading ? "—" : formatDt(account.total)}
-            </strong>
-            <div
-              style={{
-                marginTop: "14px",
-                display: "grid",
-                gridTemplateColumns: "repeat(3, minmax(0,1fr))",
-                gap: "8px",
-              }}
-            >
-              <Metric label="Available" value={loading ? "—" : formatDt(account.available)} />
-              <Metric label="Savings" value={loading ? "—" : formatDt(account.savings)} />
-              <Metric label="Bonds" value={loading ? "—" : formatDt(account.bonds)} />
-            </div>
+            {[
+              `Foundations ${foundationCompleted}/${foundationTotal} complete`,
+              `Milestones ${unlockedCount}/${totalMilestones} unlocked`,
+              `Journey ${journeyPercent}%`,
+            ].map((label) => (
+              <span
+                key={label}
+                style={{
+                  padding: "5px 8px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(255,255,255,0.045)",
+                  color: "rgba(255,255,255,0.54)",
+                  fontSize: "8px",
+                  fontWeight: 800,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div
+          style={{
+            minWidth: 0,
+            borderRadius: isMobile ? "18px" : "22px",
+            border: "1px solid rgba(255,209,138,0.18)",
+            background:
+              "linear-gradient(145deg, rgba(4,12,29,0.92), rgba(6,9,25,0.9))",
+            boxShadow: "0 16px 42px rgba(0,0,0,0.24)",
+            padding: isMobile ? "18px" : "clamp(18px, 2.1vh, 24px)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+          }}
+        >
+          <span
+            style={{
+              color: "rgba(255,255,255,0.38)",
+              fontSize: "9px",
+              fontWeight: 900,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+            }}
+          >
+            Financial snapshot
+          </span>
+
+          <strong
+            style={{
+              marginTop: "7px",
+              color: "#ffd18a",
+              fontFamily: 'Georgia, "Times New Roman", serif',
+              fontSize: isMobile ? "28px" : "clamp(30px, 2.65vw, 43px)",
+              lineHeight: 1,
+              fontWeight: 700,
+            }}
+          >
+            {loading ? "—" : money(totalMoney)}
+          </strong>
+
+          <div
+            style={{
+              marginTop: isDesktop ? "13px" : "16px",
+              display: "grid",
+              gridTemplateColumns: isMobile
+                ? "1fr"
+                : "repeat(3, minmax(0, 1fr))",
+              gap: "8px",
+            }}
+          >
+            {[
+              ["Available", loading ? "—" : money(account.available)],
+              ["Savings", loading ? "—" : money(account.savings)],
+              ["Bonds", loading ? "—" : money(account.bonds)],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                style={{
+                  minWidth: 0,
+                  borderRadius: "13px",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  background: "rgba(255,255,255,0.035)",
+                  padding: "10px 12px",
+                }}
+              >
+                <div
+                  style={{
+                    color: "rgba(255,255,255,0.35)",
+                    fontSize: "8px",
+                    fontWeight: 850,
+                    letterSpacing: "0.07em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {label}
+                </div>
+                <div
+                  style={{
+                    marginTop: "5px",
+                    color: "#ffd18a",
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {value}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       <section
+        aria-label="Milo Bank sections"
         style={{
+          minHeight: 0,
           display: "grid",
-          gridTemplateColumns: isDesktop
-            ? "repeat(4, minmax(0, 1fr))"
-            : isMobile
-              ? "1fr"
-              : "repeat(2, minmax(0, 1fr))",
-          gap: isDesktop ? "9px" : "11px",
+          gridTemplateColumns: isMobile
+            ? "1fr"
+            : "repeat(2, minmax(0, 1fr))",
+          gridTemplateRows: isDesktop ? "repeat(2, minmax(0, 1fr))" : undefined,
+          gap: isDesktop ? "10px" : "12px",
         }}
       >
-        {AREAS.map((area) => (
-          <button
-            key={area.id}
-            type="button"
-            onClick={() => onOpenSection(area.id)}
-            style={{
-              minHeight: isDesktop ? "142px" : isMobile ? "154px" : "170px",
-              padding: isDesktop ? "15px" : "18px",
-              borderRadius: isDesktop ? "18px" : "21px",
-              border: "1px solid rgba(255,255,255,0.085)",
-              background: "linear-gradient(145deg, rgba(7,25,47,0.80), rgba(5,10,27,0.90))",
-              color: "white",
-              cursor: "pointer",
-              textAlign: "left",
-              fontFamily: "inherit",
-              boxShadow: "0 16px 46px rgba(0,0,0,0.16)",
-              display: "flex",
-              flexDirection: "column",
-              transition: "transform 170ms ease, border-color 170ms ease, background 170ms ease",
-              minWidth: 0,
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.transform = "translateY(-2px)";
-              event.currentTarget.style.borderColor = `${area.accent}55`;
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.transform = "translateY(0)";
-              event.currentTarget.style.borderColor = "rgba(255,255,255,0.085)";
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: "10px",
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    color: area.accent,
-                    fontSize: "8px",
-                    fontWeight: 900,
-                    letterSpacing: "0.13em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {area.eyebrow}
-                </div>
-                <h3
-                  style={{
-                    margin: "5px 0 0",
-                    fontFamily: 'Georgia, "Times New Roman", serif',
-                    fontSize: isDesktop ? "25px" : "29px",
-                    lineHeight: 1,
-                    fontWeight: 500,
-                  }}
-                >
-                  {area.title}
-                </h3>
-              </div>
-              <span
-                aria-hidden="true"
-                style={{
-                  width: isDesktop ? "34px" : "38px",
-                  height: isDesktop ? "34px" : "38px",
-                  borderRadius: "12px",
-                  border: `1px solid ${area.accent}42`,
-                  background: `${area.accent}10`,
-                  color: area.accent,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "16px",
-                  flexShrink: 0,
-                }}
-              >
-                {area.icon}
-              </span>
-            </div>
-
-            <p
-              style={{
-                margin: isDesktop ? "9px 0 0" : "12px 0 0",
-                color: "rgba(255,255,255,0.52)",
-                fontSize: isDesktop ? "10px" : "11px",
-                lineHeight: 1.45,
-              }}
-            >
-              {area.description}
-            </p>
-
-            <div
-              style={{
-                marginTop: "auto",
-                paddingTop: isDesktop ? "9px" : "13px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "8px",
-              }}
-            >
-              <span
-                style={{
-                  color: "rgba(255,255,255,0.34)",
-                  fontSize: "8px",
-                  fontWeight: 800,
-                  letterSpacing: "0.05em",
-                  textTransform: "uppercase",
-                }}
-              >
-                {area.id === "learn"
-                  ? `${foundationCompleted}/${foundationTotal} foundations`
-                  : area.id === "progress"
-                    ? `${unlockedCount}/${totalMilestones} milestones`
-                    : area.meta}
-              </span>
-              <span style={{ color: area.accent, fontSize: "15px" }}>→</span>
-            </div>
-          </button>
+        {DASHBOARD_CARDS.map((card) => (
+          <DashboardCardButton
+            key={card.section}
+            card={card}
+            compact={!isDesktop}
+            onClick={() => onOpenSection(card.section)}
+          />
         ))}
       </section>
     </div>
   );
 }
-
-function MiniStatus({ label, value }: { label: string; value: string }) {
-  return (
-    <span
-      style={{
-        borderRadius: "999px",
-        border: "1px solid rgba(255,255,255,0.07)",
-        background: "rgba(255,255,255,0.025)",
-        padding: "5px 8px",
-        color: "rgba(255,255,255,0.48)",
-        fontSize: "8px",
-        fontWeight: 800,
-        letterSpacing: "0.035em",
-        whiteSpace: "nowrap",
-      }}
-    >
-      <strong style={{ color: "rgba(255,255,255,0.72)", marginRight: "4px" }}>{label}</strong>
-      {value}
-    </span>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        minWidth: 0,
-        borderRadius: "12px",
-        border: "1px solid rgba(255,209,138,0.085)",
-        background: "rgba(255,255,255,0.026)",
-        padding: "10px 11px",
-      }}
-    >
-      <div
-        style={{
-          color: "rgba(255,255,255,0.32)",
-          fontSize: "8px",
-          fontWeight: 900,
-          letterSpacing: "0.075em",
-          textTransform: "uppercase",
-        }}
-      >
-        {label}
-      </div>
-      <strong
-        style={{
-          display: "block",
-          marginTop: "5px",
-          color: "#ffd18a",
-          fontSize: "12px",
-          fontWeight: 900,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
-        {value}
-      </strong>
-    </div>
-  );
-}
-
-const eyebrowStyle = {
-  margin: 0,
-  color: "#8ee8ff",
-  fontSize: "8px",
-  fontWeight: 900,
-  letterSpacing: "0.17em",
-  textTransform: "uppercase",
-} as const;

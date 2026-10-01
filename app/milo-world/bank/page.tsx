@@ -25,6 +25,7 @@ export default function MiloBankPage() {
   const [activeSection, setActiveSection] = useState<BankSection | null>(null);
   const overviewDesktop = activeSection === null && isDesktop;
   const [guideOpen, setGuideOpen] = useState(false);
+  const [guideOrigin, setGuideOrigin] = useState<BankSection | null>(null);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
   const [financeUpgradeOpen, setFinanceUpgradeOpen] = useState(false);
   const { account, loading, isLoggedIn } = useBankAccount();
@@ -33,7 +34,10 @@ export default function MiloBankPage() {
   const financeAccess = useMiloFinanceAccess(isLoggedIn);
 
   useEffect(() => {
-    if (!hasSeenBankGuide()) setGuideOpen(true);
+    if (!hasSeenBankGuide()) {
+      setGuideOrigin(null);
+      setGuideOpen(true);
+    }
   }, []);
 
   const openSection = useCallback((section: BankSection) => {
@@ -44,6 +48,22 @@ export default function MiloBankPage() {
       });
     }
   }, []);
+
+  const openGuide = useCallback(() => {
+    setGuideOrigin(activeSection);
+    setGuideOpen(true);
+  }, [activeSection]);
+
+  const closeGuideAndRestoreOrigin = useCallback(() => {
+    setActiveSection(guideOrigin);
+    setGuideOpen(false);
+
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: "auto" });
+      });
+    }
+  }, [guideOrigin]);
 
   return (
     <main
@@ -93,7 +113,7 @@ export default function MiloBankPage() {
         screenMode={screenMode}
         available={account.available}
         loading={loading}
-        onOpenGuide={() => setGuideOpen(true)}
+        onOpenGuide={openGuide}
         onOpenAchievements={() => setAchievementsOpen(true)}
       />
 
@@ -106,6 +126,7 @@ export default function MiloBankPage() {
           margin: "0 auto",
           boxSizing: "border-box",
           height: overviewDesktop ? "calc(100dvh - 73px)" : undefined,
+          minHeight: overviewDesktop ? 0 : undefined,
           overflow: overviewDesktop ? "hidden" : "visible",
           padding: overviewDesktop
             ? "4px 0 12px"
@@ -142,11 +163,13 @@ export default function MiloBankPage() {
           </div>
         )}
 
-        <BankNavigation
-          activeSection={activeSection}
-          onChange={openSection}
-          screenMode={screenMode}
-        />
+        {activeSection !== null && (
+          <BankNavigation
+            activeSection={activeSection}
+            onChange={openSection}
+            screenMode={screenMode}
+          />
+        )}
 
         {activeSection === null && (
           <BankHomeDashboard
@@ -206,7 +229,7 @@ export default function MiloBankPage() {
             progressError={financialProgress.error}
             onRetryProgress={financialProgress.refresh}
             onOpenAchievements={() => setAchievementsOpen(true)}
-            onOpenGuide={() => setGuideOpen(true)}
+            onOpenGuide={openGuide}
             hasMiloFinanceAccess={financeAccess.hasAccess}
             accessLoading={financeAccess.loading}
             onOpenUpgrade={() => setFinanceUpgradeOpen(true)}
@@ -216,11 +239,10 @@ export default function MiloBankPage() {
 
       <BankGuide
         open={guideOpen}
-        onClose={() => setGuideOpen(false)}
+        onClose={closeGuideAndRestoreOrigin}
         onChangeSection={openSection}
         screenMode={screenMode}
       />
-
 
       <MiloFinanceUpgradeModal
         open={financeUpgradeOpen}
