@@ -38,3 +38,5 @@ export * from "./MathBatchGeneration";
 export * from "./MathImportIntelligence";
 export * from "./MathQATypes";
 export * from "./MathQASampling";
+
+export * from "./MathQuizVisualQA";

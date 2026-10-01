@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { MathVisualAndTeachingPipelineResult } from "./MathIntelligencePipeline";
+import { buildMathQuizVisualContract } from "./MathQuizVisualContract";
 import {
   MATH_AUTHORING_PROPOSAL_SCHEMA_VERSION,
   type MathAuthoringProposal,
@@ -179,6 +180,10 @@ export function buildMathAuthoringProposal(
       target: result.analysis.interpretation.target,
       confidence: clamp(result.analysis.confidence),
       reason_codes: [...result.analysis.reason_codes],
+      quiz_visual_contract:
+        result.rule_evaluation.quiz_visual_requirement === "required"
+          ? buildMathQuizVisualContract(result.input)
+          : null,
     },
     sources: {
       interpretation: {

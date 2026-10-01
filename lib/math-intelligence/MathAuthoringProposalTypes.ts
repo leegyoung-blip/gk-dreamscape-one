@@ -12,6 +12,7 @@ import type {
   MathVisualStrategy,
 } from "./MathIntelligenceTypes";
 import type { MathTeachingSemanticValidationResult } from "./MathTeachingSemanticTypes";
+import type { MathQuizVisualContract } from "./MathQuizVisualContract";
 import type { MathVisualSemanticValidationResult } from "./MathVisualSemanticTypes";
 
 export const MATH_AUTHORING_PROPOSAL_SCHEMA_VERSION = 1 as const;
@@ -52,6 +53,8 @@ export type MathAuthoringProposalDecision = {
   target: MathTarget;
   confidence: number;
   reason_codes: MathIntelligenceReasonCode[];
+  /** Phase 3C: exact learner-visible source contract used to build required quiz diagrams. */
+  quiz_visual_contract?: MathQuizVisualContract | null;
 };
 
 export type MathAuthoringProposalSources = {

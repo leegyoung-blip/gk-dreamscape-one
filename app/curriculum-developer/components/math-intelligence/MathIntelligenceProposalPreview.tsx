@@ -20,28 +20,33 @@ export default function MathIntelligenceProposalPreview({
   currentVisual = null,
   currentTeaching = {},
   comparison = false,
+  diagramOnly = false,
 }: {
   proposal: MathAuthoringProposal;
   currentVisual?: MathVisualSpec | null;
   currentTeaching?: TeachingDraft;
   comparison?: boolean;
+  /** Phase 3C: review learner-facing quiz diagrams without judging Teaching. */
+  diagramOnly?: boolean;
 }) {
   const [mode, setMode] = useState<PreviewMode>("diagram");
   const [stepIndex, setStepIndex] = useState(0);
 
+  const activeMode: PreviewMode = diagramOnly ? "diagram" : mode;
+
   const proposalSteps =
-    mode === "lesson"
+    activeMode === "lesson"
       ? proposal.teaching?.lesson_steps ?? []
-      : mode === "teach_me"
+      : activeMode === "teach_me"
         ? proposal.teaching?.teach_me_steps ?? []
         : [];
 
   const currentSteps = useMemo(
     () =>
-      mode === "diagram"
+      activeMode === "diagram"
         ? []
-        : readCurrentSteps(currentTeaching, mode === "lesson" ? "lesson" : "teach_me"),
-    [currentTeaching, mode],
+        : readCurrentSteps(currentTeaching, activeMode === "lesson" ? "lesson" : "teach_me"),
+    [currentTeaching, activeMode],
   );
 
   const maxStepCount = Math.max(proposalSteps.length, comparison ? currentSteps.length : 0);
@@ -64,14 +69,18 @@ export default function MathIntelligenceProposalPreview({
     <div style={shell}>
       <div style={topRow}>
         <div>
-          <span style={eyebrow}>MATH INTELLIGENCE PROPOSAL</span>
-          <strong style={title}>{proposalTitle(proposal)}</strong>
+          <span style={eyebrow}>{diagramOnly ? "PHASE 3C · QUIZ DIAGRAM QA" : "MATH INTELLIGENCE PROPOSAL"}</span>
+          <strong style={title}>{diagramOnly ? "Learner-facing diagram" : proposalTitle(proposal)}</strong>
           <p style={subtext}>
             Preview only. Nothing from this proposal has been applied to the question.
           </p>
         </div>
-        <span style={proposalStatusStyle(proposal.status)}>
-          {statusLabel(proposal.status)}
+        <span style={proposalStatusStyle(diagramOnly && structuralValid && semanticValid && proposal.visual.spec ? "generated" : proposal.status)}>
+          {diagramOnly
+            ? structuralValid && semanticValid && proposal.visual.spec
+              ? "Diagram valid"
+              : "Diagram review required"
+            : statusLabel(proposal.status)}
         </span>
       </div>
 
@@ -92,7 +101,7 @@ export default function MathIntelligenceProposalPreview({
             proposal.sources.interpretation.model,
           )}
         />
-        <DecisionItem label="Teaching" value={teachingSourceLabel(proposal)} />
+        {!diagramOnly ? <DecisionItem label="Teaching" value={teachingSourceLabel(proposal)} /> : null}
         <DecisionItem label="Domain" value={humanise(proposal.decision.domain)} />
         <DecisionItem
           label="Confidence"
@@ -102,11 +111,15 @@ export default function MathIntelligenceProposalPreview({
 
       <div style={validationRow}>
         <ValidationPill label="V2 structure" valid={structuralValid} />
-        <ValidationPill label="Mathematics" valid={semanticValid} />
-        <ValidationPill label="Teaching" valid={teachingValid} />
+        <ValidationPill label="Source fidelity" valid={semanticValid} />
+        {!diagramOnly ? <ValidationPill label="Teaching" valid={teachingValid} /> : null}
       </div>
 
-      <div style={previewTabs}>
+      {diagramOnly && proposal.decision.quiz_visual_contract ? (
+        <QuizVisualContractSummary contract={proposal.decision.quiz_visual_contract} />
+      ) : null}
+
+      {!diagramOnly ? <div style={previewTabs}>
         {(["diagram", "lesson", "teach_me"] as const).map((nextMode) => {
           const proposalCount =
             nextMode === "lesson"
@@ -132,7 +145,7 @@ export default function MathIntelligenceProposalPreview({
             </button>
           );
         })}
-      </div>
+      </div> : null}
 
       {comparison ? (
         <div style={comparisonGrid}>
@@ -140,7 +153,7 @@ export default function MathIntelligenceProposalPreview({
             label="CURRENT"
             spec={currentVisual}
             steps={currentSteps}
-            mode={mode}
+            mode={activeMode}
             stepIndex={boundedGlobalStep}
             emptyText={
               currentVisual
@@ -152,9 +165,9 @@ export default function MathIntelligenceProposalPreview({
             label="PROPOSAL"
             spec={proposal.visual.spec}
             steps={proposalSteps}
-            mode={mode}
+            mode={activeMode}
             stepIndex={boundedGlobalStep}
-            emptyText={proposalEmptyText(proposal, mode)}
+            emptyText={proposalEmptyText(proposal, activeMode)}
           />
         </div>
       ) : (
@@ -162,14 +175,14 @@ export default function MathIntelligenceProposalPreview({
           label="PROPOSAL"
           spec={proposal.visual.spec}
           steps={proposalSteps}
-          mode={mode}
+          mode={activeMode}
           stepIndex={boundedGlobalStep}
-          emptyText={proposalEmptyText(proposal, mode)}
+          emptyText={proposalEmptyText(proposal, activeMode)}
           standalone
         />
       )}
 
-      {mode !== "diagram" && maxStepCount > 0 ? (
+      {activeMode !== "diagram" && maxStepCount > 0 ? (
         <div style={stepControls}>
           <button
             type="button"
@@ -209,6 +222,35 @@ export default function MathIntelligenceProposalPreview({
           </ul>
         </details>
       ) : null}
+    </div>
+  );
+}
+
+
+function QuizVisualContractSummary({
+  contract,
+}: {
+  contract: NonNullable<MathAuthoringProposal["decision"]["quiz_visual_contract"]>;
+}) {
+  let summary = "";
+  if (contract.kind === "fraction_region") {
+    summary = `${contract.total_parts} equal parts · ${contract.shaded_parts} shaded · ${contract.unshaded_parts} unshaded · target: ${contract.target_state}`;
+  } else if (contract.kind === "square_grid") {
+    summary = `${contract.rows} rows × ${contract.columns} columns`;
+    if (contract.target_square_rows && contract.target_square_columns) {
+      summary += ` · count ${contract.target_square_rows} × ${contract.target_square_columns} squares`;
+    }
+  } else {
+    summary = contract.data
+      .map((item) => `${item.label}: ${item.unit === "$" ? "$" : ""}${item.value}${item.unit && item.unit !== "$" ? ` ${item.unit}` : ""}`)
+      .join(" · ");
+  }
+
+  return (
+    <div style={contractBox}>
+      <span style={eyebrow}>PHASE 3C · SOURCE CONTRACT</span>
+      <strong style={contractKind}>{humanise(contract.kind)}</strong>
+      <span style={contractText}>{summary}</span>
     </div>
   );
 }
@@ -375,6 +417,18 @@ function humanise(value: string) {
     .replaceAll("_", " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
+
+
+const contractBox: CSSProperties = {
+  borderRadius: 12,
+  border: "1px solid rgba(253,230,138,0.24)",
+  background: "rgba(113,63,18,0.16)",
+  padding: "10px 12px",
+  display: "grid",
+  gap: 4,
+};
+const contractKind: CSSProperties = { color: "#FEF3C7", fontSize: 13 };
+const contractText: CSSProperties = { color: "#FDE68A", fontSize: 11, lineHeight: 1.45 };
 
 const shell: CSSProperties = {
   borderRadius: 15,

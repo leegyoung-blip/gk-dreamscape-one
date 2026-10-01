@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 
 import type { MathAuthoringBatchItem } from "@/lib/math-intelligence/MathBatchGenerationTypes";
+import {
+  buildMathQuizVisualQASummary,
+  hasGeneratedAcceptableQuizVisual,
+  isMathQuizVisualQAItem,
+  mathQuizVisualQAGateLabel,
+} from "@/lib/math-intelligence/MathQuizVisualQA";
 import type {
   MathQAIssueCode,
   MathQASampleSelection,
@@ -33,6 +39,11 @@ const ISSUE_OPTIONS: Array<{ code: MathQAIssueCode; label: string }> = [
   { code: "missing_visual", label: "Visual should exist" },
   { code: "unnecessary_visual", label: "Visual unnecessary" },
   { code: "visual_clarity", label: "Visual clarity" },
+  { code: "source_fidelity", label: "Source fidelity" },
+  { code: "label_quality", label: "Labels / wording" },
+  { code: "scale_or_proportion", label: "Scale / proportion" },
+  { code: "semantic_colour", label: "Semantic colour" },
+  { code: "layout_or_spacing", label: "Layout / spacing" },
   { code: "teaching_sequence", label: "Teaching sequence" },
   { code: "teaching_wording", label: "Teaching wording" },
   { code: "unsupported_v2_semantics", label: "V2 semantics gap" },
@@ -41,6 +52,24 @@ const ISSUE_OPTIONS: Array<{ code: MathQAIssueCode; label: string }> = [
   { code: "legacy_media_should_be_preserved", label: "Legacy media should be preserved" },
   { code: "other", label: "Other" },
 ];
+
+const DIAGRAM_ISSUE_CODES = new Set<MathQAIssueCode>([
+  "wrong_need_decision",
+  "wrong_strategy",
+  "wrong_values_or_relationships",
+  "answer_leak",
+  "missing_visual",
+  "unnecessary_visual",
+  "visual_clarity",
+  "source_fidelity",
+  "label_quality",
+  "scale_or_proportion",
+  "semantic_colour",
+  "layout_or_spacing",
+  "unsupported_v2_semantics",
+  "legacy_media_should_be_preserved",
+  "other",
+]);
 
 type StoredReview = {
   id: string;
@@ -57,6 +86,7 @@ type QAStatusFilter =
   | "resolved"
   | "auto_review"
   | "generated"
+  | "required_v2"
   | "not_needed"
   | "preserved"
   | "invalid_failed";
@@ -119,6 +149,11 @@ export default function MathIntelligenceQAView() {
     [results, storedReviews],
   );
 
+  const quizVisualQASummary = useMemo(
+    () => buildMathQuizVisualQASummary(results, storedReviews),
+    [results, storedReviews],
+  );
+
   const topicOptions = useMemo(() => {
     const values = new Map<string, string>();
     for (const item of sample?.items || []) values.set(item.topic_id, item.topic_title);
@@ -145,6 +180,7 @@ export default function MathIntelligenceQAView() {
       if (statusFilter === "resolved" && !resolved) return false;
       if (statusFilter === "auto_review" && !autoReview) return false;
       if (statusFilter === "generated" && status !== "generated") return false;
+      if (statusFilter === "required_v2" && (!result || !isMathQuizVisualQAItem(result))) return false;
       if (statusFilter === "not_needed" && status !== "not_needed") return false;
       if (statusFilter === "preserved" && status !== "preserved") return false;
       if (statusFilter === "invalid_failed" && !["invalid", "failed"].includes(status)) return false;
@@ -180,6 +216,28 @@ export default function MathIntelligenceQAView() {
     if (filteredSampleItems.length === 0) return;
     const index = filteredSampleItems.findIndex((item) => item.question_id === selectedQuestionId);
     const next = filteredSampleItems[(index + 1 + filteredSampleItems.length) % filteredSampleItems.length];
+    setSelectedQuestionId(next.question_id);
+  }
+
+  function focusPhase3CReview() {
+    setStrategyFilter("all");
+    setStatusFilter("required_v2");
+    setSourceFilter("all");
+    setLevelFilter("all");
+    setTopicFilter("all");
+  }
+
+  function selectNextUnreviewedRequiredVisual(excludeQuestionId = "") {
+    const cohort = (sample?.items || []).filter((item) => {
+      if (item.question_id === excludeQuestionId) return false;
+      const result = resultByQuestion.get(item.question_id);
+      if (!result || !hasGeneratedAcceptableQuizVisual(result)) return false;
+      const verdict = storedReviews.get(item.question_id)?.verdict || "unreviewed";
+      return verdict === "unreviewed";
+    });
+    if (cohort.length === 0) return;
+    const index = cohort.findIndex((item) => item.question_id === selectedQuestionId);
+    const next = cohort[(index + 1 + cohort.length) % cohort.length];
     setSelectedQuestionId(next.question_id);
   }
 
@@ -371,6 +429,46 @@ export default function MathIntelligenceQAView() {
     URL.revokeObjectURL(url);
   }
 
+  function exportPhase3CReport() {
+    if (!sample) return;
+    const cohort = sample.items
+      .map((item) => {
+        const result = resultByQuestion.get(item.question_id);
+        if (!result || !isMathQuizVisualQAItem(result)) return null;
+        const review = storedReviews.get(item.question_id) || null;
+        return {
+          question: {
+            question_id: item.question_id,
+            question_code: item.question_code,
+            primary_level: item.primary_level,
+            topic_title: item.topic_title,
+            prompt: item.prompt,
+          },
+          automatic_status: result.status,
+          source_contract: result.proposal?.decision.quiz_visual_contract || null,
+          visual: result.proposal?.visual || null,
+          review,
+        };
+      })
+      .filter(Boolean);
+
+    const payload = {
+      exported_at: new Date().toISOString(),
+      phase: "3C",
+      run_id: runId,
+      seed: sample.seed,
+      summary: quizVisualQASummary,
+      items: cohort,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `math-quiz-visual-qa-3C-${runId.slice(0, 8) || "sample"}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div style={stack}>
       <div style={safeBanner}>
@@ -518,6 +616,38 @@ export default function MathIntelligenceQAView() {
             </div>
           </section>
 
+          <section style={phase3CCard}>
+            <div style={sectionHeader}>
+              <div>
+                <p style={phase3CEyebrow}>PHASE 3C · DIAGRAM QA GATE</p>
+                <h2 style={heading}>Review only the required learner-facing V2 diagrams</h2>
+                <p style={muted}>Teaching is deliberately excluded. A PASS means the quiz diagram is mathematically faithful, clear, age-appropriate and does not leak the answer.</p>
+              </div>
+              <span style={gatePill(quizVisualQASummary.gate_status)}>
+                {mathQuizVisualQAGateLabel(quizVisualQASummary.gate_status)}
+              </span>
+            </div>
+            <div style={metricGrid}>
+              <Metric label="Required V2" value={quizVisualQASummary.required_v2} />
+              <Metric label="Generated safely" value={quizVisualQASummary.generated_visuals} />
+              <Metric label="Reviewed" value={quizVisualQASummary.reviewed} />
+              <Metric label="Pass" value={quizVisualQASummary.pass} />
+              <Metric label="Minor" value={quizVisualQASummary.minor} />
+              <Metric label="Fail" value={quizVisualQASummary.fail + quizVisualQASummary.visual_generation_failures} />
+            </div>
+            <div style={phase3CRules}>
+              <strong>3C acceptance rules</strong>
+              <span><b>PASS</b> — exact source meaning, correct labels/data/geometry, clear layout, no answer leak.</span>
+              <span><b>MINOR</b> — mathematically correct but presentation needs polish.</span>
+              <span><b>FAIL</b> — wrong or misleading mathematics, missing required information, answer leak, or unusable visual.</span>
+            </div>
+            <div style={buttonRow}>
+              <button type="button" onClick={focusPhase3CReview} style={primaryButton}>Review required V2 only</button>
+              <button type="button" onClick={() => selectNextUnreviewedRequiredVisual()} disabled={quizVisualQASummary.unreviewed === 0} style={secondaryButton}>Next unreviewed 3C</button>
+              <button type="button" onClick={exportPhase3CReport} style={secondaryButton}>Export 3C diagram QA</button>
+            </div>
+          </section>
+
           <section style={card}>
             <div style={sectionHeader}>
               <div>
@@ -594,6 +724,7 @@ export default function MathIntelligenceQAView() {
                 <p style={muted}>Click a strategy, Resolved, Auto review or Luna count above, or filter directly below.</p>
               </div>
               <div style={buttonRow}>
+                <button type="button" onClick={focusPhase3CReview} style={secondaryButton}>3C required V2</button>
                 <button type="button" onClick={() => { setStatusFilter("auto_review"); setSourceFilter("all"); }} style={secondaryButton}>Auto-review items</button>
                 <button type="button" onClick={() => { setSourceFilter("luna"); setStatusFilter("all"); }} style={secondaryButton}>Luna-used items</button>
                 <button type="button" onClick={clearQAFilters} style={secondaryButton}>Clear filters</button>
@@ -614,6 +745,7 @@ export default function MathIntelligenceQAView() {
                   <option value="resolved">Resolved automatically</option>
                   <option value="auto_review">Needs automatic review</option>
                   <option value="generated">Generated visual</option>
+                  <option value="required_v2">Phase 3C · Required V2</option>
                   <option value="not_needed">No visual needed</option>
                   <option value="preserved">Preserved media</option>
                   <option value="invalid_failed">Invalid / failed</option>
@@ -688,13 +820,18 @@ export default function MathIntelligenceQAView() {
                     <span>{selectedSampleItem.quiz_code || "Quiz"} · {selectedSampleItem.quiz_title || ""}</span>
                     <p>{selectedSampleItem.prompt}</p>
                   </div>
-                  <MathIntelligenceProposalPreview proposal={selectedResult.proposal} />
+                  <MathIntelligenceProposalPreview
+                    proposal={selectedResult.proposal}
+                    diagramOnly={isMathQuizVisualQAItem(selectedResult)}
+                  />
                   {selectedReview ? (
                     <QAReviewEditor
                       key={`${selectedReview.id}-${selectedReview.reviewed_at || "new"}`}
                       review={selectedReview}
                       busy={savingReview}
+                      diagramOnly={isMathQuizVisualQAItem(selectedResult)}
                       onSave={saveReview}
+                      onSavedNext={() => selectNextUnreviewedRequiredVisual(selectedQuestionId)}
                     />
                   ) : null}
                 </>
@@ -711,6 +848,7 @@ export default function MathIntelligenceQAView() {
                       key={`${selectedReview.id}-${selectedReview.reviewed_at || "new"}`}
                       review={selectedReview}
                       busy={savingReview}
+                      diagramOnly={false}
                       onSave={saveReview}
                     />
                   ) : null}
@@ -729,11 +867,15 @@ export default function MathIntelligenceQAView() {
 function QAReviewEditor({
   review,
   busy,
+  diagramOnly = false,
   onSave,
+  onSavedNext,
 }: {
   review: StoredReview;
   busy: boolean;
+  diagramOnly?: boolean;
   onSave: (verdict: MathQAVerdict, issues: MathQAIssueCode[], notes: string) => Promise<void>;
+  onSavedNext?: () => void;
 }) {
   const [verdict, setVerdict] = useState<MathQAVerdict>(review.verdict);
   const [issues, setIssues] = useState<MathQAIssueCode[]>(review.issue_codes);
@@ -761,7 +903,7 @@ function QAReviewEditor({
         </div>
       </div>
       <div style={issueGrid}>
-        {ISSUE_OPTIONS.map((option) => (
+        {ISSUE_OPTIONS.filter((option) => !diagramOnly || DIAGRAM_ISSUE_CODES.has(option.code)).map((option) => (
           <label key={option.code} style={issueLabel}>
             <input
               type="checkbox"
@@ -775,18 +917,33 @@ function QAReviewEditor({
       <textarea
         value={notes}
         onChange={(event: any) => setNotes(event.target.value)}
-        placeholder="Optional reviewer notes"
+        placeholder={diagramOnly ? "What is wrong or what needs polishing in the quiz diagram?" : "Optional reviewer notes"}
         rows={3}
         style={textarea}
       />
-      <button
-        type="button"
-        disabled={busy || verdict === "unreviewed"}
-        onClick={() => void onSave(verdict, issues, notes)}
-        style={primaryButton}
-      >
-        {busy ? "Saving QA…" : "Save QA verdict"}
-      </button>
+      <div style={buttonRow}>
+        <button
+          type="button"
+          disabled={busy || verdict === "unreviewed"}
+          onClick={() => void onSave(verdict, issues, notes)}
+          style={primaryButton}
+        >
+          {busy ? "Saving QA…" : diagramOnly ? "Save 3C verdict" : "Save QA verdict"}
+        </button>
+        {diagramOnly && onSavedNext ? (
+          <button
+            type="button"
+            disabled={busy || verdict === "unreviewed"}
+            onClick={async () => {
+              await onSave(verdict, issues, notes);
+              onSavedNext();
+            }}
+            style={secondaryButton}
+          >
+            Save & next 3C
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -849,6 +1006,13 @@ const stack: CSSProperties = { display: "grid", gap: 18 };
 const safeBanner: CSSProperties = { border: "1px solid rgba(88,215,255,.32)", background: "rgba(23,52,95,.55)", borderRadius: 14, padding: "13px 15px", lineHeight: 1.5 };
 const errorBanner: CSSProperties = { border: "1px solid rgba(248,113,113,.45)", background: "rgba(127,29,29,.28)", color: "#FECACA", borderRadius: 12, padding: 14 };
 const successBanner: CSSProperties = { border: "1px solid rgba(74,222,128,.35)", background: "rgba(20,83,45,.28)", color: "#BBF7D0", borderRadius: 12, padding: 14 };
+const phase3CCard: CSSProperties = { border: "1px solid rgba(253,230,138,.34)", background: "linear-gradient(180deg, rgba(113,63,18,.22), rgba(8,20,42,.94))", borderRadius: 16, padding: 18, display: "grid", gap: 16 };
+const phase3CEyebrow: CSSProperties = { margin: 0, fontSize: 11, letterSpacing: ".12em", color: "#FDE68A", fontWeight: 900 };
+const phase3CRules: CSSProperties = { display: "grid", gap: 5, padding: 12, borderRadius: 12, border: "1px solid rgba(253,230,138,.18)", background: "rgba(15,23,42,.48)", color: "#E2E8F0", fontSize: 12, lineHeight: 1.45 };
+function gatePill(status: ReturnType<typeof buildMathQuizVisualQASummary>["gate_status"]): CSSProperties {
+  const color = status === "ready" ? "#86EFAC" : status === "blocked" ? "#FCA5A5" : status === "needs_polish" ? "#FDE68A" : "#93C5FD";
+  return { border: `1px solid ${color}66`, color, background: `${color}14`, borderRadius: 999, padding: "7px 10px", fontSize: 10, fontWeight: 900, letterSpacing: ".08em" };
+}
 const card: CSSProperties = { border: "1px solid rgba(148,163,184,.18)", background: "rgba(8,20,42,.9)", borderRadius: 16, padding: 18, display: "grid", gap: 16 };
 const eyebrow: CSSProperties = { margin: 0, fontSize: 11, letterSpacing: ".12em", color: "#7EE8FF", fontWeight: 800 };
 const heading: CSSProperties = { margin: "4px 0 0", fontSize: 22 };
