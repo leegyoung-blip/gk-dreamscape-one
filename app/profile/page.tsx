@@ -2328,7 +2328,14 @@ Thank you.`;
       "pending-date-of-birth",
     );
 
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({
+      scope: "local",
+    });
+
+    if (error) {
+      console.error("Logout error:", error.message);
+      return;
+    }
 
     window.location.href = "/";
   }
