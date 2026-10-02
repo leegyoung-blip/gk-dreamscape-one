@@ -1,4 +1,5 @@
 import type {
+  CanonicalSkillMappingInput,
   ExistingMathIntelligenceProposalInput,
 } from "../canonical";
 
@@ -152,6 +153,96 @@ export function prepareQaQuestionForTeaching(
   return question;
 }
 
+
+function extractQaSkillMappings(
+  item: QaSampleItem,
+  question: Record<string, unknown>,
+): CanonicalSkillMappingInput[] {
+  const candidates: unknown[] = [
+    question.skill_mappings,
+    question.skillMappings,
+    question.skills,
+    question.learning_question_skills,
+    item.skill_mappings,
+    item.skillMappings,
+  ];
+
+  const rows = candidates.find(
+    (value) => Array.isArray(value),
+  );
+
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+
+  const normalized: Array<{
+    mapping: CanonicalSkillMappingInput;
+    order: number;
+    isPrimary: boolean;
+  }> = [];
+
+  rows.forEach((raw, index) => {
+    const row = asRecord(raw);
+    if (!row) return;
+
+    const nestedSkill =
+      asRecord(row.skill) ??
+      asRecord(row.skills);
+
+    const id =
+      asString(row.skill_id) ??
+      asString(row.id) ??
+      asString(nestedSkill?.id);
+
+    const name =
+      asString(row.skill_name) ??
+      asString(row.name) ??
+      asString(nestedSkill?.name) ??
+      asString(nestedSkill?.title);
+
+    if (!id || !name) return;
+
+    const role =
+      asString(row.role) ??
+      asString(row.mapping_role);
+
+    const order =
+      asNumber(row.order) ??
+      asNumber(row.mapping_order) ??
+      asNumber(row.skill_order) ??
+      index;
+
+    const isPrimary =
+      row.is_primary === true ||
+      role === "primary";
+
+    normalized.push({
+      mapping: {
+        id,
+        code:
+          asString(row.skill_code) ??
+          asString(row.code) ??
+          asString(nestedSkill?.code) ??
+          null,
+        name,
+      },
+      order,
+      isPrimary,
+    });
+  });
+
+  normalized.sort((a, b) => {
+    if (a.isPrimary !== b.isPrimary) {
+      return a.isPrimary ? -1 : 1;
+    }
+    return a.order - b.order;
+  });
+
+  return normalized.map(
+    (entry) => entry.mapping,
+  );
+}
+
 function proposalForItem(
   item: QaSampleItem,
   resultMap: Map<string, QaProposalResult>,
@@ -239,7 +330,11 @@ export function runPhase4A2QaFromExport(
         quizId:
           asString(sampleItem.quiz_id) ??
           asString(question.quiz_id),
-        skillMappings: [],
+        skillMappings:
+          extractQaSkillMappings(
+            sampleItem,
+            question,
+          ),
         questionFingerprint:
           asString(proposal?.question_fingerprint),
         mathIntelligence:
@@ -279,7 +374,7 @@ export function runPhase4A2QaFromExport(
     );
 
   return {
-    schemaVersion: "4A-2-QA.2",
+    schemaVersion: "4A-2-QA.3",
     sourceRunId: asString(qaExport.run_id),
     sourceSeed: asString(qaExport.sample?.seed),
     generatedAt: new Date().toISOString(),
@@ -294,7 +389,7 @@ export function toPhase4A2CompactExport(
   run: Phase4A2QaRun,
 ): Phase4A2CompactExport {
   return {
-    schema_version: "4A-2-QA.2",
+    schema_version: "4A-2-QA.3",
     generated_at: run.generatedAt,
     source_run_id: run.sourceRunId,
     source_seed: run.sourceSeed,

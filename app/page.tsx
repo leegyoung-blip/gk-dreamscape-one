@@ -704,6 +704,7 @@ export default function Home() {
                 { label: "NOVA+ FOR PARENTS", href: "/explore/nova-plus" },
                 { label: "MILO FINANCE", href: "/explore/milo-finance" },
                 { label: "EXPLORE DREAMSCAPE", href: "/explore" },
+                { label: "JOIN US", href: "/join-us" },
                 { label: "PRICING", href: "/pricing" },
                 { label: "FOR TUITION CENTRES", href: "/education-licence" },
                 { label: "PARTNER WITH US", href: "/affiliate" },
@@ -1759,6 +1760,90 @@ export default function Home() {
 
 
           <section
+            id="build-with-dreamscape"
+            aria-labelledby="build-with-dreamscape-heading"
+            style={{
+              position: "relative",
+              marginTop: isMobile ? "84px" : "112px",
+              width: "100%",
+              overflow: "hidden",
+              borderRadius: isMobile ? "28px" : "36px",
+              border: "1px solid rgba(142,232,255,0.22)",
+              background:
+                "radial-gradient(circle at 10% 20%, rgba(83,215,255,0.16), transparent 30%), radial-gradient(circle at 92% 80%, rgba(197,140,255,0.16), transparent 32%), linear-gradient(145deg, rgba(6,20,39,0.96), rgba(11,8,30,0.97))",
+              boxShadow: "0 30px 80px rgba(0,0,0,0.3)",
+            }}
+          >
+            <div
+              style={{
+                position: "relative",
+                zIndex: 2,
+                minHeight: isMobile ? "auto" : "360px",
+                padding: isMobile ? "42px 26px" : "52px 58px",
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "1fr 260px",
+                gap: isMobile ? "30px" : "44px",
+                alignItems: "center",
+              }}
+            >
+              <div style={{ textAlign: "left" }}>
+                <p style={{ margin: 0, color: "#8ee8ff", fontSize: "11px", fontWeight: 900, letterSpacing: "0.2em", textTransform: "uppercase" }}>
+                  Dreamscape Builders
+                </p>
+                <h2
+                  id="build-with-dreamscape-heading"
+                  style={{
+                    margin: "16px 0 0",
+                    maxWidth: "780px",
+                    fontFamily: 'Georgia, "Times New Roman", serif',
+                    fontSize: isMobile ? "38px" : "54px",
+                    fontWeight: 400,
+                    lineHeight: 1.07,
+                    color: "white",
+                  }}
+                >
+                  Want to build something real?
+                </h2>
+                <p style={{ margin: "20px 0 0", maxWidth: "760px", color: "rgba(255,255,255,0.7)", fontSize: isMobile ? "16px" : "18px", fontWeight: 300, lineHeight: 1.68 }}>
+                  We open selected side projects for students, recent graduates and early-career builders who want hands-on experience across education, content, design, AI and product development.
+                </p>
+                <div style={{ marginTop: "24px", display: "flex", flexWrap: "wrap", gap: "9px" }}>
+                  {["Project-based", "Flexible", "Real work"].map((label) => (
+                    <span key={label} style={{ padding: "8px 11px", borderRadius: "999px", border: "1px solid rgba(142,232,255,0.16)", background: "rgba(83,215,255,0.055)", color: "rgba(255,255,255,0.7)", fontSize: "11px", fontWeight: 800 }}>
+                      {label}
+                    </span>
+                  ))}
+                </div>
+                <Link
+                  href="/join-us"
+                  style={{
+                    marginTop: "28px",
+                    minHeight: "50px",
+                    padding: "12px 20px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "999px",
+                    background: "linear-gradient(90deg, #8ee8ff, #c58cff)",
+                    color: "#140725",
+                    textDecoration: "none",
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    letterSpacing: "0.09em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Explore Open Projects →
+                </Link>
+              </div>
+              <div aria-hidden="true" style={{ height: isMobile ? "180px" : "250px", display: "flex", alignItems: "flex-end", justifyContent: "center", overflow: "hidden" }}>
+                <img src="/nova/nova-character.png" alt="" style={{ height: isMobile ? "178px" : "242px", width: "auto", objectFit: "contain", display: "block", filter: "drop-shadow(0 22px 46px rgba(0,0,0,0.42))" }} />
+              </div>
+            </div>
+          </section>
+
+
+          <section
             id="pricing-preview"
             aria-labelledby="pricing-preview-heading"
             style={{
@@ -2231,6 +2316,7 @@ export default function Home() {
               <Link href="/education-licence" style={footerLinkStyle}>For Tuition Centres</Link>
               <Link href="/affiliate" style={footerLinkStyle}>Partner With Us</Link>
               <Link href="/affiliate" style={footerLinkStyle}>Affiliate Programme</Link>
+              <Link href="/join-us" style={footerLinkStyle}>Join Us</Link>
               <Link href="/terms" style={footerLinkStyle}>Terms & Conditions</Link>
             </div>
           </div>

@@ -22,6 +22,8 @@ export function determineTeachingReadiness(args: {
   answerValidation: AnswerValidation;
   issues: UnderstandingIssue[];
   confidence: number;
+  domainConfidence: number;
+  structureConfidence: number;
 }): ReadinessResult {
   const {
     canonicalReady,
@@ -32,6 +34,8 @@ export function determineTeachingReadiness(args: {
     answerValidation,
     issues,
     confidence,
+    domainConfidence,
+    structureConfidence,
   } = args;
 
   const hasBlocking =
@@ -41,21 +45,22 @@ export function determineTeachingReadiness(args: {
         "blocking",
     );
 
-  const hasTrueConflict =
-    issues.some(
-      (issue) =>
-        issue.code ===
-          "UNDERSTANDING_CONFLICT" &&
-        issue.severity ===
-          "blocking",
-    );
-
   const reasoningResolved =
     requiredReasoning.length > 0 &&
     !requiredReasoning.every(
       (item) =>
         item === "unknown",
     );
+
+  /*
+   * Phase 4A-2C: each core signal must stand on its own.
+   * A high domain score must not average away a weak/generic
+   * problem-structure classification.
+   */
+  const confidenceReady =
+    domainConfidence >= 0.75 &&
+    structureConfidence >= 0.78 &&
+    confidence >= 0.76;
 
   const strictReady =
     canonicalReady &&
@@ -66,8 +71,8 @@ export function determineTeachingReadiness(args: {
     reasoningResolved &&
     answerValidation.status !==
       "mismatched" &&
-    !hasBlocking &&
-    !hasTrueConflict;
+    confidenceReady &&
+    !hasBlocking;
 
   if (strictReady) {
     return {
@@ -81,7 +86,6 @@ export function determineTeachingReadiness(args: {
     answerValidation.status ===
       "mismatched" ||
     hasBlocking ||
-    hasTrueConflict ||
     (
       domain === "unknown" &&
       problemStructure ===

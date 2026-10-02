@@ -9,10 +9,14 @@ import type {
 
 import { lower } from "./text";
 
+type CurriculumSource =
+  CurriculumContext["selectedSource"];
+
 type DomainCandidate = {
   domain: MathematicalDomain;
   confidence: number;
   code: string;
+  source: CurriculumSource;
 };
 
 function collectCurriculumText(
@@ -23,40 +27,29 @@ function collectCurriculumText(
   secondarySkills: string[];
   legacySkill: string;
   tags: string[];
-  combined: string;
 } {
-  const topic = question.curriculum.topicName ?? "";
-  const primarySkill =
-    question.curriculum.primarySkill?.name ?? "";
-  const secondarySkills =
-    question.curriculum.secondarySkills.map(
-      (skill) => skill.name,
-    );
-  const legacySkill =
-    question.curriculum.legacySkillLabel ?? "";
-  const tags = question.curriculum.skillTags ?? [];
-
   return {
-    topic,
-    primarySkill,
-    secondarySkills,
-    legacySkill,
-    tags,
-    combined: lower(
-      [
-        topic,
-        primarySkill,
-        ...secondarySkills,
-        legacySkill,
-        ...tags,
-      ].join(" "),
-    ),
+    topic: question.curriculum.topicName ?? "",
+    primarySkill:
+      question.curriculum.primarySkill?.name ?? "",
+    secondarySkills:
+      question.curriculum.secondarySkills.map(
+        (skill) => skill.name,
+      ),
+    legacySkill:
+      question.curriculum.legacySkillLabel ?? "",
+    tags: question.curriculum.skillTags ?? [],
   };
 }
 
 function candidateFromText(
-  combined: string,
+  textRaw: string,
+  source: CurriculumSource,
+  multiplier = 1,
 ): DomainCandidate | null {
+  const text = lower(textRaw);
+  if (!text) return null;
+
   const rules: Array<{
     test: RegExp;
     domain: MathematicalDomain;
@@ -174,11 +167,15 @@ function candidateFromText(
   ];
 
   for (const rule of rules) {
-    if (rule.test.test(combined)) {
+    if (rule.test.test(text)) {
       return {
         domain: rule.domain,
-        confidence: rule.confidence,
+        confidence: Math.min(
+          0.999,
+          rule.confidence * multiplier,
+        ),
         code: rule.code,
+        source,
       };
     }
   }
@@ -186,12 +183,10 @@ function candidateFromText(
   return null;
 }
 
-function topicFallback(
+function topicCandidate(
   topicRaw: string,
 ): DomainCandidate | null {
   const topic = lower(topicRaw);
-
-  if (!topic) return null;
 
   const exact: Record<string, MathematicalDomain> = {
     "whole numbers": "whole_numbers",
@@ -209,6 +204,7 @@ function topicFallback(
     money: "money",
     data: "data",
     average: "average",
+    time: "time",
   };
 
   const domain = exact[topic];
@@ -216,9 +212,77 @@ function topicFallback(
 
   return {
     domain,
-    confidence: 0.9,
-    code: "CURRICULUM_TOPIC_FALLBACK",
+    confidence: 0.96,
+    code: "CURRICULUM_TOPIC_EXACT",
+    source: "topic",
   };
+}
+
+function chooseCandidate(
+  candidates: DomainCandidate[],
+): DomainCandidate | null {
+  if (candidates.length === 0) return null;
+
+  // A specific skill can refine a broader topic.
+  const topic = candidates.find(
+    (candidate) => candidate.source === "topic",
+  );
+
+  const explicitSkill = candidates.find(
+    (candidate) =>
+      candidate.source === "primary_skill" ||
+      candidate.source === "legacy_skill",
+  );
+
+  if (
+    topic &&
+    explicitSkill &&
+    topic.domain === "measurement" &&
+    explicitSkill.domain === "money"
+  ) {
+    return explicitSkill;
+  }
+
+  // Topic + an explicit skill agreement is stronger than stale tags.
+  const agreement = candidates.filter(
+    (candidate) =>
+      candidate.source !== "skill_tag" &&
+      candidate.domain ===
+        (explicitSkill?.domain ?? topic?.domain),
+  );
+
+  if (
+    agreement.length >= 2 &&
+    (explicitSkill || topic)
+  ) {
+    const selected = explicitSkill ?? topic!;
+    return {
+      ...selected,
+      confidence: Math.max(
+        ...agreement.map(
+          (candidate) => candidate.confidence,
+        ),
+      ),
+    };
+  }
+
+  // Explicit skills outrank generic topic labels; exact topic outranks tags.
+  const sourceOrder: CurriculumSource[] = [
+    "primary_skill",
+    "legacy_skill",
+    "topic",
+    "secondary_skill",
+    "skill_tag",
+    "unknown",
+  ];
+
+  return [...candidates].sort((a, b) => {
+    const ai = sourceOrder.indexOf(a.source);
+    const bi = sourceOrder.indexOf(b.source);
+
+    if (ai !== bi) return ai - bi;
+    return b.confidence - a.confidence;
+  })[0];
 }
 
 export function buildCurriculumContext(
@@ -226,19 +290,66 @@ export function buildCurriculumContext(
 ): CurriculumContext {
   const collected = collectCurriculumText(question);
 
-  const primary =
-    candidateFromText(
-      lower(
-        [
-          collected.primarySkill,
-          ...collected.secondarySkills,
-          collected.legacySkill,
-          ...collected.tags,
-        ].join(" "),
-      ),
-    ) ??
-    topicFallback(collected.topic) ??
-    candidateFromText(collected.combined);
+  const candidates: DomainCandidate[] = [];
+
+  const primary = candidateFromText(
+    collected.primarySkill,
+    "primary_skill",
+    1,
+  );
+  if (primary) candidates.push(primary);
+
+  const legacy = candidateFromText(
+    collected.legacySkill,
+    "legacy_skill",
+    // Legacy labels are useful but are not allowed to overpower a
+    // clear topic + prompt agreement merely because they contain
+    // a generic word such as "data" or "reasoning".
+    /\bvisual and data reasoning\b/i.test(
+      collected.legacySkill,
+    )
+      ? 0.82
+      : 0.98,
+  );
+  if (legacy) candidates.push(legacy);
+
+  const topic = topicCandidate(collected.topic);
+  if (topic) candidates.push(topic);
+
+  for (const skill of collected.secondarySkills) {
+    const candidate = candidateFromText(
+      skill,
+      "secondary_skill",
+      0.95,
+    );
+    if (candidate) candidates.push(candidate);
+  }
+
+  // Tags are deliberately last and materially weaker. They frequently
+  // contain migration/source labels and must never override an explicit
+  // topic or named skill.
+  for (const tag of collected.tags) {
+    const candidate = candidateFromText(
+      tag,
+      "skill_tag",
+      0.76,
+    );
+    if (candidate) candidates.push(candidate);
+  }
+
+  const dataTopic =
+    topic?.domain === "data";
+
+  const legacyLooksLikeDataContext =
+    /\bfrom data\b|\bfrom a graph\b|\bfrom graph\b|\bdata reasoning\b/.test(
+      lower(collected.legacySkill),
+    );
+
+  const selected =
+    dataTopic &&
+    legacyLooksLikeDataContext
+      ? topic
+      : chooseCandidate(candidates);
 
   return {
     topic: collected.topic || null,
@@ -246,8 +357,15 @@ export function buildCurriculumContext(
     secondarySkills: collected.secondarySkills,
     legacySkill: collected.legacySkill || null,
     skillTags: collected.tags,
-    inferredDomain: primary?.domain ?? "unknown",
-    confidence: primary?.confidence ?? 0.2,
-    reasonCodes: primary ? [primary.code] : ["CURRICULUM_DOMAIN_UNKNOWN"],
+    inferredDomain:
+      selected?.domain ?? "unknown",
+    confidence:
+      selected?.confidence ?? 0.2,
+    reasonCodes:
+      selected
+        ? [selected.code]
+        : ["CURRICULUM_DOMAIN_UNKNOWN"],
+    selectedSource:
+      selected?.source ?? "unknown",
   };
 }

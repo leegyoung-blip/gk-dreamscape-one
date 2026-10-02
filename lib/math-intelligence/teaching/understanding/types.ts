@@ -274,7 +274,10 @@ export type UnderstandingIssueCode =
   | "ANSWER_VALIDATION_MISMATCH"
   | "VISUAL_ROLE_UNRESOLVED"
   | "VISUAL_DEPENDENCY_UNRESOLVED"
-  | "MULTIPART_DEPENDENCY_UNRESOLVED";
+  | "MULTIPART_DEPENDENCY_UNRESOLVED"
+  | "LOW_DOMAIN_CONFIDENCE"
+  | "LOW_STRUCTURE_CONFIDENCE"
+  | "GRANULAR_SKILL_MAPPING_ABSENT";
 
 export type UnderstandingIssue = {
   severity: UnderstandingIssueSeverity;
@@ -304,6 +307,13 @@ export type CurriculumContext = {
   inferredDomain: MathematicalDomain;
   confidence: number;
   reasonCodes: string[];
+  selectedSource:
+    | "primary_skill"
+    | "legacy_skill"
+    | "topic"
+    | "secondary_skill"
+    | "skill_tag"
+    | "unknown";
 };
 
 export type TeachingPartUnderstanding = {
@@ -332,7 +342,7 @@ export type TeachingPartUnderstanding = {
 };
 
 export type TeachingQuestionUnderstanding = {
-  schemaVersion: "4A-2.2";
+  schemaVersion: "4A-2.3";
   questionId: string | null;
   learnerLevel: PrimaryLevel | null;
 
@@ -392,7 +402,7 @@ export type UnderstandTeachingQuestionInput = {
 };
 
 export type BatchUnderstandingSummary = {
-  schemaVersion: "4A-2.2";
+  schemaVersion: "4A-2.3";
   total: number;
 
   status: {
@@ -413,6 +423,7 @@ export type BatchUnderstandingSummary = {
   byDomain: Record<string, number>;
   byProblemStructure: Record<string, number>;
   byVisualRole: Record<string, number>;
+  byCurriculumSource: Record<string, number>;
 
   issueCounts: Record<string, number>;
   evidenceRelationshipCounts: Record<string, number>;

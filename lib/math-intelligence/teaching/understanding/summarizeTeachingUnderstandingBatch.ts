@@ -20,7 +20,7 @@ export function summarizeTeachingUnderstandingBatch(
   items: TeachingQuestionUnderstanding[],
 ): BatchUnderstandingSummary {
   const summary: BatchUnderstandingSummary = {
-    schemaVersion: "4A-2.2",
+    schemaVersion: "4A-2.3",
     total: items.length,
 
     status: {
@@ -37,6 +37,7 @@ export function summarizeTeachingUnderstandingBatch(
     byDomain: {},
     byProblemStructure: {},
     byVisualRole: {},
+    byCurriculumSource: {},
 
     issueCounts: {},
     evidenceRelationshipCounts: {},
@@ -72,6 +73,11 @@ export function summarizeTeachingUnderstandingBatch(
     bump(
       summary.byVisualRole,
       item.visualContext.role,
+    );
+
+    bump(
+      summary.byCurriculumSource,
+      item.curriculumContext.selectedSource,
     );
 
     for (const issue of item.issues) {

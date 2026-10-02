@@ -115,6 +115,18 @@ function inferPromptDomain(
   }
 
   if (
+    /\bclock\b|\bo'clock\b|\bduration\b|\bminutes?\b|\bhours?\b|\bseconds?\b/.test(
+      t,
+    )
+  ) {
+    return {
+      domain: "time",
+      confidence: 0.92,
+      code: "PROMPT_DOMAIN_TIME",
+    };
+  }
+
+  if (
     /\bfraction\b|\b\d+\s*\/\s*\d+\b/.test(
       t,
     )
@@ -140,18 +152,6 @@ function inferPromptDomain(
       domain: "money",
       confidence: 0.96,
       code: "PROMPT_DOMAIN_MONEY",
-    };
-  }
-
-  if (
-    /\bclock\b|\bo'clock\b|\bduration\b|\bminutes?\b|\bhours?\b|\bseconds?\b/.test(
-      t,
-    )
-  ) {
-    return {
-      domain: "time",
-      confidence: 0.92,
-      code: "PROMPT_DOMAIN_TIME",
     };
   }
 
@@ -286,6 +286,9 @@ function resolveDomain(
       question.intelligence.domain,
     );
 
+  const existingConfidence =
+    question.intelligence.confidence ?? 0;
+
   const evidence: UnderstandingEvidence[] =
     [
       {
@@ -324,43 +327,69 @@ function resolveDomain(
     });
   }
 
-  // Curriculum metadata is the strongest normal signal.
-  // Prompt is allowed to refine a broad curriculum family.
+  /*
+   * 4A-2C evidence precedence:
+   *
+   * 1. Two independent signals agreeing beat a single conflicting signal.
+   * 2. Explicit Primary/legacy skill and exact topic metadata remain strong.
+   * 3. Specialised prompt semantics may refine a broader curriculum family
+   *    (e.g. Measurement -> Money).
+   * 4. Stale tags never outrank explicit topic/skill + prompt evidence.
+   */
+
   if (
-    curriculum.inferredDomain !==
-    "unknown"
+    prompt.domain !== "unknown" &&
+    existing !== "unknown" &&
+    prompt.domain === existing
   ) {
-    if (
-      curriculum.inferredDomain ===
-        "measurement" &&
-      prompt.domain === "money"
-    ) {
-      return {
-        domain: "money",
-        confidence: Math.max(
-          curriculum.confidence,
-          prompt.confidence,
-        ),
-        evidence,
-      };
-    }
+    return {
+      domain: prompt.domain,
+      confidence: Math.max(
+        prompt.confidence,
+        existingConfidence,
+      ),
+      evidence,
+    };
+  }
 
-    if (
-      curriculum.inferredDomain ===
-        "whole_numbers" &&
-      prompt.domain === "arithmetic"
-    ) {
-      return {
-        domain: "whole_numbers",
-        confidence:
-          curriculum.confidence,
-        evidence,
-      };
-    }
-
+  if (
+    curriculum.inferredDomain !== "unknown" &&
+    prompt.domain ===
+      curriculum.inferredDomain
+  ) {
     return {
       domain:
         curriculum.inferredDomain,
+      confidence: Math.max(
+        curriculum.confidence,
+        prompt.confidence,
+      ),
+      evidence,
+    };
+  }
+
+  if (
+    curriculum.inferredDomain ===
+      "measurement" &&
+    prompt.domain === "money"
+  ) {
+    return {
+      domain: "money",
+      confidence: Math.max(
+        curriculum.confidence,
+        prompt.confidence,
+      ),
+      evidence,
+    };
+  }
+
+  if (
+    curriculum.inferredDomain ===
+      "whole_numbers" &&
+    prompt.domain === "arithmetic"
+  ) {
+    return {
+      domain: "whole_numbers",
       confidence:
         curriculum.confidence,
       evidence,
@@ -368,46 +397,62 @@ function resolveDomain(
   }
 
   if (
+    curriculum.inferredDomain !==
+      "unknown"
+  ) {
+    const sourceIsExplicit =
+      curriculum.selectedSource ===
+        "primary_skill" ||
+      curriculum.selectedSource ===
+        "legacy_skill" ||
+      curriculum.selectedSource ===
+        "topic";
+
+    if (
+      sourceIsExplicit &&
+      curriculum.confidence >= 0.84
+    ) {
+      return {
+        domain:
+          curriculum.inferredDomain,
+        confidence:
+          curriculum.confidence,
+        evidence,
+      };
+    }
+  }
+
+  if (
+    prompt.domain !== "unknown" &&
+    prompt.confidence >= 0.9
+  ) {
+    return {
+      domain: prompt.domain,
+      confidence: prompt.confidence,
+      evidence,
+    };
+  }
+
+  if (
     existing !== "unknown"
   ) {
-    // Prompt may refine a broad existing family.
-    if (
-      existing === "measurement" &&
-      prompt.domain === "money"
-    ) {
-      return {
-        domain: "money",
-        confidence: Math.max(
-          prompt.confidence,
-          question.intelligence
-            .confidence ?? 0.7,
-        ),
-        evidence,
-      };
-    }
+    return {
+      domain: existing,
+      confidence:
+        existingConfidence || 0.7,
+      evidence,
+    };
+  }
 
-    if (
-      prompt.domain === "unknown"
-    ) {
-      return {
-        domain: existing,
-        confidence:
-          question.intelligence
-            .confidence ?? 0.7,
-        evidence,
-      };
-    }
-
+  if (
+    curriculum.inferredDomain !==
+      "unknown"
+  ) {
     return {
       domain:
-        prompt.confidence >= 0.94
-          ? prompt.domain
-          : existing,
-      confidence: Math.max(
-        prompt.confidence,
-        question.intelligence
-          .confidence ?? 0.7,
-      ),
+        curriculum.inferredDomain,
+      confidence:
+        curriculum.confidence,
       evidence,
     };
   }
@@ -439,6 +484,8 @@ function addUnderstandingIssues(args: {
       typeof compareStructures
     >["relationship"];
   confidence: number;
+  domainConfidence: number;
+  structureConfidence: number;
   curriculumDomainResolved: boolean;
 }): UnderstandingIssue[] {
   const issues: UnderstandingIssue[] = [];
@@ -499,6 +546,19 @@ function addUnderstandingIssues(args: {
   }
 
   if (
+    !args.question.curriculum.primarySkill &&
+    args.question.curriculum.secondarySkills.length === 0
+  ) {
+    issues.push({
+      severity: "info",
+      code: "GRANULAR_SKILL_MAPPING_ABSENT",
+      message:
+        "No canonical primary/secondary skill mapping was supplied to Phase 4A-2C-1. Legacy skill/topic evidence remains available, but the QA source should be enriched with real question-skill mappings when possible.",
+      path: "source.canonical.curriculum",
+    });
+  }
+
+  if (
     args.reasoning.length === 0 ||
     args.reasoning.every(
       (item) =>
@@ -530,30 +590,46 @@ function addUnderstandingIssues(args: {
   const trueConflict =
     args.domainRelationship ===
       "conflict" ||
-    (
-      args.structureRelationship ===
-        "conflict" &&
-      !args.curriculumDomainResolved
-    );
+    args.structureRelationship ===
+      "conflict";
 
   if (trueConflict) {
-    const strong =
-      args.confidence >= 0.85 &&
-      (
-        args.question.intelligence
-          .confidence ?? 0
-      ) >= 0.85;
-
     issues.push({
-      severity:
-        strong
-          ? "blocking"
-          : "warning",
+      severity: "blocking",
       code:
         "UNDERSTANDING_CONFLICT",
       message:
-        "The refined deterministic understanding conflicts with existing high-confidence Math Intelligence evidence.",
+        "The refined deterministic understanding still conflicts with existing Math Intelligence evidence. Resolve the disagreement before Phase 4C.",
       path: "evidence",
+    });
+  }
+
+  if (
+    args.domain !== "unknown" &&
+    args.domainConfidence < 0.75
+  ) {
+    issues.push({
+      severity: "warning",
+      code:
+        "LOW_DOMAIN_CONFIDENCE",
+      message:
+        "The domain is resolved, but its confidence is below the Phase 4C threshold.",
+      path: "domain",
+    });
+  }
+
+  if (
+    args.problemStructure !==
+      "unknown" &&
+    args.structureConfidence < 0.78
+  ) {
+    issues.push({
+      severity: "warning",
+      code:
+        "LOW_STRUCTURE_CONFIDENCE",
+      message:
+        "The problem structure is resolved only by a low-confidence fallback and is not safe for Phase 4C.",
+      path: "problemStructure",
     });
   }
 
@@ -769,6 +845,51 @@ export function understandTeachingQuestion(
           .problemStructure,
     });
 
+  let domainRelationship =
+    domainComparison.relationship;
+
+  let structureRelationship =
+    structureComparison.relationship;
+
+  /*
+   * Existing Math Intelligence is evidence, not absolute truth.
+   * A disagreement is considered resolved (refinement) when the new
+   * teaching understanding has independent, strong corroboration.
+   * Otherwise it remains a genuine conflict and blocks Phase 4C.
+   */
+  const explicitCurriculumSupport =
+    curriculumContext.inferredDomain ===
+      domain &&
+    curriculumContext.selectedSource !==
+      "skill_tag" &&
+    curriculumContext.selectedSource !==
+      "unknown" &&
+    curriculumContext.confidence >= 0.84;
+
+  if (
+    domainRelationship === "conflict" &&
+    explicitCurriculumSupport &&
+    structure.confidence >= 0.82
+  ) {
+    domainRelationship = "refinement";
+  }
+
+  if (
+    structureRelationship ===
+      "conflict" &&
+    domainRelationship !==
+      "conflict" &&
+    structure.confidence >= 0.9 &&
+    (
+      answerValidation.status ===
+        "matched" ||
+      explicitCurriculumSupport
+    )
+  ) {
+    structureRelationship =
+      "refinement";
+  }
+
   const evidence: UnderstandingEvidence[] =
     [
       {
@@ -792,7 +913,7 @@ export function understandTeachingQuestion(
     ];
 
   if (
-    domainComparison.relationship
+    domainRelationship
   ) {
     evidence.push({
       source:
@@ -800,17 +921,17 @@ export function understandTeachingQuestion(
       code:
         "DOMAIN_COMPATIBILITY",
       message:
-        `Existing domain ${domainComparison.existing} is ${domainComparison.relationship} with refined domain ${domain}.`,
+        `Existing domain ${domainComparison.existing} is ${domainRelationship} with refined domain ${domain}.`,
       confidence:
         question.intelligence
           .confidence,
       relationship:
-        domainComparison.relationship,
+        domainRelationship,
     });
   }
 
   if (
-    structureComparison.relationship
+    structureRelationship
   ) {
     evidence.push({
       source:
@@ -818,12 +939,12 @@ export function understandTeachingQuestion(
       code:
         "STRUCTURE_COMPATIBILITY",
       message:
-        `Existing structure ${structureComparison.existing} is ${structureComparison.relationship} with refined structure ${structure.problemStructure}.`,
+        `Existing structure ${structureComparison.existing} is ${structureRelationship} with refined structure ${structure.problemStructure}.`,
       confidence:
         question.intelligence
           .confidence,
       relationship:
-        structureComparison.relationship,
+        structureRelationship,
     });
   }
 
@@ -863,11 +984,13 @@ export function understandTeachingQuestion(
       reasoning:
         requiredReasoning,
       answerValidation,
-      domainRelationship:
-        domainComparison.relationship,
-      structureRelationship:
-        structureComparison.relationship,
+      domainRelationship,
+      structureRelationship,
       confidence,
+      domainConfidence:
+        domainResolution.confidence,
+      structureConfidence:
+        structure.confidence,
       curriculumDomainResolved:
         curriculumContext.inferredDomain !==
         "unknown",
@@ -886,6 +1009,10 @@ export function understandTeachingQuestion(
       answerValidation,
       issues,
       confidence,
+      domainConfidence:
+        domainResolution.confidence,
+      structureConfidence:
+        structure.confidence,
     });
 
   const visualContext =
@@ -912,7 +1039,7 @@ export function understandTeachingQuestion(
     );
 
   return {
-    schemaVersion: "4A-2.2",
+    schemaVersion: "4A-2.3",
     questionId:
       question.identity
         .questionId,

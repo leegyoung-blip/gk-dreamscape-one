@@ -208,6 +208,14 @@ function QuestionDetail({
               }
             </dd>
           </div>
+          <div>
+            <dt>
+              Selected evidence source
+            </dt>
+            <dd>
+              {u.curriculumContext.selectedSource}
+            </dd>
+          </div>
         </dl>
       </section>
 
@@ -252,7 +260,7 @@ function QuestionDetail({
 
       <section>
         <h5>
-          4A-2B Refined Understanding
+          4A-2C-1 Evidence & Readiness
         </h5>
         <dl>
           <div>
@@ -475,7 +483,7 @@ function QuestionDetail({
 
         {u.issues.length === 0 ? (
           <p className="phase4a2b-muted">
-            No 4A-2B issues.
+            No 4A-2C-1 issues.
           </p>
         ) : (
           <ul className="phase4a2b-issues">
@@ -662,7 +670,7 @@ export default function Phase4A2TeachingQA({
     if (!run) return;
 
     downloadJson(
-      `phase-4a2b-teaching-understanding-${
+      `phase-4a2c1-evidence-readiness-${
         run.sourceRunId?.slice(
           0,
           8,
@@ -679,8 +687,8 @@ export default function Phase4A2TeachingQA({
       <header className="phase4a2b-header">
         <div>
           <p className="phase4a2b-eyebrow">
-            PHASE 4A-2B ·
-            UNDERSTANDING REFINEMENT
+            PHASE 4A-2C-1 ·
+            EVIDENCE & READINESS FOUNDATION
           </p>
 
           <h3>
@@ -722,8 +730,7 @@ export default function Phase4A2TeachingQA({
             onClick={handleRun}
             disabled={!hasSample}
           >
-            Run 4A-2B Refined
-            Understanding
+            Run 4A-2C-1 Evidence Check
           </button>
         </div>
       </header>
@@ -817,6 +824,14 @@ export default function Phase4A2TeachingQA({
               values={
                 run.summary
                   .byVisualRole
+              }
+            />
+
+            <Breakdown
+              title="Curriculum evidence source"
+              values={
+                run.summary
+                  .byCurriculumSource
               }
             />
 
@@ -937,7 +952,7 @@ export default function Phase4A2TeachingQA({
               className="phase4a2b-secondary"
               onClick={handleExport}
             >
-              Export 4A-2B JSON
+              Export 4A-2C-1 JSON
             </button>
           </div>
 
