@@ -94,6 +94,20 @@ type Summary = {
   total_amount: number | string;
 };
 
+type RoleCostRow = {
+  staff_category: StaffCategory;
+  staff_count: number;
+  payment_count: number;
+  base_pay: number | string;
+  bonus: number | string;
+  allowances: number | string;
+  deductions: number | string;
+  other_adjustment: number | string;
+  total_amount: number | string;
+  pending_amount: number | string;
+  paid_amount: number | string;
+};
+
 type StaffForm = {
   person_id: string;
   full_name: string;
@@ -233,6 +247,24 @@ function unitLabel(value: PayBasis) {
   return "Units";
 }
 
+function csvCell(value: unknown) {
+  const text = String(value ?? "");
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function downloadCsv(filename: string, rows: unknown[][]) {
+  const body = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+  const blob = new Blob(["\uFEFF", body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 function staffFormFromRow(row: StaffRow): StaffForm {
   return {
     person_id: row.person_id,
@@ -265,6 +297,8 @@ export default function StaffPaymentsClient({
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [roleCosts, setRoleCosts] = useState<RoleCostRow[]>([]);
+  const [ytdRoleCosts, setYtdRoleCosts] = useState<RoleCostRow[]>([]);
   const [month, setMonth] = useState(currentMonthValue());
   const [search, setSearch] = useState("");
   const [staffStatus, setStaffStatus] = useState<"all" | EmploymentStatus>("active");
@@ -327,7 +361,10 @@ export default function StaffPaymentsClient({
 
     setAccessStatus("allowed");
 
-    const [peopleResult, staffResult, summaryResult, paymentsResult] =
+    const reportYear = Number(month.slice(0, 4));
+    const ytdStart = `${reportYear}-01-01`;
+
+    const [peopleResult, staffResult, summaryResult, paymentsResult, roleCostResult, ytdRoleCostResult] =
       await Promise.all([
         supabase.rpc("billing_staff_people_list"),
         supabase.rpc("billing_staff_list", {
@@ -345,13 +382,25 @@ export default function StaffPaymentsClient({
           p_period_end: allPaymentHistory ? null : period.end,
           p_limit: 1000,
         }),
+        supabase.rpc("billing_staff_role_cost_summary", {
+          p_company_code: companyCode,
+          p_period_start: period.start,
+          p_period_end: period.end,
+        }),
+        supabase.rpc("billing_staff_role_cost_summary", {
+          p_company_code: companyCode,
+          p_period_start: ytdStart,
+          p_period_end: period.end,
+        }),
       ]);
 
     const firstError =
       peopleResult.error ||
       staffResult.error ||
       summaryResult.error ||
-      paymentsResult.error;
+      paymentsResult.error ||
+      roleCostResult.error ||
+      ytdRoleCostResult.error;
 
     if (firstError) {
       setError(firstError.message);
@@ -363,8 +412,10 @@ export default function StaffPaymentsClient({
     setStaff((staffResult.data || []) as StaffRow[]);
     setSummary((((summaryResult.data || []) as Summary[])[0] || null) as Summary | null);
     setPayments((paymentsResult.data || []) as PaymentRow[]);
+    setRoleCosts((roleCostResult.data || []) as RoleCostRow[]);
+    setYtdRoleCosts((ytdRoleCostResult.data || []) as RoleCostRow[]);
     setLoading(false);
-  }, [allPaymentHistory, companyCode, paymentEmploymentId, period.end, period.start]);
+  }, [allPaymentHistory, companyCode, month, paymentEmploymentId, period.end, period.start]);
 
   useEffect(() => {
     void load();
@@ -421,6 +472,76 @@ export default function StaffPaymentsClient({
       numberValue(paymentForm.other_adjustment);
     return { base, total };
   }, [paymentForm, selectedPaymentEmployment?.pay_basis]);
+
+  const payrollReporting = useMemo(() => {
+    return roleCosts.reduce(
+      (current, row) => ({
+        base: current.base + numberValue(row.base_pay),
+        bonus: current.bonus + numberValue(row.bonus),
+        allowances: current.allowances + numberValue(row.allowances),
+        deductions: current.deductions + numberValue(row.deductions),
+        adjustments: current.adjustments + numberValue(row.other_adjustment),
+        total: current.total + numberValue(row.total_amount),
+      }),
+      { base: 0, bonus: 0, allowances: 0, deductions: 0, adjustments: 0, total: 0 },
+    );
+  }, [roleCosts]);
+
+  const ytdPaid = useMemo(
+    () => ytdRoleCosts.reduce((sum, row) => sum + numberValue(row.paid_amount), 0),
+    [ytdRoleCosts],
+  );
+
+  function exportPayrollCsv() {
+    const rows: unknown[][] = [];
+    rows.push([`${companyName} Staff Payments Export`]);
+    rows.push(["Payroll month", monthLabel(month)]);
+    rows.push(["Generated", new Date().toISOString()]);
+    rows.push([]);
+    rows.push(["MONTH SUMMARY"]);
+    rows.push(["Active staff", Number(summary?.active_staff_count || 0)]);
+    rows.push(["Payroll entries", Number(summary?.payment_count || 0)]);
+    rows.push(["Pending", numberValue(summary?.pending_amount)]);
+    rows.push(["Paid", numberValue(summary?.paid_amount)]);
+    rows.push(["Period total", numberValue(summary?.total_amount)]);
+    rows.push(["Base pay", payrollReporting.base]);
+    rows.push(["Bonuses", payrollReporting.bonus]);
+    rows.push(["Allowances", payrollReporting.allowances]);
+    rows.push(["Deductions", payrollReporting.deductions]);
+    rows.push(["Other adjustments", payrollReporting.adjustments]);
+    rows.push(["YTD paid", ytdPaid]);
+    rows.push([]);
+    rows.push(["COST BY ROLE"]);
+    rows.push(["Role", "Staff", "Entries", "Base", "Bonus", "Allowances", "Deductions", "Adjustments", "Total", "Pending", "Paid"]);
+    for (const row of roleCosts) {
+      rows.push([
+        categoryLabel(row.staff_category), row.staff_count, row.payment_count, numberValue(row.base_pay), numberValue(row.bonus),
+        numberValue(row.allowances), numberValue(row.deductions), numberValue(row.other_adjustment), numberValue(row.total_amount),
+        numberValue(row.pending_amount), numberValue(row.paid_amount),
+      ]);
+    }
+    rows.push([]);
+    rows.push(["STAFF DIRECTORY"]);
+    rows.push(["Name", "Email", "Phone", "Role", "Job title", "Status", "Start", "End", "Pay basis", "Standard rate", "Currency", "YTD paid"]);
+    for (const row of staff) {
+      rows.push([
+        row.full_name, row.email || "", row.phone || "", categoryLabel(row.staff_category), row.job_title, row.employment_status,
+        row.start_date, row.end_date || "", payBasisLabel(row.pay_basis), numberValue(row.default_rate), row.currency, numberValue(row.ytd_paid_amount),
+      ]);
+    }
+    rows.push([]);
+    rows.push(["PAYMENT LEDGER"]);
+    rows.push(["Name", "Job title", "Role", "Period start", "Period end", "Pay basis", "Units", "Rate", "Base", "Bonus", "Allowances", "Deductions", "Adjustment", "Total", "Status", "Paid date", "Method", "Reference", "Notes"]);
+    for (const row of payments) {
+      rows.push([
+        row.full_name, row.job_title, categoryLabel(row.staff_category), row.period_start, row.period_end, payBasisLabel(row.pay_basis_snapshot),
+        numberValue(row.units), numberValue(row.unit_rate), numberValue(row.base_pay), numberValue(row.bonus), numberValue(row.allowances),
+        numberValue(row.deductions), numberValue(row.other_adjustment), numberValue(row.total_amount), row.payment_status, row.paid_at || "",
+        row.payment_method || "", row.payment_reference || "", row.notes || "",
+      ]);
+    }
+    downloadCsv(`${companyCode}-staff-payments-${month}.csv`, rows);
+  }
 
   function openNewStaff() {
     setEditingEmploymentId("");
@@ -771,6 +892,14 @@ export default function StaffPaymentsClient({
           </button>
           <button
             type="button"
+            onClick={exportPayrollCsv}
+            disabled={loading || working}
+            className="min-h-11 rounded-full border border-[#c8a45c] bg-[#fff9eb] px-4 text-xs font-black text-[#725719] disabled:opacity-50"
+          >
+            Export payroll CSV
+          </button>
+          <button
+            type="button"
             onClick={openNewStaff}
             disabled={working}
             className="min-h-11 rounded-full bg-[#15233b] px-5 text-xs font-black text-white disabled:opacity-50"
@@ -818,6 +947,50 @@ export default function StaffPaymentsClient({
           <Metric label="Paid" value={money(summary?.paid_amount || 0)} detail={`${Number(summary?.paid_count || 0)} record(s)`} />
           <Metric label="Period total" value={money(summary?.total_amount || 0)} />
         </div>
+      </section>
+
+      <section className="mt-6 rounded-[2rem] border border-[#ded5c4] bg-white p-5 shadow-[0_20px_60px_rgba(21,35,59,0.045)] sm:p-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">Payroll reporting</p>
+            <h2 className="mt-2 text-xl font-semibold">Cost composition and YTD</h2>
+            <p className="mt-2 text-xs leading-5 text-[#81796d]">Bonuses, allowances, deductions and role costs are calculated from the staff-payment ledger. No statutory payroll deductions are inferred.</p>
+          </div>
+          <div className="rounded-2xl border border-[#d7c9ae] bg-[#fbfaf7] px-4 py-3 text-right">
+            <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">YTD paid</span>
+            <strong className="mt-1 block text-lg text-[#15233b]">{money(ytdPaid)}</strong>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <Metric label="Base pay" value={money(payrollReporting.base)} />
+          <Metric label="Bonuses" value={money(payrollReporting.bonus)} />
+          <Metric label="Allowances" value={money(payrollReporting.allowances)} />
+          <Metric label="Deductions" value={money(payrollReporting.deductions)} />
+          <Metric label="Adjustments" value={money(payrollReporting.adjustments)} />
+        </div>
+
+        {roleCosts.length > 0 && (
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {roleCosts.map((row) => (
+              <article key={row.staff_category} className="rounded-2xl border border-[#ebe5da] bg-[#fbfaf7] p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <strong className="block text-sm">{categoryLabel(row.staff_category)}</strong>
+                    <span className="mt-1 block text-xs text-[#81796d]">{row.staff_count} staff · {row.payment_count} entr{row.payment_count === 1 ? "y" : "ies"}</span>
+                  </div>
+                  <strong className="text-sm">{money(row.total_amount)}</strong>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-[#81796d]">
+                  <span>Bonus {money(row.bonus)}</span>
+                  <span>Paid {money(row.paid_amount)}</span>
+                  <span>Pending {money(row.pending_amount)}</span>
+                  <span>Deductions {money(row.deductions)}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="mt-6 rounded-[2rem] border border-[#ded5c4] bg-white p-5 shadow-[0_20px_60px_rgba(21,35,59,0.045)] sm:p-6">
