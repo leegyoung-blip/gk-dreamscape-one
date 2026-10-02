@@ -3,8 +3,8 @@
 import type { FormEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import BillingAdminShell from "../_components/BillingAdminShell";
-import BillingModal from "../_components/BillingModal";
+import BillingAdminShell from "../../_components/BillingAdminShell";
+import BillingModal from "../../_components/BillingModal";
 
 type Programme = {
   id: string;
