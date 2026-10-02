@@ -1,1070 +1,968 @@
 import type {
-  CanonicalAnswerContext,
   CanonicalTeachingPart,
   CanonicalTeachingQuestion,
 } from "../canonical";
 
 import type {
-  AnswerValidation,
   MathematicalDomain,
-  MathematicalQuantity,
-  MathematicalRelationship,
-  Manipulability,
-  ProblemStructure,
-  RequiredOperation,
   TeachingPartUnderstanding,
   TeachingQuestionUnderstanding,
-  TeachingTarget,
-  TeachingUnderstandingStatus,
-  TeachingVisualContext,
   UnderstandTeachingQuestionInput,
   UnderstandingEvidence,
   UnderstandingIssue,
-  VisualDependency,
-  VisualRole,
 } from "./types";
 
-type LocalAnalysis = {
-  domain: MathematicalDomain;
-  problemStructure: ProblemStructure;
-  quantities: MathematicalQuantity[];
-  relationships: MathematicalRelationship[];
-  requiredOperations: RequiredOperation[];
-  constraints: string[];
-  units: string[];
-  target: TeachingTarget | null;
-  computedAnswer: string | null;
-  confidence: number;
-  evidence: UnderstandingEvidence[];
-};
+import {
+  clamp01,
+  lower,
+  normalizeSpace,
+  unique,
+} from "./rules/text";
 
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value));
-}
+import {
+  buildCurriculumContext,
+} from "./rules/curriculumContext";
 
-function normalizeSpace(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
-}
+import {
+  normalizeMathDomain,
+} from "./rules/normalizeDomain";
 
-function lower(value: string): string {
-  return normalizeSpace(value).toLowerCase();
-}
+import {
+  analyzeProblemStructure,
+  mergeReasoning,
+} from "./rules/structureRules";
 
-function unique<T>(items: T[]): T[] {
-  return [...new Set(items)];
-}
+import {
+  detectUnits,
+  extractQuantities,
+} from "./rules/quantityExtraction";
 
-function roundReasonably(value: number): string {
-  if (Number.isInteger(value)) return String(value);
-  return String(Number(value.toFixed(10)));
-}
+import {
+  extractTarget,
+} from "./rules/targetRules";
 
-function parseNumericString(value: string): number | null {
-  const cleaned = value.trim().replace(/[$,]/g, "").replace(/%$/, "");
-  if (!cleaned) return null;
-  const parsed = Number(cleaned);
-  return Number.isFinite(parsed) ? parsed : null;
-}
+import {
+  inferTeachingVisualContext,
+} from "./rules/visualRules";
 
-function answerToComparable(answer: CanonicalAnswerContext): string | null {
-  const canonical = answer.canonicalAnswer;
+import {
+  compareDomains,
+  compareStructures,
+} from "./rules/compatibilityRules";
 
-  if (!canonical) return answer.rawAnswer?.trim() ?? null;
+import {
+  validateComputedAnswer,
+} from "./rules/answerValidation";
 
-  switch (canonical.type) {
-    case "number":
-      return `${roundReasonably(canonical.value)}${canonical.unit ?? ""}`
-        .replace(/\s+/g, "")
-        .toLowerCase();
-    case "text":
-      return canonical.value.replace(/\s+/g, " ").trim().toLowerCase();
-    case "option":
-      return (canonical.text ?? answer.rawAnswer ?? canonical.key)
-        .replace(/\s+/g, " ")
-        .trim()
-        .toLowerCase();
-    case "multiple_options":
-      return canonical.keys.map((key) => key.toLowerCase()).sort().join("|");
-    case "multipart":
-      return null;
-  }
-}
+import {
+  determineTeachingReadiness,
+} from "./rules/readinessGate";
 
-function comparableFromComputed(value: string | null): string | null {
-  if (!value) return null;
-  return value.replace(/\s+/g, "").trim().toLowerCase();
-}
-
-function makeQuantity(
-  id: string,
-  raw: string,
-  sourceText: string,
-  role: MathematicalQuantity["role"] = "given",
-  label: string | null = null,
-): MathematicalQuantity {
-  const fraction = raw.match(/^(-?\d+)\s*\/\s*(\d+)$/);
-
-  if (fraction) {
-    const numerator = Number(fraction[1]);
-    const denominator = Number(fraction[2]);
-    return {
-      id,
-      label,
-      raw,
-      value: denominator !== 0 ? numerator / denominator : null,
-      numerator,
-      denominator,
-      unit: null,
-      role,
-      sourceText,
-    };
-  }
-
-  const moneyMatch = raw.match(/^\$\s*(-?\d[\d,]*(?:\.\d+)?)$/);
-  if (moneyMatch) {
-    return {
-      id,
-      label,
-      raw,
-      value: parseNumericString(moneyMatch[1]),
-      numerator: null,
-      denominator: null,
-      unit: "$",
-      role,
-      sourceText,
-    };
-  }
-
-  const percentageMatch = raw.match(/^(-?\d+(?:\.\d+)?)\s*%$/);
-  if (percentageMatch) {
-    return {
-      id,
-      label,
-      raw,
-      value: Number(percentageMatch[1]),
-      numerator: null,
-      denominator: null,
-      unit: "%",
-      role,
-      sourceText,
-    };
-  }
-
-  const unitMatch = raw.match(
-    /^(-?\d[\d,]*(?:\.\d+)?)\s*(mm|cm|m|km|g|kg|ml|l|s|sec|secs|second|seconds|min|mins|minute|minutes|h|hr|hrs|hour|hours|°|degrees?)$/i,
-  );
-
-  if (unitMatch) {
-    return {
-      id,
-      label,
-      raw,
-      value: parseNumericString(unitMatch[1]),
-      numerator: null,
-      denominator: null,
-      unit: unitMatch[2],
-      role,
-      sourceText,
-    };
-  }
-
-  return {
-    id,
-    label,
-    raw,
-    value: parseNumericString(raw),
-    numerator: null,
-    denominator: null,
-    unit: null,
-    role,
-    sourceText,
-  };
-}
-
-function extractQuantities(text: string): MathematicalQuantity[] {
-  const results: MathematicalQuantity[] = [];
-  const occupied = new Set<number>();
-
-  const patterns: RegExp[] = [
-    /\$\s*\d[\d,]*(?:\.\d+)?/g,
-    /\b\d+\s*\/\s*\d+\b/g,
-    /\b\d+(?:\.\d+)?\s*%/g,
-    /\b\d[\d,]*(?:\.\d+)?\s*(?:mm|cm|m|km|g|kg|ml|l|sec|secs|second|seconds|min|mins|minute|minutes|h|hr|hrs|hour|hours|°|degrees?)\b/gi,
-    /\b\d[\d,]*(?:\.\d+)?\b/g,
-  ];
-
-  for (const pattern of patterns) {
-    for (const match of text.matchAll(pattern)) {
-      const start = match.index ?? 0;
-      const raw = match[0];
-      const positions = Array.from({ length: raw.length }, (_, i) => start + i);
-      if (positions.some((position) => occupied.has(position))) continue;
-      positions.forEach((position) => occupied.add(position));
-
-      results.push(makeQuantity(`q${results.length + 1}`, raw, text));
-    }
-  }
-
-  return results;
-}
-
-function detectUnits(quantities: MathematicalQuantity[]): string[] {
-  return unique(
-    quantities
-      .map((quantity) => quantity.unit)
-      .filter((unit): unit is string => Boolean(unit)),
-  );
-}
-
-function detectDomainFromText(
+function inferPromptDomain(
   text: string,
-): { domain: MathematicalDomain; confidence: number; code: string } {
-  const t = lower(text);
-
-  if (/\bpercentage\b|\bpercent\b|%/.test(t)) {
-    return { domain: "percentage", confidence: 0.96, code: "RULE_DOMAIN_PERCENTAGE" };
-  }
-  if (/\bratio\b|\bratios\b|\b\d+\s*:\s*\d+\b/.test(t)) {
-    return { domain: "ratio", confidence: 0.95, code: "RULE_DOMAIN_RATIO" };
-  }
-  if (/\bfraction\b|\bfractions\b|\b\d+\s*\/\s*\d+\b/.test(t)) {
-    return { domain: "fractions", confidence: 0.93, code: "RULE_DOMAIN_FRACTIONS" };
-  }
-  if (/\bdecimal\b|\bdecimals\b|\b\d+\.\d+\b/.test(t)) {
-    return { domain: "decimals", confidence: 0.82, code: "RULE_DOMAIN_DECIMALS" };
-  }
-  if (/\barea\b|\bperimeter\b|\bangle\b|\btriangle\b|\brectangle\b|\bsquare\b|\bparallel\b|\bperpendicular\b|\bsymmetr/.test(t)) {
-    return { domain: "geometry", confidence: 0.9, code: "RULE_DOMAIN_GEOMETRY" };
-  }
-  if (/\blength\b|\bmass\b|\bvolume\b|\bcapacity\b|\bmeasure\b|\bmeasurement\b/.test(t)) {
-    return { domain: "measurement", confidence: 0.9, code: "RULE_DOMAIN_MEASUREMENT" };
-  }
-  if (/\btime\b|\bo'clock\b|\bminutes?\b|\bhours?\b|\bduration\b/.test(t)) {
-    return { domain: "time", confidence: 0.9, code: "RULE_DOMAIN_TIME" };
-  }
-  if (/\bdollar\b|\bdollars\b|\bcents?\b|\bcost\b|\bprice\b|\bchange\b|\$/.test(t)) {
-    return { domain: "money", confidence: 0.88, code: "RULE_DOMAIN_MONEY" };
-  }
-  if (/\bspeed\b|\bdistance\b.*\btime\b|\brate\b/.test(t)) {
-    return { domain: "speed_rate", confidence: 0.9, code: "RULE_DOMAIN_SPEED_RATE" };
-  }
-  if (/\bgraph\b|\bchart\b|\btable\b|\bpictograph\b|\bbar graph\b|\bdata\b/.test(t)) {
-    return { domain: "data", confidence: 0.88, code: "RULE_DOMAIN_DATA" };
-  }
-  if (/\bpattern\b|\bsequence\b/.test(t)) {
-    return { domain: "patterns", confidence: 0.86, code: "RULE_DOMAIN_PATTERNS" };
-  }
-  if (/\bunknown\b|\bequation\b|\b★\b/.test(t)) {
-    return { domain: "algebra", confidence: 0.78, code: "RULE_DOMAIN_ALGEBRA" };
-  }
-  if (/[+\-×÷=]|\bplus\b|\bminus\b|\badd\b|\bsubtract\b|\bmultiply\b|\bdivide\b/.test(t)) {
-    return { domain: "arithmetic", confidence: 0.86, code: "RULE_DOMAIN_ARITHMETIC" };
-  }
-  if (/\bmore than\b|\bfewer than\b|\bless than\b|\baltogether\b|\bin all\b|\btotal\b|\bremaining\b|\bleft\b/.test(t)) {
-    return { domain: "whole_numbers", confidence: 0.7, code: "RULE_DOMAIN_WHOLE_NUMBERS" };
-  }
-
-  return { domain: "unknown", confidence: 0.2, code: "RULE_DOMAIN_UNKNOWN" };
-}
-
-function mapExistingDomain(value: string | null): MathematicalDomain {
-  if (!value) return "unknown";
-  const normalized = value.toLowerCase();
-  const map: Record<string, MathematicalDomain> = {
-    arithmetic: "arithmetic",
-    whole_numbers: "whole_numbers",
-    fractions: "fractions",
-    decimals: "decimals",
-    percentage: "percentage",
-    percent: "percentage",
-    ratio: "ratio",
-    algebra: "algebra",
-    geometry: "geometry",
-    measurement: "measurement",
-    time: "time",
-    money: "money",
-    data: "data",
-    speed: "speed_rate",
-    speed_rate: "speed_rate",
-    word_problem: "word_problem",
-    patterns: "patterns",
-    logic: "logic",
-  };
-  return map[normalized] ?? "unknown";
-}
-
-function mapExistingProblemStructure(value: string | null): ProblemStructure {
-  if (!value) return "unknown";
-  const normalized = value.toLowerCase();
-  const map: Record<string, ProblemStructure> = {
-    direct_calculation: "direct_calculation",
-    comparison: "comparison_difference",
-    comparison_difference: "comparison_difference",
-    part_whole: "part_whole",
-    equal_groups: "equal_groups",
-    sharing: "sharing",
-    fraction_of_whole: "fraction_of_whole",
-    percentage_of_whole: "percentage_of_whole",
-    ratio_relationship: "ratio_relationship",
-    unitary: "unitary",
-    area: "area",
-    perimeter: "perimeter",
-    angle: "angle",
-    shape_properties: "shape_properties",
-    systematic_counting: "systematic_counting",
-    pattern_rule: "pattern_rule",
-    time_reading: "time_interval",
-    time_interval: "time_interval",
-    money_transaction: "money_transaction",
-    data_reading: "data_reading",
-    speed_distance_time: "speed_distance_time",
-    equation_unknown: "equation_unknown",
-    multi_step: "multi_step",
-  };
-  return map[normalized] ?? "unknown";
-}
-
-function targetFromQuestion(text: string): TeachingTarget | null {
-  const sentence =
-    normalizeSpace(text)
-      .split(/(?<=[?.!])\s+/)
-      .reverse()
-      .find((item) => /\?/.test(item)) ?? null;
-
-  if (!sentence) return null;
-
-  return {
-    kind: "unknown",
-    label: sentence.replace(/\?+$/, "").trim(),
-    quantityId: null,
-    sourceText: sentence,
-  };
-}
-
-function relationship(
-  type: MathematicalRelationship["type"],
-  expression: string | null,
-  sourceText: string,
-  confidence: number,
-): MathematicalRelationship {
-  return {
-    id: "r1",
-    type,
-    left: null,
-    right: null,
-    expression,
-    sourceText,
-    confidence,
-  };
-}
-
-function detectProblemStructure(
-  text: string,
-  domain: MathematicalDomain,
 ): {
-  structure: ProblemStructure;
-  operations: RequiredOperation[];
-  relationships: MathematicalRelationship[];
-  target: TeachingTarget | null;
-  computedAnswer: string | null;
+  domain: MathematicalDomain;
   confidence: number;
   code: string;
 } {
   const t = lower(text);
 
-  const simpleCalc = t.match(/(-?\d[\d,]*(?:\.\d+)?)\s*([+\-×x*÷/])\s*(-?\d[\d,]*(?:\.\d+)?)\s*(?:=|\?|$)/i);
-  if (simpleCalc) {
-    const left = parseNumericString(simpleCalc[1]);
-    const op = simpleCalc[2];
-    const right = parseNumericString(simpleCalc[3]);
-
-    if (left !== null && right !== null) {
-      let answer: number | null = null;
-      let operation: RequiredOperation = "unknown";
-      let type: MathematicalRelationship["type"] = "unknown";
-
-      if (op === "+") {
-        answer = left + right;
-        operation = "addition";
-        type = "sum";
-      } else if (op === "-") {
-        answer = left - right;
-        operation = "subtraction";
-        type = "difference";
-      } else if (["×", "x", "*"].includes(op)) {
-        answer = left * right;
-        operation = "multiplication";
-        type = "product";
-      } else if (["÷", "/"].includes(op) && right !== 0) {
-        answer = left / right;
-        operation = "division";
-        type = "quotient";
-      }
-
-      return {
-        structure: "direct_calculation",
-        operations: [operation],
-        relationships: [relationship(type, `${left} ${op} ${right}`, simpleCalc[0], 0.99)],
-        target: { kind: "value", label: "answer", quantityId: null, sourceText: simpleCalc[0] },
-        computedAnswer: answer === null ? null : roundReasonably(answer),
-        confidence: 0.99,
-        code: "RULE_STRUCTURE_DIRECT_CALCULATION",
-      };
-    }
-  }
-
-  const fractionOf = t.match(/(\d+)\s*\/\s*(\d+)\s+of\s+(\d[\d,]*(?:\.\d+)?)/);
-  if (fractionOf) {
-    const numerator = Number(fractionOf[1]);
-    const denominator = Number(fractionOf[2]);
-    const whole = parseNumericString(fractionOf[3]);
+  if (
+    /\baverage\b|\bmean\b/.test(t)
+  ) {
     return {
-      structure: "fraction_of_whole",
-      operations: ["fraction_multiplication"],
-      relationships: [relationship("fraction_of", `${numerator}/${denominator} of ${whole ?? "?"}`, fractionOf[0], 0.98)],
-      target: targetFromQuestion(text),
-      computedAnswer: whole !== null && denominator !== 0 ? roundReasonably((numerator / denominator) * whole) : null,
-      confidence: 0.98,
-      code: "RULE_STRUCTURE_FRACTION_OF_WHOLE",
+      domain: "average",
+      confidence: 0.96,
+      code: "PROMPT_DOMAIN_AVERAGE",
     };
   }
 
-  const percentageOf = t.match(/(\d+(?:\.\d+)?)\s*%\s+of\s+(\d[\d,]*(?:\.\d+)?)/);
-  if (percentageOf) {
-    const percent = Number(percentageOf[1]);
-    const whole = parseNumericString(percentageOf[2]);
+  if (
+    /\baverage speed\b|\bspeed\b|\bkm\/h\b|\bm\/s\b/.test(
+      t,
+    )
+  ) {
     return {
-      structure: "percentage_of_whole",
-      operations: ["percentage"],
-      relationships: [relationship("percentage_of", `${percent}% of ${whole ?? "?"}`, percentageOf[0], 0.98)],
-      target: targetFromQuestion(text),
-      computedAnswer: whole !== null ? roundReasonably((percent / 100) * whole) : null,
-      confidence: 0.98,
-      code: "RULE_STRUCTURE_PERCENTAGE_OF_WHOLE",
+      domain: "speed_rate",
+      confidence: 0.97,
+      code: "PROMPT_DOMAIN_SPEED",
     };
   }
 
-  if (/\bhow many\b.*\b(?:2\s*[×x]\s*2|3\s*[×x]\s*3|squares?|rectangles?)\b/.test(t) && /\bgrid\b|\bdiagram\b/.test(t)) {
+  if (
+    /\bpercentage\b|\bpercent\b|%/.test(
+      t,
+    )
+  ) {
     return {
-      structure: "systematic_counting",
-      operations: ["counting", "spatial_reasoning"],
-      relationships: [relationship("count_valid_positions", null, text, 0.95)],
-      target: { kind: "count", label: targetFromQuestion(text)?.label ?? "number of valid shapes", quantityId: null, sourceText: targetFromQuestion(text)?.sourceText ?? null },
-      computedAnswer: null,
+      domain: "percentage",
+      confidence: 0.97,
+      code:
+        "PROMPT_DOMAIN_PERCENTAGE",
+    };
+  }
+
+  if (
+    /\bratio\b|\b\d+\s*:\s*\d+\b/.test(
+      t,
+    )
+  ) {
+    return {
+      domain: "ratio",
+      confidence: 0.96,
+      code: "PROMPT_DOMAIN_RATIO",
+    };
+  }
+
+  if (
+    /\bfraction\b|\b\d+\s*\/\s*\d+\b/.test(
+      t,
+    )
+  ) {
+    return {
+      domain: "fractions",
       confidence: 0.95,
-      code: "RULE_STRUCTURE_SYSTEMATIC_COUNTING",
+      code:
+        "PROMPT_DOMAIN_FRACTIONS",
     };
   }
 
-  if (/\barea\b/.test(t)) {
+  if (
+    /\bmoney\b|\bnotes?\b|\bcosts?\b|\bprice\b|\bchange\b|\$\s*\d|\d\s*¢/.test(
+      t,
+    ) ||
+    (
+      /\bcoins?\b/.test(t) &&
+      /\b(?:cent|cents|dollar|dollars|worth|value|cost|price)\b|\$|¢/.test(t)
+    )
+  ) {
     return {
-      structure: "area",
-      operations: ["area_calculation"],
-      relationships: [relationship("area", null, text, 0.92)],
-      target: { kind: "area", label: targetFromQuestion(text)?.label ?? "area", quantityId: null, sourceText: targetFromQuestion(text)?.sourceText ?? null },
-      computedAnswer: null,
+      domain: "money",
+      confidence: 0.96,
+      code: "PROMPT_DOMAIN_MONEY",
+    };
+  }
+
+  if (
+    /\bclock\b|\bo'clock\b|\bduration\b|\bminutes?\b|\bhours?\b|\bseconds?\b/.test(
+      t,
+    )
+  ) {
+    return {
+      domain: "time",
       confidence: 0.92,
-      code: "RULE_STRUCTURE_AREA",
+      code: "PROMPT_DOMAIN_TIME",
     };
   }
 
-  if (/\bperimeter\b/.test(t)) {
+  if (
+    /\bgraph\b|\bchart\b|\bpictograph\b|\bdata\b|\bsurvey\b|\blist\b/.test(
+      t,
+    )
+  ) {
     return {
-      structure: "perimeter",
-      operations: ["perimeter_calculation"],
-      relationships: [relationship("perimeter", null, text, 0.92)],
-      target: { kind: "perimeter", label: targetFromQuestion(text)?.label ?? "perimeter", quantityId: null, sourceText: targetFromQuestion(text)?.sourceText ?? null },
-      computedAnswer: null,
+      domain: "data",
       confidence: 0.92,
-      code: "RULE_STRUCTURE_PERIMETER",
+      code: "PROMPT_DOMAIN_DATA",
     };
   }
 
-  if (/\bangle\b|∠/.test(text)) {
+  if (
+    /\barea\b|\bperimeter\b|\bangle\b|\btriangle\b|\brectangle\b|\bsquare\b|\bcircle\b|\bcube\b|\bcuboid\b|\bsolid\b|\bparallel\b|\bperpendicular\b|\bsymmetr|\bgrid\b/.test(
+      t,
+    )
+  ) {
     return {
-      structure: "angle",
-      operations: ["spatial_reasoning"],
-      relationships: [relationship("unknown", null, text, 0.9)],
-      target: { kind: "angle", label: targetFromQuestion(text)?.label ?? "angle", quantityId: null, sourceText: targetFromQuestion(text)?.sourceText ?? null },
-      computedAnswer: null,
+      domain: "geometry",
       confidence: 0.9,
-      code: "RULE_STRUCTURE_ANGLE",
+      code:
+        "PROMPT_DOMAIN_GEOMETRY",
     };
   }
 
-  if (/\bratio\b|\b\d+\s*:\s*\d+\b/.test(t)) {
+  if (
+    /\blength\b|\bmass\b|\bcapacity\b|\bvolume\b|\bheavier\b|\blighter\b|\bcm\b|\bmm\b|\bkm\b|\bkg\b|\bml\b/.test(
+      t,
+    )
+  ) {
     return {
-      structure: "ratio_relationship",
-      operations: ["ratio_scaling"],
-      relationships: [relationship("ratio", null, text, 0.88)],
-      target: targetFromQuestion(text),
-      computedAnswer: null,
+      domain: "measurement",
+      confidence: 0.9,
+      code:
+        "PROMPT_DOMAIN_MEASUREMENT",
+    };
+  }
+
+  if (
+    /\bsimplify\b|\bequation\b|\bmissing number\b|[□★△○◇]/.test(
+      t,
+    )
+  ) {
+    return {
+      domain: "algebra",
       confidence: 0.88,
-      code: "RULE_STRUCTURE_RATIO",
+      code: "PROMPT_DOMAIN_ALGEBRA",
     };
   }
 
-  if (/\bfewer than\b|\bless than\b|\bmore than\b|\bdifference\b/.test(t)) {
-    const type: MathematicalRelationship["type"] = /\bmore than\b/.test(t) ? "more_than" : /\bfewer than\b|\bless than\b/.test(t) ? "less_than" : "difference";
+  if (
+    /\bpattern\b|\bsequence\b|\bcomes next\b/.test(
+      t,
+    )
+  ) {
     return {
-      structure: "comparison_difference",
-      operations: ["comparison", type === "less_than" ? "subtraction" : "unknown"],
-      relationships: [relationship(type, null, text, 0.82)],
-      target: targetFromQuestion(text),
-      computedAnswer: null,
-      confidence: 0.82,
-      code: "RULE_STRUCTURE_COMPARISON",
+      domain: "patterns",
+      confidence: 0.88,
+      code:
+        "PROMPT_DOMAIN_PATTERNS",
     };
   }
 
-  if (/\bpattern\b|\bsequence\b/.test(t)) {
+  if (
+    /\bplace value\b|\btens?\b|\bones?\b|\bhundreds?\b|\bnumber word\b|\bnumeral\b/.test(
+      t,
+    )
+  ) {
     return {
-      structure: "pattern_rule",
-      operations: ["pattern_extension"],
-      relationships: [relationship("unknown", null, text, 0.86)],
-      target: targetFromQuestion(text),
-      computedAnswer: null,
+      domain: "whole_numbers",
       confidence: 0.86,
-      code: "RULE_STRUCTURE_PATTERN",
+      code:
+        "PROMPT_DOMAIN_WHOLE_NUMBERS",
     };
   }
 
-  if (domain === "time") {
+  if (
+    /[+\-−×÷=]/.test(text) ||
+    /\badd\b|\bsubtract\b|\bmultiply\b|\bdivide\b/.test(
+      t,
+    )
+  ) {
     return {
-      structure: "time_interval",
-      operations: ["time_calculation"],
-      relationships: [relationship("difference", null, text, 0.82)],
-      target: targetFromQuestion(text),
-      computedAnswer: null,
+      domain: "arithmetic",
       confidence: 0.82,
-      code: "RULE_STRUCTURE_TIME",
+      code:
+        "PROMPT_DOMAIN_ARITHMETIC",
     };
   }
 
-  if (domain === "money") {
+  if (
+    /\bhow many\b|\bnumber\b|\baltogether\b|\bin all\b|\bleft\b|\bremaining\b|\bmore than\b|\bfewer than\b/.test(
+      t,
+    )
+  ) {
     return {
-      structure: "money_transaction",
-      operations: ["money_calculation"],
-      relationships: [relationship("unknown", null, text, 0.8)],
-      target: targetFromQuestion(text),
-      computedAnswer: null,
-      confidence: 0.8,
-      code: "RULE_STRUCTURE_MONEY",
-    };
-  }
-
-  if (domain === "data") {
-    return {
-      structure: "data_reading",
-      operations: ["data_interpretation"],
-      relationships: [relationship("unknown", null, text, 0.85)],
-      target: targetFromQuestion(text),
-      computedAnswer: null,
-      confidence: 0.85,
-      code: "RULE_STRUCTURE_DATA",
-    };
-  }
-
-  if (domain === "speed_rate") {
-    return {
-      structure: "speed_distance_time",
-      operations: ["speed_calculation"],
-      relationships: [relationship("unknown", null, text, 0.88)],
-      target: targetFromQuestion(text),
-      computedAnswer: null,
-      confidence: 0.88,
-      code: "RULE_STRUCTURE_SPEED",
-    };
-  }
-
-  if (domain === "algebra") {
-    return {
-      structure: "equation_unknown",
-      operations: ["equation_solving"],
-      relationships: [relationship("equals", null, text, 0.8)],
-      target: targetFromQuestion(text),
-      computedAnswer: null,
-      confidence: 0.8,
-      code: "RULE_STRUCTURE_EQUATION",
-    };
-  }
-
-  if (/\baltogether\b|\bin all\b|\btotal\b|\bsum\b/.test(t)) {
-    return {
-      structure: "part_whole",
-      operations: ["addition"],
-      relationships: [relationship("sum", null, text, 0.76)],
-      target: targetFromQuestion(text),
-      computedAnswer: null,
-      confidence: 0.76,
-      code: "RULE_STRUCTURE_PART_WHOLE",
-    };
-  }
-
-  if (/\beach\b|\bequal groups?\b|\bgroups? of\b/.test(t)) {
-    return {
-      structure: "equal_groups",
-      operations: ["multiplication", "division"],
-      relationships: [relationship("product", null, text, 0.72)],
-      target: targetFromQuestion(text),
-      computedAnswer: null,
-      confidence: 0.72,
-      code: "RULE_STRUCTURE_EQUAL_GROUPS",
+      domain: "whole_numbers",
+      confidence: 0.68,
+      code:
+        "PROMPT_DOMAIN_WHOLE_NUMBERS_CONTEXT",
     };
   }
 
   return {
-    structure: "unknown",
-    operations: ["unknown"],
-    relationships: [],
-    target: targetFromQuestion(text),
-    computedAnswer: null,
-    confidence: 0.25,
-    code: "RULE_STRUCTURE_UNKNOWN",
+    domain: "unknown",
+    confidence: 0.2,
+    code: "PROMPT_DOMAIN_UNKNOWN",
   };
 }
 
-function analyzeText(text: string): LocalAnalysis {
-  const quantities = extractQuantities(text);
-  const domainRule = detectDomainFromText(text);
-  const structureRule = detectProblemStructure(text, domainRule.domain);
+function resolveDomain(
+  question: CanonicalTeachingQuestion,
+  combinedText: string,
+): {
+  domain: MathematicalDomain;
+  confidence: number;
+  evidence: UnderstandingEvidence[];
+} {
+  const curriculum =
+    buildCurriculumContext(question);
 
-  const evidence: UnderstandingEvidence[] = [
-    {
-      source: "rules",
-      code: domainRule.code,
-      message: `Deterministic domain classification: ${domainRule.domain}`,
-      confidence: domainRule.confidence,
-    },
-    {
-      source: "rules",
-      code: structureRule.code,
-      message: `Deterministic problem structure classification: ${structureRule.structure}`,
-      confidence: structureRule.confidence,
-    },
-  ];
+  const prompt =
+    inferPromptDomain(
+      combinedText,
+    );
 
-  const confidence =
-    domainRule.domain === "unknown"
-      ? structureRule.confidence * 0.8
-      : (domainRule.confidence + structureRule.confidence) / 2;
+  const existing =
+    normalizeMathDomain(
+      question.intelligence.domain,
+    );
+
+  const evidence: UnderstandingEvidence[] =
+    [
+      {
+        source: "curriculum",
+        code:
+          curriculum.reasonCodes[0] ??
+          "CURRICULUM_CONTEXT",
+        message:
+          `Curriculum domain evidence: ${curriculum.inferredDomain}`,
+        confidence:
+          curriculum.confidence,
+      },
+      {
+        source: "rules",
+        code: prompt.code,
+        message:
+          `Prompt domain evidence: ${prompt.domain}`,
+        confidence:
+          prompt.confidence,
+      },
+    ];
+
+  if (
+    existing !== "unknown"
+  ) {
+    evidence.push({
+      source:
+        "math_intelligence",
+      code:
+        "EXISTING_DOMAIN_EVIDENCE",
+      message:
+        `Existing Math Intelligence domain: ${existing}`,
+      confidence:
+        question.intelligence
+          .confidence,
+    });
+  }
+
+  // Curriculum metadata is the strongest normal signal.
+  // Prompt is allowed to refine a broad curriculum family.
+  if (
+    curriculum.inferredDomain !==
+    "unknown"
+  ) {
+    if (
+      curriculum.inferredDomain ===
+        "measurement" &&
+      prompt.domain === "money"
+    ) {
+      return {
+        domain: "money",
+        confidence: Math.max(
+          curriculum.confidence,
+          prompt.confidence,
+        ),
+        evidence,
+      };
+    }
+
+    if (
+      curriculum.inferredDomain ===
+        "whole_numbers" &&
+      prompt.domain === "arithmetic"
+    ) {
+      return {
+        domain: "whole_numbers",
+        confidence:
+          curriculum.confidence,
+        evidence,
+      };
+    }
+
+    return {
+      domain:
+        curriculum.inferredDomain,
+      confidence:
+        curriculum.confidence,
+      evidence,
+    };
+  }
+
+  if (
+    existing !== "unknown"
+  ) {
+    // Prompt may refine a broad existing family.
+    if (
+      existing === "measurement" &&
+      prompt.domain === "money"
+    ) {
+      return {
+        domain: "money",
+        confidence: Math.max(
+          prompt.confidence,
+          question.intelligence
+            .confidence ?? 0.7,
+        ),
+        evidence,
+      };
+    }
+
+    if (
+      prompt.domain === "unknown"
+    ) {
+      return {
+        domain: existing,
+        confidence:
+          question.intelligence
+            .confidence ?? 0.7,
+        evidence,
+      };
+    }
+
+    return {
+      domain:
+        prompt.confidence >= 0.94
+          ? prompt.domain
+          : existing,
+      confidence: Math.max(
+        prompt.confidence,
+        question.intelligence
+          .confidence ?? 0.7,
+      ),
+      evidence,
+    };
+  }
 
   return {
-    domain: domainRule.domain,
-    problemStructure: structureRule.structure,
-    quantities,
-    relationships: structureRule.relationships,
-    requiredOperations: unique(structureRule.operations),
-    constraints: [],
-    units: detectUnits(quantities),
-    target: structureRule.target,
-    computedAnswer: structureRule.computedAnswer,
-    confidence: clamp01(confidence),
+    domain: prompt.domain,
+    confidence: prompt.confidence,
     evidence,
   };
 }
 
-function mergeWithMathIntelligence(
-  question: CanonicalTeachingQuestion,
-  deterministic: LocalAnalysis,
-): {
+function addUnderstandingIssues(args: {
+  question: CanonicalTeachingQuestion;
   domain: MathematicalDomain;
-  problemStructure: ProblemStructure;
+  problemStructure:
+    TeachingQuestionUnderstanding["problemStructure"];
+  target:
+    TeachingQuestionUnderstanding["target"];
+  reasoning:
+    TeachingQuestionUnderstanding["requiredReasoning"];
+  answerValidation:
+    TeachingQuestionUnderstanding["answerValidation"];
+  domainRelationship:
+    ReturnType<
+      typeof compareDomains
+    >["relationship"];
+  structureRelationship:
+    ReturnType<
+      typeof compareStructures
+    >["relationship"];
   confidence: number;
-  issues: UnderstandingIssue[];
-  evidence: UnderstandingEvidence[];
-} {
+  curriculumDomainResolved: boolean;
+}): UnderstandingIssue[] {
   const issues: UnderstandingIssue[] = [];
-  const evidence = [...deterministic.evidence];
 
-  const existingDomain = mapExistingDomain(question.intelligence.domain);
-  const existingStructure = mapExistingProblemStructure(question.intelligence.problemStructure);
-  const miConfidence = typeof question.intelligence.confidence === "number" ? question.intelligence.confidence : null;
+  if (
+    !args.question.diagnostics
+      .readyForUnderstanding
+  ) {
+    issues.push({
+      severity: "blocking",
+      code:
+        "CANONICAL_INPUT_NOT_READY",
+      message:
+        "The Phase 4A-1 canonical input has blocking diagnostics.",
+      path:
+        "source.canonical.diagnostics",
+    });
+  }
 
-  let domain = deterministic.domain;
-  let problemStructure = deterministic.problemStructure;
-  let confidence = deterministic.confidence;
+  if (
+    args.domain === "unknown"
+  ) {
+    issues.push({
+      severity: "warning",
+      code: "DOMAIN_UNRESOLVED",
+      message:
+        "The mathematical domain could not be resolved deterministically.",
+      path: "domain",
+    });
+  }
 
-  if (existingDomain !== "unknown") {
-    evidence.push({
-      source: "math_intelligence",
-      code: "EXISTING_DOMAIN",
-      message: `Existing Math Intelligence domain: ${existingDomain}`,
-      confidence: miConfidence,
+  if (
+    args.problemStructure ===
+    "unknown"
+  ) {
+    issues.push({
+      severity: "warning",
+      code:
+        "PROBLEM_STRUCTURE_UNRESOLVED",
+      message:
+        "The mathematical problem structure could not be resolved deterministically.",
+      path:
+        "problemStructure",
+    });
+  }
+
+  if (
+    !args.target ||
+    args.target.kind === "unknown"
+  ) {
+    issues.push({
+      severity: "warning",
+      code: "TARGET_UNRESOLVED",
+      message:
+        "The learner-facing target could not be isolated confidently.",
+      path: "target",
+    });
+  }
+
+  if (
+    args.reasoning.length === 0 ||
+    args.reasoning.every(
+      (item) =>
+        item === "unknown",
+    )
+  ) {
+    issues.push({
+      severity: "warning",
+      code:
+        "REASONING_UNRESOLVED",
+      message:
+        "The mathematical reasoning family could not be resolved.",
+      path:
+        "requiredReasoning",
     });
 
-    if (domain === "unknown") {
-      domain = existingDomain;
-      confidence = Math.max(confidence, miConfidence ?? 0.65);
-    } else if (existingDomain !== domain && existingDomain !== "word_problem") {
-      issues.push({
-        severity: "warning",
-        code: "UNDERSTANDING_CONFLICT",
-        message: `Deterministic domain (${domain}) conflicts with existing Math Intelligence domain (${existingDomain}).`,
-        path: "domain",
-      });
-      confidence = Math.min(confidence, 0.65);
-    }
-  }
-
-  if (existingStructure !== "unknown") {
-    evidence.push({
-      source: "math_intelligence",
-      code: "EXISTING_PROBLEM_STRUCTURE",
-      message: `Existing Math Intelligence problem structure: ${existingStructure}`,
-      confidence: miConfidence,
+    // Temporary compatibility issue code.
+    issues.push({
+      severity: "info",
+      code:
+        "OPERATIONS_UNRESOLVED",
+      message:
+        "Compatibility alias: required operations are unresolved because required reasoning is unresolved.",
+      path:
+        "requiredOperations",
     });
-
-    if (problemStructure === "unknown") {
-      problemStructure = existingStructure;
-      confidence = Math.max(confidence, miConfidence ?? 0.65);
-    } else if (existingStructure !== problemStructure) {
-      issues.push({
-        severity: "warning",
-        code: "UNDERSTANDING_CONFLICT",
-        message: `Deterministic problem structure (${problemStructure}) conflicts with existing Math Intelligence structure (${existingStructure}).`,
-        path: "problemStructure",
-      });
-      confidence = Math.min(confidence, 0.65);
-    }
   }
 
-  return { domain, problemStructure, confidence: clamp01(confidence), issues, evidence };
+  const trueConflict =
+    args.domainRelationship ===
+      "conflict" ||
+    (
+      args.structureRelationship ===
+        "conflict" &&
+      !args.curriculumDomainResolved
+    );
+
+  if (trueConflict) {
+    const strong =
+      args.confidence >= 0.85 &&
+      (
+        args.question.intelligence
+          .confidence ?? 0
+      ) >= 0.85;
+
+    issues.push({
+      severity:
+        strong
+          ? "blocking"
+          : "warning",
+      code:
+        "UNDERSTANDING_CONFLICT",
+      message:
+        "The refined deterministic understanding conflicts with existing high-confidence Math Intelligence evidence.",
+      path: "evidence",
+    });
+  }
+
+  if (
+    args.answerValidation.status ===
+    "mismatched"
+  ) {
+    issues.push({
+      severity: "blocking",
+      code:
+        "ANSWER_VALIDATION_MISMATCH",
+      message:
+        "The deterministic interpretation produced a result that does not match the stored answer.",
+      path:
+        "answerValidation",
+    });
+  }
+
+  return issues;
 }
 
-function inferVisualContext(
-  question: CanonicalTeachingQuestion,
-  analysis: Pick<LocalAnalysis, "domain" | "problemStructure">,
-): TeachingVisualContext {
-  const media = question.media.originalMedia;
-  const generated = question.media.generatedV2Visual;
-  const hasVisual = media.length > 0 || Boolean(generated?.exists);
-
-  if (!hasVisual) {
-    return {
-      hasVisual: false,
-      role: "decorative_or_irrelevant",
-      mathematicalDependency: "not_required",
-      potentiallyManipulable: false,
-      sourceMedia: [],
-      generatedV2: generated
-        ? {
-            exists: generated.exists,
-            status: generated.status,
-            strategy: generated.strategy,
-            generatorVersion: generated.generatorVersion,
-            hasSpec: generated.spec !== null,
-          }
-        : null,
-      reasonCodes: ["NO_VISUAL"],
-    };
-  }
-
-  const prompt = lower(question.content.prompt);
-  const visualCue = /\bdiagram\b|\bfigure\b|\bgrid\b|\bgraph\b|\bchart\b|\btable\b|\bpicture\b|\bshown\b|\bbelow\b|\babove\b/.test(prompt);
-  const mathVisualDomain = ["geometry", "measurement", "data", "time", "money"].includes(analysis.domain);
-
-  let role: VisualRole = "unknown";
-  let dependency: VisualDependency = "unknown";
-  let manipulable: Manipulability = "unknown";
-  const reasonCodes: string[] = [];
-
-  if (generated?.exists) {
-    role = "mathematical_diagram";
-    dependency = visualCue || ["area", "perimeter", "angle", "systematic_counting", "data_reading"].includes(analysis.problemStructure)
-      ? "required"
-      : "useful";
-    manipulable = generated.spec !== null ? true : "unknown";
-    reasonCodes.push("GENERATED_V2_VISUAL");
-  } else if (media.some((item) => item.mediaType === "svg") && (visualCue || mathVisualDomain)) {
-    role = "mathematical_diagram";
-    dependency = visualCue ? "required" : "useful";
-    manipulable = true;
-    reasonCodes.push("SVG_MATHEMATICAL_VISUAL");
-  } else if (visualCue && mathVisualDomain) {
-    role = "mathematical_diagram";
-    dependency = "required";
-    manipulable = "unknown";
-    reasonCodes.push("IMAGE_MATHEMATICAL_VISUAL");
-  } else if (visualCue) {
-    role = "reference_image";
-    dependency = "required";
-    manipulable = false;
-    reasonCodes.push("REFERENCE_VISUAL_CUE");
-  } else {
-    role = "reference_image";
-    dependency = "useful";
-    manipulable = false;
-    reasonCodes.push("MEDIA_PRESENT_NO_MATH_CUE");
-  }
-
-  return {
-    hasVisual,
-    role,
-    mathematicalDependency: dependency,
-    potentiallyManipulable: manipulable,
-    sourceMedia: media,
-    generatedV2: generated
-      ? {
-          exists: generated.exists,
-          status: generated.status,
-          strategy: generated.strategy,
-          generatorVersion: generated.generatorVersion,
-          hasSpec: generated.spec !== null,
-        }
-      : null,
-    reasonCodes,
-  };
-}
-
-function validateAgainstAnswer(
-  answer: CanonicalAnswerContext,
-  computedAnswer: string | null,
-): AnswerValidation {
-  if (!computedAnswer) {
-    return {
-      status: "not_checked",
-      expected: answer.rawAnswer,
-      computed: null,
-      reason: "No deterministic result was computed. The stored answer was not used to infer the question structure.",
-    };
-  }
-
-  const expected = answerToComparable(answer);
-  const computed = comparableFromComputed(computedAnswer);
-
-  if (!expected || !computed) {
-    return {
-      status: "not_checked",
-      expected: answer.rawAnswer,
-      computed: computedAnswer,
-      reason: "The stored answer or computed result could not be compared safely.",
-    };
-  }
-
-  const expectedNumeric = parseNumericString(expected);
-  const computedNumeric = parseNumericString(computed);
-  const matched =
-    expectedNumeric !== null && computedNumeric !== null
-      ? Math.abs(expectedNumeric - computedNumeric) < 1e-9
-      : expected === computed;
-
-  return {
-    status: matched ? "matched" : "mismatched",
-    expected: answer.rawAnswer ?? expected,
-    computed: computedAnswer,
-    reason: matched
-      ? "Deterministic understanding is consistent with the stored answer."
-      : "Deterministic understanding produced a result that does not match the stored answer. The stored answer was used only for validation, not inference.",
-  };
-}
-
-function determineStatus(args: {
-  canonicalReady: boolean;
-  domain: MathematicalDomain;
-  structure: ProblemStructure;
-  target: TeachingTarget | null;
-  operations: RequiredOperation[];
-  confidence: number;
-  issues: UnderstandingIssue[];
-}): TeachingUnderstandingStatus {
-  if (!args.canonicalReady) return "needs_review";
-  if (args.domain === "unknown" && args.structure === "unknown") return "needs_review";
-  if (args.confidence < 0.5 || args.issues.some((issue) => issue.severity === "blocking")) return "needs_review";
-
-  const unresolvedOperations = args.operations.length === 0 || args.operations.every((operation) => operation === "unknown");
-  if (args.domain === "unknown" || args.structure === "unknown" || !args.target || unresolvedOperations || args.confidence < 0.78) {
-    return "partial";
-  }
-
-  return "ready";
-}
-
-function inferPartDependencies(parts: CanonicalTeachingPart[]): Array<{
+function inferPartDependencies(
+  parts: CanonicalTeachingPart[],
+): Array<{
   fromPartKey: string;
   dependsOnPartKey: string;
   reason: string;
 }> {
-  const dependencies: Array<{ fromPartKey: string; dependsOnPartKey: string; reason: string }> = [];
+  const dependencies: Array<{
+    fromPartKey: string;
+    dependsOnPartKey: string;
+    reason: string;
+  }> = [];
 
-  for (let index = 0; index < parts.length; index += 1) {
-    if (index === 0) continue;
+  for (
+    let index = 1;
+    index < parts.length;
+    index += 1
+  ) {
     const part = parts[index];
-    const previous = parts[index - 1];
-    const t = lower(`${part.instruction ?? ""} ${part.prompt}`);
+    const text = lower(
+      `${part.instruction ?? ""} ${part.prompt}`,
+    );
 
-    if (/\bhence\b|\busing your answer\b|\busing the answer\b|\bfrom part\b|\busing part\b/.test(t)) {
+    const previous =
+      parts[index - 1];
+
+    if (
+      /\bhence\b|\busing your answer\b|\busing the answer\b|\bfrom part\b|\busing part\b/.test(
+        text,
+      )
+    ) {
       dependencies.push({
         fromPartKey: part.key,
-        dependsOnPartKey: previous.key,
-        reason: "The wording explicitly indicates that this part uses an earlier result.",
+        dependsOnPartKey:
+          previous.key,
+        reason:
+          "The wording indicates this part uses an earlier result.",
       });
-    }
-
-    for (const earlier of parts.slice(0, index)) {
-      const escaped = earlier.key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const explicit = new RegExp(`\\bpart\\s*\\(?${escaped}\\)?\\b`, "i");
-      if (explicit.test(t)) {
-        dependencies.push({
-          fromPartKey: part.key,
-          dependsOnPartKey: earlier.key,
-          reason: `The wording explicitly references part ${earlier.key}.`,
-        });
-      }
     }
   }
 
-  const seen = new Set<string>();
-  return dependencies.filter((dependency) => {
-    const key = `${dependency.fromPartKey}->${dependency.dependsOnPartKey}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  return dependencies;
 }
 
 function understandPart(
   part: CanonicalTeachingPart,
-  question: CanonicalTeachingQuestion,
-  dependencies: ReturnType<typeof inferPartDependencies>,
+  parent: CanonicalTeachingQuestion,
+  dependencies: ReturnType<
+    typeof inferPartDependencies
+  >,
 ): TeachingPartUnderstanding {
-  const local = analyzeText(normalizeSpace(`${part.instruction ?? ""} ${part.prompt}`));
+  const partQuestion: CanonicalTeachingQuestion =
+    {
+      ...parent,
+      content: {
+        ...parent.content,
+        instruction:
+          part.instruction,
+        prompt: part.prompt,
+        questionType:
+          part.questionType,
+        options: part.options,
+        parts: [],
+      },
+      answer: part.answer,
+    };
 
-  const fakeQuestion: CanonicalTeachingQuestion = {
-    ...question,
-    content: {
-      ...question.content,
-      prompt: part.prompt,
-      instruction: part.instruction,
-      questionType: part.questionType,
-      options: part.options,
-      parts: [],
-    },
-    answer: part.answer,
-  };
-
-  const merged = mergeWithMathIntelligence(fakeQuestion, local);
-  const issues = [...merged.issues];
-
-  if (merged.domain === "unknown") issues.push({ severity: "warning", code: "DOMAIN_UNRESOLVED", message: "The mathematical domain for this part could not be resolved deterministically.", path: `multipart.parts.${part.key}.domain` });
-  if (merged.problemStructure === "unknown") issues.push({ severity: "warning", code: "PROBLEM_STRUCTURE_UNRESOLVED", message: "The mathematical problem structure for this part could not be resolved deterministically.", path: `multipart.parts.${part.key}.problemStructure` });
-  if (!local.target) issues.push({ severity: "warning", code: "TARGET_UNRESOLVED", message: "The target quantity for this part could not be isolated.", path: `multipart.parts.${part.key}.target` });
-
-  const dependsOnPartKeys = dependencies.filter((dependency) => dependency.fromPartKey === part.key).map((dependency) => dependency.dependsOnPartKey);
-  const status = determineStatus({
-    canonicalReady: question.diagnostics.readyForUnderstanding,
-    domain: merged.domain,
-    structure: merged.problemStructure,
-    target: local.target,
-    operations: local.requiredOperations,
-    confidence: merged.confidence,
-    issues,
-  });
+  const understanding =
+    understandTeachingQuestion({
+      question: partQuestion,
+    });
 
   return {
     key: part.key,
     label: part.label,
     prompt: part.prompt,
-    domain: merged.domain,
-    problemStructure: merged.problemStructure,
-    quantities: local.quantities,
-    relationships: local.relationships,
-    requiredOperations: local.requiredOperations,
-    target: local.target,
-    dependsOnPartKeys,
-    confidence: merged.confidence,
-    status,
-    issues,
-    evidence: merged.evidence,
+    domain:
+      understanding.domain,
+    problemStructure:
+      understanding.problemStructure,
+    quantities:
+      understanding.quantities,
+    relationships:
+      understanding.relationships,
+    requiredReasoning:
+      understanding.requiredReasoning,
+    requiredOperations:
+      understanding.requiredOperations,
+    target:
+      understanding.target,
+    dependsOnPartKeys:
+      dependencies
+        .filter(
+          (item) =>
+            item.fromPartKey ===
+            part.key,
+        )
+        .map(
+          (item) =>
+            item.dependsOnPartKey,
+        ),
+    confidence:
+      understanding.confidence,
+    status:
+      understanding.status,
+    readyForMethodSelection:
+      understanding
+        .readyForMethodSelection,
+    issues:
+      understanding.issues,
+    evidence:
+      understanding.evidence,
   };
 }
 
 export function understandTeachingQuestion(
   input: UnderstandTeachingQuestionInput,
 ): TeachingQuestionUnderstanding {
-  const question = input.question;
-  const combinedText = normalizeSpace(`${question.content.instruction ?? ""} ${question.content.prompt}`);
-  const local = analyzeText(combinedText);
-  const merged = mergeWithMathIntelligence(question, local);
+  const question =
+    input.question;
 
-  const issues: UnderstandingIssue[] = [...merged.issues];
-  const evidence: UnderstandingEvidence[] = [
-    {
-      source: "canonical",
-      code: "CANONICAL_INPUT_RECEIVED",
-      message: "Teaching understanding was derived from the Phase 4A-1 canonical input.",
-      confidence: null,
-    },
-    ...merged.evidence,
-  ];
+  const combinedText =
+    normalizeSpace(
+      `${question.content.instruction ?? ""} ${question.content.prompt}`,
+    );
 
-  if (!question.diagnostics.readyForUnderstanding) {
-    issues.push({
-      severity: "blocking",
-      code: "CANONICAL_INPUT_NOT_READY",
-      message: "The Phase 4A-1 canonical input has blocking diagnostics and cannot safely proceed to teaching-method selection.",
-      path: "source.canonical.diagnostics",
+  const curriculumContext =
+    buildCurriculumContext(
+      question,
+    );
+
+  const domainResolution =
+    resolveDomain(
+      question,
+      combinedText,
+    );
+
+  const domain =
+    domainResolution.domain;
+
+  const quantities =
+    extractQuantities(
+      combinedText,
+    );
+
+  const units =
+    detectUnits(quantities);
+
+  const structure =
+    analyzeProblemStructure({
+      text: combinedText,
+      domain,
+      curriculum:
+        curriculumContext,
+    });
+
+  const requiredReasoning =
+    mergeReasoning(
+      structure.requiredReasoning,
+      combinedText,
+    );
+
+  const target =
+    extractTarget(
+      combinedText,
+      domain,
+    );
+
+  const answerValidation =
+    validateComputedAnswer({
+      answer: question.answer,
+      computedAnswer:
+        structure.computedAnswer,
+    });
+
+  const domainComparison =
+    compareDomains({
+      resolved: domain,
+      existingRaw:
+        question.intelligence.domain,
+      curriculum:
+        curriculumContext
+          .inferredDomain,
+    });
+
+  const structureComparison =
+    compareStructures({
+      resolved:
+        structure.problemStructure,
+      existingRaw:
+        question.intelligence
+          .problemStructure,
+    });
+
+  const evidence: UnderstandingEvidence[] =
+    [
+      {
+        source: "canonical",
+        code:
+          "CANONICAL_INPUT_RECEIVED",
+        message:
+          "Teaching understanding was derived from the Phase 4A-1 canonical input.",
+        confidence: null,
+      },
+      ...domainResolution.evidence,
+      {
+        source: "rules",
+        code:
+          structure.reasonCode,
+        message:
+          `Deterministic problem structure: ${structure.problemStructure}`,
+        confidence:
+          structure.confidence,
+      },
+    ];
+
+  if (
+    domainComparison.relationship
+  ) {
+    evidence.push({
+      source:
+        "math_intelligence",
+      code:
+        "DOMAIN_COMPATIBILITY",
+      message:
+        `Existing domain ${domainComparison.existing} is ${domainComparison.relationship} with refined domain ${domain}.`,
+      confidence:
+        question.intelligence
+          .confidence,
+      relationship:
+        domainComparison.relationship,
     });
   }
 
-  if (merged.domain === "unknown") issues.push({ severity: "warning", code: "DOMAIN_UNRESOLVED", message: "The mathematical domain could not be resolved deterministically.", path: "domain" });
-  if (merged.problemStructure === "unknown") issues.push({ severity: "warning", code: "PROBLEM_STRUCTURE_UNRESOLVED", message: "The mathematical problem structure could not be resolved deterministically.", path: "problemStructure" });
-  if (!local.target) issues.push({ severity: "warning", code: "TARGET_UNRESOLVED", message: "The learner-facing target quantity could not be isolated confidently.", path: "target" });
-  if (local.requiredOperations.length === 0 || local.requiredOperations.every((operation) => operation === "unknown")) {
-    issues.push({ severity: "warning", code: "OPERATIONS_UNRESOLVED", message: "The mathematical operation or reasoning family could not be resolved.", path: "requiredOperations" });
+  if (
+    structureComparison.relationship
+  ) {
+    evidence.push({
+      source:
+        "math_intelligence",
+      code:
+        "STRUCTURE_COMPATIBILITY",
+      message:
+        `Existing structure ${structureComparison.existing} is ${structureComparison.relationship} with refined structure ${structure.problemStructure}.`,
+      confidence:
+        question.intelligence
+          .confidence,
+      relationship:
+        structureComparison.relationship,
+    });
   }
 
-  const visualContext = inferVisualContext(question, { domain: merged.domain, problemStructure: merged.problemStructure });
-  if (visualContext.hasVisual && visualContext.role === "unknown") issues.push({ severity: "warning", code: "VISUAL_ROLE_UNRESOLVED", message: "Visual media is present but its teaching role is unresolved.", path: "visualContext.role" });
-  if (visualContext.hasVisual && visualContext.mathematicalDependency === "unknown") issues.push({ severity: "warning", code: "VISUAL_DEPENDENCY_UNRESOLVED", message: "Visual media is present but its mathematical dependency is unresolved.", path: "visualContext.mathematicalDependency" });
-
-  const answerValidation = validateAgainstAnswer(question.answer, local.computedAnswer);
-  if (answerValidation.status === "matched") {
-    evidence.push({ source: "answer_validation", code: "ANSWER_VALIDATION_MATCHED", message: "The deterministic interpretation produced a result consistent with the stored answer.", confidence: 1 });
-  } else if (answerValidation.status === "mismatched") {
-    issues.push({ severity: "warning", code: "ANSWER_VALIDATION_MISMATCH", message: "The deterministic interpretation produced a result that does not match the stored answer. The answer was used only as a validator.", path: "answerValidation" });
-    evidence.push({ source: "answer_validation", code: "ANSWER_VALIDATION_MISMATCH", message: "Stored answer and deterministic computed result differ.", confidence: 1 });
+  if (
+    answerValidation.status ===
+    "matched"
+  ) {
+    evidence.push({
+      source:
+        "answer_validation",
+      code:
+        "ANSWER_VALIDATION_MATCHED",
+      message:
+        "The deterministic interpretation produced a result consistent with the stored answer.",
+      confidence: 1,
+      relationship: "match",
+    });
   }
 
-  const dependencies = inferPartDependencies(question.content.parts);
-  const partUnderstandings = question.content.parts.map((part) => understandPart(part, question, dependencies));
+  const confidence =
+    clamp01(
+      (
+        domainResolution
+          .confidence +
+        structure.confidence
+      ) /
+        2,
+    );
 
-  const status = determineStatus({
-    canonicalReady: question.diagnostics.readyForUnderstanding,
-    domain: merged.domain,
-    structure: merged.problemStructure,
-    target: local.target,
-    operations: local.requiredOperations,
-    confidence: merged.confidence,
-    issues,
-  });
+  const issues =
+    addUnderstandingIssues({
+      question,
+      domain,
+      problemStructure:
+        structure.problemStructure,
+      target,
+      reasoning:
+        requiredReasoning,
+      answerValidation,
+      domainRelationship:
+        domainComparison.relationship,
+      structureRelationship:
+        structureComparison.relationship,
+      confidence,
+      curriculumDomainResolved:
+        curriculumContext.inferredDomain !==
+        "unknown",
+    });
 
-  const readyForMethodSelection = status !== "needs_review" && !issues.some((issue) => issue.severity === "blocking");
+  const readiness =
+    determineTeachingReadiness({
+      canonicalReady:
+        question.diagnostics
+          .readyForUnderstanding,
+      domain,
+      problemStructure:
+        structure.problemStructure,
+      target,
+      requiredReasoning,
+      answerValidation,
+      issues,
+      confidence,
+    });
+
+  const visualContext =
+    inferTeachingVisualContext({
+      question,
+      domain,
+      problemStructure:
+        structure.problemStructure,
+    });
+
+  const dependencies =
+    inferPartDependencies(
+      question.content.parts,
+    );
+
+  const parts =
+    question.content.parts.map(
+      (part) =>
+        understandPart(
+          part,
+          question,
+          dependencies,
+        ),
+    );
 
   return {
-    schemaVersion: "4A-2.1",
-    questionId: question.identity.questionId,
-    learnerLevel: question.teaching.learnerLevel,
-    domain: merged.domain,
-    problemStructure: merged.problemStructure,
-    quantities: local.quantities,
-    relationships: local.relationships,
-    requiredOperations: local.requiredOperations,
-    constraints: local.constraints,
-    units: local.units,
-    target: local.target,
+    schemaVersion: "4A-2.2",
+    questionId:
+      question.identity
+        .questionId,
+    learnerLevel:
+      question.teaching
+        .learnerLevel,
+
+    curriculumContext,
+
+    domain,
+    problemStructure:
+      structure.problemStructure,
+
+    quantities,
+    relationships:
+      structure.relationships,
+
+    requiredReasoning,
+    requiredOperations:
+      [...requiredReasoning],
+
+    constraints: [],
+    units,
+
+    target,
+
     visualContext,
+
     multipart: {
-      hasParts: question.content.parts.length > 0,
-      parts: partUnderstandings,
+      hasParts:
+        question.content.parts
+          .length > 0,
+      parts,
       dependencies,
     },
+
     answerValidation,
-    confidence: merged.confidence,
-    status,
-    readyForMethodSelection,
+
+    confidence,
+    status:
+      readiness.status,
+    readyForMethodSelection:
+      readiness
+        .readyForMethodSelection,
+
     issues,
     evidence,
-    source: { canonical: question },
+
+    source: {
+      canonical: question,
+    },
   };
 }

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import BillingDashboardClient from "./BillingDashboardClient";
+import BillingPlatformLandingClient from "./BillingPlatformLandingClient";
 
 export const metadata: Metadata = {
-  title: "GKP Billing | Dreamscape One",
-  description: "Guru Kids Pro tuition billing administration.",
+  title: "Billing Platform | Dreamscape One",
+  description:
+    "Shared billing administration for Guru Kids Pro and Dreamscape One.",
 };
 
 export default function BillingDashboardPage() {
-  return <BillingDashboardClient />;
+  return <BillingPlatformLandingClient />;
 }

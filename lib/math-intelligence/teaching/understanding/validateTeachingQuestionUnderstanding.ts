@@ -12,49 +12,75 @@ export function validateTeachingQuestionUnderstanding(
     issues.push({
       severity: "warning",
       code: "DOMAIN_UNRESOLVED",
-      message: "The understanding has no resolved mathematical domain.",
+      message:
+        "The understanding has no resolved mathematical domain.",
       path: "domain",
     });
   }
 
-  if (understanding.problemStructure === "unknown") {
+  if (
+    understanding.problemStructure === "unknown"
+  ) {
     issues.push({
       severity: "warning",
       code: "PROBLEM_STRUCTURE_UNRESOLVED",
-      message: "The understanding has no resolved problem structure.",
+      message:
+        "The understanding has no resolved problem structure.",
       path: "problemStructure",
     });
   }
 
-  if (!understanding.target) {
+  if (
+    !understanding.target ||
+    understanding.target.kind === "unknown"
+  ) {
     issues.push({
       severity: "warning",
       code: "TARGET_UNRESOLVED",
-      message: "The understanding has no resolved learner target.",
+      message:
+        "The understanding has no resolved learner target.",
       path: "target",
     });
   }
 
   if (
-    understanding.requiredOperations.length === 0 ||
-    understanding.requiredOperations.every((operation) => operation === "unknown")
+    understanding.requiredReasoning.length === 0 ||
+    understanding.requiredReasoning.every(
+      (item) => item === "unknown",
+    )
   ) {
     issues.push({
       severity: "warning",
-      code: "OPERATIONS_UNRESOLVED",
-      message: "The understanding has no resolved mathematical operation or reasoning family.",
-      path: "requiredOperations",
+      code: "REASONING_UNRESOLVED",
+      message:
+        "The understanding has no resolved mathematical reasoning family.",
+      path: "requiredReasoning",
     });
   }
 
   if (
-    understanding.status === "needs_review" &&
+    understanding.answerValidation.status ===
+      "mismatched" &&
+    understanding.readyForMethodSelection
+  ) {
+    issues.push({
+      severity: "blocking",
+      code: "ANSWER_VALIDATION_MISMATCH",
+      message:
+        "An answer-validation mismatch cannot proceed to method selection.",
+      path: "readyForMethodSelection",
+    });
+  }
+
+  if (
+    understanding.status !== "ready" &&
     understanding.readyForMethodSelection
   ) {
     issues.push({
       severity: "blocking",
       code: "UNDERSTANDING_CONFLICT",
-      message: "A needs_review understanding cannot be marked ready for method selection.",
+      message:
+        "Only a ready understanding may proceed to Phase 4C.",
       path: "readyForMethodSelection",
     });
   }

@@ -214,7 +214,7 @@ type WalkthroughStep = {
   showWorldPath?: boolean;
 };
 
-const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v11";
+const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v12";
 const ROVER_ORIGIN_STORAGE_KEY = "dreamscape-rover-origin";
 const ROVER_NOVA_RETURN_PATH_STORAGE_KEY =
   "dreamscape-rover-nova-return-path";
@@ -3823,7 +3823,10 @@ function GuidedWalkthrough({
         ? viewportWidth - margin * 2
         : isTablet
           ? Math.min(620, viewportWidth - 48)
-          : Math.min(step.zoneNumber ? 760 : 640, viewportWidth - 72);
+          : Math.min(
+              step.zoneNumber || isWorldPathStep || isRewardsStep ? 760 : 640,
+              viewportWidth - 72,
+            );
 
       setGuideAnchor({
         left: `${Math.max(margin, (viewportWidth - guideWidth) / 2)}px`,
@@ -4112,7 +4115,7 @@ function GuidedWalkthrough({
           width: isMobile
             ? "calc(100vw - 24px)"
             : isDesktop
-              ? step.zoneNumber
+              ? step.zoneNumber || isWorldPathStep || isRewardsStep
                 ? "min(760px, calc(100vw - 72px))"
                 : "min(640px, calc(100vw - 72px))"
               : "min(620px, calc(100vw - 48px))",
@@ -4166,18 +4169,32 @@ function GuidedWalkthrough({
           ×
         </button>
 
-        {(!isWorldPathStep && !isRewardsStep) && (
+        {(
           <img
             src="/nova/nova-character.png"
             alt="Nova"
             style={{
               position: isDesktop ? "absolute" : "relative",
-              left: isDesktop ? (step.zoneNumber ? "22px" : "3px") : "auto",
-              bottom: isDesktop ? (step.zoneNumber ? "18px" : "-8px") : "auto",
+              left: isDesktop
+                ? step.zoneNumber
+                  ? "22px"
+                  : isWorldPathStep || isRewardsStep
+                    ? "18px"
+                    : "3px"
+                : "auto",
+              bottom: isDesktop
+                ? step.zoneNumber
+                  ? "18px"
+                  : isWorldPathStep || isRewardsStep
+                    ? "18px"
+                    : "-8px"
+                : "auto",
               height: isDesktop
                 ? step.zoneNumber
                   ? "235px"
-                  : "250px"
+                  : isWorldPathStep || isRewardsStep
+                    ? "205px"
+                    : "250px"
                 : step.zoneNumber
                   ? isMobile
                     ? "62px"
@@ -4272,29 +4289,29 @@ function GuidedWalkthrough({
           >
             <div
               style={{
-                display: isMobile ? "grid" : "flex",
-                gridTemplateColumns: isMobile ? "1fr" : undefined,
-                alignItems: "center",
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : isDesktop
+                    ? "repeat(5, minmax(0, 1fr))"
+                    : "repeat(2, minmax(0, 1fr))",
+                alignItems: "stretch",
                 gap: isMobile ? "8px" : "7px",
-                overflowX: isMobile ? "visible" : "auto",
-                overflowY: "hidden",
-                paddingBottom: isMobile ? 0 : "6px",
-                scrollbarWidth: "thin",
+                overflowX: "visible",
+                overflowY: "visible",
+                paddingBottom: 0,
               }}
             >
               {NOVA_WORLD_PATH.map((item, index) => (
                 <div
                   key={item.label}
                   style={{
-                    display: isMobile ? "contents" : "flex",
-                    alignItems: "center",
-                    gap: "7px",
-                    flex: "0 0 auto",
+                    display: "contents",
                   }}
                 >
                   <div
                     style={{
-                      minWidth: isMobile ? 0 : "112px",
+                      minWidth: 0,
                       borderRadius: "14px",
                       border: `1px solid ${item.colour}66`,
                       background: `linear-gradient(145deg, ${item.colour}20, rgba(3,11,29,0.7))`,
@@ -4353,25 +4370,25 @@ function GuidedWalkthrough({
                     </div>
                   </div>
 
-                  {index < NOVA_WORLD_PATH.length - 1 && (
+                  {index < NOVA_WORLD_PATH.length - 1 && isMobile && (
                     <div
                       aria-hidden="true"
                       style={{
-                        height: isMobile ? "18px" : "2px",
-                        width: isMobile ? "2px" : "24px",
-                        margin: isMobile ? "0 auto" : 0,
+                        height: "18px",
+                        width: "2px",
+                        margin: "0 auto",
                         borderRadius: "999px",
                         background:
-                          "linear-gradient(90deg, rgba(255,255,255,0.18), rgba(255,255,255,0.58), rgba(255,255,255,0.18))",
+                          "linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.58), rgba(255,255,255,0.18))",
                         position: "relative",
                       }}
                     >
                       <span
                         style={{
                           position: "absolute",
-                          right: isMobile ? "50%" : "-2px",
-                          bottom: isMobile ? "-3px" : "50%",
-                          transform: isMobile ? "translateX(50%) rotate(90deg)" : "translateY(50%)",
+                          right: "50%",
+                          bottom: "-3px",
+                          transform: "translateX(50%) rotate(90deg)",
                           color: "rgba(255,255,255,0.68)",
                           fontSize: "13px",
                         }}
@@ -4403,8 +4420,8 @@ function GuidedWalkthrough({
               <div
                 key={item.label}
                 style={{
-                  minHeight: isMobile ? "86px" : "94px",
-                  padding: isMobile ? "10px 8px" : "12px 10px",
+                  minHeight: isMobile ? "86px" : isDesktop ? "76px" : "94px",
+                  padding: isMobile ? "10px 8px" : isDesktop ? "9px 8px" : "12px 10px",
                   borderRadius: "16px",
                   border: `1px solid ${item.colour}66`,
                   background: `linear-gradient(145deg, ${item.colour}20, rgba(3,11,29,0.72))`,
@@ -4561,7 +4578,7 @@ function GuidedWalkthrough({
 
         <style>{`
           .nova-reward-token {
-            min-height: 102px;
+            min-height: 88px;
             padding: 14px 10px;
             border-radius: 18px;
             display: flex;

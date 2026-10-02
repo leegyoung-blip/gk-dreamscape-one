@@ -62,7 +62,8 @@ function normalizeEntryQuestionType(raw: unknown): unknown {
     value === "money" ||
     value === "time" ||
     value === "decimal" ||
-    value === "fraction"
+    value === "fraction" ||
+    value === "numeric_unit"
   ) {
     return "open_ended";
   }
@@ -278,7 +279,7 @@ export function runPhase4A2QaFromExport(
     );
 
   return {
-    schemaVersion: "4A-2-QA.1",
+    schemaVersion: "4A-2-QA.2",
     sourceRunId: asString(qaExport.run_id),
     sourceSeed: asString(qaExport.sample?.seed),
     generatedAt: new Date().toISOString(),
@@ -293,7 +294,7 @@ export function toPhase4A2CompactExport(
   run: Phase4A2QaRun,
 ): Phase4A2CompactExport {
   return {
-    schema_version: "4A-2-QA.1",
+    schema_version: "4A-2-QA.2",
     generated_at: run.generatedAt,
     source_run_id: run.sourceRunId,
     source_seed: run.sourceSeed,

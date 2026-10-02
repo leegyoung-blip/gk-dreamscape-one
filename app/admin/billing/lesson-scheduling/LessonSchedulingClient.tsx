@@ -85,6 +85,7 @@ const DEFAULT_LEVELS = ["K2", "P1", "P2", "P3", "P4", "P5", "P6"];
 const DEFAULT_SUBJECTS = ["English", "Math", "High Ability", "Science"];
 const ALL_LEVELS = "__all_levels__";
 const ALL_SUBJECTS = "__all_subjects__";
+const ANY_DAY = "__any_day__";
 const WEEKDAYS: Array<[string, string]> = [
   ["1", "Monday"],
   ["2", "Tuesday"],
@@ -124,6 +125,7 @@ export default function LessonSchedulingClient() {
 
   const [selectedLevel, setSelectedLevel] = useState(ALL_LEVELS);
   const [selectedSubject, setSelectedSubject] = useState(ALL_SUBJECTS);
+  const [selectedDay, setSelectedDay] = useState(ANY_DAY);
   const [availableOnly, setAvailableOnly] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
 
@@ -208,34 +210,68 @@ export default function LessonSchedulingClient() {
   );
 
   const filteredSchedules = useMemo(() => {
-    return schedules.filter((item) => {
-      if (
-        selectedLevel !== ALL_LEVELS &&
-        !item.academic_levels.includes(selectedLevel)
-      ) {
-        return false;
-      }
-      if (selectedSubject !== ALL_SUBJECTS && item.subject !== selectedSubject) {
-        return false;
-      }
-      if (!showInactive && item.status !== "active") return false;
-      if (
-        availableOnly &&
-        (item.status !== "active" || item.available_spaces <= 0)
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [availableOnly, schedules, selectedLevel, selectedSubject, showInactive]);
+    return schedules
+      .filter((item) => {
+        if (
+          selectedLevel !== ALL_LEVELS &&
+          !item.academic_levels.includes(selectedLevel)
+        ) {
+          return false;
+        }
+        if (
+          selectedSubject !== ALL_SUBJECTS &&
+          item.subject !== selectedSubject
+        ) {
+          return false;
+        }
+        if (
+          selectedDay !== ANY_DAY &&
+          item.regular_weekday !== Number(selectedDay)
+        ) {
+          return false;
+        }
+        if (!showInactive && item.status !== "active") return false;
+        if (
+          availableOnly &&
+          (item.status !== "active" || item.available_spaces <= 0)
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .sort(
+        (first, second) =>
+          first.regular_weekday - second.regular_weekday ||
+          first.start_time.localeCompare(second.start_time) ||
+          classLabel(first).localeCompare(classLabel(second)),
+      );
+  }, [
+    availableOnly,
+    schedules,
+    selectedDay,
+    selectedLevel,
+    selectedSubject,
+    showInactive,
+  ]);
 
   const summary = useMemo(() => {
     const active = schedules.filter((item) => {
       const levelMatches =
-        selectedLevel === ALL_LEVELS || item.academic_levels.includes(selectedLevel);
+        selectedLevel === ALL_LEVELS ||
+        item.academic_levels.includes(selectedLevel);
       const subjectMatches =
-        selectedSubject === ALL_SUBJECTS || item.subject === selectedSubject;
-      return levelMatches && subjectMatches && item.status === "active";
+        selectedSubject === ALL_SUBJECTS ||
+        item.subject === selectedSubject;
+      const dayMatches =
+        selectedDay === ANY_DAY ||
+        item.regular_weekday === Number(selectedDay);
+
+      return (
+        levelMatches &&
+        subjectMatches &&
+        dayMatches &&
+        item.status === "active"
+      );
     });
 
     return {
@@ -249,7 +285,7 @@ export default function LessonSchedulingClient() {
         0,
       ),
     };
-  }, [schedules, selectedLevel, selectedSubject]);
+  }, [schedules, selectedDay, selectedLevel, selectedSubject]);
 
   function openAddClass() {
     const next = defaultForm(
@@ -571,18 +607,32 @@ export default function LessonSchedulingClient() {
   }
 
   async function copyAvailability() {
-    const current = schedules.filter((item) => {
-      const levelMatches =
-        selectedLevel === ALL_LEVELS || item.academic_levels.includes(selectedLevel);
-      const subjectMatches =
-        selectedSubject === ALL_SUBJECTS || item.subject === selectedSubject;
-      return (
-        levelMatches &&
-        subjectMatches &&
-        item.status === "active" &&
-        item.available_spaces > 0
+    const current = schedules
+      .filter((item) => {
+        const levelMatches =
+          selectedLevel === ALL_LEVELS ||
+          item.academic_levels.includes(selectedLevel);
+        const subjectMatches =
+          selectedSubject === ALL_SUBJECTS ||
+          item.subject === selectedSubject;
+        const dayMatches =
+          selectedDay === ANY_DAY ||
+          item.regular_weekday === Number(selectedDay);
+
+        return (
+          levelMatches &&
+          subjectMatches &&
+          dayMatches &&
+          item.status === "active" &&
+          item.available_spaces > 0
+        );
+      })
+      .sort(
+        (first, second) =>
+          first.regular_weekday - second.regular_weekday ||
+          first.start_time.localeCompare(second.start_time) ||
+          classLabel(first).localeCompare(classLabel(second)),
       );
-    });
 
     if (current.length === 0) {
       setNotice("No available classes in the current view to copy.");
@@ -596,15 +646,22 @@ export default function LessonSchedulingClient() {
       const classPrefix = broadView
         ? `${item.academic_levels.join("/")} ${item.subject} · `
         : "";
+
       return `• ${classPrefix}${weekdayShort(item.regular_weekday)} ${formatTime(item.start_time)}–${formatTime(item.end_time)} — ${item.available_spaces} ${item.available_spaces === 1 ? "space" : "spaces"}`;
     });
 
-    const heading =
-      selectedLevel === ALL_LEVELS && selectedSubject === ALL_SUBJECTS
-        ? "Available classes"
-        : `${selectedLevel === ALL_LEVELS ? "All levels" : selectedLevel} · ${selectedSubject === ALL_SUBJECTS ? "All subjects" : selectedSubject} available classes`;
+    const dayLabel =
+      selectedDay === ANY_DAY
+        ? "Any day"
+        : weekdayName(Number(selectedDay));
 
-    const text = `${heading}:\n${lines.join("\n")}`;
+    const headingParts = [
+      selectedLevel === ALL_LEVELS ? "All levels" : selectedLevel,
+      selectedSubject === ALL_SUBJECTS ? "All subjects" : selectedSubject,
+      dayLabel,
+    ];
+
+    const text = `${headingParts.join(" · ")} available classes:\n${lines.join("\n")}`;
 
     try {
       await navigator.clipboard.writeText(text);
@@ -636,7 +693,7 @@ export default function LessonSchedulingClient() {
     <BillingAdminShell
       eyebrow="Weekly class timetable"
       title="Lesson Scheduling"
-      description="Keep one live reference for class times, multi-level groups, total class numbers and available spaces. Named billing students and manually counted existing students can be tracked together."
+      description="Keep one live reference for class times, multi-level groups, total class numbers and available spaces. Filter by level, subject or day, while tracking named billing students and manually counted existing students together."
       actions={
         <div className="flex flex-wrap gap-2">
           <button
@@ -662,7 +719,7 @@ export default function LessonSchedulingClient() {
       {notice && <Alert tone="success">{notice}</Alert>}
 
       <section className="rounded-[2rem] border border-[#ded5c4] bg-white p-5 shadow-[0_20px_60px_rgba(21,35,59,0.045)] sm:p-6">
-        <div className="grid gap-4 lg:grid-cols-[220px_240px_minmax(0,1fr)] lg:items-end">
+        <div className="grid gap-4 lg:grid-cols-[180px_220px_190px_minmax(0,1fr)] lg:items-end">
           <SelectField
             label="Level"
             value={selectedLevel}
@@ -679,6 +736,15 @@ export default function LessonSchedulingClient() {
             options={[
               [ALL_SUBJECTS, "All subjects"],
               ...subjectOptions.map((value) => [value, value] as [string, string]),
+            ]}
+          />
+          <SelectField
+            label="Day"
+            value={selectedDay}
+            onChange={setSelectedDay}
+            options={[
+              [ANY_DAY, "Any"],
+              ...WEEKDAYS,
             ]}
           />
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
@@ -726,13 +792,15 @@ export default function LessonSchedulingClient() {
               Current classes
             </p>
             <h2 className="mt-1 text-2xl font-semibold text-[#15233b]">
-              {selectedLevel === ALL_LEVELS && selectedSubject === ALL_SUBJECTS
-                ? "All classes"
-                : `${selectedLevel === ALL_LEVELS ? "All levels" : selectedLevel} · ${
-                    selectedSubject === ALL_SUBJECTS
-                      ? "All subjects"
-                      : selectedSubject
-                  }`}
+              {[
+                selectedLevel === ALL_LEVELS ? "All levels" : selectedLevel,
+                selectedSubject === ALL_SUBJECTS
+                  ? "All subjects"
+                  : selectedSubject,
+                selectedDay === ANY_DAY
+                  ? "Any day"
+                  : weekdayName(Number(selectedDay)),
+              ].join(" · ")}
             </h2>
           </div>
           <p className="text-sm text-[#81796d]">
@@ -751,7 +819,7 @@ export default function LessonSchedulingClient() {
             </div>
             <h3 className="mt-4 text-lg font-semibold">No classes match this view</h3>
             <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#81796d]">
-              No classes match the selected filters. Change the level or subject, or turn off the availability filter if matching classes are full.
+              No classes match the selected filters. Change the level, subject or day, or turn off the availability filter if matching classes are full.
             </p>
             <button
               type="button"
