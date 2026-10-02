@@ -54,6 +54,27 @@ type ValidatedApplication = {
   cv: File | null;
 };
 
+type SavedApplication = {
+  id: string;
+  application_code: string;
+  full_name: string;
+  email: string;
+  school_organisation: string | null;
+  career_stage: string;
+  area: string;
+  project_id: string;
+  project_title: string;
+  application_mode: string;
+  skills_summary: string;
+  learning_goal: string;
+  self_started_example: string;
+  portfolio_url: string | null;
+  availability: string;
+  cv_path: string | null;
+  status: string;
+  notification_status: "pending" | "sent" | "failed";
+};
+
 function getServerClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -101,7 +122,7 @@ function validateApplication(formData: FormData): ValidationResult {
   if (!validUuid(submissionToken)) return { ok: false, error: "Invalid submission token. Please refresh and try again." };
   if (!MODES.has(applicationMode)) return { ok: false, error: "Invalid application type." };
   if (fullName.length < 2 || fullName.length > LIMITS.fullName) return { ok: false, error: "Please enter a valid full name." };
-  if (email.length > LIMITS.email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return { ok: false, error: "Please enter a valid email address." };
+  if (email.length > LIMITS.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Please enter a valid email address." };
   if (schoolOrganisation.length > LIMITS.schoolOrganisation) return { ok: false, error: "School / organisation is too long." };
   if (!CAREER_STAGES.has(careerStage)) return { ok: false, error: "Please select a valid current stage." };
   if (!AREAS.has(areaFromClient)) return { ok: false, error: "Please select a valid area of interest." };
@@ -115,7 +136,7 @@ function validateApplication(formData: FormData): ValidationResult {
     if (portfolioUrl.length > LIMITS.portfolioUrl) return { ok: false, error: "Portfolio URL is too long." };
     try {
       const parsed = new URL(portfolioUrl);
-      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('invalid protocol');
+      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("invalid protocol");
     } catch {
       return { ok: false, error: "Please enter a valid portfolio URL." };
     }
@@ -169,7 +190,11 @@ async function hasPdfSignature(file: File) {
 }
 
 function safeFilename(name: string) {
-  const base = name.replace(/\\.pdf$/i, "").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").slice(0, 80) || "resume";
+  const base = name
+    .replace(/\.pdf$/i, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 80) || "resume";
   return `${base}.pdf`;
 }
 
@@ -177,6 +202,177 @@ function applicationCodeFromId(id: string) {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   return `DSB-${date}-${id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 }
+
+function escapeHtml(value: string | null | undefined) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function modeLabel(mode: string) {
+  if (mode === "interest") return "Register Interest";
+  if (mode === "pitch") return "Pitch Yourself";
+  return "Project Application";
+}
+
+function buildAdminEmail(application: SavedApplication) {
+  const portfolio = application.portfolio_url
+    ? `<a href="${escapeHtml(application.portfolio_url)}" style="color:#2563eb;">${escapeHtml(application.portfolio_url)}</a>`
+    : "Not provided";
+
+  return `
+    <div style="font-family:Arial,Helvetica,sans-serif;background:#f6f8fb;padding:28px;color:#172033;">
+      <div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #e4e8ef;border-radius:18px;overflow:hidden;">
+        <div style="padding:24px 28px;background:#071426;color:#ffffff;">
+          <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#9eeaff;">Dreamscape Builders</div>
+          <h1 style="margin:10px 0 0;font-size:26px;line-height:1.2;">New builder application</h1>
+          <p style="margin:9px 0 0;color:#cad5e4;font-size:14px;">Reference: ${escapeHtml(application.application_code)}</p>
+        </div>
+
+        <div style="padding:26px 28px;">
+          <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;line-height:1.55;">
+            <tr><td style="padding:7px 0;color:#6b7280;width:180px;">Application type</td><td style="padding:7px 0;font-weight:700;">${escapeHtml(modeLabel(application.application_mode))}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;">Project</td><td style="padding:7px 0;font-weight:700;">${escapeHtml(application.project_title)}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;">Area</td><td style="padding:7px 0;">${escapeHtml(application.area)}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;">Name</td><td style="padding:7px 0;">${escapeHtml(application.full_name)}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;">Applicant email</td><td style="padding:7px 0;">${escapeHtml(application.email)}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;">School / organisation</td><td style="padding:7px 0;">${escapeHtml(application.school_organisation || "Not provided")}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;">Current stage</td><td style="padding:7px 0;">${escapeHtml(application.career_stage)}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;">Availability</td><td style="padding:7px 0;">${escapeHtml(application.availability)}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;">Portfolio / work link</td><td style="padding:7px 0;">${portfolio}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;">CV / Resume</td><td style="padding:7px 0;">${application.cv_path ? "Uploaded privately" : "Not provided"}</td></tr>
+          </table>
+
+          <div style="margin-top:24px;padding-top:22px;border-top:1px solid #e8ebf0;">
+            <h2 style="margin:0 0 8px;font-size:16px;">What they can do</h2>
+            <p style="margin:0;white-space:pre-wrap;color:#374151;">${escapeHtml(application.skills_summary)}</p>
+          </div>
+
+          <div style="margin-top:22px;">
+            <h2 style="margin:0 0 8px;font-size:16px;">What they want to learn or build</h2>
+            <p style="margin:0;white-space:pre-wrap;color:#374151;">${escapeHtml(application.learning_goal)}</p>
+          </div>
+
+          <div style="margin-top:22px;">
+            <h2 style="margin:0 0 8px;font-size:16px;">Something they made, started or figured out</h2>
+            <p style="margin:0;white-space:pre-wrap;color:#374151;">${escapeHtml(application.self_started_example)}</p>
+          </div>
+
+          <div style="margin-top:26px;padding:16px;border-radius:12px;background:#f4f7fb;color:#667085;font-size:12px;line-height:1.55;">
+            The application and any CV are stored privately in Dreamscape's Supabase project. This email does not attach the CV or expose a public storage link.
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function sendAdminNotification(application: SavedApplication) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const adminEmail = process.env.DREAMSCAPE_BUILDERS_ADMIN_EMAIL;
+  const fromEmail = process.env.DREAMSCAPE_BUILDERS_FROM_EMAIL;
+
+  if (!apiKey || !adminEmail || !fromEmail) {
+    throw new Error("Missing Dreamscape Builders Resend environment variables.");
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: [adminEmail],
+      subject: `[Dreamscape Builders] ${application.project_title} — ${application.full_name}`,
+      html: buildAdminEmail(application),
+      reply_to: application.email,
+    }),
+  });
+
+  const body = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      typeof body?.message === "string"
+        ? body.message
+        : `Resend notification failed with status ${response.status}.`;
+    throw new Error(message);
+  }
+
+  return typeof body?.id === "string" ? body.id : null;
+}
+
+async function notifyAndRecord(
+  supabase: ReturnType<typeof getServerClient>,
+  application: SavedApplication,
+) {
+  try {
+    const resendId = await sendAdminNotification(application);
+
+    const { error: updateError } = await supabase
+      .from("dreamscape_builder_applications")
+      .update({
+        notification_status: "sent",
+        notified_at: new Date().toISOString(),
+        notification_error: null,
+        resend_email_id: resendId,
+      })
+      .eq("id", application.id);
+
+    if (updateError) {
+      console.error("Dreamscape Builders notification status update error:", updateError);
+    }
+
+    return true;
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message.slice(0, 1000)
+        : "Unknown notification error";
+
+    console.error("Dreamscape Builders admin notification error:", error);
+
+    const { error: updateError } = await supabase
+      .from("dreamscape_builder_applications")
+      .update({
+        notification_status: "failed",
+        notification_error: message,
+      })
+      .eq("id", application.id);
+
+    if (updateError) {
+      console.error("Dreamscape Builders notification failure status update error:", updateError);
+    }
+
+    return false;
+  }
+}
+
+const APPLICATION_SELECT = `
+  id,
+  application_code,
+  full_name,
+  email,
+  school_organisation,
+  career_stage,
+  area,
+  project_id,
+  project_title,
+  application_mode,
+  skills_summary,
+  learning_goal,
+  self_started_example,
+  portfolio_url,
+  availability,
+  cv_path,
+  status,
+  notification_status
+`;
 
 export async function POST(request: Request) {
   try {
@@ -196,13 +392,24 @@ export async function POST(request: Request) {
 
     const { data: existing, error: existingError } = await supabase
       .from("dreamscape_builder_applications")
-      .select("id, application_code")
+      .select(APPLICATION_SELECT)
       .eq("submission_token", data.submissionToken)
       .maybeSingle();
 
     if (existingError) throw existingError;
+
     if (existing) {
-      return NextResponse.json({ ok: true, applicationCode: existing.application_code, duplicate: true });
+      const saved = existing as SavedApplication;
+
+      if (saved.notification_status !== "sent") {
+        await notifyAndRecord(supabase, saved);
+      }
+
+      return NextResponse.json({
+        ok: true,
+        applicationCode: saved.application_code,
+        duplicate: true,
+      });
     }
 
     const id = crypto.randomUUID();
@@ -211,11 +418,15 @@ export async function POST(request: Request) {
 
     if (data.cv) {
       if (!(await hasPdfSignature(data.cv))) {
-        return NextResponse.json({ ok: false, error: "The uploaded CV / Resume is not a valid PDF." }, { status: 400 });
+        return NextResponse.json(
+          { ok: false, error: "The uploaded CV / Resume is not a valid PDF." },
+          { status: 400 },
+        );
       }
 
       cvPath = `${id}/${safeFilename(data.cv.name)}`;
       const bytes = Buffer.from(await data.cv.arrayBuffer());
+
       const { error: uploadError } = await supabase.storage
         .from("dreamscape-builder-cvs")
         .upload(cvPath, bytes, {
@@ -226,28 +437,33 @@ export async function POST(request: Request) {
       if (uploadError) throw uploadError;
     }
 
-    const { error: insertError } = await supabase
+    const insertPayload = {
+      id,
+      application_code: applicationCode,
+      submission_token: data.submissionToken,
+      full_name: data.fullName,
+      email: data.email,
+      school_organisation: data.schoolOrganisation,
+      career_stage: data.careerStage,
+      area: data.area,
+      project_id: data.projectId,
+      project_title: data.projectTitle,
+      application_mode: data.applicationMode,
+      skills_summary: data.skillsSummary,
+      learning_goal: data.learningGoal,
+      self_started_example: data.selfStartedExample,
+      portfolio_url: data.portfolioUrl,
+      availability: data.availability,
+      cv_path: cvPath,
+      status: "new",
+      notification_status: "pending",
+    };
+
+    const { data: inserted, error: insertError } = await supabase
       .from("dreamscape_builder_applications")
-      .insert({
-        id,
-        application_code: applicationCode,
-        submission_token: data.submissionToken,
-        full_name: data.fullName,
-        email: data.email,
-        school_organisation: data.schoolOrganisation,
-        career_stage: data.careerStage,
-        area: data.area,
-        project_id: data.projectId,
-        project_title: data.projectTitle,
-        application_mode: data.applicationMode,
-        skills_summary: data.skillsSummary,
-        learning_goal: data.learningGoal,
-        self_started_example: data.selfStartedExample,
-        portfolio_url: data.portfolioUrl,
-        availability: data.availability,
-        cv_path: cvPath,
-        status: "new",
-      });
+      .insert(insertPayload)
+      .select(APPLICATION_SELECT)
+      .single();
 
     if (insertError) {
       if (cvPath) {
@@ -256,11 +472,22 @@ export async function POST(request: Request) {
       throw insertError;
     }
 
-    return NextResponse.json({ ok: true, applicationCode });
+    const saved = inserted as SavedApplication;
+
+    // Notification failure must never invalidate a successfully saved application.
+    await notifyAndRecord(supabase, saved);
+
+    return NextResponse.json({
+      ok: true,
+      applicationCode,
+    });
   } catch (error) {
     console.error("Dreamscape Builders application error:", error);
     return NextResponse.json(
-      { ok: false, error: "We could not submit your application right now. Please try again." },
+      {
+        ok: false,
+        error: "We could not submit your application right now. Please try again.",
+      },
       { status: 500 },
     );
   }
