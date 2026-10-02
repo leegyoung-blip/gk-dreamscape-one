@@ -135,7 +135,7 @@ const GKP_NAV_GROUPS: NavGroup[] = [
       {
         label: "Staff Payments",
         icon: "¤",
-        phase: "Phase 4",
+        href: "/admin/billing/gkp/staff-payments",
       },
       {
         label: "Accounting",
@@ -160,12 +160,37 @@ const GKP_NAV_GROUPS: NavGroup[] = [
 
 const DREAMSCAPE_NAV_GROUPS: NavGroup[] = [
   {
+    label: "Overview",
+    items: [
+      {
+        label: "Overview",
+        icon: "▦",
+        href: "/admin/billing/dreamscape",
+      },
+    ],
+  },
+  {
     label: "Subscriptions",
     items: [
       {
-        label: "Subscriptions",
-        icon: "✦",
-        href: "/admin/billing/dreamscape",
+        label: "Subscribers",
+        icon: "◎",
+        href: "/admin/billing/dreamscape/subscribers",
+      },
+      {
+        label: "Plans",
+        icon: "▤",
+        href: "/admin/billing/dreamscape/plans",
+      },
+    ],
+  },
+  {
+    label: "Billing",
+    items: [
+      {
+        label: "Payments & Refunds",
+        icon: "$",
+        href: "/admin/billing/dreamscape/payments",
       },
     ],
   },
@@ -175,7 +200,22 @@ const DREAMSCAPE_NAV_GROUPS: NavGroup[] = [
       {
         label: "Staff Payments",
         icon: "¤",
-        phase: "Phase 4",
+        href: "/admin/billing/dreamscape/staff-payments",
+      },
+      {
+        label: "Accounting",
+        icon: "∑",
+        href: "/admin/billing/dreamscape/accounting",
+      },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      {
+        label: "Settings",
+        icon: "⚙",
+        href: "/admin/billing/dreamscape/settings",
       },
     ],
   },
@@ -197,7 +237,7 @@ const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
 
   {
 
-    eyebrow: "Stop 1 of 11",
+    eyebrow: "Stop 1 of 12",
 
     title: "Begin with the billing overview.",
 
@@ -211,7 +251,7 @@ const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
 
   {
 
-    eyebrow: "Stop 2 of 11",
+    eyebrow: "Stop 2 of 12",
 
     title: "Create one billing account for each family.",
 
@@ -225,7 +265,7 @@ const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
 
   {
 
-    eyebrow: "Stop 3 of 11",
+    eyebrow: "Stop 3 of 12",
 
     title: "Use Programmes as standard fee templates.",
 
@@ -239,7 +279,7 @@ const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
 
   {
 
-    eyebrow: "Stop 4 of 11",
+    eyebrow: "Stop 4 of 12",
 
     title: "Use Lesson Scheduling as the live class reference.",
 
@@ -253,7 +293,7 @@ const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
 
   {
 
-    eyebrow: "Stop 5 of 11",
+    eyebrow: "Stop 5 of 12",
 
     title: "Prepare the month before generating invoices.",
 
@@ -267,7 +307,7 @@ const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
 
   {
 
-    eyebrow: "Stop 6 of 11",
+    eyebrow: "Stop 6 of 12",
 
     title: "Check the four-lesson discount rule.",
 
@@ -281,7 +321,7 @@ const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
 
   {
 
-    eyebrow: "Stop 7 of 11",
+    eyebrow: "Stop 7 of 12",
 
     title: "Review the draft before issuing it.",
 
@@ -295,7 +335,7 @@ const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
 
   {
 
-    eyebrow: "Stop 8 of 11",
+    eyebrow: "Stop 8 of 12",
 
     title: "Treat payment confirmation as a separate step.",
 
@@ -309,7 +349,7 @@ const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
 
   {
 
-    eyebrow: "Stop 9 of 11",
+    eyebrow: "Stop 9 of 12",
 
     title: "Use Payments for reconciliation, not just viewing totals.",
 
@@ -323,13 +363,27 @@ const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
 
   {
 
-    eyebrow: "Stop 10 of 11",
+    eyebrow: "Stop 10 of 12",
 
-    title: "Use Accounting for month-end reporting.",
+    title: "Keep staff payments in the company finance ledger.",
 
     text:
 
-      "Accounting brings invoices, collections, refunds and outstanding balances into one reporting view. Select a billing month, review the ledger and collection mix, then use the figures as the basis for month-end reconciliation. Revenue categorisation and formal accountant exports are added in the next accounting phase.",
+      "Staff Payments records management salaries, teacher or contractor pay, bonuses, allowances, deductions and payment history. Staff identity can be shared across both companies, but each company keeps separate employment terms and payment records.",
+
+    highlightedNav: "Staff Payments",
+
+  },
+
+  {
+
+    eyebrow: "Stop 11 of 12",
+
+    title: "Use Accounting for company-only month-end reporting.",
+
+    text:
+
+      "Accounting keeps Guru Kids Pro and Dreamscape One separate. For GKP it brings tuition billing, collections, refunds, outstanding balances, staff costs and other GKP expenses into one monthly view. Dreamscape has its own accounting page for subscription revenue and Dreamscape-only costs.",
 
     highlightedNav: "Accounting",
 
@@ -337,7 +391,7 @@ const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
 
   {
 
-    eyebrow: "Stop 11 of 11",
+    eyebrow: "Stop 12 of 12",
 
     title: "Keep operational billing rules in Settings.",
 
@@ -870,8 +924,8 @@ export default function BillingAdminShell({
                   {workspaceLabel} workspace
                 </strong>
                 {workspace === "gkp"
-                  ? "Families, programmes, class scheduling, invoices, payments and GKP financial reporting."
-                  : "Dreamscape subscription billing. Staff Payments and the full Dreamscape finance workspace are added in later phases."}
+                  ? "Families, programmes, class scheduling, invoices, payments, staff costs and GKP financial reporting."
+                  : "Subscribers, plans, payments, staff costs and Dreamscape financial reporting."}
               </div>
             </nav>
           </aside>

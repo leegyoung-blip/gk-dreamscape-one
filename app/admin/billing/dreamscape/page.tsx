@@ -1,5 +1,11 @@
-import DreamscapeBillingClient from "./DreamscapeBillingClient";
+import type { Metadata } from "next";
+import DreamscapeWorkspaceClient from "./DreamscapeWorkspaceClient";
 
-export default function DreamscapeBillingPage() {
-  return <DreamscapeBillingClient />;
+export const metadata: Metadata = {
+  title: "Dreamscape One Billing | Billing Platform",
+  description: "Dreamscape One subscription billing administration.",
+};
+
+export default function DreamscapeBillingOverviewPage() {
+  return <DreamscapeWorkspaceClient view="overview" />;
 }

@@ -15,7 +15,7 @@ const WORKSPACES = [
       "Programmes & lesson scheduling",
       "Invoices & payments",
       "GKP accounting",
-      "Staff payments — Phase 4",
+      "Staff payments",
     ],
     icon: "GKP",
   },
@@ -24,13 +24,13 @@ const WORKSPACES = [
     eyebrow: "Subscription operations",
     href: "/admin/billing/dreamscape",
     description:
-      "Manage Dreamscape subscription plans, subscribers, recurring payments and the finance modules that will be separated from GKP.",
+      "Manage Dreamscape subscribers, plans, recurring payments and company-specific finance from a workspace separate from Guru Kids Pro.",
     features: [
       "Subscribers & plans",
       "Recurring billing",
       "Payments & refunds",
-      "Dreamscape accounting — Phase 5",
-      "Staff payments — Phase 4",
+      "Dreamscape accounting",
+      "Staff payments",
     ],
     icon: "D1",
   },
@@ -93,10 +93,10 @@ export default function BillingPlatformLandingClient() {
 
       <section className="mt-6 rounded-[2rem] border border-[#ded5c4] bg-[#15233b] p-5 text-white shadow-[0_20px_60px_rgba(21,35,59,0.10)] sm:p-6">
         <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#e8c474]">
-          Phase 1 + 2 status
+          Phase 1–5 status
         </p>
         <p className="mt-3 max-w-4xl text-sm leading-6 text-white/75">
-          The platform entry point is now separated by company, and Guru Kids Pro has its own grouped workspace routes for customers, classes, billing, finance and system settings. Legacy GKP URLs remain operational during migration. Staff Payments is reserved for Phase 4, while the full Dreamscape workspace migration and accounting separation follow in later phases.
+          The platform is separated by company. Guru Kids Pro and Dreamscape One now have separate billing, payroll and accounting workspaces. Staff identity can be shared, while payroll, operating expenses and company financial results remain separate.
         </p>
       </section>
     </BillingAdminShell>

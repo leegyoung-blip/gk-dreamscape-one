@@ -1,1600 +1,3199 @@
 "use client";
 
+
+
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import BillingAdminShell from "@/app/admin/billing/_components/BillingAdminShell";
+
 import { supabase } from "@/lib/supabase";
 
+
+
 type Plan = {
-  id: string;
-  plan_key: string;
-  display_name: string;
-  plan_code: string;
-  billing_cycle: string;
-  audience: string;
-  amount: number | string;
-  currency: string;
-  provider: string;
-  is_available: boolean;
-  is_coming_soon: boolean;
-  hitpay_plan_id: string | null;
-  hitpay_environment: string | null;
-  hitpay_synced_at: string | null;
-  stripe_test_price_id: string | null;
-  stripe_live_price_id: string | null;
-  stripe_synced_at: string | null;
+
+  id: string;
+
+  plan_key: string;
+
+  display_name: string;
+
+  plan_code: string;
+
+  billing_cycle: string;
+
+  audience: string;
+
+  amount: number | string;
+
+  currency: string;
+
+  provider: string;
+
+  is_available: boolean;
+
+  is_coming_soon: boolean;
+
+  hitpay_plan_id: string | null;
+
+  hitpay_environment: string | null;
+
+  hitpay_synced_at: string | null;
+
+  stripe_test_price_id: string | null;
+
+  stripe_live_price_id: string | null;
+
+  stripe_synced_at: string | null;
+
 };
+
+
 
 type Contract = {
-  id: string;
-  reference: string;
-  plan_key: string;
-  display_name: string;
-  plan_code: string;
-  billing_cycle: string;
-  amount: number | string;
-  currency: string;
-  parent_name: string;
-  parent_email: string;
-  learner_name: string;
-  learner_email: string;
-  learner_user_id: string | null;
-  provider: string;
-  provider_environment: string | null;
-  provider_subscription_id: string | null;
-  provider_status: string | null;
-  status: string;
-  current_period_start: string | null;
-  current_period_end: string | null;
-  next_billing_at: string | null;
-  grace_until: string | null;
-  last_successful_charge_at: string | null;
-  failed_charge_count: number;
-  cancel_at_period_end: boolean;
-  created_at: string;
-  updated_at: string;
-  plan_id: string;
-  pending_plan_id: string | null;
-  pending_plan_key: string | null;
-  pending_display_name: string | null;
-  pending_plan_code: string | null;
-  pending_billing_cycle: string | null;
-  pending_amount: number | string | null;
-  plan_change_status: string | null;
-  plan_change_effective_at: string | null;
-  plan_change_requested_at: string | null;
-  previous_plan_id: string | null;
+
+  id: string;
+
+  reference: string;
+
+  plan_key: string;
+
+  display_name: string;
+
+  plan_code: string;
+
+  billing_cycle: string;
+
+  amount: number | string;
+
+  currency: string;
+
+  parent_name: string;
+
+  parent_email: string;
+
+  learner_name: string;
+
+  learner_email: string;
+
+  learner_user_id: string | null;
+
+  provider: string;
+
+  provider_environment: string | null;
+
+  provider_subscription_id: string | null;
+
+  provider_status: string | null;
+
+  status: string;
+
+  current_period_start: string | null;
+
+  current_period_end: string | null;
+
+  next_billing_at: string | null;
+
+  grace_until: string | null;
+
+  last_successful_charge_at: string | null;
+
+  failed_charge_count: number;
+
+  cancel_at_period_end: boolean;
+
+  created_at: string;
+
+  updated_at: string;
+
+  plan_id: string;
+
+  pending_plan_id: string | null;
+
+  pending_plan_key: string | null;
+
+  pending_display_name: string | null;
+
+  pending_plan_code: string | null;
+
+  pending_billing_cycle: string | null;
+
+  pending_amount: number | string | null;
+
+  plan_change_status: string | null;
+
+  plan_change_effective_at: string | null;
+
+  plan_change_requested_at: string | null;
+
+  previous_plan_id: string | null;
+
 };
+
+
 
 type Metrics = {
-  active_count: number;
-  setup_pending_count: number;
-  payment_issue_count: number;
-  cancelling_count: number;
-  suspended_count: number;
-  monthly_recurring_revenue: number | string;
-  annual_contract_value: number | string;
+
+  active_count: number;
+
+  setup_pending_count: number;
+
+  payment_issue_count: number;
+
+  cancelling_count: number;
+
+  suspended_count: number;
+
+  monthly_recurring_revenue: number | string;
+
+  annual_contract_value: number | string;
+
 };
+
+
 
 type Settings = {
-  public_checkout_enabled: boolean;
-  failed_payment_grace_days: number;
-  hitpay_send_receipts: boolean;
-  updated_at: string;
+
+  public_checkout_enabled: boolean;
+
+  failed_payment_grace_days: number;
+
+  hitpay_send_receipts: boolean;
+
+  updated_at: string;
+
 };
+
+
 
 type StripeRuntimeStatus = {
-  ok: boolean;
-  stripeConfigured: boolean;
-  stripeEnvironment: "sandbox" | "production";
-  activeSecretKeyPresent: boolean;
-  activeWebhookSecretPresent: boolean;
-  testSecretKeyPresent: boolean;
-  liveSecretKeyPresent: boolean;
-  testWebhookSecretPresent: boolean;
-  liveWebhookSecretPresent: boolean;
-  testMappingReady: boolean;
-  liveMappingReady: boolean;
-  activeMappingReady: boolean;
-  publicPlanCount: number;
-  activeMappedPlanCount: number;
+
+  ok: boolean;
+
+  stripeConfigured: boolean;
+
+  stripeEnvironment: "sandbox" | "production";
+
+  activeSecretKeyPresent: boolean;
+
+  activeWebhookSecretPresent: boolean;
+
+  testSecretKeyPresent: boolean;
+
+  liveSecretKeyPresent: boolean;
+
+  testWebhookSecretPresent: boolean;
+
+  liveWebhookSecretPresent: boolean;
+
+  testMappingReady: boolean;
+
+  liveMappingReady: boolean;
+
+  activeMappingReady: boolean;
+
+  publicPlanCount: number;
+
+  activeMappedPlanCount: number;
+
 };
+
+
 
 type AddonWarning = {
-  addon_id: string;
-  student_id: string;
-  account_id: string;
-  account_code: string;
-  payer_name: string;
-  student_code: string;
-  student_name: string;
-  learner_email: string;
-  plan_code: string;
-  monthly_fee: number | string;
-  starts_on: string;
-  warning_code: string;
-  warning_message: string;
+
+  addon_id: string;
+
+  student_id: string;
+
+  account_id: string;
+
+  account_code: string;
+
+  payer_name: string;
+
+  student_code: string;
+
+  student_name: string;
+
+  learner_email: string;
+
+  plan_code: string;
+
+  monthly_fee: number | string;
+
+  starts_on: string;
+
+  warning_code: string;
+
+  warning_message: string;
+
 };
+
+
 
 type SubscriptionEmailLog = {
-  id: string;
-  email_type: string;
-  recipient_email: string;
-  subject: string;
-  status: string;
-  resend_email_id: string | null;
-  error_message: string | null;
-  sent_at: string | null;
-  created_at: string;
+
+  id: string;
+
+  email_type: string;
+
+  recipient_email: string;
+
+  subject: string;
+
+  status: string;
+
+  resend_email_id: string | null;
+
+  error_message: string | null;
+
+  sent_at: string | null;
+
+  created_at: string;
+
 };
+
+
 
 type PlanChangeHistory = {
-  id: string;
-  status: string;
-  request_source: string;
-  requested_at: string;
-  effective_at: string;
-  applied_at: string | null;
-  cancelled_at: string | null;
-  from_plan_name: string | null;
-  from_plan_key: string | null;
-  to_plan_name: string | null;
-  to_plan_key: string | null;
-  payment_id: string | null;
-  failure_message: string | null;
+
+  id: string;
+
+  status: string;
+
+  request_source: string;
+
+  requested_at: string;
+
+  effective_at: string;
+
+  applied_at: string | null;
+
+  cancelled_at: string | null;
+
+  from_plan_name: string | null;
+
+  from_plan_key: string | null;
+
+  to_plan_name: string | null;
+
+  to_plan_key: string | null;
+
+  payment_id: string | null;
+
+  failure_message: string | null;
+
 };
+
+
 
 type DualBillingConflict = {
-  learner_email: string;
-  contract_id: string;
-  contract_reference: string;
-  contract_status: string;
-  current_period_end: string | null;
-  addon_id: string;
-  student_id: string;
-  addon_status: string;
-  addon_plan_code: string;
-  addon_starts_on: string;
-  addon_ends_on: string | null;
+
+  learner_email: string;
+
+  contract_id: string;
+
+  contract_reference: string;
+
+  contract_status: string;
+
+  current_period_end: string | null;
+
+  addon_id: string;
+
+  student_id: string;
+
+  addon_status: string;
+
+  addon_plan_code: string;
+
+  addon_starts_on: string;
+
+  addon_ends_on: string | null;
+
 };
 
+
+
 function money(value: number | string, currency = "SGD") {
-  return new Intl.NumberFormat("en-SG", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-  }).format(Number(value || 0));
+
+  return new Intl.NumberFormat("en-SG", {
+
+    style: "currency",
+
+    currency,
+
+    minimumFractionDigits: 2,
+
+  }).format(Number(value || 0));
+
 }
+
+
 
 function date(value: string | null) {
-  if (!value) return "—";
-  const parsed = new Date(value);
-  if (!Number.isFinite(parsed.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-SG", {
-    timeZone: "Asia/Singapore",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(parsed);
+
+  if (!value) return "—";
+
+  const parsed = new Date(value);
+
+  if (!Number.isFinite(parsed.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("en-SG", {
+
+    timeZone: "Asia/Singapore",
+
+    day: "numeric",
+
+    month: "short",
+
+    year: "numeric",
+
+  }).format(parsed);
+
 }
+
+
 
 export default function DreamscapeBillingClient() {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [contracts, setContracts] = useState<Contract[]>([]);
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [working, setWorking] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [selectedContractId, setSelectedContractId] = useState("");
-  const [addonWarnings, setAddonWarnings] = useState<AddonWarning[]>([]);
-  const [emailHistory, setEmailHistory] = useState<SubscriptionEmailLog[]>([]);
-  const [planChangeHistory, setPlanChangeHistory] = useState<PlanChangeHistory[]>([]);
-  const [dualConflicts, setDualConflicts] = useState<DualBillingConflict[]>([]);
-  const [targetPlanId, setTargetPlanId] = useState("");
-  const [stripeRuntime, setStripeRuntime] =
-    useState<StripeRuntimeStatus | null>(null);
-  const [paymentHistory, setPaymentHistory] = useState<
-    Array<{
-      id: string;
-      provider_charge_id: string | null;
-      amount: number | string;
-      currency: string;
-      status: string;
-      paid_at: string | null;
-      created_at: string;
-    }>
-  >([]);
-
-  const loadStripeRuntimeStatus =
-    useCallback(async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        return null;
-      }
-
-      const response = await fetch(
-        "/api/billing/stripe/system-status",
-        {
-          method: "GET",
-          cache: "no-store",
-          headers: {
-            Authorization:
-              `Bearer ${session.access_token}`,
-          },
-        },
-      );
-
-      const payload =
-        (await response.json()) as
-          | StripeRuntimeStatus
-          | { error?: string };
-
-      if (!response.ok) {
-        throw new Error(
-          "error" in payload &&
-          payload.error
-            ? payload.error
-            : "Stripe runtime status is unavailable.",
-        );
-      }
-
-      return payload as StripeRuntimeStatus;
-    }, []);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    const [
-      plansResult,
-      contractsResult,
-      metricsResult,
-      settingsResult,
-      warningResult,
-      conflictResult,
-      stripeRuntimeResult,
-    ] = await Promise.all([
-        supabase.rpc("gkp_get_dreamscape_subscription_plans_v2"),
-        supabase.rpc(
-          "gkp_get_dreamscape_subscription_contracts",
-          { p_limit: 300 },
-        ),
-        supabase.rpc("gkp_get_dreamscape_subscription_metrics"),
-        supabase.rpc("gkp_get_dreamscape_billing_settings"),
-        supabase.rpc("gkp_get_gkp_dreamscape_addon_warnings"),
-        supabase.rpc("gkp_get_dreamscape_dual_billing_conflicts"),
-        loadStripeRuntimeStatus().catch(
-          (runtimeError) => ({
-            __runtimeError:
-              runtimeError instanceof Error
-                ? runtimeError.message
-                : String(runtimeError),
-          }),
-        ),
-      ]);
-
-    const firstError =
-      plansResult.error ||
-      contractsResult.error ||
-      metricsResult.error ||
-      settingsResult.error ||
-      warningResult.error ||
-      conflictResult.error;
-
-    if (firstError) {
-      setError(firstError.message);
-      setLoading(false);
-      return;
-    }
-
-    setPlans((plansResult.data || []) as Plan[]);
-    setContracts((contractsResult.data || []) as Contract[]);
-    setMetrics(
-      ((metricsResult.data || [])[0] || null) as Metrics | null,
-    );
-    setSettings(
-      ((settingsResult.data || [])[0] || null) as Settings | null,
-    );
-    setAddonWarnings((warningResult.data || []) as AddonWarning[]);
-    setDualConflicts((conflictResult.data || []) as DualBillingConflict[]);
-
-    if (
-      stripeRuntimeResult &&
-      !("__runtimeError" in stripeRuntimeResult)
-    ) {
-      setStripeRuntime(
-        stripeRuntimeResult as StripeRuntimeStatus,
-      );
-    } else {
-      setStripeRuntime(null);
-
-      if (
-        stripeRuntimeResult &&
-        "__runtimeError" in stripeRuntimeResult
-      ) {
-        console.warn(
-          "Stripe runtime status could not be loaded:",
-          stripeRuntimeResult.__runtimeError,
-        );
-      }
-    }
-
-    setLoading(false);
-  }, [loadStripeRuntimeStatus]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function togglePublicCheckout() {
-    if (!settings) return;
-
-    const next = !settings.public_checkout_enabled;
-
-    if (next) {
-      const isProduction =
-        stripeRuntime?.stripeEnvironment ===
-        "production";
-
-      const confirmation =
-        isProduction
-          ? "Enable LIVE public Dreamscape subscription checkout? Real customer cards can now be charged."
-          : "Enable SANDBOX public Dreamscape subscription checkout? No real transactions will be processed.";
-
-      if (!window.confirm(confirmation)) {
-        return;
-      }
-    }
-
-    setWorking(true);
-    setMessage("");
-    setError("");
-
-    const { error: rpcError } = await supabase.rpc(
-      "gkp_set_dreamscape_public_checkout_enabled",
-      { p_enabled: next },
-    );
-
-    if (rpcError) {
-      setError(rpcError.message);
-    } else {
-      setMessage(
-        next
-          ? "Public Dreamscape checkout enabled."
-          : "Public Dreamscape checkout disabled.",
-      );
-      await load();
-    }
-
-    setWorking(false);
-  }
-
-  async function loadPaymentHistory(contractId: string) {
-    if (!contractId) {
-      setPaymentHistory([]);
-      return;
-    }
-
-    const [paymentResult, emailResult, planChangeResult] = await Promise.all([
-      supabase.rpc(
-        "gkp_get_dreamscape_subscription_payments",
-        { p_contract_id: contractId },
-      ),
-      supabase.rpc(
-        "gkp_get_dreamscape_subscription_email_history",
-        { p_contract_id: contractId },
-      ),
-      supabase.rpc(
-        "gkp_get_dreamscape_plan_change_history",
-        { p_contract_id: contractId },
-      ),
-    ]);
-
-    const firstError =
-      paymentResult.error || emailResult.error || planChangeResult.error;
-
-    if (firstError) {
-      setError(firstError.message);
-      return;
-    }
-
-    setPaymentHistory((paymentResult.data || []) as typeof paymentHistory);
-    setEmailHistory((emailResult.data || []) as SubscriptionEmailLog[]);
-    setPlanChangeHistory((planChangeResult.data || []) as PlanChangeHistory[]);
-  }
-
-  async function runSubscriptionAction(
-    contract: Contract,
-    action:
-      | "refresh"
-      | "cancel_period_end"
-      | "cancel_immediate"
-      | "reactivate",
-  ) {
-    if (
-      action === "cancel_period_end" &&
-      !window.confirm(
-        `Stop future renewals for ${contract.learner_name}? ` +
-          "The learner will keep access through the current paid period.",
-      )
-    ) {
-      return;
-    }
-
-    if (
-      action === "cancel_immediate" &&
-      !window.confirm(
-        `Cancel ${contract.learner_name}'s subscription immediately? ` +
-          "This removes paid Dreamscape access now.",
-      )
-    ) {
-      return;
-    }
-
-    if (
-      action === "reactivate" &&
-      !window.confirm(
-        `Reactivate the billing subscription for ${contract.learner_name}?`,
-      )
-    ) {
-      return;
-    }
-
-    setWorking(true);
-    setMessage("");
-    setError("");
-
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new Error("Please sign in again.");
-      }
-
-      const response = await fetch(
-        "/api/billing/dreamscape/subscriptions/action",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contractId: contract.id,
-            action,
-          }),
-        },
-      );
-
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string; status?: string; accessUntil?: string }
-        | null;
-
-      if (!response.ok) {
-        throw new Error(
-          payload?.error ||
-            "The subscription action could not be completed.",
-        );
-      }
-
-      const actionLabel =
-        action === "refresh"
-          ? "Subscription refreshed"
-          : action === "cancel_period_end"
-            ? "Future renewals stopped; paid access retained to period end"
-            : action === "cancel_immediate"
-              ? "Subscription cancelled immediately"
-              : "Subscription reactivation requested";
-
-      setMessage(`${actionLabel}.`);
-      await load();
-
-      if (selectedContractId === contract.id) {
-        await loadPaymentHistory(contract.id);
-      }
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "The subscription action could not be completed.",
-      );
-    }
-
-    setWorking(false);
-  }
-
-  async function runPlanChange(
-    contract: Contract,
-    action: "change_plan" | "cancel_plan_change",
-  ) {
-    if (action === "change_plan" && !targetPlanId) {
-      setError("Choose the target plan first.");
-      return;
-    }
-
-    const targetPlan = plans.find((item) => item.id === targetPlanId);
-
-    if (
-      action === "change_plan" &&
-      !window.confirm(
-        `Schedule ${contract.learner_name} to move from ${contract.display_name} to ${targetPlan?.display_name || "the selected plan"} at the next billing cycle?`,
-      )
-    ) {
-      return;
-    }
-
-    if (
-      action === "cancel_plan_change" &&
-      !window.confirm("Cancel the pending plan change and keep the current plan?")
-    ) {
-      return;
-    }
-
-    setWorking(true);
-    setMessage("");
-    setError("");
-
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) throw new Error("Please sign in again.");
-
-      const response = await fetch(
-        "/api/billing/dreamscape/subscriptions/action",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contractId: contract.id,
-            action,
-            ...(action === "change_plan"
-              ? { targetPlanId }
-              : {}),
-          }),
-        },
-      );
-
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string; nextPlan?: string; effectiveAt?: string }
-        | null;
-
-      if (!response.ok) {
-        throw new Error(payload?.error || "The plan change could not be completed.");
-      }
-
-      setMessage(
-        action === "change_plan"
-          ? `Plan change scheduled for ${date(payload?.effectiveAt || contract.current_period_end)}.`
-          : "Pending plan change cancelled.",
-      );
-      setTargetPlanId("");
-      await load();
-      await loadPaymentHistory(contract.id);
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "The plan change could not be completed.",
-      );
-    }
-
-    setWorking(false);
-  }
-
-  async function sendManagementEmail(contract: Contract) {
-    setWorking(true);
-    setMessage("");
-    setError("");
-
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new Error("Please sign in again.");
-      }
-
-      const response = await fetch(
-        "/api/billing/dreamscape/subscriptions/email",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ contractId: contract.id }),
-        },
-      );
-
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string; recipient?: string }
-        | null;
-
-      if (!response.ok) {
-        throw new Error(
-          payload?.error || "The management email could not be sent.",
-        );
-      }
-
-      setMessage(
-        `Secure subscription management link sent to ${
-          payload?.recipient || contract.parent_email
-        }.`,
-      );
-
-      if (selectedContractId === contract.id) {
-        await loadPaymentHistory(contract.id);
-      }
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "The management email could not be sent.",
-      );
-    }
-
-    setWorking(false);
-  }
-
-  const selectedContract =
-    contracts.find(
-      (contract) => contract.id === selectedContractId,
-    ) || null;
-
-  const filteredContracts = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return contracts;
-
-    return contracts.filter((contract) =>
-      [
-        contract.reference,
-        contract.parent_name,
-        contract.parent_email,
-        contract.learner_name,
-        contract.learner_email,
-        contract.display_name,
-        contract.status,
-        contract.provider_status,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(term),
-    );
-  }, [contracts, search]);
-
-  const stripeSellablePlanKeys = new Set([
-    "core_monthly",
-    "core_annual",
-    "complete_monthly",
-    "complete_annual",
-  ]);
-
-  const publicStripePlans = plans.filter(
-    (plan) =>
-      plan.audience === "public" &&
-      stripeSellablePlanKeys.has(plan.plan_key) &&
-      plan.is_available &&
-      !plan.is_coming_soon,
-  );
-
-  const testPublicStripePlansMapped =
-    publicStripePlans.length === 4 &&
-    publicStripePlans.every((plan) =>
-      Boolean(plan.stripe_test_price_id),
-    );
-
-  const livePublicStripePlansMapped =
-    publicStripePlans.length === 4 &&
-    publicStripePlans.every((plan) =>
-      Boolean(plan.stripe_live_price_id),
-    );
-
-  const activeStripeMappingReady =
-    Boolean(
-      stripeRuntime?.activeMappingReady,
-    );
-
-  const activeStripeRuntimeReady =
-    Boolean(
-      stripeRuntime?.stripeConfigured &&
-      activeStripeMappingReady,
-    );
-
-  return (
-    <BillingAdminShell
-      eyebrow="Dreamscape"
-      title="Dreamscape Subscriptions"
-      description="Manage Dreamscape public subscriptions, Stripe checkout launch controls, learner access projection and legacy HitPay contracts."
-      actions={
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading || working}
-          className="min-h-11 rounded-full border border-[#d7c9ae] bg-white px-5 text-xs font-bold"
-        >
-          Refresh
-        </button>
-      }
-    >
-      {(message || error) && (
-        <div
-          className={`mb-5 rounded-2xl border px-5 py-4 text-sm ${
-            error
-              ? "border-red-200 bg-red-50 text-red-700"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700"
-          }`}
-        >
-          {error || message}
-        </div>
-      )}
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric
-          label="Active"
-          value={
-            loading
-              ? "…"
-              : String(Number(metrics?.active_count || 0))
-          }
-        />
-        <Metric
-          label="Setup Pending"
-          value={
-            loading
-              ? "…"
-              : String(Number(metrics?.setup_pending_count || 0))
-          }
-        />
-        <Metric
-          label="Payment Issue"
-          value={
-            loading
-              ? "…"
-              : String(Number(metrics?.payment_issue_count || 0))
-          }
-        />
-        <Metric
-          label="Monthly MRR"
-          value={
-            loading
-              ? "…"
-              : money(metrics?.monthly_recurring_revenue || 0)
-          }
-        />
-        <Metric
-          label="Annual Contracts"
-          value={
-            loading
-              ? "…"
-              : money(metrics?.annual_contract_value || 0)
-          }
-        />
-      </section>
-
-      <section className="mt-6 rounded-[28px] border border-[#ded5c4] bg-white p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
-              Launch controls
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
-              Stripe public checkout
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#81796d]">
-              Use this switch to open or close all public Dreamscape subscription checkout.
-              GKP student billing is separate and is not affected by this control.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => void togglePublicCheckout()}
-            disabled={
-              working ||
-              (!settings?.public_checkout_enabled &&
-                !activeStripeRuntimeReady)
-            }
-            className={`min-h-11 rounded-full border px-6 text-xs font-black ${
-              settings?.public_checkout_enabled
-                ? "border-red-200 bg-red-50 text-red-700"
-                : "border-emerald-200 bg-emerald-50 text-emerald-700"
-            } disabled:cursor-not-allowed disabled:opacity-45`}
-          >
-            {working
-              ? "Working…"
-              : settings?.public_checkout_enabled
-                ? "Turn Public Checkout OFF"
-                : "Turn Public Checkout ON"}
-          </button>
-        </div>
-
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <StatusBox
-            label="Public checkout"
-            value={
-              settings?.public_checkout_enabled
-                ? "ON"
-                : "OFF"
-            }
-            detail={
-              settings?.public_checkout_enabled
-                ? "Public pricing pages may start Stripe checkout."
-                : "New public subscription checkout is blocked."
-            }
-          />
-
-          <StatusBox
-            label="Stripe mode"
-            value={
-              stripeRuntime
-                ? stripeRuntime.stripeEnvironment.toUpperCase()
-                : "UNKNOWN"
-            }
-            detail={
-              stripeRuntime?.stripeEnvironment === "production"
-                ? "Live Stripe keys and live Price IDs are active. Real cards can be charged."
-                : stripeRuntime?.stripeEnvironment === "sandbox"
-                  ? "Test Stripe keys and sandbox Price IDs are active."
-                  : "Runtime environment could not be verified."
-            }
-          />
-
-          <StatusBox
-            label="Active Stripe setup"
-            value={
-              activeStripeRuntimeReady
-                ? "READY"
-                : "NOT READY"
-            }
-            detail={
-              stripeRuntime
-                ? `${stripeRuntime.activeMappedPlanCount}/${stripeRuntime.publicPlanCount} active-environment prices mapped. Secret key: ${stripeRuntime.activeSecretKeyPresent ? "OK" : "missing"}. Webhook secret: ${stripeRuntime.activeWebhookSecretPresent ? "OK" : "missing"}.`
-                : "Could not verify the server-side Stripe environment."
-            }
-          />
-
-          <StatusBox
-            label="Grace period"
-            value={`${settings?.failed_payment_grace_days || 7} DAYS`}
-            detail="Used when a recurring Stripe payment fails."
-          />
-        </div>
-      </section>
-
-      {dualConflicts.length > 0 && (
-        <section className="mt-6 rounded-[28px] border border-red-200 bg-red-50 p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
-          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-red-700">
-            Billing conflict
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
-            {dualConflicts.length} learner{dualConflicts.length === 1 ? "" : "s"} have overlapping GKP and public Dreamscape access
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-red-900/75">
-            Phase 5 blocks new duplicate checkouts. These are pre-existing overlaps and must be resolved before final sign-off.
-          </p>
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {dualConflicts.map((item) => (
-              <div key={`${item.contract_id}:${item.addon_id}`} className="rounded-2xl border border-red-200 bg-white p-4">
-                <strong className="text-sm text-[#15233b]">{item.learner_email}</strong>
-                <p className="mt-1 text-xs text-[#81796d]">
-                  Public {item.contract_reference} · {item.contract_status}
-                </p>
-                <p className="mt-1 text-xs text-red-700">
-                  GKP add-on: {item.addon_plan_code} · {item.addon_status}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {addonWarnings.length > 0 && (
-        <section className="mt-6 rounded-[28px] border border-amber-200 bg-amber-50 p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
-          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-700">
-            GKP access review
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
-            {addonWarnings.length} GKP Dreamscape add-on
-            {addonWarnings.length === 1 ? "" : "s"} need review
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-amber-900/75">
-            These students still have GKP-priced Dreamscape access but no
-            active GKP programme enrolment. Review whether the add-on should
-            end or move to a public Dreamscape subscription.
-          </p>
-
-          <div className="mt-5 grid gap-3 lg:grid-cols-2">
-            {addonWarnings.map((warning) => (
-              <div
-                key={warning.addon_id}
-                className="rounded-2xl border border-amber-200 bg-white p-4"
-              >
-                <strong className="text-sm text-[#15233b]">
-                  {warning.student_name}
-                </strong>
-                <p className="mt-1 text-xs text-[#81796d]">
-                  {warning.account_code} · {warning.payer_name}
-                </p>
-                <p className="mt-3 text-xs leading-5 text-amber-800">
-                  {warning.warning_message}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className="mt-6 rounded-[28px] border border-[#ded5c4] bg-white p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
-        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
-          Plan mapping
-        </p>
-        <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
-          Dreamscape plans
-        </h2>
-
-        <p className="mt-2 text-xs leading-5 text-[#81796d]">
-          Sandbox mapping: {testPublicStripePlansMapped ? "READY" : "NOT READY"} ·
-          Live mapping: {livePublicStripePlansMapped ? "READY" : "NOT READY"}.
-          The server-side Stripe mode shown above decides which mapping is used for new checkout.
-        </p>
-
-        <div className="mt-5 overflow-x-auto">
-          <table className="w-full min-w-[1080px] border-collapse text-left">
-            <thead>
-              <tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
-                <th className="px-4 py-3">Plan</th>
-                <th className="px-4 py-3">Audience</th>
-                <th className="px-4 py-3">Billing</th>
-                <th className="px-4 py-3">Price</th>
-                <th className="px-4 py-3">Current default</th>
-                <th className="px-4 py-3">Stripe sandbox</th>
-                <th className="px-4 py-3">Stripe live</th>
-                <th className="px-4 py-3">Legacy HitPay</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plans.map((plan) => (
-                <tr
-                  key={plan.id}
-                  className="border-b border-[#f0ece4] last:border-b-0"
-                >
-                  <td className="px-4 py-4">
-                    <strong className="block text-sm text-[#15233b]">
-                      {plan.display_name}
-                    </strong>
-                    <span className="mt-1 block text-[11px] text-[#8a8378]">
-                      {plan.plan_key}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-sm capitalize">
-                    {plan.audience}
-                  </td>
-                  <td className="px-4 py-4 text-sm capitalize">
-                    {plan.billing_cycle}
-                  </td>
-                  <td className="px-4 py-4 text-sm font-bold">
-                    {money(plan.amount, plan.currency)}
-                  </td>
-                  <td className="px-4 py-4 text-sm">
-                    {plan.audience === "gkp"
-                      ? "GKP Billing"
-                      : plan.provider === "stripe"
-                        ? "Stripe"
-                        : "HitPay (until cutover)"}
-                  </td>
-                  <td className="px-4 py-4 text-xs">
-                    {plan.audience !== "public"
-                      ? "Not required"
-                      : plan.stripe_test_price_id || "Not mapped"}
-                  </td>
-                  <td className="px-4 py-4 text-xs">
-                    {plan.audience !== "public"
-                      ? "Not required"
-                      : plan.stripe_live_price_id || "Not mapped"}
-                  </td>
-                  <td className="px-4 py-4 text-xs">
-                    {plan.audience !== "public"
-                      ? "Not required"
-                      : plan.hitpay_plan_id
-                        ? `${plan.hitpay_environment || ""} · ${plan.hitpay_plan_id}`
-                        : "Not mapped"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="mt-6 rounded-[28px] border border-[#ded5c4] bg-white p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
-              Subscription directory
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
-              Public Dreamscape contracts
-            </h2>
-          </div>
-
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search learner, parent, plan or status"
-            className="min-h-11 w-full rounded-xl border border-[#d9cfbd] bg-white px-4 text-sm outline-none sm:max-w-sm"
-          />
-        </div>
-
-        {loading ? (
-          <p className="mt-6 text-sm text-[#81796d]">
-            Loading subscriptions…
-          </p>
-        ) : filteredContracts.length === 0 ? (
-          <p className="mt-6 rounded-2xl bg-[#fbfaf7] p-6 text-sm text-[#81796d]">
-            No Dreamscape subscription contracts yet.
-          </p>
-        ) : (
-          <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[1120px] border-collapse text-left">
-              <thead>
-                <tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
-                  <th className="px-4 py-3">Learner</th>
-                  <th className="px-4 py-3">Parent</th>
-                  <th className="px-4 py-3">Plan</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Access until</th>
-                  <th className="px-4 py-3">Next billing</th>
-                  <th className="px-4 py-3">Provider</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredContracts.map((contract) => (
-                  <tr
-                    key={contract.id}
-                    className={`border-b border-[#f0ece4] last:border-b-0 ${
-                      selectedContractId === contract.id
-                        ? "bg-[#fbfaf7]"
-                        : ""
-                    }`}
-                  >
-                    <td className="px-4 py-4">
-                      <strong className="block text-sm text-[#15233b]">
-                        {contract.learner_name}
-                      </strong>
-                      <span className="mt-1 block text-xs text-[#81796d]">
-                        {contract.learner_email}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <strong className="block text-sm">
-                        {contract.parent_name}
-                      </strong>
-                      <span className="mt-1 block text-xs text-[#81796d]">
-                        {contract.parent_email}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-sm">
-                      {contract.display_name}
-                      {contract.pending_display_name && (
-                        <span className="mt-1 block text-[10px] font-bold text-violet-700">
-                          → {contract.pending_display_name} on {date(contract.plan_change_effective_at)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4">
-                      <StatusPill status={contract.status} />
-                      {contract.grace_until && (
-                        <span className="mt-1 block text-[10px] text-amber-700">
-                          Grace until {date(contract.grace_until)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-sm">
-                      {date(contract.current_period_end)}
-                    </td>
-                    <td className="px-4 py-4 text-sm">
-                      {date(contract.next_billing_at)}
-                    </td>
-                    <td className="px-4 py-4 text-xs">
-                      <span className="block capitalize">
-                        {contract.provider} · {contract.provider_environment || "—"}
-                      </span>
-                      <span className="mt-1 block max-w-[220px] truncate text-[#81796d]">
-                        {contract.provider_subscription_id || "Not attached"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <button
-                          type="button"
-                          disabled={working}
-                          onClick={() => {
-                            setSelectedContractId(contract.id);
-                            void loadPaymentHistory(contract.id);
-                          }}
-                          className="rounded-full border border-[#d7c9ae] bg-white px-3 py-2 text-[10px] font-bold"
-                        >
-                          Details
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={working}
-                          onClick={() => void sendManagementEmail(contract)}
-                          className="rounded-full border border-violet-200 bg-violet-50 px-3 py-2 text-[10px] font-bold text-violet-700"
-                        >
-                          Email parent
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={working}
-                          onClick={() =>
-                            void runSubscriptionAction(
-                              contract,
-                              "refresh",
-                            )
-                          }
-                          className="rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-[10px] font-bold text-sky-700"
-                        >
-                          Refresh
-                        </button>
-
-                        {["active", "payment_issue"].includes(
-                          contract.status,
-                        ) && (
-                          <>
-                            <button
-                              type="button"
-                              disabled={working}
-                              onClick={() =>
-                                void runSubscriptionAction(
-                                  contract,
-                                  "cancel_period_end",
-                                )
-                              }
-                              className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800"
-                            >
-                              Cancel at period end
-                            </button>
-
-                            <button
-                              type="button"
-                              disabled={working}
-                              onClick={() =>
-                                void runSubscriptionAction(
-                                  contract,
-                                  "cancel_immediate",
-                                )
-                              }
-                              className="rounded-full border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-bold text-red-700"
-                            >
-                              Cancel now
-                            </button>
-                          </>
-                        )}
-
-                        {contract.status === "cancel_at_period_end" && (
-                          <button
-                            type="button"
-                            disabled={working}
-                            onClick={() =>
-                              void runSubscriptionAction(
-                                contract,
-                                "reactivate",
-                              )
-                            }
-                            className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-bold text-emerald-700"
-                          >
-                            Keep subscription
-                          </button>
-                        )}
-
-                        {contract.provider === "hitpay" &&
-                          ["cancelled", "suspended", "expired"].includes(
-                            contract.status,
-                          ) && (
-                            <button
-                              type="button"
-                              disabled={working}
-                              onClick={() =>
-                                void runSubscriptionAction(
-                                  contract,
-                                  "reactivate",
-                                )
-                              }
-                              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-bold text-emerald-700"
-                            >
-                              Reactivate
-                            </button>
-                          )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {selectedContract && (
-        <section className="mt-6 rounded-[28px] border border-[#ded5c4] bg-white p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
-                Subscriber detail
-              </p>
-              <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
-                {selectedContract.learner_name}
-              </h2>
-              <p className="mt-1 text-sm text-[#81796d]">
-                {selectedContract.learner_email} · payer{" "}
-                {selectedContract.parent_email}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedContractId("");
-                setPaymentHistory([]);
-                setEmailHistory([]);
-                setPlanChangeHistory([]);
-                setTargetPlanId("");
-              }}
-              className="min-h-10 rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold"
-            >
-              Close
-            </button>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatusBox
-              label="Plan"
-              value={selectedContract.display_name}
-              detail={`${selectedContract.billing_cycle} · ${money(
-                selectedContract.amount,
-                selectedContract.currency,
-              )}`}
-            />
-            <StatusBox
-              label="Paid through"
-              value={date(selectedContract.current_period_end)}
-              detail={`Next billing ${date(
-                selectedContract.next_billing_at,
-              )}`}
-            />
-            <StatusBox
-              label="Billing status"
-              value={selectedContract.status
-                .replaceAll("_", " ")
-                .toUpperCase()}
-              detail={`Provider: ${
-                selectedContract.provider_status || "—"
-              }`}
-            />
-            <StatusBox
-              label="Payment recovery"
-              value={
-                selectedContract.grace_until
-                  ? `UNTIL ${date(selectedContract.grace_until)}`
-                  : "NO ACTIVE GRACE"
-              }
-              detail={`${Number(
-                selectedContract.failed_charge_count || 0,
-              )} recorded issue(s)`}
-            />
-          </div>
-
-          <div className="mt-6 rounded-2xl border border-violet-200 bg-violet-50/60 p-5">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-violet-700">
-                  Plan transition
-                </p>
-                {selectedContract.pending_display_name ? (
-                  <>
-                    <h3 className="mt-2 text-base font-semibold text-[#15233b]">
-                      {selectedContract.display_name} → {selectedContract.pending_display_name}
-                    </h3>
-                    <p className="mt-1 text-xs leading-5 text-[#81796d]">
-                      The current plan stays active through {date(selectedContract.plan_change_effective_at)}. The new Nova entitlement is applied only after the successful new-cycle charge.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="mt-2 text-base font-semibold text-[#15233b]">Schedule a next-cycle plan change</h3>
-                    <p className="mt-1 text-xs leading-5 text-[#81796d]">
-                      No proration and no early access switch. The billing provider changes the recurring price for the next billing cycle.
-                    </p>
-                  </>
-                )}
-              </div>
-
-              {selectedContract.pending_plan_id ? (
-                <button
-                  type="button"
-                  disabled={working}
-                  onClick={() => void runPlanChange(selectedContract, "cancel_plan_change")}
-                  className="min-h-11 rounded-full border border-red-200 bg-white px-5 text-xs font-black text-red-700"
-                >
-                  Cancel pending change
-                </button>
-              ) : (
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <select
-                    value={targetPlanId}
-                    onChange={(event) => setTargetPlanId(event.target.value)}
-                    className="min-h-11 rounded-xl border border-violet-200 bg-white px-4 text-sm"
-                  >
-                    <option value="">Choose new plan</option>
-                    {plans
-                      .filter((item) => {
-                        if (
-                          item.id === selectedContract.plan_id ||
-                          item.audience !== "public" ||
-                          !item.is_available ||
-                          item.is_coming_soon
-                        ) {
-                          return false;
-                        }
-
-                        if (selectedContract.provider === "stripe") {
-                          return Boolean(
-                            selectedContract.provider_environment === "production"
-                              ? item.stripe_live_price_id
-                              : item.stripe_test_price_id,
-                          );
-                        }
-
-                        if (selectedContract.provider === "hitpay") {
-                          return Boolean(item.hitpay_plan_id);
-                        }
-
-                        return false;
-                      })
-                      .map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.display_name} · {money(item.amount, item.currency)} / {item.billing_cycle}
-                        </option>
-                      ))}
-                  </select>
-                  <button
-                    type="button"
-                    disabled={
-                      working ||
-                      !targetPlanId ||
-                      selectedContract.status !== "active"
-                    }
-                    onClick={() =>
-                      void runPlanChange(
-                        selectedContract,
-                        "change_plan",
-                      )
-                    }
-                    className="min-h-11 rounded-full border border-violet-200 bg-violet-600 px-5 text-xs font-black text-white disabled:opacity-45"
-                  >
-                    Schedule change
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-6 overflow-x-auto rounded-2xl border border-[#ebe5da]">
-            <table className="w-full min-w-[680px] border-collapse text-left">
-              <thead>
-                <tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
-                  <th className="px-4 py-3">Paid</th>
-                  <th className="px-4 py-3">Amount</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Provider payment</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paymentHistory.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="px-4 py-7 text-center text-sm text-[#81796d]"
-                    >
-                      No successful recurring charges recorded yet.
-                    </td>
-                  </tr>
-                ) : (
-                  paymentHistory.map((payment) => (
-                    <tr
-                      key={payment.id}
-                      className="border-b border-[#f0ece4] last:border-b-0"
-                    >
-                      <td className="px-4 py-4 text-sm">
-                        {date(payment.paid_at || payment.created_at)}
-                      </td>
-                      <td className="px-4 py-4 text-sm font-bold">
-                        {money(payment.amount, payment.currency)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <StatusPill status={payment.status} />
-                      </td>
-                      <td className="px-4 py-4 text-xs text-[#81796d]">
-                        {payment.provider_charge_id || "—"}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="mt-6 overflow-x-auto rounded-2xl border border-[#ebe5da]">
-            <div className="border-b border-[#ebe5da] bg-[#fbfaf7] px-4 py-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
-                Plan change history
-              </p>
-            </div>
-            <table className="w-full min-w-[760px] border-collapse text-left">
-              <thead>
-                <tr className="border-b border-[#ebe5da] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
-                  <th className="px-4 py-3">Requested</th>
-                  <th className="px-4 py-3">Change</th>
-                  <th className="px-4 py-3">Effective</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {planChangeHistory.length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 py-7 text-center text-sm text-[#81796d]">No plan changes recorded.</td></tr>
-                ) : (
-                  planChangeHistory.map((item) => (
-                    <tr key={item.id} className="border-b border-[#f0ece4] last:border-b-0">
-                      <td className="px-4 py-4 text-xs">{date(item.requested_at)} · {item.request_source}</td>
-                      <td className="px-4 py-4 text-xs font-bold">{item.from_plan_name || "—"} → {item.to_plan_name || "—"}</td>
-                      <td className="px-4 py-4 text-xs">{date(item.effective_at)}</td>
-                      <td className="px-4 py-4"><StatusPill status={item.status} />{item.failure_message && <span className="mt-1 block text-[10px] text-red-600">{item.failure_message}</span>}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="mt-6 overflow-x-auto rounded-2xl border border-[#ebe5da]">
-            <div className="border-b border-[#ebe5da] bg-[#fbfaf7] px-4 py-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
-                Subscription email history
-              </p>
-            </div>
-            <table className="w-full min-w-[760px] border-collapse text-left">
-              <thead>
-                <tr className="border-b border-[#ebe5da] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Recipient</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Sent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {emailHistory.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="px-4 py-7 text-center text-sm text-[#81796d]"
-                    >
-                      No Dreamscape subscription emails recorded yet.
-                    </td>
-                  </tr>
-                ) : (
-                  emailHistory.map((email) => (
-                    <tr
-                      key={email.id}
-                      className="border-b border-[#f0ece4] last:border-b-0"
-                    >
-                      <td className="px-4 py-4 text-xs font-bold">
-                        {email.email_type.replaceAll("_", " ")}
-                      </td>
-                      <td className="px-4 py-4 text-xs">
-                        {email.recipient_email}
-                      </td>
-                      <td className="px-4 py-4">
-                        <StatusPill status={email.status} />
-                      </td>
-                      <td className="px-4 py-4 text-xs text-[#81796d]">
-                        {date(email.sent_at || email.created_at)}
-                        {email.error_message && (
-                          <span className="mt-1 block max-w-[260px] text-red-600">
-                            {email.error_message}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-    </BillingAdminShell>
-  );
+
+  const [plans, setPlans] = useState<Plan[]>([]);
+
+  const [contracts, setContracts] = useState<Contract[]>([]);
+
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+
+  const [settings, setSettings] = useState<Settings | null>(null);
+
+  const [search, setSearch] = useState("");
+
+  const [loading, setLoading] = useState(true);
+
+  const [working, setWorking] = useState(false);
+
+  const [message, setMessage] = useState("");
+
+  const [error, setError] = useState("");
+
+  const [selectedContractId, setSelectedContractId] = useState("");
+
+  const [addonWarnings, setAddonWarnings] = useState<AddonWarning[]>([]);
+
+  const [emailHistory, setEmailHistory] = useState<SubscriptionEmailLog[]>([]);
+
+  const [planChangeHistory, setPlanChangeHistory] = useState<PlanChangeHistory[]>([]);
+
+  const [dualConflicts, setDualConflicts] = useState<DualBillingConflict[]>([]);
+
+  const [targetPlanId, setTargetPlanId] = useState("");
+
+  const [stripeRuntime, setStripeRuntime] =
+
+    useState<StripeRuntimeStatus | null>(null);
+
+  const [paymentHistory, setPaymentHistory] = useState<
+
+    Array<{
+
+      id: string;
+
+      provider_charge_id: string | null;
+
+      amount: number | string;
+
+      currency: string;
+
+      status: string;
+
+      paid_at: string | null;
+
+      created_at: string;
+
+    }>
+
+  >([]);
+
+
+
+  const loadStripeRuntimeStatus =
+
+    useCallback(async () => {
+
+      const {
+
+        data: { session },
+
+      } = await supabase.auth.getSession();
+
+
+
+      if (!session?.access_token) {
+
+        return null;
+
+      }
+
+
+
+      const response = await fetch(
+
+        "/api/billing/stripe/system-status",
+
+        {
+
+          method: "GET",
+
+          cache: "no-store",
+
+          headers: {
+
+            Authorization:
+
+              `Bearer ${session.access_token}`,
+
+          },
+
+        },
+
+      );
+
+
+
+      const payload =
+
+        (await response.json()) as
+
+          | StripeRuntimeStatus
+
+          | { error?: string };
+
+
+
+      if (!response.ok) {
+
+        throw new Error(
+
+          "error" in payload &&
+
+          payload.error
+
+            ? payload.error
+
+            : "Stripe runtime status is unavailable.",
+
+        );
+
+      }
+
+
+
+      return payload as StripeRuntimeStatus;
+
+    }, []);
+
+
+
+  const load = useCallback(async () => {
+
+    setLoading(true);
+
+    setError("");
+
+
+
+    const [
+
+      plansResult,
+
+      contractsResult,
+
+      metricsResult,
+
+      settingsResult,
+
+      warningResult,
+
+      conflictResult,
+
+      stripeRuntimeResult,
+
+    ] = await Promise.all([
+
+        supabase.rpc("gkp_get_dreamscape_subscription_plans_v2"),
+
+        supabase.rpc(
+
+          "gkp_get_dreamscape_subscription_contracts",
+
+          { p_limit: 300 },
+
+        ),
+
+        supabase.rpc("gkp_get_dreamscape_subscription_metrics"),
+
+        supabase.rpc("gkp_get_dreamscape_billing_settings"),
+
+        supabase.rpc("gkp_get_gkp_dreamscape_addon_warnings"),
+
+        supabase.rpc("gkp_get_dreamscape_dual_billing_conflicts"),
+
+        loadStripeRuntimeStatus().catch(
+
+          (runtimeError) => ({
+
+            __runtimeError:
+
+              runtimeError instanceof Error
+
+                ? runtimeError.message
+
+                : String(runtimeError),
+
+          }),
+
+        ),
+
+      ]);
+
+
+
+    const firstError =
+
+      plansResult.error ||
+
+      contractsResult.error ||
+
+      metricsResult.error ||
+
+      settingsResult.error ||
+
+      warningResult.error ||
+
+      conflictResult.error;
+
+
+
+    if (firstError) {
+
+      setError(firstError.message);
+
+      setLoading(false);
+
+      return;
+
+    }
+
+
+
+    setPlans((plansResult.data || []) as Plan[]);
+
+    setContracts((contractsResult.data || []) as Contract[]);
+
+    setMetrics(
+
+      ((metricsResult.data || [])[0] || null) as Metrics | null,
+
+    );
+
+    setSettings(
+
+      ((settingsResult.data || [])[0] || null) as Settings | null,
+
+    );
+
+    setAddonWarnings((warningResult.data || []) as AddonWarning[]);
+
+    setDualConflicts((conflictResult.data || []) as DualBillingConflict[]);
+
+
+
+    if (
+
+      stripeRuntimeResult &&
+
+      !("__runtimeError" in stripeRuntimeResult)
+
+    ) {
+
+      setStripeRuntime(
+
+        stripeRuntimeResult as StripeRuntimeStatus,
+
+      );
+
+    } else {
+
+      setStripeRuntime(null);
+
+
+
+      if (
+
+        stripeRuntimeResult &&
+
+        "__runtimeError" in stripeRuntimeResult
+
+      ) {
+
+        console.warn(
+
+          "Stripe runtime status could not be loaded:",
+
+          stripeRuntimeResult.__runtimeError,
+
+        );
+
+      }
+
+    }
+
+
+
+    setLoading(false);
+
+  }, [loadStripeRuntimeStatus]);
+
+
+
+  useEffect(() => {
+
+    void load();
+
+  }, [load]);
+
+
+
+  async function togglePublicCheckout() {
+
+    if (!settings) return;
+
+
+
+    const next = !settings.public_checkout_enabled;
+
+
+
+    if (next) {
+
+      const isProduction =
+
+        stripeRuntime?.stripeEnvironment ===
+
+        "production";
+
+
+
+      const confirmation =
+
+        isProduction
+
+          ? "Enable LIVE public Dreamscape subscription checkout? Real customer cards can now be charged."
+
+          : "Enable SANDBOX public Dreamscape subscription checkout? No real transactions will be processed.";
+
+
+
+      if (!window.confirm(confirmation)) {
+
+        return;
+
+      }
+
+    }
+
+
+
+    setWorking(true);
+
+    setMessage("");
+
+    setError("");
+
+
+
+    const { error: rpcError } = await supabase.rpc(
+
+      "gkp_set_dreamscape_public_checkout_enabled",
+
+      { p_enabled: next },
+
+    );
+
+
+
+    if (rpcError) {
+
+      setError(rpcError.message);
+
+    } else {
+
+      setMessage(
+
+        next
+
+          ? "Public Dreamscape checkout enabled."
+
+          : "Public Dreamscape checkout disabled.",
+
+      );
+
+      await load();
+
+    }
+
+
+
+    setWorking(false);
+
+  }
+
+
+
+  async function loadPaymentHistory(contractId: string) {
+
+    if (!contractId) {
+
+      setPaymentHistory([]);
+
+      return;
+
+    }
+
+
+
+    const [paymentResult, emailResult, planChangeResult] = await Promise.all([
+
+      supabase.rpc(
+
+        "gkp_get_dreamscape_subscription_payments",
+
+        { p_contract_id: contractId },
+
+      ),
+
+      supabase.rpc(
+
+        "gkp_get_dreamscape_subscription_email_history",
+
+        { p_contract_id: contractId },
+
+      ),
+
+      supabase.rpc(
+
+        "gkp_get_dreamscape_plan_change_history",
+
+        { p_contract_id: contractId },
+
+      ),
+
+    ]);
+
+
+
+    const firstError =
+
+      paymentResult.error || emailResult.error || planChangeResult.error;
+
+
+
+    if (firstError) {
+
+      setError(firstError.message);
+
+      return;
+
+    }
+
+
+
+    setPaymentHistory((paymentResult.data || []) as typeof paymentHistory);
+
+    setEmailHistory((emailResult.data || []) as SubscriptionEmailLog[]);
+
+    setPlanChangeHistory((planChangeResult.data || []) as PlanChangeHistory[]);
+
+  }
+
+
+
+  async function runSubscriptionAction(
+
+    contract: Contract,
+
+    action:
+
+      | "refresh"
+
+      | "cancel_period_end"
+
+      | "cancel_immediate"
+
+      | "reactivate",
+
+  ) {
+
+    if (
+
+      action === "cancel_period_end" &&
+
+      !window.confirm(
+
+        `Stop future renewals for ${contract.learner_name}? ` +
+
+          "The learner will keep access through the current paid period.",
+
+      )
+
+    ) {
+
+      return;
+
+    }
+
+
+
+    if (
+
+      action === "cancel_immediate" &&
+
+      !window.confirm(
+
+        `Cancel ${contract.learner_name}'s subscription immediately? ` +
+
+          "This removes paid Dreamscape access now.",
+
+      )
+
+    ) {
+
+      return;
+
+    }
+
+
+
+    if (
+
+      action === "reactivate" &&
+
+      !window.confirm(
+
+        `Reactivate the billing subscription for ${contract.learner_name}?`,
+
+      )
+
+    ) {
+
+      return;
+
+    }
+
+
+
+    setWorking(true);
+
+    setMessage("");
+
+    setError("");
+
+
+
+    try {
+
+      const {
+
+        data: { session },
+
+      } = await supabase.auth.getSession();
+
+
+
+      if (!session?.access_token) {
+
+        throw new Error("Please sign in again.");
+
+      }
+
+
+
+      const response = await fetch(
+
+        "/api/billing/dreamscape/subscriptions/action",
+
+        {
+
+          method: "POST",
+
+          headers: {
+
+            Authorization: `Bearer ${session.access_token}`,
+
+            "Content-Type": "application/json",
+
+          },
+
+          body: JSON.stringify({
+
+            contractId: contract.id,
+
+            action,
+
+          }),
+
+        },
+
+      );
+
+
+
+      const payload = (await response.json().catch(() => null)) as
+
+        | { error?: string; status?: string; accessUntil?: string }
+
+        | null;
+
+
+
+      if (!response.ok) {
+
+        throw new Error(
+
+          payload?.error ||
+
+            "The subscription action could not be completed.",
+
+        );
+
+      }
+
+
+
+      const actionLabel =
+
+        action === "refresh"
+
+          ? "Subscription refreshed"
+
+          : action === "cancel_period_end"
+
+            ? "Future renewals stopped; paid access retained to period end"
+
+            : action === "cancel_immediate"
+
+              ? "Subscription cancelled immediately"
+
+              : "Subscription reactivation requested";
+
+
+
+      setMessage(`${actionLabel}.`);
+
+      await load();
+
+
+
+      if (selectedContractId === contract.id) {
+
+        await loadPaymentHistory(contract.id);
+
+      }
+
+    } catch (caught) {
+
+      setError(
+
+        caught instanceof Error
+
+          ? caught.message
+
+          : "The subscription action could not be completed.",
+
+      );
+
+    }
+
+
+
+    setWorking(false);
+
+  }
+
+
+
+  async function runPlanChange(
+
+    contract: Contract,
+
+    action: "change_plan" | "cancel_plan_change",
+
+  ) {
+
+    if (action === "change_plan" && !targetPlanId) {
+
+      setError("Choose the target plan first.");
+
+      return;
+
+    }
+
+
+
+    const targetPlan = plans.find((item) => item.id === targetPlanId);
+
+
+
+    if (
+
+      action === "change_plan" &&
+
+      !window.confirm(
+
+        `Schedule ${contract.learner_name} to move from ${contract.display_name} to ${targetPlan?.display_name || "the selected plan"} at the next billing cycle?`,
+
+      )
+
+    ) {
+
+      return;
+
+    }
+
+
+
+    if (
+
+      action === "cancel_plan_change" &&
+
+      !window.confirm("Cancel the pending plan change and keep the current plan?")
+
+    ) {
+
+      return;
+
+    }
+
+
+
+    setWorking(true);
+
+    setMessage("");
+
+    setError("");
+
+
+
+    try {
+
+      const {
+
+        data: { session },
+
+      } = await supabase.auth.getSession();
+
+
+
+      if (!session?.access_token) throw new Error("Please sign in again.");
+
+
+
+      const response = await fetch(
+
+        "/api/billing/dreamscape/subscriptions/action",
+
+        {
+
+          method: "POST",
+
+          headers: {
+
+            Authorization: `Bearer ${session.access_token}`,
+
+            "Content-Type": "application/json",
+
+          },
+
+          body: JSON.stringify({
+
+            contractId: contract.id,
+
+            action,
+
+            ...(action === "change_plan"
+
+              ? { targetPlanId }
+
+              : {}),
+
+          }),
+
+        },
+
+      );
+
+
+
+      const payload = (await response.json().catch(() => null)) as
+
+        | { error?: string; nextPlan?: string; effectiveAt?: string }
+
+        | null;
+
+
+
+      if (!response.ok) {
+
+        throw new Error(payload?.error || "The plan change could not be completed.");
+
+      }
+
+
+
+      setMessage(
+
+        action === "change_plan"
+
+          ? `Plan change scheduled for ${date(payload?.effectiveAt || contract.current_period_end)}.`
+
+          : "Pending plan change cancelled.",
+
+      );
+
+      setTargetPlanId("");
+
+      await load();
+
+      await loadPaymentHistory(contract.id);
+
+    } catch (caught) {
+
+      setError(
+
+        caught instanceof Error
+
+          ? caught.message
+
+          : "The plan change could not be completed.",
+
+      );
+
+    }
+
+
+
+    setWorking(false);
+
+  }
+
+
+
+  async function sendManagementEmail(contract: Contract) {
+
+    setWorking(true);
+
+    setMessage("");
+
+    setError("");
+
+
+
+    try {
+
+      const {
+
+        data: { session },
+
+      } = await supabase.auth.getSession();
+
+
+
+      if (!session?.access_token) {
+
+        throw new Error("Please sign in again.");
+
+      }
+
+
+
+      const response = await fetch(
+
+        "/api/billing/dreamscape/subscriptions/email",
+
+        {
+
+          method: "POST",
+
+          headers: {
+
+            Authorization: `Bearer ${session.access_token}`,
+
+            "Content-Type": "application/json",
+
+          },
+
+          body: JSON.stringify({ contractId: contract.id }),
+
+        },
+
+      );
+
+
+
+      const payload = (await response.json().catch(() => null)) as
+
+        | { error?: string; recipient?: string }
+
+        | null;
+
+
+
+      if (!response.ok) {
+
+        throw new Error(
+
+          payload?.error || "The management email could not be sent.",
+
+        );
+
+      }
+
+
+
+      setMessage(
+
+        `Secure subscription management link sent to ${
+
+          payload?.recipient || contract.parent_email
+
+        }.`,
+
+      );
+
+
+
+      if (selectedContractId === contract.id) {
+
+        await loadPaymentHistory(contract.id);
+
+      }
+
+    } catch (caught) {
+
+      setError(
+
+        caught instanceof Error
+
+          ? caught.message
+
+          : "The management email could not be sent.",
+
+      );
+
+    }
+
+
+
+    setWorking(false);
+
+  }
+
+
+
+  const selectedContract =
+
+    contracts.find(
+
+      (contract) => contract.id === selectedContractId,
+
+    ) || null;
+
+
+
+  const filteredContracts = useMemo(() => {
+
+    const term = search.trim().toLowerCase();
+
+    if (!term) return contracts;
+
+
+
+    return contracts.filter((contract) =>
+
+      [
+
+        contract.reference,
+
+        contract.parent_name,
+
+        contract.parent_email,
+
+        contract.learner_name,
+
+        contract.learner_email,
+
+        contract.display_name,
+
+        contract.status,
+
+        contract.provider_status,
+
+      ]
+
+        .join(" ")
+
+        .toLowerCase()
+
+        .includes(term),
+
+    );
+
+  }, [contracts, search]);
+
+
+
+  const stripeSellablePlanKeys = new Set([
+
+    "core_monthly",
+
+    "core_annual",
+
+    "complete_monthly",
+
+    "complete_annual",
+
+  ]);
+
+
+
+  const publicStripePlans = plans.filter(
+
+    (plan) =>
+
+      plan.audience === "public" &&
+
+      stripeSellablePlanKeys.has(plan.plan_key) &&
+
+      plan.is_available &&
+
+      !plan.is_coming_soon,
+
+  );
+
+
+
+  const testPublicStripePlansMapped =
+
+    publicStripePlans.length === 4 &&
+
+    publicStripePlans.every((plan) =>
+
+      Boolean(plan.stripe_test_price_id),
+
+    );
+
+
+
+  const livePublicStripePlansMapped =
+
+    publicStripePlans.length === 4 &&
+
+    publicStripePlans.every((plan) =>
+
+      Boolean(plan.stripe_live_price_id),
+
+    );
+
+
+
+  const activeStripeMappingReady =
+
+    Boolean(
+
+      stripeRuntime?.activeMappingReady,
+
+    );
+
+
+
+  const activeStripeRuntimeReady =
+
+    Boolean(
+
+      stripeRuntime?.stripeConfigured &&
+
+      activeStripeMappingReady,
+
+    );
+
+
+
+  return (
+
+    <BillingAdminShell
+
+      eyebrow="Dreamscape"
+
+      title="Subscribers & Subscription Operations"
+
+      description="Manage Dreamscape subscribers, Stripe subscription controls, plan changes, payment history, learner access and any remaining legacy HitPay contracts."
+
+      actions={
+
+        <button
+
+          type="button"
+
+          onClick={() => void load()}
+
+          disabled={loading || working}
+
+          className="min-h-11 rounded-full border border-[#d7c9ae] bg-white px-5 text-xs font-bold"
+
+        >
+
+          Refresh
+
+        </button>
+
+      }
+
+    >
+
+      {(message || error) && (
+
+        <div
+
+          className={`mb-5 rounded-2xl border px-5 py-4 text-sm ${
+
+            error
+
+              ? "border-red-200 bg-red-50 text-red-700"
+
+              : "border-emerald-200 bg-emerald-50 text-emerald-700"
+
+          }`}
+
+        >
+
+          {error || message}
+
+        </div>
+
+      )}
+
+
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+
+        <Metric
+
+          label="Active"
+
+          value={
+
+            loading
+
+              ? "…"
+
+              : String(Number(metrics?.active_count || 0))
+
+          }
+
+        />
+
+        <Metric
+
+          label="Setup Pending"
+
+          value={
+
+            loading
+
+              ? "…"
+
+              : String(Number(metrics?.setup_pending_count || 0))
+
+          }
+
+        />
+
+        <Metric
+
+          label="Payment Issue"
+
+          value={
+
+            loading
+
+              ? "…"
+
+              : String(Number(metrics?.payment_issue_count || 0))
+
+          }
+
+        />
+
+        <Metric
+
+          label="Monthly MRR"
+
+          value={
+
+            loading
+
+              ? "…"
+
+              : money(metrics?.monthly_recurring_revenue || 0)
+
+          }
+
+        />
+
+        <Metric
+
+          label="Annual Contracts"
+
+          value={
+
+            loading
+
+              ? "…"
+
+              : money(metrics?.annual_contract_value || 0)
+
+          }
+
+        />
+
+      </section>
+
+
+
+      <section className="mt-6 rounded-[28px] border border-[#ded5c4] bg-white p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
+
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+
+          <div>
+
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
+
+              Launch controls
+
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
+
+              Stripe public checkout
+
+            </h2>
+
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#81796d]">
+
+              Use this switch to open or close all public Dreamscape subscription checkout.
+
+              GKP student billing is separate and is not affected by this control.
+
+            </p>
+
+          </div>
+
+
+
+          <button
+
+            type="button"
+
+            onClick={() => void togglePublicCheckout()}
+
+            disabled={
+
+              working ||
+
+              (!settings?.public_checkout_enabled &&
+
+                !activeStripeRuntimeReady)
+
+            }
+
+            className={`min-h-11 rounded-full border px-6 text-xs font-black ${
+
+              settings?.public_checkout_enabled
+
+                ? "border-red-200 bg-red-50 text-red-700"
+
+                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+
+            } disabled:cursor-not-allowed disabled:opacity-45`}
+
+          >
+
+            {working
+
+              ? "Working…"
+
+              : settings?.public_checkout_enabled
+
+                ? "Turn Public Checkout OFF"
+
+                : "Turn Public Checkout ON"}
+
+          </button>
+
+        </div>
+
+
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+
+          <StatusBox
+
+            label="Public checkout"
+
+            value={
+
+              settings?.public_checkout_enabled
+
+                ? "ON"
+
+                : "OFF"
+
+            }
+
+            detail={
+
+              settings?.public_checkout_enabled
+
+                ? "Public pricing pages may start Stripe checkout."
+
+                : "New public subscription checkout is blocked."
+
+            }
+
+          />
+
+
+
+          <StatusBox
+
+            label="Stripe mode"
+
+            value={
+
+              stripeRuntime
+
+                ? stripeRuntime.stripeEnvironment.toUpperCase()
+
+                : "UNKNOWN"
+
+            }
+
+            detail={
+
+              stripeRuntime?.stripeEnvironment === "production"
+
+                ? "Live Stripe keys and live Price IDs are active. Real cards can be charged."
+
+                : stripeRuntime?.stripeEnvironment === "sandbox"
+
+                  ? "Test Stripe keys and sandbox Price IDs are active."
+
+                  : "Runtime environment could not be verified."
+
+            }
+
+          />
+
+
+
+          <StatusBox
+
+            label="Active Stripe setup"
+
+            value={
+
+              activeStripeRuntimeReady
+
+                ? "READY"
+
+                : "NOT READY"
+
+            }
+
+            detail={
+
+              stripeRuntime
+
+                ? `${stripeRuntime.activeMappedPlanCount}/${stripeRuntime.publicPlanCount} active-environment prices mapped. Secret key: ${stripeRuntime.activeSecretKeyPresent ? "OK" : "missing"}. Webhook secret: ${stripeRuntime.activeWebhookSecretPresent ? "OK" : "missing"}.`
+
+                : "Could not verify the server-side Stripe environment."
+
+            }
+
+          />
+
+
+
+          <StatusBox
+
+            label="Grace period"
+
+            value={`${settings?.failed_payment_grace_days || 7} DAYS`}
+
+            detail="Used when a recurring Stripe payment fails."
+
+          />
+
+        </div>
+
+      </section>
+
+
+
+      {dualConflicts.length > 0 && (
+
+        <section className="mt-6 rounded-[28px] border border-red-200 bg-red-50 p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
+
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-red-700">
+
+            Billing conflict
+
+          </p>
+
+          <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
+
+            {dualConflicts.length} learner{dualConflicts.length === 1 ? "" : "s"} have overlapping GKP and public Dreamscape access
+
+          </h2>
+
+          <p className="mt-2 text-sm leading-6 text-red-900/75">
+
+            Phase 5 blocks new duplicate checkouts. These are pre-existing overlaps and must be resolved before final sign-off.
+
+          </p>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+
+            {dualConflicts.map((item) => (
+
+              <div key={`${item.contract_id}:${item.addon_id}`} className="rounded-2xl border border-red-200 bg-white p-4">
+
+                <strong className="text-sm text-[#15233b]">{item.learner_email}</strong>
+
+                <p className="mt-1 text-xs text-[#81796d]">
+
+                  Public {item.contract_reference} · {item.contract_status}
+
+                </p>
+
+                <p className="mt-1 text-xs text-red-700">
+
+                  GKP add-on: {item.addon_plan_code} · {item.addon_status}
+
+                </p>
+
+              </div>
+
+            ))}
+
+          </div>
+
+        </section>
+
+      )}
+
+
+
+      {addonWarnings.length > 0 && (
+
+        <section className="mt-6 rounded-[28px] border border-amber-200 bg-amber-50 p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
+
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-700">
+
+            GKP access review
+
+          </p>
+
+          <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
+
+            {addonWarnings.length} GKP Dreamscape add-on
+
+            {addonWarnings.length === 1 ? "" : "s"} need review
+
+          </h2>
+
+          <p className="mt-2 text-sm leading-6 text-amber-900/75">
+
+            These students still have GKP-priced Dreamscape access but no
+
+            active GKP programme enrolment. Review whether the add-on should
+
+            end or move to a public Dreamscape subscription.
+
+          </p>
+
+
+
+          <div className="mt-5 grid gap-3 lg:grid-cols-2">
+
+            {addonWarnings.map((warning) => (
+
+              <div
+
+                key={warning.addon_id}
+
+                className="rounded-2xl border border-amber-200 bg-white p-4"
+
+              >
+
+                <strong className="text-sm text-[#15233b]">
+
+                  {warning.student_name}
+
+                </strong>
+
+                <p className="mt-1 text-xs text-[#81796d]">
+
+                  {warning.account_code} · {warning.payer_name}
+
+                </p>
+
+                <p className="mt-3 text-xs leading-5 text-amber-800">
+
+                  {warning.warning_message}
+
+                </p>
+
+              </div>
+
+            ))}
+
+          </div>
+
+        </section>
+
+      )}
+
+
+
+      <section className="mt-6 rounded-[28px] border border-[#ded5c4] bg-white p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
+
+        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
+
+          Plan mapping
+
+        </p>
+
+        <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
+
+          Dreamscape plans
+
+        </h2>
+
+
+
+        <p className="mt-2 text-xs leading-5 text-[#81796d]">
+
+          Sandbox mapping: {testPublicStripePlansMapped ? "READY" : "NOT READY"} ·
+
+          Live mapping: {livePublicStripePlansMapped ? "READY" : "NOT READY"}.
+
+          The server-side Stripe mode shown above decides which mapping is used for new checkout.
+
+        </p>
+
+
+
+        <div className="mt-5 overflow-x-auto">
+
+          <table className="w-full min-w-[1080px] border-collapse text-left">
+
+            <thead>
+
+              <tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+
+                <th className="px-4 py-3">Plan</th>
+
+                <th className="px-4 py-3">Audience</th>
+
+                <th className="px-4 py-3">Billing</th>
+
+                <th className="px-4 py-3">Price</th>
+
+                <th className="px-4 py-3">Current default</th>
+
+                <th className="px-4 py-3">Stripe sandbox</th>
+
+                <th className="px-4 py-3">Stripe live</th>
+
+                <th className="px-4 py-3">Legacy HitPay</th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              {plans.map((plan) => (
+
+                <tr
+
+                  key={plan.id}
+
+                  className="border-b border-[#f0ece4] last:border-b-0"
+
+                >
+
+                  <td className="px-4 py-4">
+
+                    <strong className="block text-sm text-[#15233b]">
+
+                      {plan.display_name}
+
+                    </strong>
+
+                    <span className="mt-1 block text-[11px] text-[#8a8378]">
+
+                      {plan.plan_key}
+
+                    </span>
+
+                  </td>
+
+                  <td className="px-4 py-4 text-sm capitalize">
+
+                    {plan.audience}
+
+                  </td>
+
+                  <td className="px-4 py-4 text-sm capitalize">
+
+                    {plan.billing_cycle}
+
+                  </td>
+
+                  <td className="px-4 py-4 text-sm font-bold">
+
+                    {money(plan.amount, plan.currency)}
+
+                  </td>
+
+                  <td className="px-4 py-4 text-sm">
+
+                    {plan.audience === "gkp"
+
+                      ? "GKP Billing"
+
+                      : plan.provider === "stripe"
+
+                        ? "Stripe"
+
+                        : "HitPay (until cutover)"}
+
+                  </td>
+
+                  <td className="px-4 py-4 text-xs">
+
+                    {plan.audience !== "public"
+
+                      ? "Not required"
+
+                      : plan.stripe_test_price_id || "Not mapped"}
+
+                  </td>
+
+                  <td className="px-4 py-4 text-xs">
+
+                    {plan.audience !== "public"
+
+                      ? "Not required"
+
+                      : plan.stripe_live_price_id || "Not mapped"}
+
+                  </td>
+
+                  <td className="px-4 py-4 text-xs">
+
+                    {plan.audience !== "public"
+
+                      ? "Not required"
+
+                      : plan.hitpay_plan_id
+
+                        ? `${plan.hitpay_environment || ""} · ${plan.hitpay_plan_id}`
+
+                        : "Not mapped"}
+
+                  </td>
+
+                </tr>
+
+              ))}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </section>
+
+
+
+      <section className="mt-6 rounded-[28px] border border-[#ded5c4] bg-white p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
+
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+
+          <div>
+
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
+
+              Subscription directory
+
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
+
+              Public Dreamscape contracts
+
+            </h2>
+
+          </div>
+
+
+
+          <input
+
+            value={search}
+
+            onChange={(event) => setSearch(event.target.value)}
+
+            placeholder="Search learner, parent, plan or status"
+
+            className="min-h-11 w-full rounded-xl border border-[#d9cfbd] bg-white px-4 text-sm outline-none sm:max-w-sm"
+
+          />
+
+        </div>
+
+
+
+        {loading ? (
+
+          <p className="mt-6 text-sm text-[#81796d]">
+
+            Loading subscriptions…
+
+          </p>
+
+        ) : filteredContracts.length === 0 ? (
+
+          <p className="mt-6 rounded-2xl bg-[#fbfaf7] p-6 text-sm text-[#81796d]">
+
+            No Dreamscape subscription contracts yet.
+
+          </p>
+
+        ) : (
+
+          <div className="mt-5 overflow-x-auto">
+
+            <table className="w-full min-w-[1120px] border-collapse text-left">
+
+              <thead>
+
+                <tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+
+                  <th className="px-4 py-3">Learner</th>
+
+                  <th className="px-4 py-3">Parent</th>
+
+                  <th className="px-4 py-3">Plan</th>
+
+                  <th className="px-4 py-3">Status</th>
+
+                  <th className="px-4 py-3">Access until</th>
+
+                  <th className="px-4 py-3">Next billing</th>
+
+                  <th className="px-4 py-3">Provider</th>
+
+                  <th className="px-4 py-3 text-right">Actions</th>
+
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                {filteredContracts.map((contract) => (
+
+                  <tr
+
+                    key={contract.id}
+
+                    className={`border-b border-[#f0ece4] last:border-b-0 ${
+
+                      selectedContractId === contract.id
+
+                        ? "bg-[#fbfaf7]"
+
+                        : ""
+
+                    }`}
+
+                  >
+
+                    <td className="px-4 py-4">
+
+                      <strong className="block text-sm text-[#15233b]">
+
+                        {contract.learner_name}
+
+                      </strong>
+
+                      <span className="mt-1 block text-xs text-[#81796d]">
+
+                        {contract.learner_email}
+
+                      </span>
+
+                    </td>
+
+                    <td className="px-4 py-4">
+
+                      <strong className="block text-sm">
+
+                        {contract.parent_name}
+
+                      </strong>
+
+                      <span className="mt-1 block text-xs text-[#81796d]">
+
+                        {contract.parent_email}
+
+                      </span>
+
+                    </td>
+
+                    <td className="px-4 py-4 text-sm">
+
+                      {contract.display_name}
+
+                      {contract.pending_display_name && (
+
+                        <span className="mt-1 block text-[10px] font-bold text-violet-700">
+
+                          → {contract.pending_display_name} on {date(contract.plan_change_effective_at)}
+
+                        </span>
+
+                      )}
+
+                    </td>
+
+                    <td className="px-4 py-4">
+
+                      <StatusPill status={contract.status} />
+
+                      {contract.grace_until && (
+
+                        <span className="mt-1 block text-[10px] text-amber-700">
+
+                          Grace until {date(contract.grace_until)}
+
+                        </span>
+
+                      )}
+
+                    </td>
+
+                    <td className="px-4 py-4 text-sm">
+
+                      {date(contract.current_period_end)}
+
+                    </td>
+
+                    <td className="px-4 py-4 text-sm">
+
+                      {date(contract.next_billing_at)}
+
+                    </td>
+
+                    <td className="px-4 py-4 text-xs">
+
+                      <span className="block capitalize">
+
+                        {contract.provider} · {contract.provider_environment || "—"}
+
+                      </span>
+
+                      <span className="mt-1 block max-w-[220px] truncate text-[#81796d]">
+
+                        {contract.provider_subscription_id || "Not attached"}
+
+                      </span>
+
+                    </td>
+
+                    <td className="px-4 py-4">
+
+                      <div className="flex flex-wrap justify-end gap-2">
+
+                        <button
+
+                          type="button"
+
+                          disabled={working}
+
+                          onClick={() => {
+
+                            setSelectedContractId(contract.id);
+
+                            void loadPaymentHistory(contract.id);
+
+                          }}
+
+                          className="rounded-full border border-[#d7c9ae] bg-white px-3 py-2 text-[10px] font-bold"
+
+                        >
+
+                          Details
+
+                        </button>
+
+
+
+                        <button
+
+                          type="button"
+
+                          disabled={working}
+
+                          onClick={() => void sendManagementEmail(contract)}
+
+                          className="rounded-full border border-violet-200 bg-violet-50 px-3 py-2 text-[10px] font-bold text-violet-700"
+
+                        >
+
+                          Email parent
+
+                        </button>
+
+
+
+                        <button
+
+                          type="button"
+
+                          disabled={working}
+
+                          onClick={() =>
+
+                            void runSubscriptionAction(
+
+                              contract,
+
+                              "refresh",
+
+                            )
+
+                          }
+
+                          className="rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-[10px] font-bold text-sky-700"
+
+                        >
+
+                          Refresh
+
+                        </button>
+
+
+
+                        {["active", "payment_issue"].includes(
+
+                          contract.status,
+
+                        ) && (
+
+                          <>
+
+                            <button
+
+                              type="button"
+
+                              disabled={working}
+
+                              onClick={() =>
+
+                                void runSubscriptionAction(
+
+                                  contract,
+
+                                  "cancel_period_end",
+
+                                )
+
+                              }
+
+                              className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800"
+
+                            >
+
+                              Cancel at period end
+
+                            </button>
+
+
+
+                            <button
+
+                              type="button"
+
+                              disabled={working}
+
+                              onClick={() =>
+
+                                void runSubscriptionAction(
+
+                                  contract,
+
+                                  "cancel_immediate",
+
+                                )
+
+                              }
+
+                              className="rounded-full border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-bold text-red-700"
+
+                            >
+
+                              Cancel now
+
+                            </button>
+
+                          </>
+
+                        )}
+
+
+
+                        {contract.status === "cancel_at_period_end" && (
+
+                          <button
+
+                            type="button"
+
+                            disabled={working}
+
+                            onClick={() =>
+
+                              void runSubscriptionAction(
+
+                                contract,
+
+                                "reactivate",
+
+                              )
+
+                            }
+
+                            className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-bold text-emerald-700"
+
+                          >
+
+                            Keep subscription
+
+                          </button>
+
+                        )}
+
+
+
+                        {contract.provider === "hitpay" &&
+
+                          ["cancelled", "suspended", "expired"].includes(
+
+                            contract.status,
+
+                          ) && (
+
+                            <button
+
+                              type="button"
+
+                              disabled={working}
+
+                              onClick={() =>
+
+                                void runSubscriptionAction(
+
+                                  contract,
+
+                                  "reactivate",
+
+                                )
+
+                              }
+
+                              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-bold text-emerald-700"
+
+                            >
+
+                              Reactivate
+
+                            </button>
+
+                          )}
+
+                      </div>
+
+                    </td>
+
+                  </tr>
+
+                ))}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        )}
+
+      </section>
+
+
+
+      {selectedContract && (
+
+        <section className="mt-6 rounded-[28px] border border-[#ded5c4] bg-white p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+
+            <div>
+
+              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
+
+                Subscriber detail
+
+              </p>
+
+              <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
+
+                {selectedContract.learner_name}
+
+              </h2>
+
+              <p className="mt-1 text-sm text-[#81796d]">
+
+                {selectedContract.learner_email} · payer{" "}
+
+                {selectedContract.parent_email}
+
+              </p>
+
+            </div>
+
+
+
+            <button
+
+              type="button"
+
+              onClick={() => {
+
+                setSelectedContractId("");
+
+                setPaymentHistory([]);
+
+                setEmailHistory([]);
+
+                setPlanChangeHistory([]);
+
+                setTargetPlanId("");
+
+              }}
+
+              className="min-h-10 rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold"
+
+            >
+
+              Close
+
+            </button>
+
+          </div>
+
+
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
+            <StatusBox
+
+              label="Plan"
+
+              value={selectedContract.display_name}
+
+              detail={`${selectedContract.billing_cycle} · ${money(
+
+                selectedContract.amount,
+
+                selectedContract.currency,
+
+              )}`}
+
+            />
+
+            <StatusBox
+
+              label="Paid through"
+
+              value={date(selectedContract.current_period_end)}
+
+              detail={`Next billing ${date(
+
+                selectedContract.next_billing_at,
+
+              )}`}
+
+            />
+
+            <StatusBox
+
+              label="Billing status"
+
+              value={selectedContract.status
+
+                .replaceAll("_", " ")
+
+                .toUpperCase()}
+
+              detail={`Provider: ${
+
+                selectedContract.provider_status || "—"
+
+              }`}
+
+            />
+
+            <StatusBox
+
+              label="Payment recovery"
+
+              value={
+
+                selectedContract.grace_until
+
+                  ? `UNTIL ${date(selectedContract.grace_until)}`
+
+                  : "NO ACTIVE GRACE"
+
+              }
+
+              detail={`${Number(
+
+                selectedContract.failed_charge_count || 0,
+
+              )} recorded issue(s)`}
+
+            />
+
+          </div>
+
+
+
+          <div className="mt-6 rounded-2xl border border-violet-200 bg-violet-50/60 p-5">
+
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+
+              <div>
+
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-violet-700">
+
+                  Plan transition
+
+                </p>
+
+                {selectedContract.pending_display_name ? (
+
+                  <>
+
+                    <h3 className="mt-2 text-base font-semibold text-[#15233b]">
+
+                      {selectedContract.display_name} → {selectedContract.pending_display_name}
+
+                    </h3>
+
+                    <p className="mt-1 text-xs leading-5 text-[#81796d]">
+
+                      The current plan stays active through {date(selectedContract.plan_change_effective_at)}. The new Nova entitlement is applied only after the successful new-cycle charge.
+
+                    </p>
+
+                  </>
+
+                ) : (
+
+                  <>
+
+                    <h3 className="mt-2 text-base font-semibold text-[#15233b]">Schedule a next-cycle plan change</h3>
+
+                    <p className="mt-1 text-xs leading-5 text-[#81796d]">
+
+                      No proration and no early access switch. The billing provider changes the recurring price for the next billing cycle.
+
+                    </p>
+
+                  </>
+
+                )}
+
+              </div>
+
+
+
+              {selectedContract.pending_plan_id ? (
+
+                <button
+
+                  type="button"
+
+                  disabled={working}
+
+                  onClick={() => void runPlanChange(selectedContract, "cancel_plan_change")}
+
+                  className="min-h-11 rounded-full border border-red-200 bg-white px-5 text-xs font-black text-red-700"
+
+                >
+
+                  Cancel pending change
+
+                </button>
+
+              ) : (
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+
+                  <select
+
+                    value={targetPlanId}
+
+                    onChange={(event) => setTargetPlanId(event.target.value)}
+
+                    className="min-h-11 rounded-xl border border-violet-200 bg-white px-4 text-sm"
+
+                  >
+
+                    <option value="">Choose new plan</option>
+
+                    {plans
+
+                      .filter((item) => {
+
+                        if (
+
+                          item.id === selectedContract.plan_id ||
+
+                          item.audience !== "public" ||
+
+                          !item.is_available ||
+
+                          item.is_coming_soon
+
+                        ) {
+
+                          return false;
+
+                        }
+
+
+
+                        if (selectedContract.provider === "stripe") {
+
+                          return Boolean(
+
+                            selectedContract.provider_environment === "production"
+
+                              ? item.stripe_live_price_id
+
+                              : item.stripe_test_price_id,
+
+                          );
+
+                        }
+
+
+
+                        if (selectedContract.provider === "hitpay") {
+
+                          return Boolean(item.hitpay_plan_id);
+
+                        }
+
+
+
+                        return false;
+
+                      })
+
+                      .map((item) => (
+
+                        <option key={item.id} value={item.id}>
+
+                          {item.display_name} · {money(item.amount, item.currency)} / {item.billing_cycle}
+
+                        </option>
+
+                      ))}
+
+                  </select>
+
+                  <button
+
+                    type="button"
+
+                    disabled={
+
+                      working ||
+
+                      !targetPlanId ||
+
+                      selectedContract.status !== "active"
+
+                    }
+
+                    onClick={() =>
+
+                      void runPlanChange(
+
+                        selectedContract,
+
+                        "change_plan",
+
+                      )
+
+                    }
+
+                    className="min-h-11 rounded-full border border-violet-200 bg-violet-600 px-5 text-xs font-black text-white disabled:opacity-45"
+
+                  >
+
+                    Schedule change
+
+                  </button>
+
+                </div>
+
+              )}
+
+            </div>
+
+          </div>
+
+
+
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-[#ebe5da]">
+
+            <table className="w-full min-w-[680px] border-collapse text-left">
+
+              <thead>
+
+                <tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+
+                  <th className="px-4 py-3">Paid</th>
+
+                  <th className="px-4 py-3">Amount</th>
+
+                  <th className="px-4 py-3">Status</th>
+
+                  <th className="px-4 py-3">Provider payment</th>
+
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                {paymentHistory.length === 0 ? (
+
+                  <tr>
+
+                    <td
+
+                      colSpan={4}
+
+                      className="px-4 py-7 text-center text-sm text-[#81796d]"
+
+                    >
+
+                      No successful recurring charges recorded yet.
+
+                    </td>
+
+                  </tr>
+
+                ) : (
+
+                  paymentHistory.map((payment) => (
+
+                    <tr
+
+                      key={payment.id}
+
+                      className="border-b border-[#f0ece4] last:border-b-0"
+
+                    >
+
+                      <td className="px-4 py-4 text-sm">
+
+                        {date(payment.paid_at || payment.created_at)}
+
+                      </td>
+
+                      <td className="px-4 py-4 text-sm font-bold">
+
+                        {money(payment.amount, payment.currency)}
+
+                      </td>
+
+                      <td className="px-4 py-4">
+
+                        <StatusPill status={payment.status} />
+
+                      </td>
+
+                      <td className="px-4 py-4 text-xs text-[#81796d]">
+
+                        {payment.provider_charge_id || "—"}
+
+                      </td>
+
+                    </tr>
+
+                  ))
+
+                )}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+
+
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-[#ebe5da]">
+
+            <div className="border-b border-[#ebe5da] bg-[#fbfaf7] px-4 py-3">
+
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+
+                Plan change history
+
+              </p>
+
+            </div>
+
+            <table className="w-full min-w-[760px] border-collapse text-left">
+
+              <thead>
+
+                <tr className="border-b border-[#ebe5da] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+
+                  <th className="px-4 py-3">Requested</th>
+
+                  <th className="px-4 py-3">Change</th>
+
+                  <th className="px-4 py-3">Effective</th>
+
+                  <th className="px-4 py-3">Status</th>
+
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                {planChangeHistory.length === 0 ? (
+
+                  <tr><td colSpan={4} className="px-4 py-7 text-center text-sm text-[#81796d]">No plan changes recorded.</td></tr>
+
+                ) : (
+
+                  planChangeHistory.map((item) => (
+
+                    <tr key={item.id} className="border-b border-[#f0ece4] last:border-b-0">
+
+                      <td className="px-4 py-4 text-xs">{date(item.requested_at)} · {item.request_source}</td>
+
+                      <td className="px-4 py-4 text-xs font-bold">{item.from_plan_name || "—"} → {item.to_plan_name || "—"}</td>
+
+                      <td className="px-4 py-4 text-xs">{date(item.effective_at)}</td>
+
+                      <td className="px-4 py-4"><StatusPill status={item.status} />{item.failure_message && <span className="mt-1 block text-[10px] text-red-600">{item.failure_message}</span>}</td>
+
+                    </tr>
+
+                  ))
+
+                )}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+
+
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-[#ebe5da]">
+
+            <div className="border-b border-[#ebe5da] bg-[#fbfaf7] px-4 py-3">
+
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+
+                Subscription email history
+
+              </p>
+
+            </div>
+
+            <table className="w-full min-w-[760px] border-collapse text-left">
+
+              <thead>
+
+                <tr className="border-b border-[#ebe5da] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+
+                  <th className="px-4 py-3">Type</th>
+
+                  <th className="px-4 py-3">Recipient</th>
+
+                  <th className="px-4 py-3">Status</th>
+
+                  <th className="px-4 py-3">Sent</th>
+
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                {emailHistory.length === 0 ? (
+
+                  <tr>
+
+                    <td
+
+                      colSpan={4}
+
+                      className="px-4 py-7 text-center text-sm text-[#81796d]"
+
+                    >
+
+                      No Dreamscape subscription emails recorded yet.
+
+                    </td>
+
+                  </tr>
+
+                ) : (
+
+                  emailHistory.map((email) => (
+
+                    <tr
+
+                      key={email.id}
+
+                      className="border-b border-[#f0ece4] last:border-b-0"
+
+                    >
+
+                      <td className="px-4 py-4 text-xs font-bold">
+
+                        {email.email_type.replaceAll("_", " ")}
+
+                      </td>
+
+                      <td className="px-4 py-4 text-xs">
+
+                        {email.recipient_email}
+
+                      </td>
+
+                      <td className="px-4 py-4">
+
+                        <StatusPill status={email.status} />
+
+                      </td>
+
+                      <td className="px-4 py-4 text-xs text-[#81796d]">
+
+                        {date(email.sent_at || email.created_at)}
+
+                        {email.error_message && (
+
+                          <span className="mt-1 block max-w-[260px] text-red-600">
+
+                            {email.error_message}
+
+                          </span>
+
+                        )}
+
+                      </td>
+
+                    </tr>
+
+                  ))
+
+                )}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </section>
+
+      )}
+
+    </BillingAdminShell>
+
+  );
+
 }
+
+
 
 function Metric({
-  label,
-  value,
+
+  label,
+
+  value,
+
 }: {
-  label: string;
-  value: string;
+
+  label: string;
+
+  value: string;
+
 }) {
-  return (
-    <div className="rounded-3xl border border-[#ded5c4] bg-white p-5 shadow-[0_18px_50px_rgba(21,35,59,0.045)]">
-      <p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#8a8378]">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-black text-[#15233b]">
-        {value}
-      </p>
-    </div>
-  );
+
+  return (
+
+    <div className="rounded-3xl border border-[#ded5c4] bg-white p-5 shadow-[0_18px_50px_rgba(21,35,59,0.045)]">
+
+      <p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#8a8378]">
+
+        {label}
+
+      </p>
+
+      <p className="mt-2 text-2xl font-black text-[#15233b]">
+
+        {value}
+
+      </p>
+
+    </div>
+
+  );
+
 }
+
+
 
 function StatusBox({
-  label,
-  value,
-  detail,
+
+  label,
+
+  value,
+
+  detail,
+
 }: {
-  label: string;
-  value: string;
-  detail: string;
+
+  label: string;
+
+  value: string;
+
+  detail: string;
+
 }) {
-  return (
-    <div className="rounded-2xl border border-[#ebe5da] bg-[#fbfaf7] p-4">
-      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
-        {label}
-      </p>
-      <strong className="mt-2 block text-sm text-[#15233b]">
-        {value}
-      </strong>
-      <p className="mt-1 text-[11px] leading-5 text-[#81796d]">
-        {detail}
-      </p>
-    </div>
-  );
+
+  return (
+
+    <div className="rounded-2xl border border-[#ebe5da] bg-[#fbfaf7] p-4">
+
+      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+
+        {label}
+
+      </p>
+
+      <strong className="mt-2 block text-sm text-[#15233b]">
+
+        {value}
+
+      </strong>
+
+      <p className="mt-1 text-[11px] leading-5 text-[#81796d]">
+
+        {detail}
+
+      </p>
+
+    </div>
+
+  );
+
 }
 
+
+
 function StatusPill({ status }: { status: string }) {
-  const value = String(status || "unknown").toLowerCase();
 
-  const classes =
-    value === "active"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : value === "payment_issue"
-        ? "border-amber-200 bg-amber-50 text-amber-700"
-        : value === "setup_pending"
-          ? "border-sky-200 bg-sky-50 text-sky-700"
-          : value === "suspended" || value === "failed"
-            ? "border-red-200 bg-red-50 text-red-700"
-            : "border-[#ded5c4] bg-[#fbfaf7] text-[#81796d]";
+  const value = String(status || "unknown").toLowerCase();
 
-  return (
-    <span
-      className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${classes}`}
-    >
-      {value.replaceAll("_", " ")}
-    </span>
-  );
+
+
+  const classes =
+
+    value === "active"
+
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+
+      : value === "payment_issue"
+
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+
+        : value === "setup_pending"
+
+          ? "border-sky-200 bg-sky-50 text-sky-700"
+
+          : value === "suspended" || value === "failed"
+
+            ? "border-red-200 bg-red-50 text-red-700"
+
+            : "border-[#ded5c4] bg-[#fbfaf7] text-[#81796d]";
+
+
+
+  return (
+
+    <span
+
+      className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${classes}`}
+
+    >
+
+      {value.replaceAll("_", " ")}
+
+    </span>
+
+  );
+
 }

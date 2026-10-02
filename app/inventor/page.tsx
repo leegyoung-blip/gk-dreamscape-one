@@ -214,7 +214,7 @@ type WalkthroughStep = {
   showWorldPath?: boolean;
 };
 
-const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v12";
+const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v13";
 const ROVER_ORIGIN_STORAGE_KEY = "dreamscape-rover-origin";
 const ROVER_NOVA_RETURN_PATH_STORAGE_KEY =
   "dreamscape-rover-nova-return-path";
@@ -3769,6 +3769,7 @@ function GuidedWalkthrough({
   const isActivityTypesStep = Boolean(step.showActivityLegend);
   const isWorldPathStep = Boolean(step.showWorldPath);
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
+  const isWidePathSlide = isWorldPathStep && (stepIndex === 1 || isLastStep);
   const [typedLength, setTypedLength] = useState(0);
   const guideRef = useRef<HTMLDivElement | null>(null);
   const [guideAnchor, setGuideAnchor] = useState<CSSProperties>({});
@@ -3822,9 +3823,13 @@ function GuidedWalkthrough({
       const guideWidth = isMobile
         ? viewportWidth - margin * 2
         : isTablet
-          ? Math.min(620, viewportWidth - 48)
+          ? Math.min(isWidePathSlide ? 760 : 620, viewportWidth - 48)
           : Math.min(
-              step.zoneNumber || isWorldPathStep || isRewardsStep ? 760 : 640,
+              isWidePathSlide
+                ? 940
+                : step.zoneNumber || isRewardsStep
+                  ? 760
+                  : 640,
               viewportWidth - 72,
             );
 
@@ -4115,17 +4120,25 @@ function GuidedWalkthrough({
           width: isMobile
             ? "calc(100vw - 24px)"
             : isDesktop
-              ? step.zoneNumber || isWorldPathStep || isRewardsStep
-                ? "min(760px, calc(100vw - 72px))"
-                : "min(640px, calc(100vw - 72px))"
-              : "min(620px, calc(100vw - 48px))",
+              ? isWidePathSlide
+                ? "min(940px, calc(100vw - 72px))"
+                : step.zoneNumber || isRewardsStep
+                  ? "min(760px, calc(100vw - 72px))"
+                  : "min(640px, calc(100vw - 72px))"
+              : isTablet && isWidePathSlide
+                ? "min(760px, calc(100vw - 48px))"
+                : "min(620px, calc(100vw - 48px))",
           maxHeight: isMobile
             ? "min(500px, 56dvh)"
             : isDesktop
-              ? step.zoneNumber
-                ? "min(430px, calc(100dvh - 64px))"
-                : "min(560px, calc(100dvh - 64px))"
-              : "min(560px, 52dvh)",
+              ? isWidePathSlide
+                ? "min(620px, calc(100dvh - 56px))"
+                : step.zoneNumber
+                  ? "min(430px, calc(100dvh - 64px))"
+                  : "min(560px, calc(100dvh - 64px))"
+              : isTablet && isWidePathSlide
+                ? "min(620px, calc(100dvh - 44px))"
+                : "min(560px, 52dvh)",
           overflowY: isDesktop && step.zoneNumber ? "hidden" : "auto",
           overflowX: "hidden",
           borderRadius: isMobile ? "20px" : "26px",
@@ -4138,10 +4151,14 @@ function GuidedWalkthrough({
           padding: isMobile
             ? "16px"
             : isDesktop
-              ? step.zoneNumber
-                ? "24px 28px 22px 188px"
-                : "26px 28px 24px 190px"
-              : "20px 22px 20px",
+              ? isWidePathSlide
+                ? "28px 32px 26px 168px"
+                : step.zoneNumber
+                  ? "24px 28px 22px 188px"
+                  : "26px 28px 24px 190px"
+              : isTablet && isWidePathSlide
+                ? "22px 24px 22px"
+                : "20px 22px 20px",
           transition:
             "left 480ms cubic-bezier(.2,.82,.24,1), top 480ms cubic-bezier(.2,.82,.24,1), bottom 480ms cubic-bezier(.2,.82,.24,1), transform 480ms cubic-bezier(.2,.82,.24,1), max-height 300ms ease, width 300ms ease",
           willChange: "left, top, bottom, transform",
@@ -4294,7 +4311,7 @@ function GuidedWalkthrough({
                   ? "1fr"
                   : isDesktop
                     ? "repeat(5, minmax(0, 1fr))"
-                    : "repeat(2, minmax(0, 1fr))",
+                    : "repeat(6, minmax(0, 1fr))",
                 alignItems: "stretch",
                 gap: isMobile ? "8px" : "7px",
                 overflowX: "visible",
@@ -4312,6 +4329,13 @@ function GuidedWalkthrough({
                   <div
                     style={{
                       minWidth: 0,
+                      gridColumn: isTablet
+                        ? index < 3
+                          ? `${index * 2 + 1} / span 2`
+                          : index === 3
+                            ? "2 / span 2"
+                            : "4 / span 2"
+                        : undefined,
                       borderRadius: "14px",
                       border: `1px solid ${item.colour}66`,
                       background: `linear-gradient(145deg, ${item.colour}20, rgba(3,11,29,0.7))`,
@@ -4539,21 +4563,47 @@ function GuidedWalkthrough({
               </>
             ) : isLastStep ? (
               <>
-                {zones.map((zone) => (
-                  <button
-                    key={zone.id}
-                    type="button"
-                    onClick={() => onNavigate(zone.href)}
-                    style={{
-                      ...secondaryStyle,
-                      border: `1px solid ${zone.accent}88`,
-                      background: `${zone.accent}18`,
-                      color: zone.accent,
-                    }}
-                  >
-                    {zone.title}
-                  </button>
-                ))}
+                <div
+                  style={{
+                    width: "100%",
+                    display: "grid",
+                    gridTemplateColumns: isMobile
+                      ? "1fr"
+                      : "repeat(2, minmax(0, 1fr))",
+                    gap: "10px",
+                  }}
+                >
+                  {["1", "2", "3", "4", "5"]
+                    .map((number) => zones.find((zone) => zone.number === number))
+                    .filter((zone): zone is Zone => Boolean(zone))
+                    .map((zone) => (
+                      <button
+                        key={zone.id}
+                        type="button"
+                        onClick={() => onNavigate(zone.href)}
+                        style={{
+                          ...secondaryStyle,
+                          minHeight: "46px",
+                          width: "100%",
+                          border: `1px solid ${zone.accent}88`,
+                          background:
+                            zone.number === "1"
+                              ? `linear-gradient(135deg, ${zone.accent}2f, rgba(34,30,18,0.88))`
+                              : `${zone.accent}18`,
+                          color: zone.accent,
+                          gridColumn:
+                            !isMobile && zone.number === "1"
+                              ? "1 / -1"
+                              : undefined,
+                          fontWeight: zone.number === "1" ? 900 : 800,
+                        }}
+                      >
+                        {zone.number === "1"
+                          ? `Start at ${zone.title}`
+                          : zone.title}
+                      </button>
+                    ))}
+                </div>
               </>
             ) : (
               <>

@@ -1,1 +1,5 @@
-export { default } from "../../lesson-scheduling/page";
+import LessonSchedulingClient from "./LessonSchedulingClient";
+
+export default function LessonSchedulingPage() {
+  return <LessonSchedulingClient />;
+}
