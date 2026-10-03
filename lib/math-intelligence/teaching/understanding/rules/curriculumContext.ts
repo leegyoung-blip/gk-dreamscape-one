@@ -123,7 +123,7 @@ function candidateFromText(
       code: "CURRICULUM_MEASUREMENT",
     },
     {
-      test: /\balgebra\b|\bequation\b|\bsymbol\b|\bunknown\b|\bexpression\b/,
+      test: /\balgebra\b|\bequation\b|\bsymbols?\b|\bunknowns?\b|\bexpression\b/,
       domain: "algebra",
       confidence: 0.92,
       code: "CURRICULUM_ALGEBRA",
@@ -145,6 +145,12 @@ function candidateFromText(
       domain: "whole_numbers",
       confidence: 0.9,
       code: "CURRICULUM_QUANTITY_REASONING",
+    },
+    {
+      test: /\btransfers?\b|\bchanging differences?\b|\beffect of a transfer\b/,
+      domain: "whole_numbers",
+      confidence: 0.94,
+      code: "CURRICULUM_TRANSFER_REASONING",
     },
     {
       test: /\blogic\b|\bnon-routine\b|\bnonroutine\b|\bstrategy\b/,

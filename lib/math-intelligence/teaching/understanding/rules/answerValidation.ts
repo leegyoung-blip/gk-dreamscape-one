@@ -70,6 +70,13 @@ function parseNumber(
       /\s*(?:cm|mm|m|km|g|kg|ml|l|degrees?|°|years?|months?|weeks?|days?|hours?|hrs?|minutes?|mins?|seconds?|secs?)$/i,
       "",
     )
+    // Count answers are commonly stored as text such as "54 boxes".
+    // Strip a trailing alphabetic count/unit phrase only when the value
+    // begins with a numeric token; non-numeric text answers are untouched.
+    .replace(
+      /^(-?\d+(?:\.\d+)?)\s+[a-z][a-z -]*$/i,
+      "$1",
+    )
     .trim();
 
   if (!normalized) return null;

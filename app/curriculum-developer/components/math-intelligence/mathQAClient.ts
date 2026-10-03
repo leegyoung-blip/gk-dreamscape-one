@@ -254,6 +254,158 @@ async function loadCurrentMathSkillTags(
 
 
 
+type LiveMathTeachingPayload = {
+  content: Record<string, any> | null;
+  stimulus_id: string | null;
+  stimulus: Record<string, any> | null;
+  assets: any[];
+};
+
+function objectRecord(value: unknown): Record<string, any> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, any>;
+}
+
+function mergeTeachingVisualContent(
+  snapshotContentValue: unknown,
+  liveContentValue: unknown,
+): Record<string, any> {
+  const snapshotContent = objectRecord(snapshotContentValue) || {};
+  const liveContent = objectRecord(liveContentValue) || {};
+
+  const visualKeys = [
+    "image_reference",
+    "stimulus_image_url",
+    "stimulus_image_alt",
+    "inline_diagram",
+    "math_visual",
+  ] as const;
+
+  const merged: Record<string, any> = { ...snapshotContent };
+
+  for (const key of visualKeys) {
+    if (liveContent[key] !== undefined && liveContent[key] !== null) {
+      merged[key] = liveContent[key];
+    }
+  }
+
+  const storedOptions = Array.isArray(snapshotContent.options)
+    ? snapshotContent.options
+    : [];
+  const liveOptions = Array.isArray(liveContent.options)
+    ? liveContent.options
+    : [];
+
+  if (storedOptions.length > 0 || liveOptions.length > 0) {
+    const liveById = new Map<string, any>();
+    for (const raw of liveOptions) {
+      const option = objectRecord(raw);
+      if (!option) continue;
+      const id = String(option.id || "");
+      if (id) liveById.set(id, option);
+    }
+
+    const base = storedOptions.length > 0 ? storedOptions : liveOptions;
+    merged.options = base.map((raw: any) => {
+      const stored = objectRecord(raw) || {};
+      const id = String(stored.id || "");
+      const live = id ? liveById.get(id) || {} : {};
+
+      return {
+        ...stored,
+        ...(live.image_url ? { image_url: live.image_url } : {}),
+        ...(live.image_path ? { image_path: live.image_path } : {}),
+        ...(live.image_alt ? { image_alt: live.image_alt } : {}),
+        ...(live.show_text_with_image !== undefined
+          ? { show_text_with_image: live.show_text_with_image }
+          : {}),
+      };
+    });
+  }
+
+  return merged;
+}
+
+async function loadCurrentMathTeachingPayload(
+  questionIds: string[],
+): Promise<Map<string, LiveMathTeachingPayload>> {
+  const questionsById = new Map<string, any>();
+
+  for (const ids of chunk(questionIds, 100)) {
+    if (ids.length === 0) continue;
+
+    const { data, error } = await supabase
+      .from("math_questions")
+      .select("id,stimulus_id,content")
+      .in("id", ids);
+
+    if (error) throw error;
+    for (const row of data || []) {
+      questionsById.set(String(row.id), row);
+    }
+  }
+
+  const stimulusIds = [
+    ...new Set(
+      [...questionsById.values()]
+        .map((row) => String(row.stimulus_id || ""))
+        .filter(Boolean),
+    ),
+  ];
+
+  const stimulusById = new Map<string, any>();
+  for (const ids of chunk(stimulusIds, 100)) {
+    if (ids.length === 0) continue;
+
+    const { data, error } = await supabase
+      .from("math_stimuli")
+      .select("id,stimulus_type,title,body,storage_bucket,storage_path,alt_text")
+      .in("id", ids);
+
+    if (error) throw error;
+    for (const row of data || []) {
+      stimulusById.set(String(row.id), row);
+    }
+  }
+
+  const assetsByQuestion = new Map<string, any[]>();
+  for (const ids of chunk(questionIds, 100)) {
+    if (ids.length === 0) continue;
+
+    const { data, error } = await supabase
+      .from("math_question_assets")
+      .select("id,question_id,asset_type,storage_bucket,storage_path,alt_text,caption,metadata")
+      .in("question_id", ids);
+
+    if (error) throw error;
+    for (const row of data || []) {
+      const questionId = String(row.question_id);
+      const current = assetsByQuestion.get(questionId) || [];
+      current.push(row);
+      assetsByQuestion.set(questionId, current);
+    }
+  }
+
+  const payloadByQuestion = new Map<string, LiveMathTeachingPayload>();
+  for (const questionId of questionIds) {
+    const live = questionsById.get(questionId) || null;
+    const stimulusId = live?.stimulus_id ? String(live.stimulus_id) : null;
+
+    payloadByQuestion.set(questionId, {
+      content: objectRecord(live?.content),
+      stimulus_id: stimulusId,
+      stimulus: stimulusId ? stimulusById.get(stimulusId) || null : null,
+      assets: assetsByQuestion.get(questionId) || [],
+    });
+  }
+
+  return payloadByQuestion;
+}
+
+
+
 export async function loadRealBankMathQASample({
 
   targetSize,
@@ -598,6 +750,14 @@ function compactQASnapshot(question: Record<string, unknown>) {
 
         has_image: Boolean(raw?.image_url || raw?.image_path),
 
+        image_url: raw?.image_url || null,
+
+        image_path: raw?.image_path || null,
+
+        image_alt: raw?.image_alt || null,
+
+        show_text_with_image: raw?.show_text_with_image ?? null,
+
       }))
 
     : [];
@@ -673,6 +833,14 @@ function compactQASnapshot(question: Record<string, unknown>) {
       options,
 
       math_visual: content.math_visual || null,
+
+      image_reference: content.image_reference || null,
+
+      stimulus_image_url: content.stimulus_image_url || null,
+
+      stimulus_image_alt: content.stimulus_image_alt || null,
+
+      inline_diagram: content.inline_diagram || null,
 
       has_legacy_inline_visual: Boolean(
 
@@ -946,15 +1114,16 @@ export async function loadMathQARun(runId: string) {
     .map((row) => String(row.question_id || ""))
     .filter(Boolean);
 
-  // Older QA snapshots were created before Teaching QA needed canonical IDs,
-  // skill tags, and granular mappings. Enrich only that missing teaching
-  // metadata while preserving the stored question prompt/answer snapshot.
+  // Resume mode rehydrates only current teaching metadata and visual payloads.
+  // Stored prompt/answer snapshots stay authoritative for the QA cohort.
   const [
     liveSkillMappingsByQuestion,
     liveSkillTagsByQuestion,
+    liveTeachingPayloadByQuestion,
   ] = await Promise.all([
     loadApprovedMathSkillMappings(questionIds),
     loadCurrentMathSkillTags(questionIds),
+    loadCurrentMathTeachingPayload(questionIds),
   ]);
 
   const levels = Array.isArray((run as any)?.sample_summary?.levels)
@@ -1006,6 +1175,8 @@ export async function loadMathQARun(runId: string) {
           ? storedTags
           : liveSkillTagsByQuestion.get(questionId) || [];
 
+      const liveTeaching = liveTeachingPayloadByQuestion.get(questionId);
+
       const question = {
         ...snapshot,
         id: snapshot.id || questionId,
@@ -1024,6 +1195,18 @@ export async function loadMathQARun(runId: string) {
           (row.quiz_code ? String(row.quiz_code) : null),
         skill_tags: skillTags,
         skill_mappings: skillMappings,
+        content: mergeTeachingVisualContent(
+          snapshot.content,
+          liveTeaching?.content,
+        ),
+        stimulus_id:
+          snapshot.stimulus_id || liveTeaching?.stimulus_id || null,
+        stimulus:
+          snapshot.stimulus || liveTeaching?.stimulus || null,
+        assets:
+          Array.isArray(snapshot.assets) && snapshot.assets.length > 0
+            ? snapshot.assets
+            : liveTeaching?.assets || [],
       };
 
       return {
@@ -1092,3 +1275,4 @@ export async function loadMathQARun(runId: string) {
   return { run, items, sample, results };
 
 }
+

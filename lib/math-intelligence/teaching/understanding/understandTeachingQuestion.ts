@@ -102,27 +102,32 @@ function inferPromptDomain(
     };
   }
 
+  // Time semantics must be resolved before colon-based ratio syntax.
+  // A value such as 12:25 in a clock question is a time, not a ratio.
   if (
-    /\bratio\b|\b\d+\s*:\s*\d+\b/.test(
+    /\bclock\b|\bo'clock\b|\bwhat time\b|\bcorrect time\b|\bduration\b|\bminutes?\b|\bhours?\b|\bseconds?\b/.test(
       t,
+    ) ||
+    /\b(?:[01]?\d|2[0-3]):[0-5]\d\b/.test(t)
+  ) {
+    return {
+      domain: "time",
+      confidence: 0.97,
+      code: "PROMPT_DOMAIN_TIME",
+    };
+  }
+
+  if (
+    /\bratio\b|\bproportion\b/.test(t) ||
+    (
+      /\b\d+\s*:\s*\d+\b/.test(t) &&
+      !/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/.test(t)
     )
   ) {
     return {
       domain: "ratio",
       confidence: 0.96,
       code: "PROMPT_DOMAIN_RATIO",
-    };
-  }
-
-  if (
-    /\bclock\b|\bo'clock\b|\bduration\b|\bminutes?\b|\bhours?\b|\bseconds?\b/.test(
-      t,
-    )
-  ) {
-    return {
-      domain: "time",
-      confidence: 0.92,
-      code: "PROMPT_DOMAIN_TIME",
     };
   }
 
@@ -190,6 +195,21 @@ function inferPromptDomain(
       confidence: 0.9,
       code:
         "PROMPT_DOMAIN_MEASUREMENT",
+    };
+  }
+
+  const symbolAssignments = Array.from(
+    text.matchAll(/\b[A-Z]\b\s*=\s*-?\d+(?:\.\d+)?/g),
+  );
+
+  if (
+    symbolAssignments.length >= 2 &&
+    /\b(?:code|spells?|encode|decode|letter|letters|mapping)\b/.test(t)
+  ) {
+    return {
+      domain: "logic",
+      confidence: 0.97,
+      code: "PROMPT_DOMAIN_SYMBOL_MAPPING",
     };
   }
 

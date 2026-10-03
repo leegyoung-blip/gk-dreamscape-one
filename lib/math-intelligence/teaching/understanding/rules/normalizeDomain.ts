@@ -110,6 +110,13 @@ export function normalizeProblemStructure(
 
     ratio_relationship: "ratio_relationship",
     unitary: "unitary",
+    rate_scaling: "unitary",
+
+    transfer_difference: "transfer_difference",
+    changing_difference: "transfer_difference",
+
+    symbol_mapping: "symbol_mapping",
+    code_rule: "symbol_mapping",
 
     place_value: "place_value",
 

@@ -378,6 +378,179 @@ function patternAnswer(
   return null;
 }
 
+function symbolMappingAnalysis(
+  text: string,
+): StructureAnalysis | null {
+  const t = lower(text);
+  const assignments = Array.from(
+    text.matchAll(/\b([A-Z])\b\s*=\s*(-?\d+(?:\.\d+)?)/g),
+  );
+
+  if (
+    assignments.length < 2 ||
+    !/\b(?:code|spells?|encode|decode|letter|letters|mapping)\b/.test(t)
+  ) {
+    return null;
+  }
+
+  return {
+    problemStructure: "symbol_mapping",
+    requiredReasoning: [
+      "symbol_mapping",
+      "rule_inference",
+      "logical_elimination",
+    ],
+    relationships: assignments.map((match, index) => ({
+      id: `r${index + 1}`,
+      type: "equals",
+      left: match[1] ?? null,
+      right: match[2] ?? null,
+      expression: match[0],
+      sourceText: text,
+      confidence: 0.98,
+    })),
+    computedAnswer: null,
+    confidence: 0.98,
+    reasonCode: "STRUCTURE_SYMBOL_MAPPING",
+  };
+}
+
+function transferDifferenceAnalysis(
+  text: string,
+): StructureAnalysis | null {
+  const t = lower(text);
+
+  if (
+    !/\b(?:gave|gives|give|transferred|transfers|transfer)\b/.test(t) ||
+    !/\b(?:after|then)\b/.test(t) ||
+    !/\b(?:at first|initially|before)\b/.test(t) ||
+    !/\b(?:more than|less than|difference)\b/.test(t)
+  ) {
+    return null;
+  }
+
+  let computedAnswer: string | null = null;
+
+  const transferMatch = text.match(
+    /\b([A-Z][A-Za-z'-]*)\s+(?:gave|gives|give|transferred|transfers|transfer)\s+(?:\$\s*)?(\d[\d,]*(?:\.\d+)?)\s*(?:dollars?|\$)?\s+to\s+([A-Z][A-Za-z'-]*)/i,
+  );
+
+  const afterMoreMatch = text.match(
+    /\b(?:after|then)[^.!?]*?([A-Z][A-Za-z'-]*)\s+had\s+(?:\$\s*)?(\d[\d,]*(?:\.\d+)?)\s*(?:dollars?|\$)?\s+more\s+than\s+([A-Z][A-Za-z'-]*)/i,
+  );
+
+  if (transferMatch && afterMoreMatch) {
+    const giver = lower(transferMatch[1]);
+    const recipient = lower(transferMatch[3]);
+    const transfer = parseNumeric(transferMatch[2]);
+    const moreHolder = lower(afterMoreMatch[1]);
+    const comparedWith = lower(afterMoreMatch[3]);
+    const finalDifference = parseNumeric(afterMoreMatch[2]);
+
+    if (
+      transfer !== null &&
+      finalDifference !== null &&
+      giver && recipient
+    ) {
+      // Giving g from A to B changes A-B by 2g.
+      // If B is d ahead afterwards, initial A-B = 2g-d.
+      // If A is still d ahead afterwards, initial A-B = 2g+d.
+      if (
+        moreHolder === recipient &&
+        comparedWith === giver
+      ) {
+        const initialDifference =
+          2 * transfer - finalDifference;
+        computedAnswer = /\$|dollars?/i.test(text)
+          ? formatCents(Math.round(initialDifference * 100))
+          : formatNumber(initialDifference);
+      } else if (
+        moreHolder === giver &&
+        comparedWith === recipient
+      ) {
+        const initialDifference =
+          2 * transfer + finalDifference;
+        computedAnswer = /\$|dollars?/i.test(text)
+          ? formatCents(Math.round(initialDifference * 100))
+          : formatNumber(initialDifference);
+      }
+    }
+  }
+
+  return {
+    problemStructure: "transfer_difference",
+    requiredReasoning: [
+      "transfer_reasoning",
+      "comparison",
+      "addition",
+      "subtraction",
+    ],
+    relationships: [
+      relationship(
+        "difference",
+        text,
+        0.97,
+      ),
+    ],
+    computedAnswer,
+    confidence: 0.97,
+    reasonCode: "STRUCTURE_TRANSFER_DIFFERENCE",
+  };
+}
+
+function unitaryScalingAnalysis(
+  text: string,
+): StructureAnalysis | null {
+  const t = lower(text);
+
+  const hasRateLanguage =
+    /\b(?:at the same rate|same rate|same number (?:in|per) each|equally into|equally among|per box|per group|each box|each group)\b/.test(t);
+
+  if (!hasRateLanguage) {
+    return null;
+  }
+
+  const values = numericTokens(text);
+  if (values.length < 3) {
+    return null;
+  }
+
+  let computedAnswer: string | null = null;
+
+  if (
+    /\bequally\s+into\b/.test(t) &&
+    /\b(?:same rate|same number)\b/.test(t) &&
+    values.length >= 3
+  ) {
+    const [firstTotal, firstGroups, secondTotal] = values;
+
+    if (firstGroups !== 0) {
+      const perGroup = firstTotal / firstGroups;
+      if (perGroup !== 0) {
+        computedAnswer = formatNumber(secondTotal / perGroup);
+      }
+    }
+  }
+
+  return {
+    problemStructure: "unitary",
+    requiredReasoning: [
+      "rate_scaling",
+      "division",
+    ],
+    relationships: [
+      relationship(
+        "same_value_each",
+        text,
+        0.95,
+      ),
+    ],
+    computedAnswer,
+    confidence: 0.95,
+    reasonCode: "STRUCTURE_UNITARY_RATE_SCALING",
+  };
+}
+
 function equationAnalysis(
   text: string,
 ): StructureAnalysis | null {
@@ -2147,6 +2320,22 @@ export function analyzeProblemStructure(args: {
     domain,
     curriculum,
   } = args;
+
+  // Semantic special cases must run before generic equation/domain rules.
+  const symbolMapping =
+    symbolMappingAnalysis(text);
+
+  if (symbolMapping) return symbolMapping;
+
+  const transferDifference =
+    transferDifferenceAnalysis(text);
+
+  if (transferDifference) return transferDifference;
+
+  const unitaryScaling =
+    unitaryScalingAnalysis(text);
+
+  if (unitaryScaling) return unitaryScaling;
 
   const equation =
     equationAnalysis(text);

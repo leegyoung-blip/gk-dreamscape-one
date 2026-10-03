@@ -18,17 +18,18 @@ function pairKey(
 
 const DOMAIN_COMPATIBLE =
   new Set([
-    pairKey("measurement", "money"),
-    pairKey("whole_numbers", "arithmetic"),
     pairKey("algebra", "arithmetic"),
     pairKey("ratio", "speed_rate"),
+    // Fractional quantities of time can legitimately be taught through
+    // both fraction and time lenses. This is compatible, not identical.
+    pairKey("fractions", "time"),
+    pairKey("fractions", "measurement"),
   ]);
 
 const DOMAIN_REFINEMENTS =
   new Set([
     pairKey("measurement", "money"),
     pairKey("whole_numbers", "arithmetic"),
-    pairKey("geometry", "measurement"),
   ]);
 
 const STRUCTURE_COMPATIBLE =
@@ -59,6 +60,10 @@ const STRUCTURE_COMPATIBLE =
     ),
     pairKey(
       "comparison_difference",
+      "transfer_difference",
+    ),
+    pairKey(
+      "comparison_difference",
       "measure_compare",
     ),
     pairKey(
@@ -72,6 +77,10 @@ const STRUCTURE_COMPATIBLE =
     pairKey(
       "equation_unknown",
       "missing_number_equation",
+    ),
+    pairKey(
+      "fraction_of_whole",
+      "time_interval",
     ),
   ]);
 
@@ -122,20 +131,6 @@ export function compareDomains(args: {
 
   if (
     DOMAIN_COMPATIBLE.has(key)
-  ) {
-    return {
-      existing,
-      relationship: "compatible",
-    };
-  }
-
-  // If curriculum independently agrees with the resolved domain,
-  // disagreement from the older Math Intelligence layer is evidence,
-  // but not automatically a blocking contradiction.
-  if (
-    args.curriculum !== "unknown" &&
-    args.curriculum ===
-      args.resolved
   ) {
     return {
       existing,
@@ -221,6 +216,8 @@ export function compareStructures(args: {
       "missing_number_equation",
       "operation_chain",
       "working_backwards",
+      "unitary",
+      "transfer_difference",
       "multi_step",
     ]);
 

@@ -260,7 +260,7 @@ function QuestionDetail({
 
       <section>
         <h5>
-          4A-2C-1 Evidence & Readiness
+          4A-2C-2 Parser & Semantics
         </h5>
         <dl>
           <div>
@@ -483,7 +483,7 @@ function QuestionDetail({
 
         {u.issues.length === 0 ? (
           <p className="phase4a2b-muted">
-            No 4A-2C-1 issues.
+            No 4A-2C-2 issues.
           </p>
         ) : (
           <ul className="phase4a2b-issues">
@@ -670,7 +670,7 @@ export default function Phase4A2TeachingQA({
     if (!run) return;
 
     downloadJson(
-      `phase-4a2c1-evidence-readiness-${
+      `phase-4a2c2-parser-semantics-${
         run.sourceRunId?.slice(
           0,
           8,
@@ -687,8 +687,8 @@ export default function Phase4A2TeachingQA({
       <header className="phase4a2b-header">
         <div>
           <p className="phase4a2b-eyebrow">
-            PHASE 4A-2C-1 ·
-            EVIDENCE & READINESS FOUNDATION
+            PHASE 4A-2C-2 ·
+            PARSER & SEMANTIC CORRECTIONS
           </p>
 
           <h3>
@@ -730,7 +730,7 @@ export default function Phase4A2TeachingQA({
             onClick={handleRun}
             disabled={!hasSample}
           >
-            Run 4A-2C-1 Evidence Check
+            Run 4A-2C-2 Semantic Check
           </button>
         </div>
       </header>
@@ -952,7 +952,7 @@ export default function Phase4A2TeachingQA({
               className="phase4a2b-secondary"
               onClick={handleExport}
             >
-              Export 4A-2C-1 JSON
+              Export 4A-2C-2 JSON
             </button>
           </div>
 
