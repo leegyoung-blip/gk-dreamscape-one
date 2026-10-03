@@ -42,9 +42,9 @@ type NavItem = {
 
   href?: string;
 
-  legacyHref?: string;
 
   phase?: string;
+  adminOnly?: boolean;
 
 };
 
@@ -96,19 +96,16 @@ const GKP_NAV_GROUPS: NavGroup[] = [
         label: "Billing Accounts",
         icon: "◎",
         href: "/admin/billing/gkp/accounts",
-        legacyHref: "/admin/billing/accounts",
       },
       {
         label: "Programmes",
         icon: "▤",
         href: "/admin/billing/gkp/programmes",
-        legacyHref: "/admin/billing/programmes",
       },
       {
         label: "Lesson Scheduling",
         icon: "◫",
         href: "/admin/billing/gkp/lesson-scheduling",
-        legacyHref: "/admin/billing/lesson-scheduling",
       },
     ],
   },
@@ -119,13 +116,11 @@ const GKP_NAV_GROUPS: NavGroup[] = [
         label: "Invoices",
         icon: "□",
         href: "/admin/billing/gkp/invoices",
-        legacyHref: "/admin/billing/invoices",
       },
       {
         label: "Payments",
         icon: "$",
         href: "/admin/billing/gkp/payments",
-        legacyHref: "/admin/billing/payments",
       },
     ],
   },
@@ -136,12 +131,13 @@ const GKP_NAV_GROUPS: NavGroup[] = [
         label: "Staff Payments",
         icon: "¤",
         href: "/admin/billing/gkp/staff-payments",
+        adminOnly: true,
       },
       {
         label: "Accounting",
         icon: "∑",
         href: "/admin/billing/gkp/accounting",
-        legacyHref: "/admin/billing/accounting",
+        adminOnly: true,
       },
     ],
   },
@@ -152,7 +148,6 @@ const GKP_NAV_GROUPS: NavGroup[] = [
         label: "Settings",
         icon: "⚙",
         href: "/admin/billing/gkp/settings",
-        legacyHref: "/admin/billing/settings",
       },
     ],
   },
@@ -201,11 +196,13 @@ const DREAMSCAPE_NAV_GROUPS: NavGroup[] = [
         label: "Staff Payments",
         icon: "¤",
         href: "/admin/billing/dreamscape/staff-payments",
+        adminOnly: true,
       },
       {
         label: "Accounting",
         icon: "∑",
         href: "/admin/billing/dreamscape/accounting",
+        adminOnly: true,
       },
     ],
   },
@@ -221,202 +218,142 @@ const DREAMSCAPE_NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
 
+const GKP_BILLING_GUIDE: BillingWalkthroughStep[] = [
   {
-
     eyebrow: "Welcome",
-
     title: "Let me show you the Guru Kids Pro billing workspace.",
-
     text:
-
-      "This workspace manages family accounts, student enrolments, lesson schedules, prepaid invoices, parent invoice links and payment records. The walkthrough is optional and can be restarted anytime.",
-
+      "This workspace manages family accounts, class schedules, tuition invoices, payments, staff costs and Guru Kids Pro financial reporting. Dreamscape One subscription billing now lives in its own company workspace.",
   },
-
   {
-
-    eyebrow: "Stop 1 of 12",
-
-    title: "Begin with the billing overview.",
-
+    eyebrow: "Stop 1 of 10",
+    title: "Start with the GKP overview.",
     text:
-
-      "The Overview page summarises issued invoices, money collected, outstanding balances, overdue invoices and drafts awaiting review. Use it as the first health check for every billing cycle.",
-
+      "Use Overview as the billing health check. It summarises issued tuition invoices, money collected, outstanding balances, overdue invoices and drafts awaiting review.",
     highlightedNav: "Overview",
-
   },
-
   {
-
-    eyebrow: "Stop 2 of 12",
-
-    title: "Create one billing account for each family.",
-
+    eyebrow: "Stop 2 of 10",
+    title: "Keep each family together in Billing Accounts.",
     text:
-
-      "Billing Accounts stores the payer and all siblings under the same family. Add each student separately, then attach the student’s programmes, agreed lesson fee, recurring discount, regular weekday and start date.",
-
+      "Create one billing account for each family, add each child separately, then attach the child's programmes, agreed fee, recurring discount and enrolment dates.",
     highlightedNav: "Billing Accounts",
-
   },
-
   {
-
-    eyebrow: "Stop 3 of 12",
-
-    title: "Use Programmes as standard fee templates.",
-
+    eyebrow: "Stop 3 of 10",
+    title: "Use Programmes as your standard fee templates.",
     text:
-
-      "A programme holds the normal programme name, standard per-lesson fee and billing frequency. The student’s enrolment can still use a different agreed fee. Sort order only controls how programmes are arranged on screen.",
-
+      "Programmes stores the normal programme name, fee and billing frequency. Individual enrolments can still use a different agreed fee when needed.",
     highlightedNav: "Programmes",
-
   },
-
   {
-
-    eyebrow: "Stop 4 of 12",
-
+    eyebrow: "Stop 4 of 10",
     title: "Use Lesson Scheduling as the live class reference.",
-
     text:
-
-      "Filter classes by level, subject and day, see total enrolment and remaining spaces, and maintain multi-level class schedules from one page. This is the page to check before telling parents which class times are available.",
-
+      "Filter by level, subject and day, check class headcount and remaining spaces, and maintain multi-level schedules before offering parents a class time.",
     highlightedNav: "Lesson Scheduling",
-
   },
-
   {
-
-    eyebrow: "Stop 5 of 12",
-
-    title: "Prepare the month before generating invoices.",
-
+    eyebrow: "Stop 5 of 10",
+    title: "Prepare and review invoices before issuing.",
     text:
-
-      "On the Invoices page, select the billing month, confirm every active schedule, record centre closures and review the generated lesson dates. Add or remove replacement lessons before generating family drafts.",
-
+      "Confirm lesson dates and centre closures, generate the month, review every draft, make any permitted adjustments, preview the parent document, then issue only when it is correct.",
     highlightedNav: "Invoices",
-
   },
-
   {
-
-    eyebrow: "Stop 6 of 12",
-
-    title: "Check the four-lesson discount rule.",
-
+    eyebrow: "Stop 6 of 10",
+    title: "Use Payments for reconciliation.",
     text:
-
-      "Per-lesson fees use the actual number of billable lessons in that month. A recurring lesson discount is applied to a maximum of four lessons, even when the month contains five billable lessons.",
-
-    highlightedNav: "Invoices",
-
-  },
-
-  {
-
-    eyebrow: "Stop 7 of 12",
-
-    title: "Review the draft before issuing it.",
-
-    text:
-
-      "Open each family draft and check the students, lesson dates, quantities, rates, discounts, credits and final total. Preview the parent document first. Once correct, issue the invoice to activate its secure parent link.",
-
-    highlightedNav: "Invoices",
-
-  },
-
-  {
-
-    eyebrow: "Stop 8 of 12",
-
-    title: "Treat payment confirmation as a separate step.",
-
-    text:
-
-      "The parent view will display the payment option once HitPay is active. Only a validated HitPay webhook should mark an invoice as paid. Never assume that opening a QR or payment page means payment succeeded.",
-
-    highlightedNav: "Invoices",
-
-  },
-
-  {
-
-    eyebrow: "Stop 9 of 12",
-
-    title: "Use Payments for reconciliation, not just viewing totals.",
-
-    text:
-
-      "Payments lists HitPay and manually recorded receipts, refunds, unmatched provider events and overpayments. Record a manual payment only after money is actually received. For a HitPay refund, complete the refund in HitPay first, then record it here.",
-
+      "Payments keeps provider and manual receipts, refunds, unmatched events and overpayments separate from invoice preparation. Record money only after it has actually been received or returned.",
     highlightedNav: "Payments",
-
   },
-
   {
-
-    eyebrow: "Stop 10 of 12",
-
-    title: "Keep staff payments in the company finance ledger.",
-
+    eyebrow: "Stop 7 of 10",
+    title: "Staff Payments is the payroll ledger.",
     text:
-
-      "Staff Payments records management salaries, teacher or contractor pay, bonuses, allowances, deductions and payment history. Staff identity can be shared across both companies, but each company keeps separate employment terms and payment records.",
-
+      "Administrators can record management salaries, teacher or contractor pay, bonuses, allowances, deductions and payment history. Payroll is kept separate from ordinary operating expenses.",
     highlightedNav: "Staff Payments",
-
   },
-
   {
-
-    eyebrow: "Stop 11 of 12",
-
-    title: "Use Accounting for company-only month-end reporting.",
-
+    eyebrow: "Stop 8 of 10",
+    title: "Accounting is GKP-only.",
     text:
-
-      "Accounting keeps Guru Kids Pro and Dreamscape One separate. For GKP it brings tuition billing, collections, refunds, outstanding balances, staff costs and other GKP expenses into one monthly view. Dreamscape has its own accounting page for subscription revenue and Dreamscape-only costs.",
-
+      "Guru Kids Pro Accounting combines tuition collections, refunds, payroll and GKP operating expenses. Dreamscape subscription revenue and Dreamscape costs never enter this company view.",
     highlightedNav: "Accounting",
-
   },
-
   {
-
-    eyebrow: "Stop 12 of 12",
-
-    title: "Keep operational billing rules in Settings.",
-
+    eyebrow: "Stop 9 of 10",
+    title: "Use Settings for GKP billing rules.",
     text:
-
-      "Settings controls business details, invoice wording, default family due day, GST information and the Resend sender name. API keys and webhook salts never appear here; they remain protected in Vercel.",
-
+      "Settings holds Guru Kids Pro billing details such as invoice wording and due-date rules. Stripe secrets and other protected credentials remain server-side.",
     highlightedNav: "Settings",
-
   },
-
   {
-
-    eyebrow: "You’re ready",
-
-    title: "Use the same safe order every month.",
-
+    eyebrow: "Stop 10 of 10",
+    title: "Use the same safe order each month.",
     text:
-
-      "Accounts and enrolments first, lesson dates second, draft generation third, review fourth and issuing last. Return an unpaid invoice to draft before correcting it, and keep paid invoice history intact. Restart this guide anytime from the bottom-left Milo Guide button.",
-
+      "Update accounts and enrolments first, confirm lesson schedules second, generate drafts third, review fourth, issue fifth and reconcile payments last. Keep issued and paid history intact.",
   },
-
 ];
 
+const DREAMSCAPE_BILLING_GUIDE: BillingWalkthroughStep[] = [
+  {
+    eyebrow: "Welcome",
+    title: "Let me show you the Dreamscape One billing workspace.",
+    text:
+      "This workspace manages public Dreamscape subscriptions, Stripe billing, refunds, Dreamscape staff costs and Dreamscape-only financial reporting. Guru Kids Pro tuition billing stays in the other company workspace.",
+  },
+  {
+    eyebrow: "Stop 1 of 7",
+    title: "Start with the Dreamscape overview.",
+    text:
+      "Overview shows active subscribers, payment issues, setup-pending subscriptions, MRR, annual contract value and items that need review.",
+    highlightedNav: "Overview",
+  },
+  {
+    eyebrow: "Stop 2 of 7",
+    title: "Use Subscribers for subscription management.",
+    text:
+      "Subscribers is the operational directory for learner contracts. Review the parent and learner, plan, Stripe status, access period, payment history and subscription actions from here.",
+    highlightedNav: "Subscribers",
+  },
+  {
+    eyebrow: "Stop 3 of 7",
+    title: "Keep plan configuration in Plans.",
+    text:
+      "Plans shows the Dreamscape products and their billing cycles, prices, availability and Stripe mappings. Provider credentials remain protected on the server.",
+    highlightedNav: "Plans",
+  },
+  {
+    eyebrow: "Stop 4 of 7",
+    title: "Use Payments & Refunds for transaction history.",
+    text:
+      "Review successful subscription payments and the refund journal separately. Refund reporting flows into Dreamscape Accounting without affecting Guru Kids Pro.",
+    highlightedNav: "Payments & Refunds",
+  },
+  {
+    eyebrow: "Stop 5 of 7",
+    title: "Staff Payments is Dreamscape-only payroll.",
+    text:
+      "Administrators can record Dreamscape salaries, contractor pay, bonuses, allowances and deductions. A person can also work for GKP, but each company keeps a separate employment and payment record.",
+    highlightedNav: "Staff Payments",
+  },
+  {
+    eyebrow: "Stop 6 of 7",
+    title: "Accounting keeps Dreamscape finances separate.",
+    text:
+      "Dreamscape Accounting tracks subscription collections, Stripe refunds, payroll, affiliate payouts, operating expenses, MRR and reporting trends without mixing in GKP tuition.",
+    highlightedNav: "Accounting",
+  },
+  {
+    eyebrow: "Stop 7 of 7",
+    title: "Use Settings for subscription controls.",
+    text:
+      "Dreamscape Settings controls public subscription checkout and billing behaviour. Stripe secret keys, webhook secrets and protected Price IDs remain server-side.",
+    highlightedNav: "Settings",
+  },
+];
 
 
 export default function BillingAdminShell({
@@ -454,6 +391,16 @@ export default function BillingAdminShell({
         ? "Dreamscape One"
         : "Company selector";
 
+  const guideSteps =
+    workspace === "dreamscape"
+      ? DREAMSCAPE_BILLING_GUIDE
+      : GKP_BILLING_GUIDE;
+
+  const guideStorageKey =
+    workspace === "dreamscape"
+      ? "billing-guide-completed-dreamscape-v1"
+      : "billing-guide-completed-gkp-v2";
+
 
 
   const [accessStatus, setAccessStatus] =
@@ -465,6 +412,7 @@ export default function BillingAdminShell({
   const [userEmail, setUserEmail] = useState("");
 
   const [roleLabel, setRoleLabel] = useState("Billing staff");
+  const [isAdministrator, setIsAdministrator] = useState(false);
 
 
 
@@ -482,11 +430,11 @@ export default function BillingAdminShell({
 
       guideOpen
 
-        ? BILLING_WALKTHROUGH_STEPS[guideStep]?.highlightedNav
+        ? guideSteps[guideStep]?.highlightedNav
 
         : undefined,
 
-    [guideOpen, guideStep],
+    [guideOpen, guideStep, guideSteps],
 
   );
 
@@ -596,6 +544,8 @@ export default function BillingAdminShell({
 
 
 
+      setIsAdministrator(rawRole === "admin");
+
       if (rawRole === "admin") {
 
         setRoleLabel("Administrator");
@@ -643,9 +593,8 @@ export default function BillingAdminShell({
     try {
 
       setGuideCompleted(
-
-        window.localStorage.getItem(BILLING_GUIDE_STORAGE_KEY) === "true",
-
+        workspace === "platform" ||
+          window.localStorage.getItem(guideStorageKey) === "true",
       );
 
     } catch {
@@ -654,7 +603,14 @@ export default function BillingAdminShell({
 
     }
 
-  }, []);
+  }, [guideStorageKey, workspace]);
+
+
+
+  useEffect(() => {
+    setGuideStep(0);
+    setGuideOpen(false);
+  }, [workspace]);
 
 
 
@@ -678,7 +634,7 @@ export default function BillingAdminShell({
 
     try {
 
-      window.localStorage.setItem(BILLING_GUIDE_STORAGE_KEY, "true");
+      window.localStorage.setItem(guideStorageKey, "true");
 
     } catch {
 
@@ -851,16 +807,14 @@ export default function BillingAdminShell({
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
                     {group.items.map((item) => {
                       const active = Boolean(
-                        (item.href &&
-                          (item.href === "/admin/billing/gkp"
+                        item.href &&
+                          (item.href === "/admin/billing/gkp" ||
+                          item.href === "/admin/billing/dreamscape"
                             ? pathname === item.href
-                            : pathname.startsWith(item.href))) ||
-                          (item.legacyHref &&
-                            pathname.startsWith(item.legacyHref)),
+                            : pathname.startsWith(item.href)),
                       );
 
                       const walkthroughHighlighted =
-                        workspace === "gkp" &&
                         guideOpen &&
                         highlightedNav === item.label;
 
@@ -871,6 +825,24 @@ export default function BillingAdminShell({
                             ? "border-[#15233b] bg-[#15233b] text-white"
                             : "border-transparent bg-white/45 text-[#4f4a42]"
                       }`;
+
+                      if (item.adminOnly && !isAdministrator) {
+                        return (
+                          <div
+                            key={item.label}
+                            className={`${sharedClassName} cursor-not-allowed opacity-55`}
+                            title={`${item.label} is restricted to administrators.`}
+                            aria-disabled="true"
+                          >
+                            <NavContent
+                              icon="🔒"
+                              label={item.label}
+                              phase="Admin only"
+                              active={false}
+                            />
+                          </div>
+                        );
+                      }
 
                       if (!item.href) {
                         return (
@@ -956,7 +928,7 @@ export default function BillingAdminShell({
         </section>
       </div>
 
-      {workspace === "gkp" && !guideOpen && (
+      {workspace !== "platform" && !guideOpen && (
         <button
           type="button"
           onClick={startGuide}
@@ -980,18 +952,20 @@ export default function BillingAdminShell({
               )}
             </span>
             <span className="mt-0.5 block text-[11px] text-white/60">
-              GKP billing walkthrough
+              {workspaceLabel} walkthrough
             </span>
           </span>
         </button>
       )}
 
-      {workspace === "gkp" && (
+      {workspace !== "platform" && (
         <BillingGuidedWalkthrough
           open={guideOpen}
           stepIndex={guideStep}
           onStepChange={setGuideStep}
           onClose={closeGuide}
+          steps={guideSteps}
+          workspaceLabel={workspaceLabel}
         />
       )}
     </main>
@@ -1009,6 +983,8 @@ function BillingGuidedWalkthrough({
   onStepChange,
 
   onClose,
+  steps,
+  workspaceLabel,
 
 }: {
 
@@ -1020,21 +996,19 @@ function BillingGuidedWalkthrough({
 
   onClose: () => void;
 
+  steps: BillingWalkthroughStep[];
+
+  workspaceLabel: string;
+
 }) {
 
-  const step =
-
-    BILLING_WALKTHROUGH_STEPS[stepIndex] ??
-
-    BILLING_WALKTHROUGH_STEPS[0];
+  const step = steps[stepIndex] ?? steps[0];
 
 
 
   const isFirstStep = stepIndex === 0;
 
-  const isLastStep =
-
-    stepIndex === BILLING_WALKTHROUGH_STEPS.length - 1;
+  const isLastStep = stepIndex === steps.length - 1;
 
 
 
@@ -1146,7 +1120,7 @@ function BillingGuidedWalkthrough({
 
         aria-modal="true"
 
-        aria-label="Milo’s Guru Kids Pro billing walkthrough"
+        aria-label={`Milo’s ${workspaceLabel} billing walkthrough`}
 
         className="fixed bottom-3 left-3 right-3 z-[80] max-h-[72dvh] overflow-y-auto rounded-[1.4rem] border border-cyan-200/40 bg-[linear-gradient(145deg,rgba(4,17,34,0.99),rgba(3,9,24,0.99))] p-5 text-white shadow-[0_32px_90px_rgba(0,0,0,0.68),0_0_40px_rgba(83,215,255,0.12)] sm:bottom-6 sm:left-6 sm:right-auto sm:w-[min(540px,calc(100vw-48px))] sm:overflow-visible sm:rounded-[1.65rem] sm:py-6 sm:pl-[190px] sm:pr-7"
 
@@ -1222,13 +1196,13 @@ function BillingGuidedWalkthrough({
 
           <div
 
-            aria-label={`Walkthrough step ${stepIndex + 1} of ${BILLING_WALKTHROUGH_STEPS.length}`}
+            aria-label={`Walkthrough step ${stepIndex + 1} of ${steps.length}`}
 
             className="flex items-center gap-1.5"
 
           >
 
-            {BILLING_WALKTHROUGH_STEPS.map((_, index) => (
+            {steps.map((_, index) => (
 
               <span
 

@@ -86,6 +86,16 @@ type Payment = {
   created_at: string;
 };
 
+type Refund = {
+  id: string;
+  payment_id: string;
+  provider_charge_id: string | null;
+  amount: number | string;
+  currency: string;
+  refunded_at: string;
+  source: string;
+};
+
 type AddonWarning = {
   addon_id: string;
   student_name: string;
@@ -136,6 +146,7 @@ export default function DreamscapeWorkspaceClient({
   const [search, setSearch] = useState("");
   const [selectedContractId, setSelectedContractId] = useState("");
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [refunds, setRefunds] = useState<Refund[]>([]);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
@@ -184,21 +195,28 @@ export default function DreamscapeWorkspaceClient({
   async function loadPayments(contractId: string) {
     setSelectedContractId(contractId);
     setPayments([]);
+    setRefunds([]);
     setError("");
 
     if (!contractId) return;
 
-    const { data, error: paymentError } = await supabase.rpc(
-      "gkp_get_dreamscape_subscription_payments",
-      { p_contract_id: contractId },
-    );
+    const [paymentResult, refundResult] = await Promise.all([
+      supabase.rpc("gkp_get_dreamscape_subscription_payments", {
+        p_contract_id: contractId,
+      }),
+      supabase.rpc("gkp_get_dreamscape_subscription_refunds", {
+        p_contract_id: contractId,
+      }),
+    ]);
 
-    if (paymentError) {
-      setError(paymentError.message);
+    const firstError = paymentResult.error || refundResult.error;
+    if (firstError) {
+      setError(firstError.message);
       return;
     }
 
-    setPayments((data || []) as Payment[]);
+    setPayments((paymentResult.data || []) as Payment[]);
+    setRefunds((refundResult.data || []) as Refund[]);
   }
 
   async function togglePublicCheckout() {
@@ -332,7 +350,7 @@ export default function DreamscapeWorkspaceClient({
               <tbody>{plans.map((plan) => <tr key={plan.id} className="border-b border-[#f0ece4] last:border-0"><td className="px-4 py-4"><strong className="block text-sm">{plan.display_name}</strong><span className="mt-1 block text-xs text-[#81796d]">{plan.plan_key}</span></td><td className="px-4 py-4 text-sm capitalize">{plan.audience}</td><td className="px-4 py-4 text-sm capitalize">{plan.billing_cycle}</td><td className="px-4 py-4 text-sm font-bold">{money(plan.amount, plan.currency)}</td><td className="px-4 py-4 text-sm capitalize">{plan.provider || "—"}</td><td className="px-4 py-4"><StatusPill status={plan.is_coming_soon ? "coming soon" : plan.is_available ? "available" : "inactive"} /></td></tr>)}</tbody>
             </table>
           </div>
-          <p className="mt-4 text-xs leading-5 text-[#81796d]">Phase 3 keeps the existing Stripe subscription engine untouched. Provider-product creation and price-ID maintenance remain handled by the current Dreamscape Stripe integration.</p>
+          <p className="mt-4 text-xs leading-5 text-[#81796d]">The existing Stripe subscription engine remains the source of truth. Provider-product creation and Price ID maintenance continue to use the current Dreamscape Stripe integration.</p>
         </section>
       </BillingAdminShell>
     );
@@ -357,8 +375,46 @@ export default function DreamscapeWorkspaceClient({
             {selectedContract && <div className="mt-4 rounded-2xl bg-[#fbfaf7] p-4 text-sm"><strong className="block">{selectedContract.learner_name}</strong><span className="mt-1 block text-xs text-[#81796d]">{selectedContract.parent_name} · {selectedContract.parent_email}</span><span className="mt-3 block text-xs font-bold capitalize">{selectedContract.provider} · {selectedContract.status}</span></div>}
           </div>
           <div className="rounded-[2rem] border border-[#ded5c4] bg-white p-5">
-            <div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">Payment history</p><h2 className="mt-2 text-xl font-semibold">Subscription transactions</h2></div><span className="rounded-full border border-[#ded5c4] bg-[#fbfaf7] px-3 py-2 text-xs font-bold">{payments.length}</span></div>
-            {!selectedContractId ? <Empty text="Choose a subscriber to view payment history." /> : payments.length === 0 ? <Empty text="No payment records were returned for this subscriber." /> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[650px] text-left"><thead><tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]"><th className="px-4 py-3">Date</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Provider reference</th></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id} className="border-b border-[#f0ece4] last:border-0"><td className="px-4 py-4 text-sm">{date(payment.paid_at || payment.created_at)}</td><td className="px-4 py-4 text-sm font-bold">{money(payment.amount, payment.currency)}</td><td className="px-4 py-4"><StatusPill status={payment.status} /></td><td className="px-4 py-4 text-xs text-[#81796d]">{payment.provider_charge_id || payment.provider_invoice_id || "—"}</td></tr>)}</tbody></table></div>}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">Payments & refunds</p>
+                <h2 className="mt-2 text-xl font-semibold">Subscription transactions</h2>
+              </div>
+              <div className="flex gap-2">
+                <span className="rounded-full border border-[#ded5c4] bg-[#fbfaf7] px-3 py-2 text-xs font-bold">{payments.length} payments</span>
+                <span className="rounded-full border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{refunds.length} refunds</span>
+              </div>
+            </div>
+
+            {!selectedContractId ? (
+              <Empty text="Choose a subscriber to view payment and refund history." />
+            ) : (
+              <>
+                <div className="mt-5 overflow-x-auto rounded-2xl border border-[#ebe5da]">
+                  <div className="border-b border-[#ebe5da] bg-[#fbfaf7] px-4 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">Payment history</div>
+                  {payments.length === 0 ? (
+                    <div className="p-5"><Empty text="No payment records were returned for this subscriber." /></div>
+                  ) : (
+                    <table className="w-full min-w-[650px] text-left">
+                      <thead><tr className="border-b border-[#ebe5da] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]"><th className="px-4 py-3">Date</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Provider reference</th></tr></thead>
+                      <tbody>{payments.map((payment) => <tr key={payment.id} className="border-b border-[#f0ece4] last:border-0"><td className="px-4 py-4 text-sm">{date(payment.paid_at || payment.created_at)}</td><td className="px-4 py-4 text-sm font-bold">{money(payment.amount, payment.currency)}</td><td className="px-4 py-4"><StatusPill status={payment.status} /></td><td className="px-4 py-4 text-xs text-[#81796d]">{payment.provider_charge_id || payment.provider_invoice_id || "—"}</td></tr>)}</tbody>
+                    </table>
+                  )}
+                </div>
+
+                <div className="mt-5 overflow-x-auto rounded-2xl border border-red-100">
+                  <div className="border-b border-red-100 bg-red-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-red-700">Refund journal</div>
+                  {refunds.length === 0 ? (
+                    <p className="p-5 text-sm text-[#81796d]">No refunds recorded for this subscriber.</p>
+                  ) : (
+                    <table className="w-full min-w-[650px] text-left">
+                      <thead><tr className="border-b border-red-100 text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]"><th className="px-4 py-3">Refunded</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">Provider reference</th></tr></thead>
+                      <tbody>{refunds.map((refund) => <tr key={refund.id} className="border-b border-[#f0ece4] last:border-0"><td className="px-4 py-4 text-sm">{date(refund.refunded_at)}</td><td className="px-4 py-4 text-sm font-bold text-red-700">-{money(refund.amount, refund.currency)}</td><td className="px-4 py-4 text-xs capitalize text-[#81796d]">{refund.source.replaceAll("_", " ")}</td><td className="px-4 py-4 text-xs text-[#81796d]">{refund.provider_charge_id || "—"}</td></tr>)}</tbody>
+                    </table>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </section>
       </BillingAdminShell>

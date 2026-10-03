@@ -1,11 +1,5 @@
-import type { Metadata } from "next";
-import BillingPaymentsClient from "./BillingPaymentsClient";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Payments | GKP Billing",
-  description: "Guru Kids Pro billing payments and reconciliation.",
-};
-
-export default function BillingPaymentsPage() {
-  return <BillingPaymentsClient />;
+export default function LegacyBillingRedirect() {
+  redirect("/admin/billing/gkp/payments");
 }

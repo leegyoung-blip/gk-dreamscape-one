@@ -1768,7 +1768,7 @@ export default function DreamscapeBillingClient() {
 
           <p className="mt-2 text-sm leading-6 text-red-900/75">
 
-            Phase 5 blocks new duplicate checkouts. These are pre-existing overlaps and must be resolved before final sign-off.
+            New duplicate checkouts are blocked. These are pre-existing overlaps and should be resolved from the billing records.
 
           </p>
 

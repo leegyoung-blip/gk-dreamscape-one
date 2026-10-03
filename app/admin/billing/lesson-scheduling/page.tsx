@@ -1,5 +1,5 @@
-import LessonSchedulingClient from "./LessonSchedulingClient";
+import { redirect } from "next/navigation";
 
-export default function LessonSchedulingPage() {
-  return <LessonSchedulingClient />;
+export default function LegacyLessonSchedulingRedirect() {
+  redirect("/admin/billing/gkp/lesson-scheduling");
 }

@@ -93,10 +93,10 @@ export default function BillingPlatformLandingClient() {
 
       <section className="mt-6 rounded-[2rem] border border-[#ded5c4] bg-[#15233b] p-5 text-white shadow-[0_20px_60px_rgba(21,35,59,0.10)] sm:p-6">
         <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#e8c474]">
-          Phase 1–6 status
+          Billing platform status
         </p>
         <p className="mt-3 max-w-4xl text-sm leading-6 text-white/75">
-          The platform is separated by company. Guru Kids Pro and Dreamscape One now have separate billing, payroll and accounting workspaces, with YTD reporting, payroll analysis, CSV exports and a Dreamscape refund journal. Staff identity can be shared, while payroll, operating expenses and company financial results remain separate.
+          The company split is complete. Guru Kids Pro and Dreamscape One now have separate billing, payroll and accounting workspaces, with company-specific reporting, CSV exports and Dreamscape refund tracking. Legacy GKP billing routes redirect into the Guru Kids Pro workspace.
         </p>
       </section>
     </BillingAdminShell>

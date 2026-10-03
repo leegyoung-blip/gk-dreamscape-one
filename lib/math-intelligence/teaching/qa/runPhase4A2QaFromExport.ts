@@ -214,6 +214,7 @@ function extractQaSkillMappings(
 
     const isPrimary =
       row.is_primary === true ||
+      row.is_primary_skill === true ||
       role === "primary";
 
     normalized.push({
@@ -304,8 +305,39 @@ export function runPhase4A2QaFromExport(
   for (const [index, sampleItem] of sampleItems.entries()) {
     if (!sampleItem.question) continue;
 
-    const question =
+    const preparedQuestion =
       prepareQaQuestionForTeaching(sampleItem.question);
+
+    // QA snapshots created before 4A-2C-1A did not persist the source ID.
+    // The outer sample item remains authoritative for identity and routing.
+    const question: Record<string, unknown> = {
+      ...preparedQuestion,
+      id:
+        asString(preparedQuestion.id) ??
+        asString(sampleItem.question_id),
+      code:
+        asString(preparedQuestion.code) ??
+        asString(sampleItem.question_code),
+      primary_level:
+        asNumber(preparedQuestion.primary_level) ??
+        sampleItem.primary_level ??
+        null,
+      topic_id:
+        asString(preparedQuestion.topic_id) ??
+        asString(sampleItem.topic_id),
+      topic_title:
+        asString(preparedQuestion.topic_title) ??
+        asString(sampleItem.topic_title),
+      quiz_id:
+        asString(preparedQuestion.quiz_id) ??
+        asString(sampleItem.quiz_id),
+      quiz_code:
+        asString(preparedQuestion.quiz_code) ??
+        asString(sampleItem.quiz_code),
+      quiz_title:
+        asString(preparedQuestion.quiz_title) ??
+        asString(sampleItem.quiz_title),
+    };
 
     const result =
       proposalForItem(sampleItem, resultMap);
@@ -341,6 +373,16 @@ export function runPhase4A2QaFromExport(
           (proposal as ExistingMathIntelligenceProposalInput | null) ??
           null,
       });
+
+    if (!canonical.identity.questionId) {
+      throw new Error(
+        `4A Teaching QA identity lost for ${
+          asString(sampleItem.question_id) ??
+          asString(sampleItem.question_code) ??
+          `sample item ${index + 1}`
+        }.`,
+      );
+    }
 
     const understanding =
       understandTeachingQuestion({
