@@ -260,7 +260,7 @@ function QuestionDetail({
 
       <section>
         <h5>
-          4A-2C-2 Parser & Semantics
+          4A-2C-2A Semantic Guardrails
         </h5>
         <dl>
           <div>
@@ -483,7 +483,7 @@ function QuestionDetail({
 
         {u.issues.length === 0 ? (
           <p className="phase4a2b-muted">
-            No 4A-2C-2 issues.
+            No 4A-2C-2A issues.
           </p>
         ) : (
           <ul className="phase4a2b-issues">
@@ -670,7 +670,7 @@ export default function Phase4A2TeachingQA({
     if (!run) return;
 
     downloadJson(
-      `phase-4a2c2-parser-semantics-${
+      `phase-4a2c2a-semantic-guardrails-${
         run.sourceRunId?.slice(
           0,
           8,
@@ -687,8 +687,8 @@ export default function Phase4A2TeachingQA({
       <header className="phase4a2b-header">
         <div>
           <p className="phase4a2b-eyebrow">
-            PHASE 4A-2C-2 ·
-            PARSER & SEMANTIC CORRECTIONS
+            PHASE 4A-2C-2A ·
+            SEMANTIC GUARDRAILS
           </p>
 
           <h3>
@@ -730,7 +730,7 @@ export default function Phase4A2TeachingQA({
             onClick={handleRun}
             disabled={!hasSample}
           >
-            Run 4A-2C-2 Semantic Check
+            Run 4A-2C-2A Guardrail Check
           </button>
         </div>
       </header>
@@ -952,7 +952,7 @@ export default function Phase4A2TeachingQA({
               className="phase4a2b-secondary"
               onClick={handleExport}
             >
-              Export 4A-2C-2 JSON
+              Export 4A-2C-2A JSON
             </button>
           </div>
 

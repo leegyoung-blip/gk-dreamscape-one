@@ -73,6 +73,10 @@ export type ProblemStructure =
   | "shape_composition"
   | "systematic_counting"
   | "pattern_rule"
+  | "recursive_pattern"
+  | "digit_frequency"
+  | "age_relationship"
+  | "common_multiple_cycle"
   | "time_reading"
   | "time_interval"
   | "data_reading"
@@ -103,6 +107,10 @@ export type RequiredReasoning =
   | "counting"
   | "systematic_enumeration"
   | "pattern_extension"
+  | "pattern_application"
+  | "frequency_counting"
+  | "age_reasoning"
+  | "common_multiple"
   | "place_value_reasoning"
   | "area_calculation"
   | "perimeter_calculation"
@@ -168,6 +176,10 @@ export type MathematicalRelationshipType =
   | "same_value_each"
   | "shared_equally"
   | "sequence_rule"
+  | "recurrence"
+  | "frequency"
+  | "age_relation"
+  | "repeating_cycle"
   | "property_match"
   | "depends_on"
   | "unknown";
@@ -254,6 +266,7 @@ export type EvidenceRelationship =
   | "match"
   | "compatible"
   | "refinement"
+  | "superseded"
   | "conflict";
 
 export type UnderstandingEvidence = {

@@ -99,6 +99,18 @@ function candidateFromText(
       code: "CURRICULUM_MONEY",
     },
     {
+      test: /\bage relationship\b|\bage problems?\b|\bage problem across time\b|\byears? older\b|\byears? younger\b/,
+      domain: "whole_numbers",
+      confidence: 0.94,
+      code: "CURRICULUM_AGE_RELATIONSHIP",
+    },
+    {
+      test: /\bdigit[- ]frequency\b|\bdigit frequency reasoning\b|\bconstraints? and optimisation\b|\bfrequency reasoning\b/,
+      domain: "logic",
+      confidence: 0.9,
+      code: "CURRICULUM_DIGIT_FREQUENCY",
+    },
+    {
       test: /\btime\b|\bclock\b|\bduration\b|\bcalendar\b/,
       domain: "time",
       confidence: 0.96,

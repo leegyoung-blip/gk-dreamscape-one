@@ -127,6 +127,13 @@ export function normalizeProblemStructure(
     shape_properties: "shape_properties",
     systematic_counting: "systematic_counting",
     pattern_rule: "pattern_rule",
+    recursive_pattern: "recursive_pattern",
+    number_pyramid: "recursive_pattern",
+    digit_frequency: "digit_frequency",
+    age_relationship: "age_relationship",
+    age_problem: "age_relationship",
+    common_multiple_cycle: "common_multiple_cycle",
+    repeating_cycle: "common_multiple_cycle",
 
     time_reading: "time_reading",
     time_interval: "time_interval",

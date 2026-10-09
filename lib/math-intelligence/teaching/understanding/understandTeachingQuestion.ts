@@ -102,10 +102,45 @@ function inferPromptDomain(
     };
   }
 
+  if (
+    /\bdigit\b/.test(t) &&
+    /\bappears?\b|\boccurs?\b|\bfrequency\b/.test(t)
+  ) {
+    return {
+      domain: "logic",
+      confidence: 0.94,
+      code: "PROMPT_DOMAIN_DIGIT_FREQUENCY",
+    };
+  }
+
+  if (
+    /\bhow old\b|\byears? old\b|\byears? younger\b|\byears? older\b|\btimes as old\b/.test(t) &&
+    /\byears? ago\b|\byears? from now\b|\bnow\b/.test(t)
+  ) {
+    return {
+      domain: "whole_numbers",
+      confidence: 0.94,
+      code: "PROMPT_DOMAIN_AGE_RELATIONSHIP",
+    };
+  }
+
+  if (
+    /\b(?:once\s+)?(?:in\s+)?every\s+\d+(?:\.\d+)?\s*(?:seconds?|minutes?|hours?)\b/.test(t) &&
+    /\bboth\b.*\btogether\b|\btogether\b.*\bboth\b|\bat the same time\b/.test(t)
+  ) {
+    return {
+      domain: "whole_numbers",
+      confidence: 0.94,
+      code: "PROMPT_DOMAIN_REPEATING_CYCLE",
+    };
+  }
+
   // Time semantics must be resolved before colon-based ratio syntax.
   // A value such as 12:25 in a clock question is a time, not a ratio.
+  // Raw duration units alone are not enough: repeating-cycle and age
+  // problems above are mathematical structures that merely use time units.
   if (
-    /\bclock\b|\bo'clock\b|\bwhat time\b|\bcorrect time\b|\bduration\b|\bminutes?\b|\bhours?\b|\bseconds?\b/.test(
+    /\bclock\b|\bo'clock\b|\bwhat time\b|\bcorrect time\b|\bduration\b|\belapsed\b|\bhow long\b/.test(
       t,
     ) ||
     /\b(?:[01]?\d|2[0-3]):[0-5]\d\b/.test(t)
@@ -292,6 +327,9 @@ function resolveDomain(
   domain: MathematicalDomain;
   confidence: number;
   evidence: UnderstandingEvidence[];
+  promptDomain: MathematicalDomain;
+  promptConfidence: number;
+  currentEvidenceWins: boolean;
 } {
   const curriculum =
     buildCurriculumContext(question);
@@ -369,6 +407,9 @@ function resolveDomain(
         existingConfidence,
       ),
       evidence,
+      promptDomain: prompt.domain,
+      promptConfidence: prompt.confidence,
+      currentEvidenceWins: false,
     };
   }
 
@@ -385,6 +426,9 @@ function resolveDomain(
         prompt.confidence,
       ),
       evidence,
+      promptDomain: prompt.domain,
+      promptConfidence: prompt.confidence,
+      currentEvidenceWins: true,
     };
   }
 
@@ -400,6 +444,9 @@ function resolveDomain(
         prompt.confidence,
       ),
       evidence,
+      promptDomain: prompt.domain,
+      promptConfidence: prompt.confidence,
+      currentEvidenceWins: true,
     };
   }
 
@@ -413,6 +460,26 @@ function resolveDomain(
       confidence:
         curriculum.confidence,
       evidence,
+      promptDomain: prompt.domain,
+      promptConfidence: prompt.confidence,
+      currentEvidenceWins: true,
+    };
+  }
+
+  if (
+    curriculum.inferredDomain === "arithmetic" &&
+    prompt.domain === "whole_numbers"
+  ) {
+    return {
+      domain: "whole_numbers",
+      confidence: Math.max(
+        curriculum.confidence,
+        prompt.confidence,
+      ),
+      evidence,
+      promptDomain: prompt.domain,
+      promptConfidence: prompt.confidence,
+      currentEvidenceWins: true,
     };
   }
 
@@ -438,6 +505,11 @@ function resolveDomain(
         confidence:
           curriculum.confidence,
         evidence,
+        promptDomain: prompt.domain,
+        promptConfidence: prompt.confidence,
+        currentEvidenceWins:
+          prompt.domain === curriculum.inferredDomain &&
+          prompt.confidence >= 0.8,
       };
     }
   }
@@ -450,19 +522,16 @@ function resolveDomain(
       domain: prompt.domain,
       confidence: prompt.confidence,
       evidence,
+      promptDomain: prompt.domain,
+      promptConfidence: prompt.confidence,
+      currentEvidenceWins: false,
     };
   }
 
-  if (
-    existing !== "unknown"
-  ) {
-    return {
-      domain: existing,
-      confidence:
-        existingConfidence || 0.7,
-      evidence,
-    };
-  }
+  // Existing Math Intelligence is supporting evidence only.
+  // It must never create the current domain by itself. If neither
+  // curriculum nor prompt semantics resolve the domain, remain
+  // unresolved instead of promoting stale MI into a Ready result.
 
   if (
     curriculum.inferredDomain !==
@@ -474,13 +543,30 @@ function resolveDomain(
       confidence:
         curriculum.confidence,
       evidence,
+      promptDomain: prompt.domain,
+      promptConfidence: prompt.confidence,
+      currentEvidenceWins: false,
+    };
+  }
+
+  if (prompt.domain !== "unknown") {
+    return {
+      domain: prompt.domain,
+      confidence: prompt.confidence,
+      evidence,
+      promptDomain: prompt.domain,
+      promptConfidence: prompt.confidence,
+      currentEvidenceWins: false,
     };
   }
 
   return {
-    domain: prompt.domain,
-    confidence: prompt.confidence,
+    domain: "unknown",
+    confidence: 0.2,
     evidence,
+    promptDomain: prompt.domain,
+    promptConfidence: prompt.confidence,
+    currentEvidenceWins: false,
   };
 }
 
@@ -854,6 +940,9 @@ export function understandTeachingQuestion(
       curriculum:
         curriculumContext
           .inferredDomain,
+      currentEvidenceWins:
+        domainResolution.currentEvidenceWins &&
+        structure.confidence >= 0.82,
     });
 
   const structureComparison =
@@ -863,6 +952,12 @@ export function understandTeachingQuestion(
       existingRaw:
         question.intelligence
           .problemStructure,
+      currentEvidenceWins:
+        structure.confidence >= 0.9 &&
+        (
+          answerValidation.status === "matched" ||
+          domainResolution.currentEvidenceWins
+        ),
     });
 
   let domainRelationship =
@@ -872,43 +967,12 @@ export function understandTeachingQuestion(
     structureComparison.relationship;
 
   /*
-   * Existing Math Intelligence is evidence, not absolute truth.
-   * A disagreement is considered resolved (refinement) when the new
-   * teaching understanding has independent, strong corroboration.
-   * Otherwise it remains a genuine conflict and blocks Phase 4C.
+   * Existing Math Intelligence is evidence, not authority. C2A encodes
+   * stale prior interpretations as `superseded` only when current
+   * curriculum/prompt evidence and the deterministic structure provide
+   * independent support. Genuine unresolved disagreements remain
+   * `conflict` and therefore block Phase 4C.
    */
-  const explicitCurriculumSupport =
-    curriculumContext.inferredDomain ===
-      domain &&
-    curriculumContext.selectedSource !==
-      "skill_tag" &&
-    curriculumContext.selectedSource !==
-      "unknown" &&
-    curriculumContext.confidence >= 0.84;
-
-  if (
-    domainRelationship === "conflict" &&
-    explicitCurriculumSupport &&
-    structure.confidence >= 0.82
-  ) {
-    domainRelationship = "refinement";
-  }
-
-  if (
-    structureRelationship ===
-      "conflict" &&
-    domainRelationship !==
-      "conflict" &&
-    structure.confidence >= 0.9 &&
-    (
-      answerValidation.status ===
-        "matched" ||
-      explicitCurriculumSupport
-    )
-  ) {
-    structureRelationship =
-      "refinement";
-  }
 
   const evidence: UnderstandingEvidence[] =
     [

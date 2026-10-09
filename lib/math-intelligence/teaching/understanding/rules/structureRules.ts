@@ -498,13 +498,257 @@ function transferDifferenceAnalysis(
   };
 }
 
+function recursivePatternAnalysis(
+  text: string,
+): StructureAnalysis | null {
+  const t = lower(text);
+
+  if (
+    !/\bnumber pyramid\b|\beach box is the sum of the two boxes directly below\b|\beach number is the sum of the two.*below\b/.test(t)
+  ) {
+    return null;
+  }
+
+  let computedAnswer: string | null = null;
+
+  const bottomRow = text.match(
+    /\bbottom row is\s+([0-9,\s]+?)(?:\.|\?|$)/i,
+  );
+
+  if (bottomRow) {
+    let values = bottomRow[1]
+      .split(/\s*,\s*/g)
+      .map((value) => parseNumeric(value))
+      .filter((value): value is number => value !== null);
+
+    if (values.length >= 2) {
+      while (values.length > 1) {
+        values = values
+          .slice(0, -1)
+          .map((value, index) => value + values[index + 1]);
+      }
+      computedAnswer = formatNumber(values[0]);
+    }
+  }
+
+  return {
+    problemStructure: "recursive_pattern",
+    requiredReasoning: [
+      "pattern_application",
+      "addition",
+    ],
+    relationships: [
+      relationship(
+        "recurrence",
+        text,
+        0.97,
+      ),
+    ],
+    computedAnswer,
+    confidence: 0.97,
+    reasonCode: "STRUCTURE_RECURSIVE_PATTERN",
+  };
+}
+
+function digitFrequencyAnalysis(
+  text: string,
+): StructureAnalysis | null {
+  const t = lower(text);
+
+  if (
+    !/\bdigit\b/.test(t) ||
+    !/\bappears?\b|\boccurs?\b|\bfrequency\b/.test(t)
+  ) {
+    return null;
+  }
+
+  let computedAnswer: string | null = null;
+
+  const range = t.match(
+    /\bfrom\s+(\d+)\s+to\s+(\d+)\b/,
+  );
+
+  if (range) {
+    const start = Number(range[1]);
+    const end = Number(range[2]);
+
+    if (
+      Number.isInteger(start) &&
+      Number.isInteger(end) &&
+      start >= 0 &&
+      end >= start &&
+      end - start <= 10000
+    ) {
+      const counts = Array(10).fill(0) as number[];
+
+      for (let value = start; value <= end; value += 1) {
+        for (const digit of String(value)) {
+          counts[Number(digit)] += 1;
+        }
+      }
+
+      if (/\bfewest\b|\bleast\b/.test(t)) {
+        const min = Math.min(...counts);
+        const digit = counts.findIndex((count) => count === min);
+        if (digit >= 0) computedAnswer = String(digit);
+      } else if (/\bmost\b|\bgreatest\b/.test(t)) {
+        const max = Math.max(...counts);
+        const digit = counts.findIndex((count) => count === max);
+        if (digit >= 0) computedAnswer = String(digit);
+      }
+    }
+  }
+
+  return {
+    problemStructure: "digit_frequency",
+    requiredReasoning: [
+      "frequency_counting",
+      "systematic_enumeration",
+      "counting",
+    ],
+    relationships: [
+      relationship(
+        "frequency",
+        text,
+        0.96,
+      ),
+    ],
+    computedAnswer,
+    confidence: 0.96,
+    reasonCode: "STRUCTURE_DIGIT_FREQUENCY",
+  };
+}
+
+function ageRelationshipAnalysis(
+  text: string,
+): StructureAnalysis | null {
+  const t = lower(text);
+
+  const hasAgeLanguage =
+    /\bhow old\b|\byears? old\b|\byears? younger\b|\byears? older\b|\btimes as old\b|\b(?:his|her|their) age\b/.test(t);
+
+  const hasAcrossTimeLanguage =
+    /\byears? ago\b|\byears? from now\b|\bin \d+ years?\b|\bnow\b/.test(t);
+
+  if (!hasAgeLanguage || !hasAcrossTimeLanguage) {
+    return null;
+  }
+
+  return {
+    problemStructure: "age_relationship",
+    requiredReasoning: unique([
+      "age_reasoning",
+      /\btimes\b/.test(t) ? "multiplication" : "comparison",
+      /\byounger\b|\bolder\b|\bago\b/.test(t) ? "subtraction" : "addition",
+    ]),
+    relationships: [
+      relationship(
+        "age_relation",
+        text,
+        0.96,
+      ),
+    ],
+    computedAnswer: null,
+    confidence: 0.96,
+    reasonCode: "STRUCTURE_AGE_RELATIONSHIP",
+  };
+}
+
+function gcd(a: number, b: number): number {
+  let x = Math.abs(Math.trunc(a));
+  let y = Math.abs(Math.trunc(b));
+  while (y !== 0) {
+    const tmp = x % y;
+    x = y;
+    y = tmp;
+  }
+  return x;
+}
+
+function lcm(a: number, b: number): number {
+  if (a === 0 || b === 0) return 0;
+  return Math.abs(a * b) / gcd(a, b);
+}
+
+function durationToSeconds(value: number, unit: string): number {
+  const normalized = unit.toLowerCase();
+  if (normalized.startsWith("minute")) return value * 60;
+  if (normalized.startsWith("hour")) return value * 3600;
+  return value;
+}
+
+function commonMultipleCycleAnalysis(
+  text: string,
+): StructureAnalysis | null {
+  const t = lower(text);
+
+  const intervalMatches = Array.from(
+    t.matchAll(/\b(?:once\s+)?(?:in\s+)?every\s+(\d+(?:\.\d+)?)\s*(seconds?|minutes?|hours?)\b/g),
+  );
+
+  const hasTogether =
+    /\bboth\b.*\btogether\b|\btogether\b.*\bboth\b|\bat the same time\b/.test(t);
+
+  if (intervalMatches.length < 2 || !hasTogether) {
+    return null;
+  }
+
+  const intervals = intervalMatches
+    .map((match) => durationToSeconds(Number(match[1]), match[2]))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  if (intervals.length < 2) return null;
+
+  const cycle = intervals.reduce((acc, value) => lcm(acc, value));
+  let computedAnswer: string | null = null;
+
+  const horizon = t.match(
+    /\bin\s+(\d+(?:\.\d+)?)\s*(seconds?|minutes?|hours?)\b/,
+  );
+
+  if (horizon && cycle > 0) {
+    const horizonSeconds = durationToSeconds(Number(horizon[1]), horizon[2]);
+    computedAnswer = formatNumber(Math.floor(horizonSeconds / cycle));
+  }
+
+  return {
+    problemStructure: "common_multiple_cycle",
+    requiredReasoning: [
+      "common_multiple",
+      "counting",
+      "unit_conversion",
+    ],
+    relationships: [
+      relationship(
+        "repeating_cycle",
+        text,
+        0.97,
+      ),
+    ],
+    computedAnswer,
+    confidence: 0.97,
+    reasonCode: "STRUCTURE_COMMON_MULTIPLE_CYCLE",
+  };
+}
+
 function unitaryScalingAnalysis(
   text: string,
 ): StructureAnalysis | null {
   const t = lower(text);
 
+  const hasExplicitScalingCue =
+    /\b(?:at the same rate|same rate|same number (?:in|per) each|for every|per (?:box|group|item|unit|person))\b/.test(t);
+
+  const hasGroupedBaseline =
+    /\bequally\s+(?:into|among)\b/.test(t) ||
+    /\b(?:boxes?|groups?|items?|people)\b/.test(t);
+
+  // Guardrail: words such as "each" or "equally" alone do not define
+  // a unitary/rate-scaling problem. There must be an explicit invariant
+  // scaling cue and a grouped baseline. This prevents recursive pattern
+  // language such as "each box is the sum..." from being misclassified.
   const hasRateLanguage =
-    /\b(?:at the same rate|same rate|same number (?:in|per) each|equally into|equally among|per box|per group|each box|each group)\b/.test(t);
+    hasExplicitScalingCue && hasGroupedBaseline;
 
   if (!hasRateLanguage) {
     return null;
@@ -2331,6 +2575,26 @@ export function analyzeProblemStructure(args: {
     transferDifferenceAnalysis(text);
 
   if (transferDifference) return transferDifference;
+
+  const recursivePattern =
+    recursivePatternAnalysis(text);
+
+  if (recursivePattern) return recursivePattern;
+
+  const digitFrequency =
+    digitFrequencyAnalysis(text);
+
+  if (digitFrequency) return digitFrequency;
+
+  const ageRelationship =
+    ageRelationshipAnalysis(text);
+
+  if (ageRelationship) return ageRelationship;
+
+  const commonMultipleCycle =
+    commonMultipleCycleAnalysis(text);
+
+  if (commonMultipleCycle) return commonMultipleCycle;
 
   const unitaryScaling =
     unitaryScalingAnalysis(text);

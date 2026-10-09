@@ -82,12 +82,21 @@ const STRUCTURE_COMPATIBLE =
       "fraction_of_whole",
       "time_interval",
     ),
+    pairKey(
+      "pattern_rule",
+      "recursive_pattern",
+    ),
+    pairKey(
+      "logic_strategy",
+      "digit_frequency",
+    ),
   ]);
 
 export function compareDomains(args: {
   resolved: MathematicalDomain;
   existingRaw: string | null;
   curriculum: MathematicalDomain;
+  currentEvidenceWins?: boolean;
 }): {
   existing: MathematicalDomain;
   relationship: EvidenceRelationship | null;
@@ -138,6 +147,13 @@ export function compareDomains(args: {
     };
   }
 
+  if (args.currentEvidenceWins) {
+    return {
+      existing,
+      relationship: "superseded",
+    };
+  }
+
   return {
     existing,
     relationship: "conflict",
@@ -147,6 +163,7 @@ export function compareDomains(args: {
 export function compareStructures(args: {
   resolved: ProblemStructure;
   existingRaw: string | null;
+  currentEvidenceWins?: boolean;
 }): {
   existing: ProblemStructure;
   relationship: EvidenceRelationship | null;
@@ -230,6 +247,13 @@ export function compareStructures(args: {
     return {
       existing,
       relationship: "refinement",
+    };
+  }
+
+  if (args.currentEvidenceWins) {
+    return {
+      existing,
+      relationship: "superseded",
     };
   }
 
