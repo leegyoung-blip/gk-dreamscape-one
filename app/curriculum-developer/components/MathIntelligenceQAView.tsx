@@ -66,6 +66,36 @@ const SAMPLE_SIZES = [120, 180, 240, 300];
 
 const PHASE4A2C5_FIXED_SEED = "phase-2i-v1";
 const PHASE4A2C5_HOLDOUT_SEED = "phase-4a2c5-holdout-v1";
+const PHASE4A2C5_BASELINE_STORAGE_KEY = "dreamscape.phase4a2c5.fixed-baseline.v1";
+
+function loadPhase4A2C5BaselineQuestionIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(PHASE4A2C5_BASELINE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as {
+      schema_version?: string;
+      source_seed?: string | null;
+      question_ids?: unknown;
+      exact_fixed_regression_match?: boolean;
+      safety_invariants_passed?: boolean;
+    };
+    if (
+      parsed?.schema_version !== "4A-2C5-BASELINE.1" ||
+      parsed.source_seed !== PHASE4A2C5_FIXED_SEED ||
+      parsed.exact_fixed_regression_match !== true ||
+      parsed.safety_invariants_passed !== true ||
+      !Array.isArray(parsed.question_ids)
+    ) return [];
+    return [...new Set(
+      parsed.question_ids
+        .map((value) => String(value || "").trim())
+        .filter(Boolean),
+    )];
+  } catch {
+    return [];
+  }
+}
 
 
 
@@ -557,80 +587,79 @@ export default function MathIntelligenceQAView() {
 
 
 
-  async function buildSample() {
+  async function buildSample() {
+    setBuildingSample(true);
+    setError(null);
+    setNotice(null);
+    setSample(null);
+    setResults([]);
+    setStoredReviews(new Map());
+    setRunId("");
+    setSelectedQuestionId("");
+    clearQAFilters();
 
-    setBuildingSample(true);
+    try {
+      const isC5HoldoutSeed = seed === PHASE4A2C5_HOLDOUT_SEED;
+      const baselineIds = isC5HoldoutSeed ? loadPhase4A2C5BaselineQuestionIds() : [];
 
-    setError(null);
+      if (isC5HoldoutSeed && sampleSize !== 240) {
+        throw new Error(
+          "The C5 holdout seed is reserved for the excluded 240-question holdout. Set sample size to 240 or use the dedicated holdout button.",
+        );
+      }
+      if (isC5HoldoutSeed && baselineIds.length !== 240) {
+        throw new Error(
+          "The C5 holdout cannot be built because the verified fixed-cohort baseline is unavailable. Run the C5 closure check on phase-2i-v1 first.",
+        );
+      }
 
-    setNotice(null);
+      const nextSample = await loadRealBankMathQASample({
+        targetSize: sampleSize,
+        seed,
+        excludeQuestionIds: baselineIds,
+      });
+      if (nextSample.actual_size === 0) {
+        throw new Error("No eligible linked Math questions were found in the live bank.");
+      }
 
-    setSample(null);
+      if (isC5HoldoutSeed) {
+        const baselineSet = new Set(baselineIds);
+        const overlap = nextSample.items.filter((item) => baselineSet.has(item.question_id));
+        const balanced = [1, 2, 3, 4, 5, 6].every((level) =>
+          nextSample.levels.some((entry) => entry.primary_level === level && entry.selected === 40),
+        );
+        if (nextSample.actual_size !== 240) {
+          throw new Error(`C5 holdout produced ${nextSample.actual_size} questions instead of 240. No fallback cohort was accepted.`);
+        }
+        if (!balanced) {
+          throw new Error("C5 holdout is not balanced at exactly 40 questions per P1-P6 level. No fallback cohort was accepted.");
+        }
+        if (overlap.length > 0) {
+          throw new Error(`C5 holdout overlaps the verified fixed cohort by ${overlap.length} question(s). The sample was rejected before analysis.`);
+        }
+      }
 
-    setResults([]);
-
-    setStoredReviews(new Map());
-
-    setRunId("");
-
-    setSelectedQuestionId("");
-
-    clearQAFilters();
-
-    try {
-
-      const nextSample = await loadRealBankMathQASample({
-
-        targetSize: sampleSize,
-
-        seed,
-
-      });
-
-      if (nextSample.actual_size === 0) {
-
-        throw new Error("No eligible linked Math questions were found in the live bank.");
-
-      }
-
-      setSample(nextSample);
-
-      setRunId("");
-
-      setSelectedQuestionId(nextSample.items[0]?.question_id || "");
-
-      setNotice(
-
-        `Built a ${nextSample.actual_size}-question real-bank sample. Run Math Intelligence to save the QA run and begin review.`,
-
-      );
-
-    } catch (sampleError) {
-
-      setError(errorMessage(sampleError));
-
-    } finally {
-
-      setBuildingSample(false);
-
-    }
-
-  }
-
-
-
-  async function buildPhase4A2C5Holdout() {
-
-    if (!sample) return;
-
-    if (sample.seed !== PHASE4A2C5_FIXED_SEED || sample.actual_size !== 240) {
-      setError(
-        "C5 holdout must be built while the fixed 240-question phase-2i-v1 cohort is loaded.",
+      setSample(nextSample);
+      setRunId("");
+      setSelectedQuestionId(nextSample.items[0]?.question_id || "");
+      setNotice(
+        isC5HoldoutSeed
+          ? "Built the verified C5 holdout: 240 questions, 40 per P1-P6 level, with zero overlap against the stored fixed cohort. Run Math Intelligence next."
+          : `Built a ${nextSample.actual_size}-question real-bank sample. Run Math Intelligence to save the QA run and begin review.`,
       );
+    } catch (sampleError) {
+      setError(errorMessage(sampleError));
+    } finally {
+      setBuildingSample(false);
+    }
+  }
+
+  async function buildPhase4A2C5Holdout() {
+    const baselineIds = loadPhase4A2C5BaselineQuestionIds();
+    if (baselineIds.length !== 240) {
+      setError("C5 holdout requires the verified 240-question phase-2i-v1 baseline. Run the C5 closure check on the fixed cohort first.");
       return;
     }
-
-    const baselineIds = sample.items.map((item) => item.question_id);
 
     setBuildingSample(true);
     setError(null);
@@ -643,36 +672,19 @@ export default function MathIntelligenceQAView() {
         seed: PHASE4A2C5_HOLDOUT_SEED,
         excludeQuestionIds: baselineIds,
       });
-
       const baselineSet = new Set(baselineIds);
-      const overlap = nextSample.items.filter((item) =>
-        baselineSet.has(item.question_id),
-      );
-
+      const overlap = nextSample.items.filter((item) => baselineSet.has(item.question_id));
       const balanced = [1, 2, 3, 4, 5, 6].every((level) =>
-        nextSample.levels.some(
-          (entry) =>
-            entry.primary_level === level &&
-            entry.selected === 40,
-        ),
+        nextSample.levels.some((entry) => entry.primary_level === level && entry.selected === 40),
       );
-
       if (nextSample.actual_size !== 240) {
-        throw new Error(
-          `C5 holdout produced ${nextSample.actual_size} questions instead of 240. No fallback cohort was accepted.`,
-        );
+        throw new Error(`C5 holdout produced ${nextSample.actual_size} questions instead of 240. No fallback cohort was accepted.`);
       }
-
       if (!balanced) {
-        throw new Error(
-          "C5 holdout is not balanced at exactly 40 questions per P1-P6 level. No fallback cohort was accepted.",
-        );
+        throw new Error("C5 holdout is not balanced at exactly 40 questions per P1-P6 level. No fallback cohort was accepted.");
       }
-
       if (overlap.length > 0) {
-        throw new Error(
-          `C5 holdout overlaps the fixed cohort by ${overlap.length} question(s).`,
-        );
+        throw new Error(`C5 holdout overlaps the verified fixed cohort by ${overlap.length} question(s). The sample was rejected before analysis.`);
       }
 
       setSampleSize(240);
@@ -682,9 +694,7 @@ export default function MathIntelligenceQAView() {
       setStoredReviews(new Map());
       setRunId("");
       setSelectedQuestionId(nextSample.items[0]?.question_id || "");
-      setNotice(
-        "Built the fixed C5 holdout: 240 new questions, 40 per P1-P6 level, with zero overlap against the loaded phase-2i-v1 cohort. Run Math Intelligence next.",
-      );
+      setNotice("Built the verified C5 holdout: 240 new questions, 40 per P1-P6 level, with zero overlap against the stored fixed cohort. Run Math Intelligence next.");
     } catch (holdoutError) {
       setError(errorMessage(holdoutError));
     } finally {
@@ -1130,17 +1140,17 @@ export default function MathIntelligenceQAView() {
 
           </button>
 
-          {sample?.seed === PHASE4A2C5_FIXED_SEED &&
-          sample.actual_size === 240 &&
-          results.length > 0 ? (
+          {sample ? (
             <button
               type="button"
               onClick={() => void buildPhase4A2C5Holdout()}
               disabled={buildingSample || generating}
               style={secondaryButton}
-              title="Build the fixed 240-question C5 holdout while excluding every question in the loaded phase-2i-v1 cohort."
+              title="Build or rebuild the verified C5 holdout from the stored fixed-cohort baseline. Any overlap is rejected before analysis."
             >
-              Build 4A-2C-5 holdout
+              {sample.seed === PHASE4A2C5_HOLDOUT_SEED
+                ? "Rebuild 4A-2C-5 holdout"
+                : "Build 4A-2C-5 holdout"}
             </button>
           ) : null}
 
