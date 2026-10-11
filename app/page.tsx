@@ -352,6 +352,7 @@ export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAccount, setIsCheckingAccount] = useState(true);
   const [showFounding50Banner, setShowFounding50Banner] = useState(false);
+  const [isFounding50NoticeReady, setIsFounding50NoticeReady] = useState(false);
   const [isFounding50ModalOpen, setIsFounding50ModalOpen] = useState(false);
   const [founding50Form, setFounding50Form] = useState<Founding50FormData>({
     studentName: "",
@@ -421,6 +422,7 @@ export default function Home() {
   useEffect(() => {
     const dismissed = window.sessionStorage.getItem("dreamscape-founding50-banner-dismissed");
     setShowFounding50Banner(dismissed !== "1");
+    setIsFounding50NoticeReady(true);
   }, []);
 
   useEffect(() => {
@@ -928,6 +930,38 @@ export default function Home() {
           onRegister={openFounding50Modal}
           onDismiss={dismissFounding50Banner}
         />
+      )}
+
+      {isFounding50NoticeReady && !showFounding50Banner && !isFounding50ModalOpen && (
+        <button
+          type="button"
+          onClick={openFounding50Modal}
+          aria-label="Apply for Dreamscape Founding 50 beta"
+          title="30 days of complimentary NOVA+ access for selected families"
+          style={{
+            position: "fixed",
+            top: isMobile ? "82px" : "98px",
+            right: isMobile ? "12px" : "28px",
+            zIndex: 45,
+            minHeight: isMobile ? "42px" : "46px",
+            padding: isMobile ? "11px 15px" : "12px 20px",
+            borderRadius: "999px",
+            border: "1px solid rgba(142,232,255,0.4)",
+            background: "linear-gradient(120deg,rgba(5,21,39,.92),rgba(26,15,48,.88))",
+            color: "#abedff",
+            boxShadow: "0 12px 36px rgba(0,0,0,.38), 0 0 24px rgba(142,232,255,.09)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            fontFamily: "Arial, Helvetica, sans-serif",
+            fontSize: isMobile ? "10px" : "11px",
+            fontWeight: 900,
+            letterSpacing: ".1em",
+            textTransform: "uppercase",
+            cursor: "pointer",
+          }}
+        >
+          ✦ Apply for Founding 50 →
+        </button>
       )}
 
       {isFounding50ModalOpen && (

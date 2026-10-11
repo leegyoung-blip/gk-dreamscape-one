@@ -12,6 +12,7 @@ import ObjectivesAdminPanel from "@/components/admin/ObjectivesAdminPanel";
 import SchoolworkAiAdminPanel from "@/components/admin/SchoolworkAiAdminPanel";
 import NovaPlusAccessAdminPanel from "@/components/admin/NovaPlusAccessAdminPanel";
 import MiloFinanceAccessAdminPanel from "@/components/admin/MiloFinanceAccessAdminPanel";
+import Founding50AdminPanel from "@/components/admin/Founding50AdminPanel";
 
 type AdminUser = {
   id: string;
@@ -37,7 +38,8 @@ type AdminSection =
   | "affiliates"
   | "schoolwork-ai"
   | "nova-plus-access"
-  | "milo-finance-access";
+  | "milo-finance-access"
+  | "founding-50";
 
 type AdminGroup =
   | "overview"
@@ -57,7 +59,8 @@ function adminGroupForSection(
     section === "student-access" ||
     section === "teachers" ||
     section === "nova-plus-access" ||
-    section === "milo-finance-access"
+    section === "milo-finance-access" ||
+    section === "founding-50"
   ) {
     return "users-access";
   }
@@ -208,6 +211,12 @@ export default function DreamTokensAdminPage() {
 
   const [activeSection, setActiveSection] =
     useState<AdminSection>("overview");
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("section") === "founding-50") {
+      setActiveSection("founding-50");
+    }
+  }, []);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [search, setSearch] = useState("");
@@ -737,6 +746,13 @@ export default function DreamTokensAdminPage() {
                   >
                     Milo Finance Access
                   </AdminSubTab>
+
+                  <AdminSubTab
+                    active={activeSection === "founding-50"}
+                    onClick={() => setActiveSection("founding-50")}
+                  >
+                    Founding 50 Beta
+                  </AdminSubTab>
                 </>
               )}
 
@@ -1187,6 +1203,8 @@ export default function DreamTokensAdminPage() {
           <NovaPlusAccessAdminPanel />
         ) : activeSection === "milo-finance-access" ? (
           <MiloFinanceAccessAdminPanel />
+        ) : activeSection === "founding-50" ? (
+          <Founding50AdminPanel />
         ) : (
           <AffiliateManagementPanel />
         )}
@@ -1395,6 +1413,11 @@ function AdminOverview({
               title="Partners"
               detail="Organisations, creator partners and affiliates."
               onClick={() => onNavigate("organisations")}
+            />
+            <OverviewLink
+              title="Founding 50 Beta"
+              detail="Review applications, approve invitations and monitor follow-up emails."
+              onClick={() => onNavigate("founding-50")}
             />
             <OverviewLink
               title="Learning & AI"

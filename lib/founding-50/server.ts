@@ -21,12 +21,22 @@ export async function authenticatedUser(request: Request) {
   return data.user;
 }
 
+/**
+ * Dreamscape has a single admin role in public.profiles. The main
+ * /admin interface uses this role; Founding 50 must use the SAME check.
+ * Verify the bearer with Supabase Auth, then read the role server-side with
+ * the service-role client. Never trust a client-supplied role or email.
+ */
 export async function authorizedAdmin(request: Request) {
   const user = await authenticatedUser(request);
   if (!user) return null;
-  const { data, error } = await adminDb().from("founding_50_admin_users")
-    .select("user_id").eq("user_id", user.id).maybeSingle();
-  return error || !data ? null : user;
+  const { data, error } = await adminDb()
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (error || data?.role?.trim().toLowerCase() !== "admin") return null;
+  return user;
 }
 
 export function safeError(error: unknown, fallback: string) {
