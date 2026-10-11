@@ -50,6 +50,23 @@ function candidateFromText(
   const text = lower(textRaw);
   if (!text) return null;
 
+  // C3 cross-domain guardrail: a skill explicitly framed as a money
+  // problem remains Money even when fractions are one of the tools used.
+  // This prevents the generic word "fractions" from stealing the primary
+  // teaching domain from statements such as "Solve money problems involving
+  // fractions and transfers".
+  if (
+    /\bmoney\b/.test(text) &&
+    /\bfraction\b|\bfractions\b/.test(text)
+  ) {
+    return {
+      domain: "money",
+      confidence: Math.min(0.999, 0.98 * multiplier),
+      code: "CURRICULUM_MONEY_WITH_FRACTIONS",
+      source,
+    };
+  }
+
   const rules: Array<{
     test: RegExp;
     domain: MathematicalDomain;
@@ -63,7 +80,7 @@ function candidateFromText(
       code: "CURRICULUM_PERCENTAGE",
     },
     {
-      test: /\bratio\b|\bproportion\b/,
+      test: /\bratios?\b|\bproportions?\b/,
       domain: "ratio",
       confidence: 0.98,
       code: "CURRICULUM_RATIO",

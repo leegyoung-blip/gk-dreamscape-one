@@ -260,7 +260,7 @@ function QuestionDetail({
 
       <section>
         <h5>
-          4A-2C-2B Conflict Arbitration
+          4A-2C-3 Fraction Understanding
         </h5>
         <dl>
           <div>
@@ -483,7 +483,7 @@ function QuestionDetail({
 
         {u.issues.length === 0 ? (
           <p className="phase4a2b-muted">
-            No 4A-2C-2B issues.
+            No 4A-2C-3 issues.
           </p>
         ) : (
           <ul className="phase4a2b-issues">
@@ -670,7 +670,7 @@ export default function Phase4A2TeachingQA({
     if (!run) return;
 
     downloadJson(
-      `phase-4a2c2b-conflict-arbitration-${
+      `phase-4a2c3-fraction-understanding-${
         run.sourceRunId?.slice(
           0,
           8,
@@ -687,8 +687,8 @@ export default function Phase4A2TeachingQA({
       <header className="phase4a2b-header">
         <div>
           <p className="phase4a2b-eyebrow">
-            PHASE 4A-2C-2B ·
-            CONFLICT ARBITRATION
+            PHASE 4A-2C-3 ·
+            FRACTION UNDERSTANDING REBUILD
           </p>
 
           <h3>
@@ -697,7 +697,7 @@ export default function Phase4A2TeachingQA({
           </h3>
 
           <p>
-            Curriculum-aware deterministic understanding with strict 4C gating and explicit stale-MI supersession. No Luna call and no database write.
+            Fraction-aware deterministic understanding with explicit fraction structures, cross-domain fraction-tool guardrails, strict 4C gating, and safe answer validation. No Luna call and no database write.
           </p>
         </div>
 
@@ -726,7 +726,7 @@ export default function Phase4A2TeachingQA({
             onClick={handleRun}
             disabled={!hasSample}
           >
-            Run 4A-2C-2B Arbitration Check
+            Run 4A-2C-3 Fraction Check
           </button>
         </div>
       </header>
@@ -948,7 +948,7 @@ export default function Phase4A2TeachingQA({
               className="phase4a2b-secondary"
               onClick={handleExport}
             >
-              Export 4A-2C-2B JSON
+              Export 4A-2C-3 JSON
             </button>
           </div>
 

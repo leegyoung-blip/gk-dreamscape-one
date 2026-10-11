@@ -190,8 +190,8 @@ export function evaluateCurrentEvidenceStrength(args: {
 
   /*
    * Structure supersession is deliberately stricter than domain supersession.
-   * Fractions are excluded here because Phase 4A-2C-3 owns the fraction-family
-   * structure rebuild. This prevents C2B from masking genuine fraction gaps.
+   * Phase 4A-2C-3 now owns a precise fraction-family structure library, so
+   * strong non-generic fraction structures may supersede stale coarse MI too.
    */
   const baselineStructureSupersession =
     structureConfidence >= 0.9 &&
@@ -204,7 +204,6 @@ export function evaluateCurrentEvidenceStrength(args: {
 
   const strictStructureSupersession =
     strictDomainSupersession &&
-    resolvedDomain !== "fractions" &&
     structureConfidence >= 0.86;
 
   const safeToSupersedeStructure =

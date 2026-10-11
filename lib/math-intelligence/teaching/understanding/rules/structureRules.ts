@@ -1478,131 +1478,812 @@ function dataAnalysis(
   };
 }
 
-function fractionAnalysis(
-  text: string,
-): StructureAnalysis {
-  const t = lower(text);
+type FractionValue = {
+  numerator: number;
+  denominator: number;
+};
 
-  const ofMatch = t.match(
-    /(\d+)\s*\/\s*(\d+)\s+of\s+(\d[\d,]*(?:\.\d+)?)/,
+const FRACTION_WORD_DENOMINATORS: Record<string, number> = {
+  half: 2,
+  halves: 2,
+  third: 3,
+  thirds: 3,
+  quarter: 4,
+  quarters: 4,
+  fourth: 4,
+  fourths: 4,
+  fifth: 5,
+  fifths: 5,
+  sixth: 6,
+  sixths: 6,
+  seventh: 7,
+  sevenths: 7,
+  eighth: 8,
+  eighths: 8,
+  ninth: 9,
+  ninths: 9,
+  tenth: 10,
+  tenths: 10,
+  eleventh: 11,
+  elevenths: 11,
+  twelfth: 12,
+  twelfths: 12,
+};
+
+const VULGAR_FRACTIONS: Record<string, string> = {
+  "½": "1/2",
+  "⅓": "1/3",
+  "⅔": "2/3",
+  "¼": "1/4",
+  "¾": "3/4",
+  "⅕": "1/5",
+  "⅖": "2/5",
+  "⅗": "3/5",
+  "⅘": "4/5",
+  "⅙": "1/6",
+  "⅚": "5/6",
+  "⅛": "1/8",
+  "⅜": "3/8",
+  "⅝": "5/8",
+  "⅞": "7/8",
+};
+
+function normalizeFractionText(
+  text: string,
+): string {
+  let normalized = text;
+
+  for (const [symbol, replacement] of Object.entries(VULGAR_FRACTIONS)) {
+    normalized = normalized.split(symbol).join(replacement);
+  }
+
+  return normalized
+    .replace(/[‐‑‒–—]/g, "-")
+    .replace(/\bone-quarter\b/gi, "one quarter")
+    .replace(/\bone-half\b/gi, "one half")
+    .replace(/\bthree-quarters\b/gi, "three quarters");
+}
+
+function reduceFraction(
+  value: FractionValue,
+): FractionValue {
+  if (value.denominator === 0) return value;
+
+  const sign = value.denominator < 0 ? -1 : 1;
+  const n = value.numerator * sign;
+  const d = Math.abs(value.denominator);
+  const divisor = gcd(n, d) || 1;
+
+  return {
+    numerator: n / divisor,
+    denominator: d / divisor,
+  };
+}
+
+function fractionToNumber(
+  value: FractionValue,
+): number | null {
+  if (value.denominator === 0) return null;
+  return value.numerator / value.denominator;
+}
+
+function formatFraction(
+  value: FractionValue,
+): string {
+  const reduced = reduceFraction(value);
+
+  if (reduced.denominator === 1) {
+    return String(reduced.numerator);
+  }
+
+  return `${reduced.numerator}/${reduced.denominator}`;
+}
+
+function parseFractionToken(
+  raw: string,
+): FractionValue | null {
+  const text = normalizeFractionText(raw).trim().toLowerCase();
+
+  const mixed = text.match(
+    /^(-?\d+)\s+(\d+)\s*\/\s*(\d+)$/,
   );
 
-  if (ofMatch) {
-    const numerator = Number(ofMatch[1]);
-    const denominator = Number(ofMatch[2]);
-    const whole = parseNumeric(
-      ofMatch[3],
-    );
+  if (mixed) {
+    const whole = Number(mixed[1]);
+    const numerator = Number(mixed[2]);
+    const denominator = Number(mixed[3]);
+
+    if (denominator === 0) return null;
+
+    const sign = whole < 0 ? -1 : 1;
+    return reduceFraction({
+      numerator: whole * denominator + sign * numerator,
+      denominator,
+    });
+  }
+
+  const slash = text.match(
+    /^(-?\d+)\s*\/\s*(-?\d+)$/,
+  );
+
+  if (slash) {
+    const numerator = Number(slash[1]);
+    const denominator = Number(slash[2]);
+    if (denominator === 0) return null;
+    return reduceFraction({ numerator, denominator });
+  }
+
+  const word = text.match(
+    /^(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(half|halves|third|thirds|quarter|quarters|fourth|fourths|fifth|fifths|sixth|sixths|seventh|sevenths|eighth|eighths|ninth|ninths|tenth|tenths|eleventh|elevenths|twelfth|twelfths)$/,
+  );
+
+  if (word) {
+    const numerator = NUMBER_WORDS[word[1]];
+    const denominator = FRACTION_WORD_DENOMINATORS[word[2]];
+
+    if (numerator && denominator) {
+      return reduceFraction({ numerator, denominator });
+    }
+  }
+
+  return null;
+}
+
+function fractionTokens(
+  text: string,
+): Array<{
+  raw: string;
+  value: FractionValue;
+}> {
+  const normalized = normalizeFractionText(text);
+  const matches: Array<{
+    raw: string;
+    value: FractionValue;
+  }> = [];
+  const occupied: Array<[number, number]> = [];
+
+  const add = (raw: string, index: number) => {
+    const value = parseFractionToken(raw);
+    if (!value) return;
+
+    const end = index + raw.length;
+    if (occupied.some(([a, b]) => index < b && end > a)) return;
+
+    occupied.push([index, end]);
+    matches.push({ raw, value });
+  };
+
+  for (const match of normalized.matchAll(/\b-?\d+\s+\d+\s*\/\s*\d+\b/g)) {
+    add(match[0], match.index ?? 0);
+  }
+
+  for (const match of normalized.matchAll(/\b-?\d+\s*\/\s*\d+\b/g)) {
+    add(match[0], match.index ?? 0);
+  }
+
+  for (
+    const match of normalized.matchAll(
+      /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(half|halves|third|thirds|quarter|quarters|fourth|fourths|fifth|fifths|sixth|sixths|seventh|sevenths|eighth|eighths|ninth|ninths|tenth|tenths|eleventh|elevenths|twelfth|twelfths)\b/gi,
+    )
+  ) {
+    add(match[0], match.index ?? 0);
+  }
+
+  return matches.sort((a, b) => normalized.indexOf(a.raw) - normalized.indexOf(b.raw));
+}
+
+function hasFractionSignal(
+  text: string,
+): boolean {
+  const t = lower(normalizeFractionText(text));
+  return (
+    fractionTokens(text).length > 0 ||
+    /\bfraction\b|\bfractions\b|\bequal parts?\b|\bshaded\b|\bunshaded\b/.test(t)
+  );
+}
+
+function curriculumSkillText(
+  curriculum: CurriculumContext,
+): string {
+  return lower(
+    `${curriculum.primarySkill ?? ""} ${curriculum.legacySkill ?? ""}`,
+  );
+}
+
+function fractionOperationAnalysis(
+  text: string,
+): StructureAnalysis | null {
+  const normalized = normalizeFractionText(text);
+  const t = lower(normalized);
+
+  const subtractFrom = normalized.match(
+    /subtract\s+(-?\d+\s+\d+\/\d+|-?\d+\/\d+)\s+from\s+(-?\d+\s+\d+\/\d+|-?\d+\/\d+)/i,
+  );
+
+  if (subtractFrom) {
+    const a = parseFractionToken(subtractFrom[1]);
+    const b = parseFractionToken(subtractFrom[2]);
+
+    let computedAnswer: string | null = null;
+    if (a && b) {
+      computedAnswer = formatFraction({
+        numerator:
+          b.numerator * a.denominator -
+          a.numerator * b.denominator,
+        denominator:
+          b.denominator * a.denominator,
+      });
+    }
 
     return {
-      problemStructure:
-        "fraction_of_whole",
+      problemStructure: "fraction_subtraction",
       requiredReasoning: [
-        "fraction_multiplication",
+        "fraction_subtraction",
+        "subtraction",
       ],
       relationships: [
         relationship(
-          "fraction_of",
+          "difference",
           text,
-          0.98,
-          `${numerator}/${denominator} of ${whole ?? "?"}`,
+          0.99,
+          `${subtractFrom[2]} - ${subtractFrom[1]}`,
         ),
       ],
-      computedAnswer:
-        whole !== null &&
-        denominator !== 0
-          ? formatNumber(
-              (numerator /
-                denominator) *
-                whole,
-            )
-          : null,
-      confidence: 0.98,
-      reasonCode:
-        "STRUCTURE_FRACTION_OF_WHOLE",
+      computedAnswer,
+      confidence: 0.99,
+      reasonCode: "STRUCTURE_FRACTION_SUBTRACTION",
     };
   }
 
-  if (
-    /\bequivalent\b|\bsame value\b/.test(
-      t,
-    )
-  ) {
-    return {
-      problemStructure:
-        "fraction_equivalence",
-      requiredReasoning: [
-        "fraction_equivalence",
-      ],
-      relationships: [],
-      computedAnswer: null,
-      confidence: 0.94,
-      reasonCode:
-        "STRUCTURE_FRACTION_EQUIVALENCE",
-    };
-  }
+  const binary = normalized.match(
+    /(-?\d+\s+\d+\/\d+|-?\d+\/\d+)\s*([+\-×÷])\s*(-?\d+\s+\d+\/\d+|-?\d+\/\d+)/,
+  );
 
-  if (
-    /\bcompare\b|\border\b|\bgreater\b|\bless\b|\blargest\b|\bsmallest\b/.test(
-      t,
-    )
-  ) {
-    return {
-      problemStructure:
-        "fraction_comparison",
-      requiredReasoning: [
-        "fraction_comparison",
-        "ordering",
-      ],
-      relationships: [],
-      computedAnswer: null,
-      confidence: 0.94,
-      reasonCode:
-        "STRUCTURE_FRACTION_COMPARISON",
-    };
-  }
+  if (!binary) return null;
 
-  const direct = simpleExpression(text);
+  const left = parseFractionToken(binary[1]);
+  const right = parseFractionToken(binary[3]);
+  if (!left || !right) return null;
 
-  if (direct) {
-    return {
-      problemStructure:
-        "direct_calculation",
-      requiredReasoning: [
-        direct.reasoning,
-      ],
-      relationships: [
-        relationship(
-          direct.relation,
-          text,
-          0.96,
-          direct.expression,
-        ),
-      ],
-      computedAnswer:
-        direct.answer === null
-          ? null
-          : formatNumber(
-              direct.answer,
-            ),
-      confidence: 0.96,
-      reasonCode:
-        "STRUCTURE_FRACTION_DIRECT",
+  const operator = binary[2];
+  let result: FractionValue | null = null;
+  let structure: ProblemStructure = "fraction_addition";
+  let reasoning: RequiredReasoning = "fraction_addition";
+  let relation: MathematicalRelationship["type"] = "sum";
+
+  if (operator === "+") {
+    result = {
+      numerator:
+        left.numerator * right.denominator +
+        right.numerator * left.denominator,
+      denominator:
+        left.denominator * right.denominator,
     };
+  } else if (operator === "-") {
+    structure = "fraction_subtraction";
+    reasoning = "fraction_subtraction";
+    relation = "difference";
+    result = {
+      numerator:
+        left.numerator * right.denominator -
+        right.numerator * left.denominator,
+      denominator:
+        left.denominator * right.denominator,
+    };
+  } else if (operator === "×") {
+    structure = "fraction_multiplication";
+    reasoning = "fraction_multiplication";
+    relation = "product";
+    result = {
+      numerator: left.numerator * right.numerator,
+      denominator: left.denominator * right.denominator,
+    };
+  } else {
+    structure = "fraction_division";
+    reasoning = "fraction_division";
+    relation = "quotient";
+    if (right.numerator !== 0) {
+      result = {
+        numerator: left.numerator * right.denominator,
+        denominator: left.denominator * right.numerator,
+      };
+    }
   }
 
   return {
-    problemStructure:
-      "fraction_comparison",
+    problemStructure: structure,
+    requiredReasoning: [
+      reasoning,
+      operator === "+"
+        ? "addition"
+        : operator === "-"
+          ? "subtraction"
+          : operator === "×"
+            ? "multiplication"
+            : "division",
+    ],
+    relationships: [
+      relationship(
+        relation,
+        text,
+        0.98,
+        `${binary[1]} ${operator} ${binary[3]}`,
+      ),
+    ],
+    computedAnswer: result ? formatFraction(result) : null,
+    confidence: 0.98,
+    reasonCode:
+      structure === "fraction_addition"
+        ? "STRUCTURE_FRACTION_ADDITION"
+        : structure === "fraction_subtraction"
+          ? "STRUCTURE_FRACTION_SUBTRACTION"
+          : structure === "fraction_multiplication"
+            ? "STRUCTURE_FRACTION_MULTIPLICATION"
+            : "STRUCTURE_FRACTION_DIVISION",
+  };
+}
+
+function fractionRepresentationAnalysis(
+  text: string,
+  curriculum: CurriculumContext,
+): StructureAnalysis | null {
+  const normalized = normalizeFractionText(text);
+  const t = lower(normalized);
+  const skill = curriculumSkillText(curriculum);
+
+  const representationSkill =
+    /recognise and name fractions|equal parts|express one quantity as a fraction/.test(skill);
+
+  const representationPrompt =
+    /\bshaded\b|\bunshaded\b|\bwhat fraction\b|\bwhich fraction\b|\bshaded count\b|\bhow many more parts?\b|\bhow many parts?\b.*\b(?:shaded|unshaded)\b/.test(t);
+
+  if (!representationPrompt) {
+    return null;
+  }
+
+  const numbers = numericTokens(normalized);
+  const fractions = fractionTokens(normalized);
+  let computedAnswer: string | null = null;
+
+  const equalParts = t.match(/(?:split|divided|cut|has)\s+(?:into\s+)?(\d+)\s+equal\s+(?:parts?|pieces?|sectors?)/);
+  const totalParts = equalParts ? Number(equalParts[1]) : null;
+
+  const unshadedCount = t.match(/\b(\d+)\s+(?:(?:parts?|pieces?|sectors?)\s+)?(?:are|is)\s+unshaded\b/);
+  const shadedCount = t.match(/\b(\d+)\s+(?:(?:parts?|pieces?|sectors?)\s+)?(?:are|is)\s+shaded\b/);
+
+  if (totalParts && /\bwhat fraction\b|\bwhich fraction\b/.test(t)) {
+    if (shadedCount) {
+      computedAnswer = `${Number(shadedCount[1])}/${totalParts}`;
+    } else if (unshadedCount) {
+      computedAnswer = `${totalParts - Number(unshadedCount[1])}/${totalParts}`;
+    }
+  }
+
+  if (
+    totalParts &&
+    /\bshaded count\b|\bhow many parts?\b/.test(t) &&
+    fractions.length >= 1
+  ) {
+    const targetFraction = fractions[fractions.length - 1].value;
+    const targetValue = fractionToNumber(targetFraction);
+
+    if (targetValue !== null) {
+      const targetParts = targetValue * totalParts;
+
+      if (/\bhow many more parts?\b/.test(t)) {
+        const already =
+          t.match(/\b(\d+)\s+parts?\s+(?:is|are)\s+already\s+shaded\b/) ??
+          t.match(/\b(\d+)\s+part\s+is\s+already\s+shaded\b/);
+        const current = already ? Number(already[1]) : 0;
+        computedAnswer = formatNumber(targetParts - current);
+      } else {
+        computedAnswer = formatNumber(targetParts);
+      }
+    }
+  }
+
+  if (
+    totalParts &&
+    /\bunshaded\b/.test(t) &&
+    /\bhow many parts?\b/.test(t) &&
+    fractions.length >= 1 &&
+    !computedAnswer
+  ) {
+    const value = fractionToNumber(fractions[0].value);
+    if (value !== null) {
+      computedAnswer = formatNumber(value * totalParts);
+    }
+  }
+
+  // "Which shaded count represents three eighths?" does not always contain
+  // the phrase "how many parts" but is still a representation/count task.
+  if (
+    totalParts &&
+    /\bshaded count\b.*\brepresents?\b/.test(t) &&
+    fractions.length >= 1 &&
+    !computedAnswer
+  ) {
+    const value = fractionToNumber(fractions[0].value);
+    if (value !== null) {
+      computedAnswer = formatNumber(value * totalParts);
+    }
+  }
+
+  // "What fraction of 2 kilograms is 235 grams?"
+  if (/\bwhat fraction of\b/.test(t) && numbers.length >= 2 && !computedAnswer) {
+    const unitsNeedKgToG = /kilograms?|\bkg\b/.test(t) && /grams?|\bg\b/.test(t);
+    let whole = numbers[0];
+    let part = numbers[1];
+
+    if (unitsNeedKgToG) {
+      whole *= 1000;
+    }
+
+    if (whole !== 0) {
+      computedAnswer = formatFraction({
+        numerator: Math.round(part),
+        denominator: Math.round(whole),
+      });
+    }
+  }
+
+  return {
+    problemStructure: "fraction_representation",
+    requiredReasoning: unique([
+      "fraction_representation",
+      /\bwhat fraction of\b/.test(t) ? "fraction_division" : "fraction_of_quantity",
+      /kilograms?|\bkg\b|grams?|\bg\b/.test(t) ? "unit_conversion" : "fraction_representation",
+    ]),
+    relationships: [
+      relationship(
+        "part_of",
+        text,
+        0.96,
+      ),
+    ],
+    computedAnswer,
+    confidence: 0.96,
+    reasonCode: "STRUCTURE_FRACTION_REPRESENTATION",
+  };
+}
+
+function fractionComparisonAnalysis(
+  text: string,
+  curriculum: CurriculumContext,
+): StructureAnalysis | null {
+  const t = lower(normalizeFractionText(text));
+  const primarySkill = lower(curriculum.primarySkill ?? "");
+
+  if (
+    !/compare and order fractions|\bcompare\b|\border\b|\bincreasing order\b|\bdecreasing order\b|\bgreater\b|\bless\b|\blargest\b|\bsmallest\b/.test(
+      `${primarySkill} ${t}`,
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    problemStructure: "fraction_comparison",
     requiredReasoning: [
       "fraction_comparison",
+      "ordering",
     ],
     relationships: [],
     computedAnswer: null,
-    confidence: 0.68,
-    reasonCode:
-      "STRUCTURE_FRACTION_GENERIC",
+    confidence: 0.96,
+    reasonCode: "STRUCTURE_FRACTION_COMPARISON",
   };
+}
+
+function fractionEquivalenceAnalysis(
+  text: string,
+  curriculum: CurriculumContext,
+): StructureAnalysis | null {
+  const t = lower(normalizeFractionText(text));
+  const primarySkill = lower(curriculum.primarySkill ?? "");
+
+  if (!/equivalent|same value|equivalence/.test(`${primarySkill} ${t}`)) {
+    return null;
+  }
+
+  return {
+    problemStructure: "fraction_equivalence",
+    requiredReasoning: [
+      "fraction_equivalence",
+    ],
+    relationships: [
+      relationship(
+        "equals",
+        text,
+        0.96,
+      ),
+    ],
+    computedAnswer: null,
+    confidence: 0.96,
+    reasonCode: "STRUCTURE_FRACTION_EQUIVALENCE",
+  };
+}
+
+function fractionOfQuantityAnalysis(
+  text: string,
+  curriculum: CurriculumContext,
+): StructureAnalysis | null {
+  const normalized = normalizeFractionText(text);
+  const t = lower(normalized);
+  const skill = curriculumSkillText(curriculum);
+  const fractions = fractionTokens(normalized);
+
+  const skillSaysOfQuantity =
+    /find a fraction of a quantity|fractions? of sets?|fraction of a quantity/.test(skill);
+
+  const directOf = normalized.match(
+    /(-?\d+\s+\d+\/\d+|-?\d+\/\d+)\s+of\s+(\d[\d,]*(?:\.\d+)?)/i,
+  );
+
+  const wordOf = normalized.match(
+    /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(half|halves|third|thirds|quarter|quarters|fourth|fourths|fifth|fifths|sixth|sixths|seventh|sevenths|eighth|eighths|ninth|ninths|tenth|tenths|eleventh|elevenths|twelfth|twelfths)\s+(?:of\s+)?(?:the\s+)?(?:\w+\s+){0,3}?(?:are|is)?\s*(?:\w+)?/i,
+  );
+
+  if (!skillSaysOfQuantity && !directOf && !wordOf) {
+    return null;
+  }
+
+  let fraction: FractionValue | null = null;
+  let whole: number | null = null;
+
+  if (directOf) {
+    fraction = parseFractionToken(directOf[1]);
+    whole = parseNumeric(directOf[2]);
+  } else if (fractions.length >= 1) {
+    fraction = fractions[0].value;
+    const values = numericTokens(normalized).filter((value) => value > 1);
+    whole = values.length > 0 ? Math.max(...values) : null;
+  }
+
+  let computedAnswer: string | null = null;
+
+  if (fraction && whole !== null) {
+    const value = fractionToNumber(fraction);
+    if (value !== null) {
+      computedAnswer = formatNumber(value * whole);
+    }
+  }
+
+  return {
+    problemStructure: "fraction_of_quantity",
+    requiredReasoning: [
+      "fraction_of_quantity",
+      "fraction_multiplication",
+      "division",
+      "multiplication",
+    ],
+    relationships: [
+      relationship(
+        "fraction_of",
+        text,
+        0.97,
+        fraction && whole !== null
+          ? `${formatFraction(fraction)} of ${whole}`
+          : null,
+      ),
+    ],
+    computedAnswer,
+    confidence: 0.97,
+    reasonCode: "STRUCTURE_FRACTION_OF_QUANTITY",
+  };
+}
+
+function fractionMultiStepAnalysis(
+  text: string,
+  curriculum: CurriculumContext,
+): StructureAnalysis | null {
+  const normalized = normalizeFractionText(text);
+  const t = lower(normalized);
+  const skill = curriculumSkillText(curriculum);
+  const fractions = fractionTokens(normalized);
+
+  const skillIsMultiStep =
+    /multi-step fraction|solve fraction problems|fraction relationship|overlapping-set|advanced fraction/.test(skill);
+
+  const narrativeMultiStep =
+    fractions.length >= 1 &&
+    (
+      /\bthen\b|\bafter that\b|\bremaining\b|\brest\b|\bleft\b|\btransferred?\b|\bgave\b.*\bthen\b|\baltogether\b/.test(t)
+    ) &&
+    numericTokens(normalized).length >= 2;
+
+  const relationalFractions =
+    fractions.length >= 2 &&
+    /\bequal to\b|\bas many\b|\bas much\b|\bremaining\b|\brest\b|\bof the number\b/.test(t);
+
+  const identicalPiecesReasoning =
+    /identical\s+(?:pies?|cakes?|objects?)/.test(t) &&
+    /equal pieces?/.test(t) &&
+    /heavier|lighter|difference/.test(t);
+
+  if (
+    !skillIsMultiStep &&
+    !narrativeMultiStep &&
+    !relationalFractions &&
+    !identicalPiecesReasoning
+  ) {
+    return null;
+  }
+
+  let computedAnswer: string | null = null;
+
+  // Equal-mass pies cut into a and b equal pieces; piece-mass difference d.
+  const pieDifference = t.match(
+    /cut into\s+(\d+)\s+equal pieces?.*?cut into\s+(\d+)\s+equal pieces?.*?(\d+(?:\.\d+)?)\s*g\s+(?:heavier|lighter)/,
+  );
+
+  if (pieDifference) {
+    const a = Number(pieDifference[1]);
+    const b = Number(pieDifference[2]);
+    const difference = Number(pieDifference[3]);
+    const denominator = Math.abs(b - a);
+    if (a > 0 && b > 0 && denominator > 0) {
+      computedAnswer = formatNumber((difference * a * b) / denominator);
+    }
+  }
+
+  // Pizza/pieces pattern: total pieces, one given away, a fraction left.
+  if (!computedAnswer && /pizza/.test(t) && /equal pieces?/.test(t) && /was left/.test(t)) {
+    const totalMatch = t.match(/into\s+(\d+)\s+equal pieces?/);
+    const gaveMatch = t.match(/gave\s+(\d+)\s+piece/);
+    const leftFraction = fractions[0]?.value ?? null;
+
+    if (totalMatch && gaveMatch && leftFraction) {
+      const total = Number(totalMatch[1]);
+      const gave = Number(gaveMatch[1]);
+      const leftValue = fractionToNumber(leftFraction);
+      if (leftValue !== null) {
+        computedAnswer = formatNumber(total - gave - total * leftValue);
+      }
+    }
+  }
+
+  // Money reverse-fraction pattern: gives f of money, then fixed amount, then has remainder.
+  if (!computedAnswer && /money/.test(t) && /gave/.test(t) && fractions.length >= 1) {
+    const fixedAmounts = Array.from(
+      normalized.matchAll(/\$\s*(\d+(?:\.\d+)?)/g),
+    ).map((match) => Number(match[1]));
+
+    const fraction = fractions[0].value;
+    const fractionValue = fractionToNumber(fraction);
+
+    if (
+      fixedAmounts.length >= 2 &&
+      fractionValue !== null &&
+      fractionValue < 1
+    ) {
+      const remainderAfterFraction =
+        fixedAmounts[0] + fixedAmounts[1];
+      computedAnswer = formatNumber(
+        remainderAfterFraction / (1 - fractionValue),
+      );
+    }
+  }
+
+  return {
+    problemStructure: "fraction_multi_step",
+    requiredReasoning: unique([
+      "fraction_multi_step",
+      fractions.length > 0 ? "fraction_of_quantity" : "fraction_multi_step",
+      /\btransferred?\b|\bgave\b|\bleft\b|\bremaining\b|\brest\b/.test(t)
+        ? "subtraction"
+        : "comparison",
+      /\bequal to\b|\bas many\b|\bas much\b/.test(t)
+        ? "comparison"
+        : "multiplication",
+    ]),
+    relationships: [
+      relationship(
+        "depends_on",
+        text,
+        0.94,
+      ),
+    ],
+    computedAnswer,
+    confidence: 0.94,
+    reasonCode: "STRUCTURE_FRACTION_MULTI_STEP",
+  };
+}
+
+function fractionAnalysis(
+  text: string,
+  curriculum: CurriculumContext,
+): StructureAnalysis {
+  const operation = fractionOperationAnalysis(text);
+  if (operation) return operation;
+
+  const equivalence = fractionEquivalenceAnalysis(text, curriculum);
+  if (equivalence) return equivalence;
+
+  const comparison = fractionComparisonAnalysis(text, curriculum);
+  if (comparison) return comparison;
+
+  const multiStep = fractionMultiStepAnalysis(text, curriculum);
+  if (multiStep) return multiStep;
+
+  const representation = fractionRepresentationAnalysis(text, curriculum);
+  if (representation) return representation;
+
+  const ofQuantity = fractionOfQuantityAnalysis(text, curriculum);
+  if (ofQuantity) return ofQuantity;
+
+  return {
+    problemStructure: "fraction_multi_step",
+    requiredReasoning: [
+      "fraction_multi_step",
+    ],
+    relationships: [],
+    computedAnswer: null,
+    confidence: 0.72,
+    reasonCode: "STRUCTURE_FRACTION_GENERIC_FALLBACK",
+  };
+}
+
+export function inferFractionSupplementalReasoning(
+  text: string,
+): RequiredReasoning[] {
+  if (!hasFractionSignal(text)) return [];
+
+  const normalized = normalizeFractionText(text);
+  const t = lower(normalized);
+  const fractions = fractionTokens(normalized);
+  const reasoning: RequiredReasoning[] = [];
+
+  if (/\bwhat fraction of\b/.test(t)) {
+    reasoning.push("fraction_representation", "fraction_division");
+  }
+
+  if (/\bsubtract\b|\bminus\b/.test(t) || /\d+\/\d+\s*-\s*\d+\/\d+/.test(t)) {
+    reasoning.push("fraction_subtraction");
+  }
+
+  if (/\badd\b|\bplus\b/.test(t) || /\d+\/\d+\s*\+\s*\d+\/\d+/.test(t)) {
+    reasoning.push("fraction_addition");
+  }
+
+  const explicitFractionOf =
+    /(?:\d+\s+)?\d+\s*\/\s*\d+\s+of\b/.test(normalized) ||
+    /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(half|halves|third|thirds|quarter|quarters|fourth|fourths|fifth|fifths|sixth|sixths|seventh|sevenths|eighth|eighths|ninth|ninths|tenth|tenths|eleventh|elevenths|twelfth|twelfths)\s+of\b/.test(t) ||
+    /\b(?:as many|as much)\b/.test(t);
+
+  if (explicitFractionOf && !/\bwhat fraction of\b/.test(t)) {
+    reasoning.push("fraction_of_quantity", "fraction_multiplication");
+  }
+
+  if (
+    /(?:×|\*)\s*(?:\d+\s+)?\d+\s*\/\s*\d+|(?:\d+\s+)?\d+\s*\/\s*\d+\s*(?:×|\*)/.test(normalized)
+  ) {
+    reasoning.push("fraction_multiplication");
+  }
+
+  if (/\bequivalent\b|\bsame value\b/.test(t)) {
+    reasoning.push("fraction_equivalence");
+  }
+
+  if (/\bcompare\b|\border\b|\bgreater\b|\bless\b|\blargest\b|\bsmallest\b/.test(t)) {
+    reasoning.push("fraction_comparison");
+  }
+
+  if (
+    fractions.length >= 2 &&
+    /\bthen\b|\bremaining\b|\brest\b|\bleft\b|\btransferred?\b|\bequal to\b/.test(t)
+  ) {
+    reasoning.push("fraction_multi_step");
+  }
+
+  if (
+    reasoning.length === 0 &&
+    /\bfraction\b|\bfractions\b|\bequal parts?\b|\bshaded\b|\bunshaded\b/.test(t)
+  ) {
+    reasoning.push("fraction_representation");
+  }
+
+  return unique(reasoning);
 }
 
 function decimalAnalysis(
@@ -2649,7 +3330,7 @@ export function analyzeProblemStructure(args: {
   if (
     domain === "fractions"
   ) {
-    return fractionAnalysis(text);
+    return fractionAnalysis(text, curriculum);
   }
 
   if (

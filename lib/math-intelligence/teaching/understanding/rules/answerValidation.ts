@@ -15,6 +15,118 @@ function normalizeText(
     .toLowerCase();
 }
 
+
+const FRACTION_WORD_NUMERATORS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+};
+
+const FRACTION_WORD_DENOMINATORS: Record<string, number> = {
+  half: 2,
+  halves: 2,
+  third: 3,
+  thirds: 3,
+  quarter: 4,
+  quarters: 4,
+  fourth: 4,
+  fourths: 4,
+  fifth: 5,
+  fifths: 5,
+  sixth: 6,
+  sixths: 6,
+  seventh: 7,
+  sevenths: 7,
+  eighth: 8,
+  eighths: 8,
+  ninth: 9,
+  ninths: 9,
+  tenth: 10,
+  tenths: 10,
+  eleventh: 11,
+  elevenths: 11,
+  twelfth: 12,
+  twelfths: 12,
+};
+
+function normalizeVulgarFractions(value: string): string {
+  const map: Record<string, string> = {
+    "½": "1/2",
+    "⅓": "1/3",
+    "⅔": "2/3",
+    "¼": "1/4",
+    "¾": "3/4",
+    "⅕": "1/5",
+    "⅖": "2/5",
+    "⅗": "3/5",
+    "⅘": "4/5",
+    "⅙": "1/6",
+    "⅚": "5/6",
+    "⅛": "1/8",
+    "⅜": "3/8",
+    "⅝": "5/8",
+    "⅞": "7/8",
+  };
+
+  let next = value;
+  for (const [symbol, replacement] of Object.entries(map)) {
+    next = next.split(symbol).join(replacement);
+  }
+  return next.replace(/[‐‑‒–—]/g, "-");
+}
+
+function parseFractionValue(
+  value: string,
+): number | null {
+  const normalized = normalizeText(
+    normalizeVulgarFractions(value),
+  )
+    .replace(/\bone-quarter\b/g, "one quarter")
+    .replace(/\bone-half\b/g, "one half")
+    .replace(/\bthree-quarters\b/g, "three quarters");
+
+  const mixed = normalized.match(
+    /^(-?\d+)\s+(\d+)\s*\/\s*(\d+)$/,
+  );
+  if (mixed) {
+    const whole = Number(mixed[1]);
+    const numerator = Number(mixed[2]);
+    const denominator = Number(mixed[3]);
+    if (denominator === 0) return null;
+    return whole + (whole < 0 ? -1 : 1) * numerator / denominator;
+  }
+
+  const slash = normalized.match(
+    /^(-?\d+)\s*\/\s*(-?\d+)$/,
+  );
+  if (slash) {
+    const numerator = Number(slash[1]);
+    const denominator = Number(slash[2]);
+    if (denominator === 0) return null;
+    return numerator / denominator;
+  }
+
+  const words = normalized.match(
+    /^(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(half|halves|third|thirds|quarter|quarters|fourth|fourths|fifth|fifths|sixth|sixths|seventh|sevenths|eighth|eighths|ninth|ninths|tenth|tenths|eleventh|elevenths|twelfth|twelfths)$/,
+  );
+  if (words) {
+    const numerator = FRACTION_WORD_NUMERATORS[words[1]];
+    const denominator = FRACTION_WORD_DENOMINATORS[words[2]];
+    if (numerator && denominator) return numerator / denominator;
+  }
+
+  return null;
+}
+
 function stripThousands(
   value: string,
 ): string {
@@ -67,15 +179,8 @@ function parseNumber(
     .replace(/[$,]/g, "")
     .replace(/%$/, "")
     .replace(
-      /\s*(?:cm|mm|m|km|g|kg|ml|l|degrees?|°|years?|months?|weeks?|days?|hours?|hrs?|minutes?|mins?|seconds?|secs?)$/i,
+      /\s*(?:cm|mm|m|km|g|kg|ml|l|degrees?|°|years?|months?|weeks?|days?|hours?|hrs?|minutes?|mins?|seconds?|secs?|parts?|pieces?|items?|beads?|boxes?)$/i,
       "",
-    )
-    // Count answers are commonly stored as text such as "54 boxes".
-    // Strip a trailing alphabetic count/unit phrase only when the value
-    // begins with a numeric token; non-numeric text answers are untouched.
-    .replace(
-      /^(-?\d+(?:\.\d+)?)\s+[a-z][a-z -]*$/i,
-      "$1",
     )
     .trim();
 
@@ -180,6 +285,30 @@ export function validateComputedAnswer(args: {
       reason: matched
         ? "Deterministic understanding is consistent with the stored money answer."
         : "Deterministic understanding produced a money result that does not match the stored answer.",
+    };
+  }
+
+  const expectedFraction =
+    parseFractionValue(expectedRaw);
+  const computedFraction =
+    parseFractionValue(computedAnswer);
+
+  if (
+    expectedFraction !== null &&
+    computedFraction !== null
+  ) {
+    const matched =
+      Math.abs(expectedFraction - computedFraction) < 1e-9;
+
+    return {
+      status: matched
+        ? "matched"
+        : "mismatched",
+      expected: expectedRaw,
+      computed: computedAnswer,
+      reason: matched
+        ? "Deterministic understanding is consistent with the stored fraction answer."
+        : "Deterministic understanding produced a fraction result that does not match the stored answer.",
     };
   }
 

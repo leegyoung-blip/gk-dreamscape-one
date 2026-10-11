@@ -29,6 +29,7 @@ import {
 
 import {
   analyzeProblemStructure,
+  inferFractionSupplementalReasoning,
   mergeReasoning,
 } from "./rules/structureRules";
 
@@ -398,6 +399,80 @@ function resolveDomain(
    *    (e.g. Measurement -> Money).
    * 4. Stale tags never outrank explicit topic/skill + prompt evidence.
    */
+
+  const explicitCurriculumSource =
+    curriculum.selectedSource === "primary_skill" ||
+    curriculum.selectedSource === "legacy_skill" ||
+    curriculum.selectedSource === "topic";
+
+  const normalizedTopic = lower(curriculum.topic ?? "").trim();
+  const fractionToolTopicDomain: Partial<Record<string, MathematicalDomain>> = {
+    "whole numbers": "whole_numbers",
+    "whole numbers and operations": "whole_numbers",
+    money: "money",
+    time: "time",
+    "ratio and rate": "ratio",
+    "ratio and proportion": "ratio",
+  };
+  const topicDomainForFractionTool = fractionToolTopicDomain[normalizedTopic] ?? null;
+  const primarySkillExplicitlyFraction = /\bfraction\b|\bfractions\b/.test(
+    lower(curriculum.primarySkill ?? ""),
+  );
+
+  if (
+    prompt.domain === "fractions" &&
+    topicDomainForFractionTool &&
+    !primarySkillExplicitlyFraction
+  ) {
+    evidence.push({
+      source: "rules",
+      code: "FRACTION_TOOL_TOPIC_GUARD",
+      message:
+        `Fraction notation is treated as a tool inside the explicit ${topicDomainForFractionTool} topic.`,
+      confidence: 0.96,
+    });
+
+    return {
+      domain: topicDomainForFractionTool,
+      confidence: Math.max(curriculum.confidence, 0.96),
+      evidence,
+      promptDomain: prompt.domain,
+      promptConfidence: prompt.confidence,
+      currentEvidenceWins: true,
+    };
+  }
+
+  /*
+   * C3 cross-domain fraction guardrail. Fraction notation is often a tool
+   * inside Time, Ratio, Money or Whole-number problems. When an explicit
+   * curriculum skill/topic strongly names a different primary domain, the
+   * mere presence of a/b must not force the question into Fractions even if
+   * stale Math Intelligence also called it Fractions.
+   */
+  if (
+    prompt.domain === "fractions" &&
+    curriculum.inferredDomain !== "unknown" &&
+    curriculum.inferredDomain !== "fractions" &&
+    explicitCurriculumSource &&
+    curriculum.confidence >= 0.88
+  ) {
+    evidence.push({
+      source: "rules",
+      code: "FRACTION_TOOL_NOT_PRIMARY_DOMAIN",
+      message:
+        `Fraction notation is treated as a mathematical tool inside the explicit ${curriculum.inferredDomain} curriculum domain.`,
+      confidence: curriculum.confidence,
+    });
+
+    return {
+      domain: curriculum.inferredDomain,
+      confidence: curriculum.confidence,
+      evidence,
+      promptDomain: prompt.domain,
+      promptConfidence: prompt.confidence,
+      currentEvidenceWins: true,
+    };
+  }
 
   if (
     prompt.domain !== "unknown" &&
@@ -919,7 +994,10 @@ export function understandTeachingQuestion(
 
   const requiredReasoning =
     mergeReasoning(
-      structure.requiredReasoning,
+      [
+        ...structure.requiredReasoning,
+        ...inferFractionSupplementalReasoning(combinedText),
+      ],
       combinedText,
     );
 

@@ -106,6 +106,17 @@ export function normalizeProblemStructure(
     grouping: "grouping",
 
     fraction_of_whole: "fraction_of_whole",
+    fraction_representation: "fraction_representation",
+    fraction_of_quantity: "fraction_of_quantity",
+    fraction_of_set: "fraction_of_quantity",
+    fraction_comparison: "fraction_comparison",
+    fraction_equivalence: "fraction_equivalence",
+    fraction_addition: "fraction_addition",
+    fraction_subtraction: "fraction_subtraction",
+    fraction_multiplication: "fraction_multiplication",
+    fraction_division: "fraction_division",
+    fraction_multi_step: "fraction_multi_step",
+    fraction_multistep: "fraction_multi_step",
     percentage_of_whole: "percentage_of_whole",
 
     ratio_relationship: "ratio_relationship",

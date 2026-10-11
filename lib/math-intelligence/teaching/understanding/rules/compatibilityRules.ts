@@ -83,6 +83,14 @@ const STRUCTURE_COMPATIBLE =
       "time_interval",
     ),
     pairKey(
+      "fraction_of_whole",
+      "fraction_of_quantity",
+    ),
+    pairKey(
+      "fraction_comparison",
+      "fraction_equivalence",
+    ),
+    pairKey(
       "pattern_rule",
       "recursive_pattern",
     ),
@@ -214,6 +222,47 @@ export function compareStructures(args: {
   // The older visual pipeline often stores coarse families.
   // Treat a fine-grained teaching structure as a refinement when
   // both are reasonable members of the same broad family.
+  const fractionFamily =
+    new Set<ProblemStructure>([
+      "fraction_of_whole",
+      "fraction_representation",
+      "fraction_of_quantity",
+      "fraction_comparison",
+      "fraction_equivalence",
+      "fraction_addition",
+      "fraction_subtraction",
+      "fraction_multiplication",
+      "fraction_division",
+      "fraction_multi_step",
+    ]);
+
+  if (
+    fractionFamily.has(existing) &&
+    fractionFamily.has(args.resolved)
+  ) {
+    // The old visual/MI pipeline used `fraction_of_whole` as a coarse
+    // bucket for many fraction questions. C3 permits a more precise
+    // teaching structure to refine that legacy label only when current
+    // evidence is strong enough; otherwise the disagreement remains a
+    // real conflict and blocks Phase 4C.
+    if (args.currentEvidenceWins) {
+      return {
+        existing,
+        relationship: "superseded",
+      };
+    }
+
+    if (
+      existing === "fraction_of_whole" &&
+      args.resolved === "fraction_of_quantity"
+    ) {
+      return {
+        existing,
+        relationship: "refinement",
+      };
+    }
+  }
+
   const arithmeticFamily =
     new Set<ProblemStructure>([
       "direct_calculation",

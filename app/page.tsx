@@ -2,12 +2,24 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import PublicPreviewBanner from "@/components/PublicPreviewBanner";
 
 type Section = "home" | "about";
+
+
+type Founding50FormData = {
+  studentName: string;
+  studentAge: string;
+  email: string;
+  consent: boolean;
+};
+
+type Founding50SubmissionState = "idle" | "submitting" | "success" | "error";
+
+const FOUNDING_50_TERMS_VERSION = "founding50-v1";
 
 type World = {
   key: "nova" | "milo";
@@ -339,6 +351,17 @@ export default function Home() {
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAccount, setIsCheckingAccount] = useState(true);
+  const [showFounding50Banner, setShowFounding50Banner] = useState(true);
+  const [isFounding50ModalOpen, setIsFounding50ModalOpen] = useState(false);
+  const [founding50Form, setFounding50Form] = useState<Founding50FormData>({
+    studentName: "",
+    studentAge: "",
+    email: "",
+    consent: false,
+  });
+  const [founding50SubmissionState, setFounding50SubmissionState] =
+    useState<Founding50SubmissionState>("idle");
+  const [founding50Error, setFounding50Error] = useState("");
 
   useEffect(() => {
     function checkScreenSize() {
@@ -395,6 +418,28 @@ export default function Home() {
     };
   }, [isMenuOpen]);
 
+  useEffect(() => {
+    const dismissed = window.sessionStorage.getItem("dreamscape-founding50-banner-dismissed");
+    if (dismissed === "1") setShowFounding50Banner(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isFounding50ModalOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsFounding50ModalOpen(false);
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isFounding50ModalOpen]);
+
   function scrollToSection(section: Section) {
     scrollToId(section === "home" ? "home" : "about");
   }
@@ -407,6 +452,72 @@ export default function Home() {
       if (!target) return;
       target.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 40);
+  }
+
+  function openFounding50Modal() {
+    setFounding50Error("");
+    setFounding50SubmissionState("idle");
+    setIsFounding50ModalOpen(true);
+  }
+
+  function closeFounding50Modal() {
+    setIsFounding50ModalOpen(false);
+  }
+
+  function dismissFounding50Banner() {
+    setShowFounding50Banner(false);
+    window.sessionStorage.setItem("dreamscape-founding50-banner-dismissed", "1");
+  }
+
+  async function handleFounding50Submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!founding50Form.consent) {
+      setFounding50SubmissionState("error");
+      setFounding50Error("Please confirm that you are the student's parent or legal guardian.");
+      return;
+    }
+
+    setFounding50SubmissionState("submitting");
+    setFounding50Error("");
+
+    try {
+      const response = await fetch("/api/founding-50/apply", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          studentName: founding50Form.studentName,
+          studentAge: founding50Form.studentAge,
+          email: founding50Form.email,
+          consentAccepted: founding50Form.consent,
+          termsVersion: FOUNDING_50_TERMS_VERSION,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setFounding50SubmissionState("error");
+        setFounding50Error(
+          typeof payload?.error === "string"
+            ? payload.error
+            : "Something went wrong while submitting your interest. Please try again."
+        );
+        return;
+      }
+
+      setFounding50SubmissionState("success");
+      setFounding50Form({
+        studentName: "",
+        studentAge: "",
+        email: "",
+        consent: false,
+      });
+    } catch (error) {
+      setFounding50SubmissionState("error");
+      setFounding50Error("Unable to submit right now. Please try again in a moment.");
+    }
   }
 
   const footerLinkStyle: CSSProperties = {
@@ -793,6 +904,20 @@ export default function Home() {
         </>
       )}
 
+      {isFounding50ModalOpen && (
+        <Founding50InterestModal
+          isMobile={isMobile}
+          submissionState={founding50SubmissionState}
+          errorMessage={founding50Error}
+          formData={founding50Form}
+          onClose={closeFounding50Modal}
+          onChange={(field, value) =>
+            setFounding50Form((current) => ({ ...current, [field]: value }))
+          }
+          onSubmit={handleFounding50Submit}
+        />
+      )}
+
       <section
         id="home"
         style={{
@@ -800,15 +925,33 @@ export default function Home() {
           width: "100vw",
           minHeight: "100vh",
           paddingTop: isMobile ? "72px" : "86px",
-          display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 7fr) minmax(330px, 3fr)",
-          gridTemplateRows: "1fr",
           background: "#020813",
         }}
       >
         <PublicPreviewBanner />
-        <WorldPanel world={worlds[0]} isMobile={isMobile} onHowItWorks={() => router.push("/how-it-works")} />
-        <WorldPanel world={worlds[1]} isMobile={isMobile} onHowItWorks={() => router.push("/how-it-works")} />
+
+        {showFounding50Banner && (
+          <div style={{ padding: isMobile ? "14px 14px 0" : "18px 18px 0" }}>
+            <Founding50TopBanner
+              isMobile={isMobile}
+              onRegister={openFounding50Modal}
+              onDismiss={dismissFounding50Banner}
+            />
+          </div>
+        )}
+
+        <div
+          style={{
+            marginTop: showFounding50Banner ? (isMobile ? "14px" : "16px") : 0,
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 7fr) minmax(330px, 3fr)",
+            gridTemplateRows: "1fr",
+            background: "#020813",
+          }}
+        >
+          <WorldPanel world={worlds[0]} isMobile={isMobile} onHowItWorks={() => router.push("/how-it-works")} />
+          <WorldPanel world={worlds[1]} isMobile={isMobile} onHowItWorks={() => router.push("/how-it-works")} />
+        </div>
       </section>
 
       <section
@@ -2365,6 +2508,514 @@ export default function Home() {
     </main>
   );
 }
+
+function Founding50TopBanner({
+  isMobile,
+  onRegister,
+  onDismiss,
+}: {
+  isMobile: boolean;
+  onRegister: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <section
+      aria-labelledby="founding-50-banner-heading"
+      style={{
+        width: "100%",
+        borderRadius: isMobile ? "24px" : "28px",
+        border: "1px solid rgba(142,232,255,0.22)",
+        background:
+          "radial-gradient(circle at 18% 20%, rgba(83,215,255,0.16), transparent 30%), radial-gradient(circle at 82% 24%, rgba(197,140,255,0.16), transparent 30%), linear-gradient(145deg, rgba(5,17,34,0.96), rgba(13,8,35,0.98))",
+        boxShadow: "0 24px 68px rgba(0,0,0,0.32)",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          padding: isMobile ? "20px 18px 18px" : "22px 24px 22px",
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) auto",
+          gap: isMobile ? "18px" : "22px",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "7px",
+                padding: "8px 12px",
+                borderRadius: "999px",
+                border: "1px solid rgba(142,232,255,0.24)",
+                background: "rgba(83,215,255,0.08)",
+                color: "#8ee8ff",
+                fontSize: "10px",
+                fontWeight: 900,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+              }}
+            >
+              <span aria-hidden="true">✦</span> Founding 50 · Beta Invitation
+            </span>
+            <span
+              style={{
+                color: "rgba(255,255,255,0.55)",
+                fontSize: "11px",
+                fontWeight: 800,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              }}
+            >
+              50 families only
+            </span>
+          </div>
+
+          <h2
+            id="founding-50-banner-heading"
+            style={{
+              margin: "14px 0 0",
+              maxWidth: "880px",
+              fontFamily: 'Georgia, "Times New Roman", serif',
+              fontSize: isMobile ? "34px" : "46px",
+              fontWeight: 400,
+              lineHeight: 1.06,
+              color: "white",
+            }}
+          >
+            We’re looking for 50 families to help shape Dreamscape before launch.
+          </h2>
+
+          <p
+            style={{
+              margin: "16px 0 0",
+              maxWidth: "980px",
+              color: "rgba(255,255,255,0.76)",
+              fontSize: isMobile ? "15px" : "17px",
+              fontWeight: 300,
+              lineHeight: 1.68,
+            }}
+          >
+            Children aged 6–12 can enjoy 30 days of complimentary NOVA + NOVA+ access. Selected families who complete the beta will also unlock exclusive Founding 50 launch benefits.
+          </p>
+
+          <div
+            style={{
+              marginTop: "16px",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "10px",
+            }}
+          >
+            {[
+              "30 days free",
+              "NOVA + NOVA+",
+              "30% off first 6 months",
+              "Founding 50 badge",
+              "500 DT + 20 DG",
+            ].map((item) => (
+              <span
+                key={item}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  background: "rgba(255,255,255,0.06)",
+                  color: "rgba(255,255,255,0.82)",
+                  fontSize: "11px",
+                  fontWeight: 800,
+                }}
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: isMobile ? "row" : "column",
+            alignItems: isMobile ? "center" : "stretch",
+            justifyContent: isMobile ? "space-between" : "center",
+            gap: "12px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={onRegister}
+            style={{
+              minHeight: "52px",
+              padding: "13px 22px",
+              borderRadius: "999px",
+              border: "none",
+              background: "linear-gradient(90deg, #8ee8ff, #c58cff)",
+              color: "#100622",
+              fontSize: "11px",
+              fontWeight: 900,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+              boxShadow: "0 16px 38px rgba(83,215,255,0.18)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Register Interest →
+          </button>
+
+          <button
+            type="button"
+            onClick={onDismiss}
+            style={{
+              border: "none",
+              background: "transparent",
+              color: "rgba(255,255,255,0.54)",
+              fontSize: "11px",
+              fontWeight: 800,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Founding50InterestModal({
+  isMobile,
+  submissionState,
+  errorMessage,
+  formData,
+  onClose,
+  onChange,
+  onSubmit,
+}: {
+  isMobile: boolean;
+  submissionState: Founding50SubmissionState;
+  errorMessage: string;
+  formData: Founding50FormData;
+  onClose: () => void;
+  onChange: (field: keyof Founding50FormData, value: string | boolean) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Close Founding 50 registration form"
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 88,
+          border: "none",
+          padding: 0,
+          background: "rgba(0,0,0,0.68)",
+          backdropFilter: "blur(10px)",
+          cursor: "pointer",
+        }}
+      />
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="founding-50-modal-heading"
+        style={{
+          position: "fixed",
+          inset: isMobile ? "18px" : "50% auto auto 50%",
+          transform: isMobile ? "none" : "translate(-50%, -50%)",
+          zIndex: 90,
+          width: isMobile ? "auto" : "min(940px, calc(100vw - 40px))",
+          maxHeight: isMobile ? "calc(100vh - 36px)" : "min(88vh, 860px)",
+          overflowY: "auto",
+          borderRadius: isMobile ? "28px" : "32px",
+          border: "1px solid rgba(142,232,255,0.22)",
+          background:
+            "radial-gradient(circle at 18% 15%, rgba(83,215,255,0.14), transparent 30%), radial-gradient(circle at 82% 18%, rgba(197,140,255,0.14), transparent 30%), linear-gradient(145deg, rgba(4,14,29,0.98), rgba(10,7,28,0.99))",
+          boxShadow: "0 30px 90px rgba(0,0,0,0.52)",
+          color: "white",
+        }}
+      >
+        <div
+          style={{
+            padding: isMobile ? "24px 20px 22px" : "30px 30px 28px",
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 0.94fr) minmax(0, 1.06fr)",
+            gap: isMobile ? "24px" : "30px",
+          }}
+        >
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px" }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "7px",
+                  padding: "8px 12px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(142,232,255,0.24)",
+                  background: "rgba(83,215,255,0.08)",
+                  color: "#8ee8ff",
+                  fontSize: "10px",
+                  fontWeight: 900,
+                  letterSpacing: "0.16em",
+                  textTransform: "uppercase",
+                }}
+              >
+                ✦ Founding 50
+              </span>
+
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close Founding 50 registration form"
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.16)",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "white",
+                  fontSize: "24px",
+                  lineHeight: 1,
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <h3
+              id="founding-50-modal-heading"
+              style={{
+                margin: "18px 0 0",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "34px" : "44px",
+                fontWeight: 400,
+                lineHeight: 1.06,
+                color: "white",
+              }}
+            >
+              Join Dreamscape’s Founding 50.
+            </h3>
+
+            <p
+              style={{
+                margin: "18px 0 0",
+                color: "rgba(255,255,255,0.72)",
+                fontSize: isMobile ? "15px" : "16px",
+                lineHeight: 1.68,
+                fontWeight: 300,
+              }}
+            >
+              Register your interest for 30 days of complimentary NOVA + NOVA+ access. Selected families will be invited manually and activation starts the child’s beta period.
+            </p>
+
+            <div
+              style={{
+                marginTop: "20px",
+                padding: isMobile ? "18px" : "20px",
+                borderRadius: "24px",
+                border: "1px solid rgba(142,232,255,0.16)",
+                background: "rgba(255,255,255,0.04)",
+              }}
+            >
+              <p style={{ margin: 0, color: "#8ee8ff", fontSize: "11px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>What selected families receive</p>
+              <div style={{ marginTop: "14px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                {[
+                  "30 days of complimentary NOVA + NOVA+ access",
+                  "30% off NOVA+ for the first 6 paid months after launch",
+                  "Permanent Founding 50 profile badge",
+                  "500 Dream Tokens and 20 Dream Gems",
+                  "A chance to shape Dreamscape through feedback",
+                ].map((item) => (
+                  <div key={item} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                    <span aria-hidden="true" style={{ color: "#8ee8ff", fontWeight: 900 }}>✓</span>
+                    <span style={{ color: "rgba(255,255,255,0.82)", fontSize: "14px", lineHeight: 1.55 }}>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: isMobile ? "20px 18px" : "24px 24px 22px",
+              borderRadius: "28px",
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "linear-gradient(145deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02))",
+            }}
+          >
+            {submissionState === "success" ? (
+              <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                <p style={{ margin: 0, color: "#8ee8ff", fontSize: "11px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>Interest registered</p>
+                <h4 style={{ margin: "16px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "30px" : "34px", fontWeight: 400, lineHeight: 1.1 }}>Thanks for registering your interest.</h4>
+                <p style={{ margin: "16px 0 0", color: "rgba(255,255,255,0.74)", fontSize: "15px", lineHeight: 1.68 }}>We’ve received your Founding 50 application. If selected, we’ll contact you using the email address provided with next steps to activate the student’s beta access.</p>
+                <div style={{ marginTop: "20px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {['Manual admin selection', 'No payment required', 'One short feedback survey during the final week'].map((item) => (
+                    <div key={item} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                      <span aria-hidden="true" style={{ color: "#8ee8ff", fontWeight: 900 }}>•</span>
+                      <span style={{ color: "rgba(255,255,255,0.82)", fontSize: "14px", lineHeight: 1.55 }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  style={{
+                    marginTop: "auto",
+                    minHeight: "50px",
+                    padding: "12px 20px",
+                    borderRadius: "999px",
+                    border: "none",
+                    background: "linear-gradient(90deg, #8ee8ff, #c58cff)",
+                    color: "#100622",
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    cursor: "pointer",
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div>
+                  <label htmlFor="founding50-student-name" style={{ display: "block", marginBottom: "8px", color: "rgba(255,255,255,0.86)", fontSize: "12px", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Student's name
+                  </label>
+                  <input
+                    id="founding50-student-name"
+                    value={formData.studentName}
+                    onChange={(event) => onChange("studentName", event.target.value)}
+                    required
+                    placeholder="Enter the student’s name"
+                    style={founding50InputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="founding50-student-age" style={{ display: "block", marginBottom: "8px", color: "rgba(255,255,255,0.86)", fontSize: "12px", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Student's age
+                  </label>
+                  <select
+                    id="founding50-student-age"
+                    value={formData.studentAge}
+                    onChange={(event) => onChange("studentAge", event.target.value)}
+                    required
+                    style={founding50InputStyle}
+                  >
+                    <option value="">Select age</option>
+                    {[6, 7, 8, 9, 10, 11, 12].map((age) => (
+                      <option key={age} value={String(age)}>
+                        {age}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="founding50-email" style={{ display: "block", marginBottom: "8px", color: "rgba(255,255,255,0.86)", fontSize: "12px", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Email address for account
+                  </label>
+                  <input
+                    id="founding50-email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(event) => onChange("email", event.target.value)}
+                    required
+                    placeholder="parent@example.com"
+                    style={founding50InputStyle}
+                  />
+                  <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.48)", fontSize: "12px", lineHeight: 1.5 }}>
+                    This should be the parent or guardian email address we use to contact you and set up the account if selected.
+                  </p>
+                </div>
+
+                <label style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginTop: "2px", color: "rgba(255,255,255,0.78)", fontSize: "13px", lineHeight: 1.6 }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.consent}
+                    onChange={(event) => onChange("consent", event.target.checked)}
+                    required
+                    style={{ marginTop: "3px", accentColor: "#8ee8ff" }}
+                  />
+                  <span>
+                    I confirm that I am the parent or legal guardian of the student named above. I consent to Dreamscape One collecting and using the information provided to process this beta application, contact me about participation, and create the student’s account if selected. I have read the <Link href="/founding-50/terms" target="_blank" style={{ color: "#8ee8ff", textDecoration: "none" }}>Beta Programme Terms</Link> and <Link href="/founding-50/privacy" target="_blank" style={{ color: "#8ee8ff", textDecoration: "none" }}>Privacy Notice</Link>.
+                  </span>
+                </label>
+
+                {errorMessage ? (
+                  <div
+                    style={{
+                      padding: "12px 14px",
+                      borderRadius: "16px",
+                      border: "1px solid rgba(255,138,92,0.24)",
+                      background: "rgba(255,138,92,0.08)",
+                      color: "#ffd2bf",
+                      fontSize: "13px",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {errorMessage}
+                  </div>
+                ) : null}
+
+                <button
+                  type="submit"
+                  disabled={submissionState === "submitting"}
+                  style={{
+                    marginTop: "8px",
+                    minHeight: "52px",
+                    padding: "13px 18px",
+                    borderRadius: "999px",
+                    border: "none",
+                    background: "linear-gradient(90deg, #8ee8ff, #c58cff)",
+                    color: "#100622",
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    cursor: submissionState === "submitting" ? "default" : "pointer",
+                    opacity: submissionState === "submitting" ? 0.7 : 1,
+                  }}
+                >
+                  {submissionState === "submitting" ? "Submitting…" : "Submit Interest →"}
+                </button>
+
+                <p style={{ margin: 0, color: "rgba(255,255,255,0.44)", fontSize: "11px", lineHeight: 1.55 }}>
+                  Limited places. Applying does not guarantee selection. No payment details are required during beta registration.
+                </p>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+const founding50InputStyle: CSSProperties = {
+  width: "100%",
+  minHeight: "52px",
+  padding: "0 16px",
+  borderRadius: "16px",
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(255,255,255,0.05)",
+  color: "white",
+  fontSize: "15px",
+  fontWeight: 500,
+  outline: "none",
+  boxSizing: "border-box",
+};
 
 function ProductPreviewCard({
   eyebrow,
