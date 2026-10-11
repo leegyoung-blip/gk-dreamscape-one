@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 type ApplicationStatus =
   | "pending"
@@ -40,16 +41,25 @@ export default function Founding50AdminPage() {
   const [activeApplicationId, setActiveApplicationId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
   const [errorMessage, setErrorMessage] = useState("");
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+
+  async function authHeaders(): Promise<Record<string, string>> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Sign in using an authorised admin account.");
+    return { Authorization: `Bearer ${session.access_token}` };
+  }
 
   async function loadApplications(nextFilter = statusFilter) {
     setIsLoading(true);
     setErrorMessage("");
     try {
-      const response = await fetch(`/api/admin/founding-50?status=${encodeURIComponent(nextFilter)}`);
+      const response = await fetch(`/api/admin/founding-50?status=${encodeURIComponent(nextFilter)}`, { headers: await authHeaders(), cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.error || "Unable to load applications.");
       setApplications(payload.applications ?? []);
+      setIsAuthorized(true);
     } catch (error) {
+      setIsAuthorized(false);
       setErrorMessage(error instanceof Error ? error.message : "Unable to load applications.");
     } finally {
       setIsLoading(false);
@@ -68,7 +78,7 @@ export default function Founding50AdminPage() {
     try {
       const response = await fetch(`/api/admin/founding-50/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           status,
           adminNotes: notesDraft[id] ?? "",
@@ -85,6 +95,31 @@ export default function Founding50AdminPage() {
     }
   }
 
+  async function inviteApplication(id: string) {
+    setActiveApplicationId(id);
+    setErrorMessage("");
+    try {
+      const response=await fetch(`/api/admin/founding-50/${id}/invite`, {method:"POST",headers:await authHeaders()});
+      const payload=await response.json();
+      if(!response.ok)throw new Error(payload?.error || "Could not send invite.");
+      await loadApplications(statusFilter);
+    } catch(error) {
+      setErrorMessage(error instanceof Error ? error.message : "Could not send invitation.");
+    } finally { setActiveApplicationId(null); }
+  }
+
+  async function deliverRewards(id: string) {
+    setActiveApplicationId(id); setErrorMessage("");
+    try {
+      const r = await fetch(`/api/admin/founding-50/${id}/rewards`, { method:"POST",headers:await authHeaders() });
+      const d = await r.json();
+      if(!r.ok)throw new Error(d?.error||"Delivery unavailable");
+      if(d.status==="pending")setErrorMessage("Rewards are queued. Configure the wallet ledger adapter to deliver them.");
+      await loadApplications(statusFilter);
+    } catch(e) { setErrorMessage(e instanceof Error?e.message:"Rewards unavailable"); }
+    finally {setActiveApplicationId(null);}
+  }
+
   const summary = useMemo(() => {
     const counts = {
       total: applications.length,
@@ -97,7 +132,7 @@ export default function Founding50AdminPage() {
     };
 
     for (const application of applications) {
-      counts[application.status] += 1;
+      if (Object.hasOwn(counts, application.status)) counts[application.status] += 1;
     }
 
     return counts;
@@ -124,7 +159,7 @@ export default function Founding50AdminPage() {
               Beta Applications
             </h1>
             <p style={{ margin: "14px 0 0", maxWidth: "860px", color: "rgba(255,255,255,0.72)", fontSize: "16px", lineHeight: 1.7 }}>
-              Review, approve and manage Founding 50 interest submissions. This page should sit inside your protected admin area or existing admin auth shell.
+              Review eligible applicants, reserve beta places, and send secure activation invitations. Only authorised admin accounts can access these records.
             </p>
           </div>
 
@@ -149,6 +184,7 @@ export default function Founding50AdminPage() {
           </button>
         </div>
 
+        {isAuthorized === false && <p style={{marginTop:20,color:"#ffbd73"}}>Admin access is restricted. Make sure your user UUID has been added to founding_50_admin_users.</p>}
         <div style={{ marginTop: "26px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px" }}>
           {[
             ["Visible list", String(summary.total)],
@@ -230,7 +266,7 @@ export default function Founding50AdminPage() {
                     background: "linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
                   }}
                 >
-                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.1fr) minmax(280px, 0.9fr)", gap: "18px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: "18px" }}>
                     <div>
                       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px" }}>
                         <span style={{ padding: "7px 10px", borderRadius: "999px", background: "rgba(83,215,255,0.10)", border: "1px solid rgba(142,232,255,0.18)", color: "#8ee8ff", fontSize: "10px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>{application.status}</span>
@@ -283,8 +319,7 @@ export default function Founding50AdminPage() {
                           ["Approve", "approved"],
                           ["Waitlist", "waitlisted"],
                           ["Decline", "declined"],
-                          ["Mark Invited", "invited"],
-                          ["Mark Activated", "activated"],
+
                         ].map(([label, status]) => (
                           <button
                             key={status}
@@ -311,6 +346,13 @@ export default function Founding50AdminPage() {
                             {isBusy ? "Saving…" : label}
                           </button>
                         ))}
+                        {application.status === "activated" && <button type="button" disabled={isBusy} onClick={()=>void deliverRewards(application.id)} style={{ minHeight:42,padding:"10px 16px",borderRadius:99,border:"1px solid #8ee8ff",background:"rgba(83,215,255,.1)",color:"#8ee8ff",fontWeight:900,cursor:"pointer" }}>Deliver Reward Pack</button>}
+                        {(["approved", "invited"].includes(application.status)) && (
+                          <button type="button" disabled={isBusy} onClick={() => void inviteApplication(application.id)}
+                            style={{ minHeight:"42px",padding:"10px 16px",borderRadius:"999px",border:"1px solid rgba(142,232,255,0.45)",background:"rgba(83,215,255,0.1)",color:"#8ee8ff",fontSize:"11px",fontWeight:900,cursor:isBusy?"default":"pointer" }}>
+                            {application.status==="invited" ? "Resend Invite" : "Send Invitation"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

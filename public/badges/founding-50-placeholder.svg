@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="Placeholder Founding 50 badge">
+<defs><radialGradient id="b"><stop stop-color="#203d60"/><stop offset="1" stop-color="#130d2c"/></radialGradient><linearGradient id="r" x2="1" y2="1"><stop stop-color="#8ee8ff"/><stop offset="1" stop-color="#c58cff"/></linearGradient></defs>
+<circle cx="120" cy="120" r="110" fill="url(#b)" stroke="url(#r)" stroke-width="5" stroke-dasharray="12 8"/>
+<path d="M120 45l13 40 42 0-34 25 13 41-34-25-34 25 13-41-34-25 42 0z" fill="none" stroke="#c58cff" opacity=".7" stroke-width="3"/>
+<text x="120" y="160" font-size="46" fill="#8ee8ff" text-anchor="middle" font-family="Arial" font-weight="bold">F50</text>
+<text x="120" y="187" font-size="13" fill="#f1e5ff" letter-spacing="3" text-anchor="middle" font-family="Arial">PLACEHOLDER</text>
+</svg>

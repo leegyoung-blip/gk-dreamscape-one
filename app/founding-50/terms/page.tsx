@@ -1,20 +1,13 @@
-export default function Founding50TermsPage() {
-  return (
-    <main style={{ minHeight: "100vh", padding: "48px 20px 64px", background: "#020813", color: "white", fontFamily: "Arial, Helvetica, sans-serif" }}>
-      <div style={{ maxWidth: "860px", margin: "0 auto" }}>
-        <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>Dreamscape Founding 50</p>
-        <h1 style={{ margin: "14px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "48px", fontWeight: 400, lineHeight: 1.08 }}>Beta Programme Terms</h1>
-        <div style={{ marginTop: "22px", color: "rgba(255,255,255,0.82)", fontSize: "16px", lineHeight: 1.8 }}>
-          <p>The Dreamscape Founding 50 beta is limited to selected families with children aged 6–12.</p>
-          <p>Submitting interest is free and does not guarantee selection. Families are manually selected by Dreamscape.</p>
-          <p>Selected participants receive 30 consecutive days of complimentary NOVA + NOVA+ access starting from activation.</p>
-          <p>No payment details are required during registration and there is no automatic conversion to a paid subscription at the end of the beta.</p>
-          <p>Selected participants are asked to complete one short feedback survey during the final week of the beta.</p>
-          <p>Families who complete the beta and survey may qualify for the announced Founding 50 launch benefits, including a six-month discount, virtual rewards and a Founding 50 badge, subject to Dreamscape’s published programme rules.</p>
-          <p>Benefits are non-transferable, not redeemable for cash, and cannot be combined with other promotional discounts unless Dreamscape confirms otherwise in writing.</p>
-          <p>Dreamscape may modify, pause or end beta features if necessary for operational, safety or product reasons. Material programme changes will be communicated to affected participants.</p>
-        </div>
-      </div>
-    </main>
-  );
+import Link from "next/link";
+export default function Founding50Terms(){
+ const sections:[string,string][]=[
+  ["Who can apply","Applications are open to parents or legal guardians of children aged 6–12. One student may be registered per family. A completed application does not guarantee selection."],
+  ["Selection and invitation","Dreamscape selects up to 50 families manually. Invitations expire seven days after issue, and a place is reserved only during a valid invitation window. Invitations are not transferable."],
+  ["Complimentary access","Selected families receive 30 consecutive days of complimentary NOVA and NOVA+ access starting upon successful invitation activation. The beta may contain defects and features may change. No payment details are required for beta participation and no subscription starts automatically."],
+  ["Founding 50 benefits","Each activated student is assigned a permanent Founding 50 badge and a one-time reward pack of 500 Dream Tokens and 20 Dream Gems, delivered to the real wallet when integration is complete. Virtual rewards have no cash value. A 30% subscription discount becomes available only after the full 30-day beta and final-week survey are completed."],
+  ["Subscription discount","One non-transferable discount code per eligible family applies to NOVA+ monthly subscription purchases only, for the first six months after redemption. The code is valid until 60 days after the later of the public launch or the participant's beta completion. It cannot be combined with other discounts, is redeemable once, and may require entering a code at checkout. Applicable subscription terms are shown separately at checkout."],
+  ["Feedback","Families are asked to complete one short feedback survey from day 23 onward. Feedback should focus on the platform's usability, engagement, learning effectiveness, reliability, and overall experience. Feedback is required for the subscription discount but not for initial complimentary beta access."],
+  ["Withdrawal and changes","Parents may ask to withdraw through Dreamscape's published support channel. Dreamscape may change or interrupt beta features for security or operational reasons and will communicate material changes. Applicable statutory rights are not excluded."],
+ ];
+ return <main style={{minHeight:"100vh",background:"#020813",padding:"54px 20px",color:"white",fontFamily:"Arial,sans-serif"}}><article style={{maxWidth:880,margin:"auto"}}><p style={{color:"#8ee8ff",letterSpacing:".16em",fontSize:12,fontWeight:900}}>DREAMSCAPE · FOUNDING 50</p><h1 style={{font:"normal clamp(34px,5vw,58px) Georgia,serif"}}>Beta Programme Terms</h1><p style={{color:"#adbccf"}}>Version founding50-v1 · Draft for operator/legal review before accepting registrations</p>{sections.map(([title,content])=><section key={title} style={{marginTop:30}}><h2 style={{fontSize:23}}>{title}</h2><p style={{color:"#ced9e8",lineHeight:1.8}}>{content}</p></section>)}<p><Link style={{color:"#8ee8ff"}} href="/founding-50/privacy">Privacy notice →</Link></p></article></main>;
 }

@@ -1,18 +1,11 @@
-export default function Founding50PrivacyPage() {
-  return (
-    <main style={{ minHeight: "100vh", padding: "48px 20px 64px", background: "#020813", color: "white", fontFamily: "Arial, Helvetica, sans-serif" }}>
-      <div style={{ maxWidth: "860px", margin: "0 auto" }}>
-        <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>Dreamscape Founding 50</p>
-        <h1 style={{ margin: "14px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: "48px", fontWeight: 400, lineHeight: 1.08 }}>Privacy Notice</h1>
-        <div style={{ marginTop: "22px", color: "rgba(255,255,255,0.82)", fontSize: "16px", lineHeight: 1.8 }}>
-          <p>Dreamscape collects the student’s name, age, and the parent or guardian email address solely for the purpose of administering the Founding 50 beta application and related communications.</p>
-          <p>Because the programme involves children, the form must be submitted by a parent or legal guardian. By applying, the parent or guardian confirms that they consent to Dreamscape processing the submitted information for the beta programme.</p>
-          <p>If selected, Dreamscape may use the submitted email address to issue invitations, activation instructions, programme reminders, and survey requests.</p>
-          <p>Application data is stored in Dreamscape’s protected systems and should be accessible only to authorised team members involved in programme administration.</p>
-          <p>Dreamscape should not use Founding 50 application emails for broader marketing unless separate consent is obtained.</p>
-          <p>Applications that are not selected should be deleted or anonymised according to Dreamscape’s internal retention policy.</p>
-        </div>
-      </div>
-    </main>
-  );
+import Link from "next/link";
+export default function Founding50Privacy(){
+ const sections:[string,string][]=[
+ ["Who submits information","The parent or legal guardian submits the form for a child aged 6–12. The form requests the student's name and age and the parent/guardian email address. A separate checkbox records the guardian's programme consent."],
+ ["How we use the information","To review an application, select eligible families, send invitation and programme emails, verify and activate accounts, provide beta benefits, operate the feedback survey, and respond to privacy/participation requests. We do not automatically add this email to general marketing lists."],
+ ["How long we keep it","Unsuccessful application records should be deleted or de-identified under the organisation's approved retention schedule. Selected participant information is retained only for legitimate operational, accounting, reward fulfilment and legal purposes."],
+ ["Who can access it","Application and feedback records are restricted to specifically authorised staff and protected server-side processes. Third-party infrastructure such as Supabase and Resend processes data under the organisation's applicable service arrangements."],
+ ["Your choices","A parent or guardian can seek access, correction, withdrawal of consent or deletion, subject to applicable requirements, using Dreamscape's published support/privacy contact details. Withdrawing may prevent continued beta participation."],
+ ];
+ return <main style={{minHeight:"100vh",background:"#020813",padding:"54px 20px",color:"white",fontFamily:"Arial,sans-serif"}}><article style={{maxWidth:880,margin:"auto"}}><p style={{color:"#8ee8ff",letterSpacing:".16em",fontSize:12,fontWeight:900}}>DREAMSCAPE · FOUNDING 50</p><h1 style={{font:"normal clamp(34px,5vw,58px) Georgia,serif"}}>Privacy Notice</h1><p style={{color:"#adbccf"}}>Draft for legal/privacy review before collecting children's data</p>{sections.map(([title,content])=><section key={title} style={{marginTop:30}}><h2 style={{fontSize:23}}>{title}</h2><p style={{color:"#ced9e8",lineHeight:1.8}}>{content}</p></section>)}<p><Link style={{color:"#8ee8ff"}} href="/founding-50/terms">Programme terms →</Link></p></article></main>;
 }
