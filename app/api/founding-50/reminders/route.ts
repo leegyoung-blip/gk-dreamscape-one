@@ -29,7 +29,7 @@ export async function GET(request:Request) {
      subject:kind==="feedback_week"?"Founding 50: Share your final-week feedback":"Founding 50: Your beta has ended",
      heading:kind==="feedback_week"?"Your feedback matters.":"Thank you for exploring Dreamscape.",
      body:kind==="feedback_week"?`Thank you for exploring Dreamscape with ${app.student_name}. Please complete the short feedback survey during your final week.`:
-      `Your 30-day NOVA + NOVA+ beta for ${app.student_name} has ended. Thank you for your support. See your Founding 50 benefits and any available discount eligibility.`,
+      `Your 30-day NOVA+ beta for ${app.student_name} has ended. Thank you for your support. See your Founding 50 benefits and any available discount eligibility.`,
      actionUrl:`${origin.replace(/\/$/,"")}/founding-50/${kind==="feedback_week"?"feedback":"benefits"}`,
      actionLabel:kind==="feedback_week"?"Complete feedback →":"View benefits →"});
     sent++;

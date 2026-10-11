@@ -309,7 +309,9 @@ export type UnderstandingIssueCode =
   | "MULTIPART_DEPENDENCY_UNRESOLVED"
   | "LOW_DOMAIN_CONFIDENCE"
   | "LOW_STRUCTURE_CONFIDENCE"
-  | "GRANULAR_SKILL_MAPPING_ABSENT";
+  | "GRANULAR_SKILL_MAPPING_ABSENT"
+  | "GENERIC_DOMAIN_FALLBACK"
+  | "GENERIC_STRUCTURE_FALLBACK";
 
 export type UnderstandingIssue = {
   severity: UnderstandingIssueSeverity;
@@ -348,6 +350,54 @@ export type CurriculumContext = {
     | "unknown";
 };
 
+export type ResolutionKind =
+  | "specific_rule"
+  | "corroborated_inference"
+  | "generic_fallback"
+  | "unresolved";
+
+export type ResolutionMetadata = {
+  domain: ResolutionKind;
+  structure: ResolutionKind;
+  reasoning: ResolutionKind;
+};
+
+export type ConfidenceBreakdown = {
+  domain: number;
+  structure: number;
+  reasoning: number;
+  overall: number;
+};
+
+export type GateDiagnosticCode =
+  | "GATE_CANONICAL_NOT_READY"
+  | "GATE_DOMAIN_UNRESOLVED"
+  | "GATE_DOMAIN_GENERIC_FALLBACK"
+  | "GATE_DOMAIN_LOW_CONFIDENCE"
+  | "GATE_STRUCTURE_UNRESOLVED"
+  | "GATE_STRUCTURE_GENERIC_FALLBACK"
+  | "GATE_STRUCTURE_LOW_CONFIDENCE"
+  | "GATE_TARGET_UNRESOLVED"
+  | "GATE_REASONING_UNRESOLVED"
+  | "GATE_REASONING_GENERIC_FALLBACK"
+  | "GATE_ANSWER_MISMATCH"
+  | "GATE_BLOCKING_CONFLICT"
+  | "GATE_BLOCKING_ISSUE"
+  | "GATE_OVERALL_LOW_CONFIDENCE"
+  | "GATE_ANSWER_NOT_CHECKED";
+
+export type GateDiagnostic = {
+  code: GateDiagnosticCode;
+  message: string;
+  path: string | null;
+};
+
+export type GateDiagnostics = {
+  readyFor4C: boolean;
+  blockers: GateDiagnostic[];
+  warnings: GateDiagnostic[];
+};
+
 export type TeachingPartUnderstanding = {
   key: string;
   label: string | null;
@@ -366,6 +416,9 @@ export type TeachingPartUnderstanding = {
 
   target: TeachingTarget | null;
   dependsOnPartKeys: string[];
+  resolution: ResolutionMetadata;
+  confidenceBreakdown: ConfidenceBreakdown;
+  gateDiagnostics: GateDiagnostics;
   confidence: number;
   status: TeachingUnderstandingStatus;
   readyForMethodSelection: boolean;
@@ -374,7 +427,7 @@ export type TeachingPartUnderstanding = {
 };
 
 export type TeachingQuestionUnderstanding = {
-  schemaVersion: "4A-2.3";
+  schemaVersion: "4A-2.4";
   questionId: string | null;
   learnerLevel: PrimaryLevel | null;
 
@@ -412,6 +465,10 @@ export type TeachingQuestionUnderstanding = {
 
   answerValidation: AnswerValidation;
 
+  resolution: ResolutionMetadata;
+  confidenceBreakdown: ConfidenceBreakdown;
+  gateDiagnostics: GateDiagnostics;
+
   confidence: number;
   status: TeachingUnderstandingStatus;
 
@@ -434,7 +491,7 @@ export type UnderstandTeachingQuestionInput = {
 };
 
 export type BatchUnderstandingSummary = {
-  schemaVersion: "4A-2.3";
+  schemaVersion: "4A-2.4";
   total: number;
 
   status: {
@@ -456,6 +513,18 @@ export type BatchUnderstandingSummary = {
   byProblemStructure: Record<string, number>;
   byVisualRole: Record<string, number>;
   byCurriculumSource: Record<string, number>;
+  byDomainResolution: Record<string, number>;
+  byStructureResolution: Record<string, number>;
+  byReasoningResolution: Record<string, number>;
+  byAnswerValidation: Record<string, number>;
+
+  gateDiagnosticCounts: Record<string, number>;
+  genericFallbackQuestions: number;
+  lowConfidenceQuestions: number;
+  unresolvedQuestions: number;
+  blockingConflictQuestions: number;
+  rawConflictEvidence: number;
+  supersededEvidence: number;
 
   issueCounts: Record<string, number>;
   evidenceRelationshipCounts: Record<string, number>;

@@ -260,7 +260,7 @@ function QuestionDetail({
 
       <section>
         <h5>
-          4A-2C-3 Fraction Understanding
+          4A-2C-4 Diagnostics & Gate
         </h5>
         <dl>
           <div>
@@ -302,6 +302,30 @@ function QuestionDetail({
                 ? "READY"
                 : "BLOCKED"}
             </dd>
+          </div>
+          <div>
+            <dt>Domain resolution</dt>
+            <dd>{u.resolution.domain}</dd>
+          </div>
+          <div>
+            <dt>Structure resolution</dt>
+            <dd>{u.resolution.structure}</dd>
+          </div>
+          <div>
+            <dt>Reasoning resolution</dt>
+            <dd>{u.resolution.reasoning}</dd>
+          </div>
+          <div>
+            <dt>Domain confidence</dt>
+            <dd>{Math.round(u.confidenceBreakdown.domain * 100)}%</dd>
+          </div>
+          <div>
+            <dt>Structure confidence</dt>
+            <dd>{Math.round(u.confidenceBreakdown.structure * 100)}%</dd>
+          </div>
+          <div>
+            <dt>Reasoning confidence</dt>
+            <dd>{Math.round(u.confidenceBreakdown.reasoning * 100)}%</dd>
           </div>
         </dl>
       </section>
@@ -479,11 +503,41 @@ function QuestionDetail({
       </section>
 
       <section>
+        <h5>Phase 4C gate diagnostics</h5>
+
+        {u.gateDiagnostics.blockers.length === 0 ? (
+          <p className="phase4a2b-muted">
+            No Phase 4C blockers.
+          </p>
+        ) : (
+          <ul className="phase4a2b-issues">
+            {u.gateDiagnostics.blockers.map((diagnostic, index) => (
+              <li key={`${diagnostic.code}-${index}`} data-severity="blocking">
+                <strong>{diagnostic.code}</strong>
+                <span>{diagnostic.message}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {u.gateDiagnostics.warnings.length > 0 && (
+          <ul className="phase4a2b-issues">
+            {u.gateDiagnostics.warnings.map((diagnostic, index) => (
+              <li key={`${diagnostic.code}-${index}`} data-severity="info">
+                <strong>{diagnostic.code}</strong>
+                <span>{diagnostic.message}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
         <h5>Blocking / QA issues</h5>
 
         {u.issues.length === 0 ? (
           <p className="phase4a2b-muted">
-            No 4A-2C-3 issues.
+            No 4A-2C-4 issues.
           </p>
         ) : (
           <ul className="phase4a2b-issues">
@@ -531,6 +585,18 @@ export default function Phase4A2TeachingQA({
   const [issueFilter, setIssueFilter] =
     useState("all");
 
+  const [gateFilter, setGateFilter] =
+    useState("all");
+
+  const [curriculumFilter, setCurriculumFilter] =
+    useState("all");
+
+  const [answerFilter, setAnswerFilter] =
+    useState("all");
+
+  const [structureResolutionFilter, setStructureResolutionFilter] =
+    useState("all");
+
   const [search, setSearch] =
     useState("");
 
@@ -554,6 +620,30 @@ export default function Phase4A2TeachingQA({
       return Object.keys(
         run.summary.issueCounts,
       ).sort();
+    }, [run]);
+
+  const gateOptions =
+    useMemo(() => {
+      if (!run) return [];
+      return Object.keys(run.summary.gateDiagnosticCounts).sort();
+    }, [run]);
+
+  const curriculumOptions =
+    useMemo(() => {
+      if (!run) return [];
+      return Object.keys(run.summary.byCurriculumSource).sort();
+    }, [run]);
+
+  const answerOptions =
+    useMemo(() => {
+      if (!run) return [];
+      return Object.keys(run.summary.byAnswerValidation).sort();
+    }, [run]);
+
+  const structureResolutionOptions =
+    useMemo(() => {
+      if (!run) return [];
+      return Object.keys(run.summary.byStructureResolution).sort();
     }, [run]);
 
   const levelOptions =
@@ -608,6 +698,37 @@ export default function Phase4A2TeachingQA({
             return false;
           }
 
+          if (
+            gateFilter !== "all" &&
+            ![
+              ...item.understanding.gateDiagnostics.blockers,
+              ...item.understanding.gateDiagnostics.warnings,
+            ].some((diagnostic) => diagnostic.code === gateFilter)
+          ) {
+            return false;
+          }
+
+          if (
+            curriculumFilter !== "all" &&
+            item.understanding.curriculumContext.selectedSource !== curriculumFilter
+          ) {
+            return false;
+          }
+
+          if (
+            answerFilter !== "all" &&
+            item.understanding.answerValidation.status !== answerFilter
+          ) {
+            return false;
+          }
+
+          if (
+            structureResolutionFilter !== "all" &&
+            item.understanding.resolution.structure !== structureResolutionFilter
+          ) {
+            return false;
+          }
+
           if (query) {
             const searchable = [
               item.questionCode,
@@ -642,6 +763,10 @@ export default function Phase4A2TeachingQA({
       statusFilter,
       levelFilter,
       issueFilter,
+      gateFilter,
+      curriculumFilter,
+      answerFilter,
+      structureResolutionFilter,
       search,
     ]);
 
@@ -662,6 +787,10 @@ export default function Phase4A2TeachingQA({
     setStatusFilter("all");
     setLevelFilter("all");
     setIssueFilter("all");
+    setGateFilter("all");
+    setCurriculumFilter("all");
+    setAnswerFilter("all");
+    setStructureResolutionFilter("all");
     setSearch("");
     setExpandedId(null);
   };
@@ -670,7 +799,7 @@ export default function Phase4A2TeachingQA({
     if (!run) return;
 
     downloadJson(
-      `phase-4a2c3-fraction-understanding-${
+      `phase-4a2c4-diagnostics-gate-${
         run.sourceRunId?.slice(
           0,
           8,
@@ -687,8 +816,8 @@ export default function Phase4A2TeachingQA({
       <header className="phase4a2b-header">
         <div>
           <p className="phase4a2b-eyebrow">
-            PHASE 4A-2C-3 ·
-            FRACTION UNDERSTANDING REBUILD
+            PHASE 4A-2C-4 ·
+            DIAGNOSTICS & QA GATE UPGRADE
           </p>
 
           <h3>
@@ -697,7 +826,7 @@ export default function Phase4A2TeachingQA({
           </h3>
 
           <p>
-            Fraction-aware deterministic understanding with explicit fraction structures, cross-domain fraction-tool guardrails, strict 4C gating, and safe answer validation. No Luna call and no database write.
+            Diagnostic-first Phase 4C gating with explicit resolution provenance, confidence breakdowns, generic-fallback blocking, conflict separation, and filterable gate reasons. No Luna call and no database write.
           </p>
         </div>
 
@@ -726,7 +855,7 @@ export default function Phase4A2TeachingQA({
             onClick={handleRun}
             disabled={!hasSample}
           >
-            Run 4A-2C-3 Fraction Check
+            Run 4A-2C-4 Gate Check
           </button>
         </div>
       </header>
@@ -790,6 +919,36 @@ export default function Phase4A2TeachingQA({
                   : "neutral"
               }
             />
+            <SummaryCard
+              label="Generic fallbacks"
+              value={run.summary.genericFallbackQuestions}
+              tone={run.summary.genericFallbackQuestions > 0 ? "warn" : "good"}
+            />
+            <SummaryCard
+              label="Blocking conflicts"
+              value={run.summary.blockingConflictQuestions}
+              tone={run.summary.blockingConflictQuestions > 0 ? "bad" : "good"}
+            />
+            <SummaryCard
+              label="Raw conflict evidence"
+              value={run.summary.rawConflictEvidence}
+              tone="neutral"
+            />
+            <SummaryCard
+              label="Superseded evidence"
+              value={run.summary.supersededEvidence}
+              tone="neutral"
+            />
+            <SummaryCard
+              label="Low-confidence questions"
+              value={run.summary.lowConfidenceQuestions}
+              tone={run.summary.lowConfidenceQuestions > 0 ? "warn" : "good"}
+            />
+            <SummaryCard
+              label="Unresolved questions"
+              value={run.summary.unresolvedQuestions}
+              tone={run.summary.unresolvedQuestions > 0 ? "bad" : "good"}
+            />
           </div>
 
           <div className="phase4a2b-breakdowns">
@@ -825,9 +984,47 @@ export default function Phase4A2TeachingQA({
 
             <Breakdown
               title="Curriculum evidence source"
-              values={
-                run.summary
-                  .byCurriculumSource
+              values={run.summary.byCurriculumSource}
+              selected={curriculumFilter === "all" ? null : curriculumFilter}
+              onSelect={(key) =>
+                setCurriculumFilter(curriculumFilter === key ? "all" : key)
+              }
+            />
+
+            <Breakdown
+              title="Domain resolution"
+              values={run.summary.byDomainResolution}
+            />
+
+            <Breakdown
+              title="Structure resolution"
+              values={run.summary.byStructureResolution}
+              selected={structureResolutionFilter === "all" ? null : structureResolutionFilter}
+              onSelect={(key) =>
+                setStructureResolutionFilter(structureResolutionFilter === key ? "all" : key)
+              }
+            />
+
+            <Breakdown
+              title="Reasoning resolution"
+              values={run.summary.byReasoningResolution}
+            />
+
+            <Breakdown
+              title="Answer validation"
+              values={run.summary.byAnswerValidation}
+              selected={answerFilter === "all" ? null : answerFilter}
+              onSelect={(key) =>
+                setAnswerFilter(answerFilter === key ? "all" : key)
+              }
+            />
+
+            <Breakdown
+              title="Phase 4C gate diagnostics"
+              values={run.summary.gateDiagnosticCounts}
+              selected={gateFilter === "all" ? null : gateFilter}
+              onSelect={(key) =>
+                setGateFilter(gateFilter === key ? "all" : key)
               }
             />
 
@@ -932,6 +1129,46 @@ export default function Phase4A2TeachingQA({
               )}
             </select>
 
+            <select
+              value={gateFilter}
+              onChange={(event) => setGateFilter(event.target.value)}
+            >
+              <option value="all">All gate diagnostics</option>
+              {gateOptions.map((code) => (
+                <option value={code} key={code}>{code}</option>
+              ))}
+            </select>
+
+            <select
+              value={curriculumFilter}
+              onChange={(event) => setCurriculumFilter(event.target.value)}
+            >
+              <option value="all">All curriculum sources</option>
+              {curriculumOptions.map((source) => (
+                <option value={source} key={source}>{source}</option>
+              ))}
+            </select>
+
+            <select
+              value={answerFilter}
+              onChange={(event) => setAnswerFilter(event.target.value)}
+            >
+              <option value="all">All answer validation</option>
+              {answerOptions.map((status) => (
+                <option value={status} key={status}>{status}</option>
+              ))}
+            </select>
+
+            <select
+              value={structureResolutionFilter}
+              onChange={(event) => setStructureResolutionFilter(event.target.value)}
+            >
+              <option value="all">All structure resolution</option>
+              {structureResolutionOptions.map((status) => (
+                <option value={status} key={status}>{status}</option>
+              ))}
+            </select>
+
             <input
               type="search"
               value={search}
@@ -948,7 +1185,7 @@ export default function Phase4A2TeachingQA({
               className="phase4a2b-secondary"
               onClick={handleExport}
             >
-              Export 4A-2C-3 JSON
+              Export 4A-2C-4 JSON
             </button>
           </div>
 
@@ -1045,6 +1282,13 @@ export default function Phase4A2TeachingQA({
                                   .understanding
                                   .problemStructure
                               }
+                            </strong>
+                          </span>
+
+                          <span>
+                            Resolution:{" "}
+                            <strong>
+                              {item.understanding.resolution.structure}
                             </strong>
                           </span>
 
@@ -1282,10 +1526,13 @@ export default function Phase4A2TeachingQA({
         .phase4a2b-toolbar {
           display: grid;
           grid-template-columns:
-            150px 120px 230px minmax(180px, 1fr)
-            auto;
+            repeat(4, minmax(150px, 1fr));
           gap: 8px;
           margin-top: 18px;
+        }
+
+        .phase4a2b-toolbar input {
+          grid-column: span 3;
         }
 
         .phase4a2b-toolbar select,

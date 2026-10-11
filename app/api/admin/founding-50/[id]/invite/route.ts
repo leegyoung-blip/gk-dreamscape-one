@@ -23,7 +23,7 @@ export async function POST(request: Request, {params}:{params:Promise<{id:string
       await sendF50Email({
         to:app.parent_email, subject:"You're invited — Dreamscape Founding 50",
         heading:"Your family has been selected.",
-        body:`We are delighted to invite your family to the Founding 50 beta for ${app.student_name}. This invitation expires in seven days. Sign in or create a Dreamscape account using the same email address to activate 30 days of complimentary NOVA + NOVA+ access. No payment required.`,
+        body:`We are delighted to invite your family to the Founding 50 beta for ${app.student_name}. This invitation expires in seven days. Sign in or create a Dreamscape account using the same email address to activate 30 days of complimentary NOVA+ access. No payment required.`,
         actionUrl:activationUrl,actionLabel:"Activate beta access →",
       });
     } catch(emailError) {

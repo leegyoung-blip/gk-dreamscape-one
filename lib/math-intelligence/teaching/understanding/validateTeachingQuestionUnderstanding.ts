@@ -31,6 +31,30 @@ export function validateTeachingQuestionUnderstanding(
   }
 
   if (
+    understanding.resolution.domain === "generic_fallback"
+  ) {
+    issues.push({
+      severity: "warning",
+      code: "GENERIC_DOMAIN_FALLBACK",
+      message:
+        "A generic domain fallback cannot proceed to Phase 4C.",
+      path: "resolution.domain",
+    });
+  }
+
+  if (
+    understanding.resolution.structure === "generic_fallback"
+  ) {
+    issues.push({
+      severity: "warning",
+      code: "GENERIC_STRUCTURE_FALLBACK",
+      message:
+        "A generic structure fallback cannot proceed to Phase 4C.",
+      path: "resolution.structure",
+    });
+  }
+
+  if (
     !understanding.target ||
     understanding.target.kind === "unknown"
   ) {
@@ -59,8 +83,7 @@ export function validateTeachingQuestionUnderstanding(
   }
 
   if (
-    understanding.answerValidation.status ===
-      "mismatched" &&
+    understanding.answerValidation.status === "mismatched" &&
     understanding.readyForMethodSelection
   ) {
     issues.push({
@@ -69,6 +92,19 @@ export function validateTeachingQuestionUnderstanding(
       message:
         "An answer-validation mismatch cannot proceed to method selection.",
       path: "readyForMethodSelection",
+    });
+  }
+
+  if (
+    understanding.gateDiagnostics.blockers.length > 0 &&
+    understanding.readyForMethodSelection
+  ) {
+    issues.push({
+      severity: "blocking",
+      code: "UNDERSTANDING_CONFLICT",
+      message:
+        "Phase 4C readiness cannot be true while gateDiagnostics contains blockers.",
+      path: "gateDiagnostics.blockers",
     });
   }
 

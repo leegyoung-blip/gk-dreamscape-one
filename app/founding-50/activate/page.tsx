@@ -22,7 +22,7 @@ export default function Founding50ActivationPage(){
  return <main style={shell}><div style={{maxWidth:700,margin:"0 auto",padding:"clamp(24px,5vw,48px)",border:"1px solid rgba(142,232,255,.25)",borderRadius:32,background:"linear-gradient(145deg,rgba(5,17,34,.97),rgba(16,10,35,.97))",boxShadow:"0 25px 90px rgba(0,0,0,.4)"}}>
   <p style={{fontSize:12,color:"#8ee8ff",letterSpacing:".2em",fontWeight:900}}>✦ DREAMSCAPE · FOUNDING 50</p>
   <h1 style={{font:"normal clamp(32px,5vw,54px) Georgia,serif",lineHeight:1.08}}>Your Nova adventure begins here.</h1>
-  <p style={{color:"#cdd8e8",lineHeight:1.8}}>Sign in with the same parent email address used for your application, then activate your 30-day NOVA + NOVA+ invitation. No payment required.</p>
+  <p style={{color:"#cdd8e8",lineHeight:1.8}}>Sign in with the same parent email address used for your application, then activate your 30-day NOVA+ invitation. No payment required.</p>
   {!token && state!=="success" && <p style={{color:"#ffcbaf"}}>No invitation token was found. Use the button in your invitation email.</p>}
   {state==="success"?<><p style={{color:"#a4f0dc"}}>{msg}</p><Link href="/founding-50/benefits" style={{...btn,display:"inline-block",textDecoration:"none"}}>View My Founding Benefits →</Link></>:
    <>{!loggedIn&&<div style={{margin:"20px 0"}}><Link href="/login" style={{color:"#8ee8ff",fontWeight:800}}>Sign in or create your account →</Link><p style={{fontSize:13,color:"#a7b7ca"}}>After signing in, return to this invitation page to activate.</p></div>}

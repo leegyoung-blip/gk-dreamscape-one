@@ -60,6 +60,10 @@ import {
 } from "./rules/readinessGate";
 
 import {
+  buildResolutionMetadata,
+} from "./rules/resolutionDiagnostics";
+
+import {
   evaluateCurrentEvidenceStrength,
 } from "./rules/conflictArbitration";
 
@@ -671,6 +675,8 @@ function addUnderstandingIssues(args: {
   confidence: number;
   domainConfidence: number;
   structureConfidence: number;
+  structureReasonCode: string;
+  domainResolutionKind: "specific_rule" | "corroborated_inference" | "generic_fallback" | "unresolved";
   curriculumDomainResolved: boolean;
 }): UnderstandingIssue[] {
   const issues: UnderstandingIssue[] = [];
@@ -819,6 +825,32 @@ function addUnderstandingIssues(args: {
   }
 
   if (
+    args.domain !== "unknown" &&
+    args.domainResolutionKind === "generic_fallback"
+  ) {
+    issues.push({
+      severity: "warning",
+      code: "GENERIC_DOMAIN_FALLBACK",
+      message:
+        "The mathematical domain is supported only by generic fallback evidence and is blocked from Phase 4C.",
+      path: "resolution.domain",
+    });
+  }
+
+  if (
+    args.problemStructure !== "unknown" &&
+    args.structureReasonCode.includes("GENERIC")
+  ) {
+    issues.push({
+      severity: "warning",
+      code: "GENERIC_STRUCTURE_FALLBACK",
+      message:
+        "The problem structure is a generic fallback and is blocked from Phase 4C until a specific semantic structure is available.",
+      path: "resolution.structure",
+    });
+  }
+
+  if (
     args.answerValidation.status ===
     "mismatched"
   ) {
@@ -937,6 +969,12 @@ function understandPart(
           (item) =>
             item.dependsOnPartKey,
         ),
+    resolution:
+      understanding.resolution,
+    confidenceBreakdown:
+      understanding.confidenceBreakdown,
+    gateDiagnostics:
+      understanding.gateDiagnostics,
     confidence:
       understanding.confidence,
     status:
@@ -1177,6 +1215,39 @@ export function understandTeachingQuestion(
         2,
     );
 
+  const resolution =
+    buildResolutionMetadata({
+      domain,
+      domainConfidence:
+        domainResolution.confidence,
+      curriculum:
+        curriculumContext,
+      promptDomain:
+        domainResolution.promptDomain,
+      promptConfidence:
+        domainResolution.promptConfidence,
+      problemStructure:
+        structure.problemStructure,
+      structureReasonCode:
+        structure.reasonCode,
+      requiredReasoning,
+    });
+
+  const confidenceBreakdown = {
+    domain:
+      domainResolution.confidence,
+    structure:
+      structure.confidence,
+    reasoning:
+      requiredReasoning.length > 0 &&
+      !requiredReasoning.every(
+        (item) => item === "unknown",
+      )
+        ? structure.confidence
+        : 0.2,
+    overall: confidence,
+  };
+
   const issues =
     addUnderstandingIssues({
       question,
@@ -1194,6 +1265,10 @@ export function understandTeachingQuestion(
         domainResolution.confidence,
       structureConfidence:
         structure.confidence,
+      structureReasonCode:
+        structure.reasonCode,
+      domainResolutionKind:
+        resolution.domain,
       curriculumDomainResolved:
         curriculumContext.inferredDomain !==
         "unknown",
@@ -1211,11 +1286,8 @@ export function understandTeachingQuestion(
       requiredReasoning,
       answerValidation,
       issues,
-      confidence,
-      domainConfidence:
-        domainResolution.confidence,
-      structureConfidence:
-        structure.confidence,
+      confidenceBreakdown,
+      resolution,
     });
 
   const visualContext =
@@ -1242,7 +1314,7 @@ export function understandTeachingQuestion(
     );
 
   return {
-    schemaVersion: "4A-2.3",
+    schemaVersion: "4A-2.4",
     questionId:
       question.identity
         .questionId,
@@ -1280,6 +1352,11 @@ export function understandTeachingQuestion(
     },
 
     answerValidation,
+
+    resolution,
+    confidenceBreakdown,
+    gateDiagnostics:
+      readiness.gateDiagnostics,
 
     confidence,
     status:

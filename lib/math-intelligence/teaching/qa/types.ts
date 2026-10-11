@@ -57,7 +57,7 @@ export type Phase4A2QaItem = {
 };
 
 export type Phase4A2QaRun = {
-  schemaVersion: "4A-2-QA.3";
+  schemaVersion: "4A-2-QA.4";
   sourceRunId: string | null;
   sourceSeed: string | null;
   generatedAt: string;
@@ -70,7 +70,7 @@ export type Phase4A2QaRun = {
 };
 
 export type Phase4A2CompactExport = {
-  schema_version: "4A-2-QA.3";
+  schema_version: "4A-2-QA.4";
   generated_at: string;
   source_run_id: string | null;
   source_seed: string | null;
