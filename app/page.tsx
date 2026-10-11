@@ -323,18 +323,7 @@ function WorldPanel({
                 Explore Milo →
               </Link>
 
-              <Link
-                href="/explore/learning-money-and-business"
-                style={{
-                  color: "rgba(255,255,255,0.78)",
-                  textDecoration: "none",
-                  fontSize: "11px",
-                  fontWeight: 800,
-                  lineHeight: 1.4,
-                }}
-              >
-                Milo Finance · Coming Soon →
-              </Link>
+
             </div>
           </>
         )}
@@ -347,6 +336,7 @@ export default function Home() {
   const router = useRouter();
   const [isMobile, setIsMobile] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAccount, setIsCheckingAccount] = useState(true);
 
@@ -673,67 +663,120 @@ export default function Home() {
               </button>
             </div>
 
-            <nav style={{ marginTop: isMobile ? "40px" : "56px", display: "flex", flexDirection: "column" }}>
+            <nav aria-label="Main navigation" style={{ marginTop: isMobile ? "30px" : "42px", display: "flex", flexDirection: "column" }}>
               <button
                 type="button"
-                onClick={() => scrollToId("home")}
+                onClick={() => { setExpandedMenu(null); scrollToId("home"); }}
                 style={{
-                  minHeight: "66px",
-                  padding: "0 4px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "18px",
-                  border: "none",
-                  borderBottom: "1px solid rgba(255,255,255,0.1)",
-                  background: "transparent",
-                  color: "white",
-                  textAlign: "left",
-                  fontSize: isMobile ? "17px" : "19px",
-                  fontWeight: 700,
-                  letterSpacing: "0.08em",
-                  cursor: "pointer",
+                  minHeight: "60px", padding: "0 4px", display: "flex", alignItems: "center",
+                  justifyContent: "space-between", border: "none",
+                  borderBottom: "1px solid rgba(255,255,255,0.1)", background: "transparent",
+                  color: "white", fontSize: isMobile ? "15px" : "16px", fontWeight: 800,
+                  letterSpacing: "0.07em", textAlign: "left", cursor: "pointer",
                 }}
               >
-                HOME
-                <span aria-hidden="true" style={{ color: "#8ee8ff" }}>→</span>
+                HOME <span aria-hidden="true" style={{ color: "#8ee8ff" }}>→</span>
               </button>
 
               {[
-                { label: "HOW IT WORKS", href: "/how-it-works" },
-                { label: "NOVA+ FOR PARENTS", href: "/explore/nova-plus" },
-                { label: "MILO FINANCE", href: "/explore/milo-finance" },
-                { label: "EXPLORE DREAMSCAPE", href: "/explore" },
-                { label: "JOIN US", href: "/join-us" },
-                { label: "PRICING", href: "/pricing" },
-                { label: "FOR TUITION CENTRES", href: "/education-licence" },
-                { label: "PARTNER WITH US", href: "/affiliate" },
-              ].map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  onClick={() => setIsMenuOpen(false)}
-                  style={{
-                    minHeight: "66px",
-                    padding: "0 4px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "18px",
-                    borderBottom: "1px solid rgba(255,255,255,0.1)",
-                    color: "white",
-                    textDecoration: "none",
-                    textAlign: "left",
-                    fontSize: isMobile ? "17px" : "19px",
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
-                  }}
-                >
-                  {item.label}
-                  <span aria-hidden="true" style={{ color: "#c58cff" }}>→</span>
-                </Link>
-              ))}
+                {
+                  label: "EXPLORE",
+                  items: [
+                    { label: "How Dreamscape Works", href: "/how-it-works" },
+                    { label: "Nova's World", href: "/inventor" },
+                    { label: "Milo's World", href: "/milo-world" },
+                    { label: "Explore Dreamscape Guides", href: "/explore" },
+                  ],
+                },
+                {
+                  label: "FOR FAMILIES",
+                  items: [
+                    { label: "NOVA+ for Parents", href: "/explore/nova-plus" },
+                    { label: "Pricing & Plans", href: "/pricing" },
+                  ],
+                },
+                {
+                  label: "FOR ORGANISATIONS",
+                  items: [
+                    { label: "For Tuition Centres", href: "/education-licence" },
+                    { label: "Partner With Us", href: "/affiliate" },
+                  ],
+                },
+              ].map((group) => {
+                const isExpanded = expandedMenu === group.label;
+                const panelId = `dreamscape-menu-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
+                return (
+                  <div key={group.label} style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      aria-controls={panelId}
+                      onClick={() => setExpandedMenu(isExpanded ? null : group.label)}
+                      style={{
+                        width: "100%", minHeight: "60px", padding: "0 4px", display: "flex",
+                        alignItems: "center", justifyContent: "space-between", gap: "18px",
+                        background: "transparent", border: "none", color: "white",
+                        fontSize: isMobile ? "15px" : "16px", fontWeight: 800,
+                        letterSpacing: "0.07em", textAlign: "left", cursor: "pointer",
+                      }}
+                    >
+                      {group.label}
+                      <span aria-hidden="true" style={{ color: "#c58cff", fontSize: "22px", fontWeight: 400 }}>
+                        {isExpanded ? "−" : "+"}
+                      </span>
+                    </button>
+                    <div id={panelId} hidden={!isExpanded}>
+                      {group.items.map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => { setIsMenuOpen(false); setExpandedMenu(null); }}
+                          style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between",
+                            gap: "14px", minHeight: "46px", padding: "10px 4px 10px 18px",
+                            color: "rgba(255,255,255,0.78)", textDecoration: "none",
+                            fontSize: "14px", lineHeight: 1.4, fontWeight: 500,
+                          }}
+                        >
+                          {item.label}
+                          <span aria-hidden="true" style={{ color: "#c58cff" }}>→</span>
+                        </Link>
+                      ))}
+                      <div style={{ height: "10px" }} />
+                    </div>
+                  </div>
+                );
+              })}
+
+              <Link
+                href="/join-us"
+                onClick={() => { setIsMenuOpen(false); setExpandedMenu(null); }}
+                style={{
+                  minHeight: "60px", padding: "0 4px", display: "flex", alignItems: "center",
+                  justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.1)",
+                  color: "white", textDecoration: "none", fontSize: isMobile ? "15px" : "16px",
+                  fontWeight: 800, letterSpacing: "0.07em",
+                }}
+              >
+                DREAMSCAPE BUILDERS <span aria-hidden="true" style={{ color: "#c58cff" }}>→</span>
+              </Link>
             </nav>
+
+            <div style={{ marginTop: "auto", paddingTop: "30px" }}>
+              <Link
+                href="/pricing"
+                onClick={() => { setIsMenuOpen(false); setExpandedMenu(null); }}
+                style={{
+                  minHeight: "52px", padding: "13px 18px", display: "flex", alignItems: "center",
+                  justifyContent: "center", borderRadius: "999px",
+                  background: "linear-gradient(90deg, #8ee8ff, #c58cff)",
+                  color: "#140725", textDecoration: "none", textAlign: "center",
+                  fontSize: "12px", fontWeight: 900, letterSpacing: "0.06em",
+                }}
+              >
+                VIEW PLANS &amp; START TRIAL →
+              </Link>
+            </div>
 
             <p
               style={{
@@ -1450,27 +1493,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <Link
-                  href="/explore/milo-finance"
-                  style={{
-                    minHeight: "52px",
-                    padding: "13px 22px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: "999px",
-                    background: "linear-gradient(90deg, #7bf3b7, #ffd36e)",
-                    color: "#071511",
-                    textDecoration: "none",
-                    fontSize: "11px",
-                    fontWeight: 900,
-                    letterSpacing: "0.09em",
-                    textTransform: "uppercase",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Explore Milo Finance →
-                </Link>
+
               </div>
             </div>
           </section>
@@ -2160,9 +2183,7 @@ export default function Home() {
                 <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,0.6)", fontSize: "13px", lineHeight: 1.55 }}>
                   Financial literacy · Business Builder · Exchange lessons · Property benefits
                 </p>
-                <Link href="/explore/milo-finance" style={{ display: "inline-flex", marginTop: "12px", color: "#7bf3b7", textDecoration: "none", fontSize: "12px", fontWeight: 900 }}>
-                  Explore Milo Finance →
-                </Link>
+
               </article>
             </div>
 
@@ -2305,7 +2326,6 @@ export default function Home() {
               <Link href="/how-it-works" style={footerLinkStyle}>How Dreamscape Works</Link>
               <Link href="/explore/parents-guide" style={footerLinkStyle}>Parent’s Guide</Link>
               <Link href="/explore/nova-plus" style={footerLinkStyle}>NOVA+ for Parents</Link>
-              <Link href="/explore/milo-finance" style={footerLinkStyle}>Milo Finance</Link>
               <Link href="/explore/learning-missions" style={footerLinkStyle}>Learning Missions</Link>
             </div>
           </div>
