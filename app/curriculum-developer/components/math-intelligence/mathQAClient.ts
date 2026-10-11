@@ -412,11 +412,15 @@ export async function loadRealBankMathQASample({
 
   seed,
 
+  excludeQuestionIds = [],
+
 }: {
 
   targetSize: number;
 
   seed: string;
+
+  excludeQuestionIds?: string[];
 
 }): Promise<MathQASampleSelection> {
 
@@ -606,7 +610,19 @@ export async function loadRealBankMathQASample({
 
 
 
-  const selection = selectMathQASample(candidates, {
+  const excludedQuestionIds = new Set(
+    excludeQuestionIds
+      .map((value) => String(value || "").trim())
+      .filter(Boolean),
+  );
+
+  const eligibleCandidates = excludedQuestionIds.size > 0
+    ? candidates.filter(
+        (candidate) => !excludedQuestionIds.has(candidate.question_id),
+      )
+    : candidates;
+
+  const selection = selectMathQASample(eligibleCandidates, {
 
     targetSize,
 

@@ -6,15 +6,22 @@ import {
 } from "react";
 
 import {
+  evaluatePhase4A2C5Closure,
+  PHASE4A2C5_FIXED_SEED,
   runPhase4A2QaFromExport,
+  toPhase4A2C5BaselineSnapshot,
   toPhase4A2CompactExport,
 } from "../../../lib/math-intelligence/teaching";
 
 import type {
   MathIntelligenceQaExportLike,
+  Phase4A2C5BaselineSnapshot,
+  Phase4A2C5ClosureReport,
   Phase4A2QaItem,
   Phase4A2QaRun,
 } from "../../../lib/math-intelligence/teaching";
+
+const C5_BASELINE_STORAGE_KEY = "dreamscape.phase4a2c5.fixed-baseline.v1";
 
 type Props = {
   qaExport:
@@ -260,7 +267,7 @@ function QuestionDetail({
 
       <section>
         <h5>
-          4A-2C-4 Diagnostics & Gate
+          4A-2.4 Diagnostics & Gate
         </h5>
         <dl>
           <div>
@@ -537,7 +544,7 @@ function QuestionDetail({
 
         {u.issues.length === 0 ? (
           <p className="phase4a2b-muted">
-            No 4A-2C-4 issues.
+            No 4A-2C-5 gate issues.
           </p>
         ) : (
           <ul className="phase4a2b-issues">
@@ -572,6 +579,9 @@ export default function Phase4A2TeachingQA({
     useState<Phase4A2QaRun | null>(
       null,
     );
+
+  const [closureReport, setClosureReport] =
+    useState<Phase4A2C5ClosureReport | null>(null);
 
   const [
     statusFilter,
@@ -770,6 +780,36 @@ export default function Phase4A2TeachingQA({
       search,
     ]);
 
+  const loadBaselineSnapshot = (): Phase4A2C5BaselineSnapshot | null => {
+    try {
+      const raw = window.localStorage.getItem(C5_BASELINE_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Phase4A2C5BaselineSnapshot;
+      return parsed?.schema_version === "4A-2C5-BASELINE.1" ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const persistFixedBaseline = (nextRun: Phase4A2QaRun): Phase4A2C5BaselineSnapshot | null => {
+    if (nextRun.sourceSeed !== PHASE4A2C5_FIXED_SEED) {
+      return loadBaselineSnapshot();
+    }
+
+    const snapshot = toPhase4A2C5BaselineSnapshot(nextRun);
+
+    if (snapshot.exact_fixed_regression_match && snapshot.safety_invariants_passed) {
+      window.localStorage.setItem(
+        C5_BASELINE_STORAGE_KEY,
+        JSON.stringify(snapshot),
+      );
+      return snapshot;
+    }
+
+    window.localStorage.removeItem(C5_BASELINE_STORAGE_KEY);
+    return snapshot;
+  };
+
   const handleRun = () => {
     if (
       !qaExport ||
@@ -793,21 +833,27 @@ export default function Phase4A2TeachingQA({
     setStructureResolutionFilter("all");
     setSearch("");
     setExpandedId(null);
+
+    const baseline = persistFixedBaseline(next);
+    setClosureReport(
+      evaluatePhase4A2C5Closure(next, baseline),
+    );
   };
 
   const handleExport = () => {
-    if (!run) return;
+    if (!run || !closureReport) return;
 
     downloadJson(
-      `phase-4a2c4-diagnostics-gate-${
+      `phase-4a2c5-closure-${
         run.sourceRunId?.slice(
           0,
           8,
         ) ?? "qa"
       }.json`,
-      toPhase4A2CompactExport(
-        run,
-      ),
+      {
+        closure_report: closureReport,
+        cohort_qa: toPhase4A2CompactExport(run),
+      },
     );
   };
 
@@ -816,8 +862,8 @@ export default function Phase4A2TeachingQA({
       <header className="phase4a2b-header">
         <div>
           <p className="phase4a2b-eyebrow">
-            PHASE 4A-2C-4 ·
-            DIAGNOSTICS & QA GATE UPGRADE
+            PHASE 4A-2C-5 ·
+            FINAL REGRESSION & CLOSURE
           </p>
 
           <h3>
@@ -826,7 +872,7 @@ export default function Phase4A2TeachingQA({
           </h3>
 
           <p>
-            Diagnostic-first Phase 4C gating with explicit resolution provenance, confidence breakdowns, generic-fallback blocking, conflict separation, and filterable gate reasons. No Luna call and no database write.
+            Final fixed-cohort regression, excluded holdout verification, targeted semantic regression, and Phase 4C safety-invariant closure. C5 does not change question semantics or rewrite curriculum mappings.
           </p>
         </div>
 
@@ -855,7 +901,7 @@ export default function Phase4A2TeachingQA({
             onClick={handleRun}
             disabled={!hasSample}
           >
-            Run 4A-2C-4 Gate Check
+            Run 4A-2C-5 Closure Check
           </button>
         </div>
       </header>
@@ -869,6 +915,67 @@ export default function Phase4A2TeachingQA({
 
       {run && (
         <>
+          {closureReport && (
+            <div className="phase4a2c5-closure">
+              <div className="phase4a2c5-closure-head">
+                <div>
+                  <strong>4A-2C-5 closure: {closureReport.closure.decision.replace(/_/g, " ")}</strong>
+                  <span>
+                    Cohort {closureReport.cohort.kind} · seed {closureReport.cohort.source_seed ?? "—"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="phase4a2b-secondary"
+                  onClick={handleExport}
+                >
+                  Export 4A-2C-5 Closure JSON
+                </button>
+              </div>
+
+              <div className="phase4a2c5-grid">
+                <div>
+                  <strong>{closureReport.safety.passed ? "PASS" : "FAIL"}</strong>
+                  <span>Safety invariants</span>
+                </div>
+                <div>
+                  <strong>{closureReport.targeted_regression.passed_count}/{closureReport.targeted_regression.total}</strong>
+                  <span>Targeted regression</span>
+                </div>
+                <div>
+                  <strong>{closureReport.fixed_cohort_regression.exact_match === null ? "—" : closureReport.fixed_cohort_regression.exact_match ? "PASS" : "FAIL"}</strong>
+                  <span>Fixed 179 / 38 / 23</span>
+                </div>
+                <div>
+                  <strong>{closureReport.holdout.exclusion_verified === null ? "—" : closureReport.holdout.exclusion_verified ? "PASS" : "FAIL"}</strong>
+                  <span>Holdout exclusion</span>
+                </div>
+                <div>
+                  <strong>{closureReport.cohort.balanced_40_per_level ? "PASS" : "FAIL"}</strong>
+                  <span>40 questions per level</span>
+                </div>
+                <div>
+                  <strong>{closureReport.probable_curriculum_mapping_issues.length}</strong>
+                  <span>Mapping review candidates</span>
+                </div>
+              </div>
+
+              <ul className="phase4a2c5-reasons">
+                {closureReport.closure.reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+
+              <div className="phase4a2c5-targeted">
+                {closureReport.targeted_regression.cases.map((item) => (
+                  <span key={item.id} data-pass={item.passed ? "true" : "false"}>
+                    {item.passed ? "✓" : "✕"} {item.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="phase4a2b-summary">
             <SummaryCard
               label="Processed"
@@ -1185,7 +1292,7 @@ export default function Phase4A2TeachingQA({
               className="phase4a2b-secondary"
               onClick={handleExport}
             >
-              Export 4A-2C-4 JSON
+              Export 4A-2C-5 Closure JSON
             </button>
           </div>
 
@@ -1752,6 +1859,86 @@ export default function Phase4A2TeachingQA({
           background: #eef3f8;
         }
 
+        .phase4a2c5-closure {
+          margin: 14px 0;
+          border: 1px solid #d9e4ef;
+          border-radius: 16px;
+          padding: 16px;
+          background: #ffffff;
+          display: grid;
+          gap: 14px;
+        }
+
+        .phase4a2c5-closure-head {
+          display: flex;
+          justify-content: space-between;
+          gap: 14px;
+          align-items: center;
+        }
+
+        .phase4a2c5-closure-head > div {
+          display: grid;
+          gap: 4px;
+        }
+
+        .phase4a2c5-closure-head strong {
+          text-transform: uppercase;
+        }
+
+        .phase4a2c5-closure-head span {
+          color: #61758d;
+          font-size: 12px;
+        }
+
+        .phase4a2c5-grid {
+          display: grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .phase4a2c5-grid > div {
+          border: 1px solid #e2e9f1;
+          border-radius: 12px;
+          padding: 10px;
+          display: grid;
+          gap: 4px;
+        }
+
+        .phase4a2c5-grid strong {
+          font-size: 17px;
+        }
+
+        .phase4a2c5-grid span {
+          color: #61758d;
+          font-size: 11px;
+        }
+
+        .phase4a2c5-reasons {
+          margin: 0;
+          padding-left: 18px;
+          color: #40566f;
+          font-size: 12px;
+        }
+
+        .phase4a2c5-targeted {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .phase4a2c5-targeted span {
+          border-radius: 999px;
+          padding: 5px 8px;
+          font-size: 11px;
+          background: #e8f6ee;
+          color: #155d38;
+        }
+
+        .phase4a2c5-targeted span[data-pass="false"] {
+          background: #ffe3e3;
+          color: #8e2424;
+        }
+
         @media (max-width: 1200px) {
           .phase4a2b-summary {
             grid-template-columns:
@@ -1761,6 +1948,11 @@ export default function Phase4A2TeachingQA({
           .phase4a2b-breakdowns {
             grid-template-columns:
               repeat(2, minmax(0, 1fr));
+          }
+
+          .phase4a2c5-grid {
+            grid-template-columns:
+              repeat(3, minmax(0, 1fr));
           }
         }
 
@@ -1799,6 +1991,14 @@ export default function Phase4A2TeachingQA({
           .phase4a2b-row-button {
             grid-template-columns:
               42px minmax(0, 1fr);
+          }
+
+          .phase4a2c5-closure-head {
+            display: grid;
+          }
+
+          .phase4a2c5-grid {
+            grid-template-columns: 1fr;
           }
 
           .phase4a2b-row-status {

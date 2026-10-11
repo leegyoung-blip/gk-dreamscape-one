@@ -64,6 +64,9 @@ import {
 
 const SAMPLE_SIZES = [120, 180, 240, 300];
 
+const PHASE4A2C5_FIXED_SEED = "phase-2i-v1";
+const PHASE4A2C5_HOLDOUT_SEED = "phase-4a2c5-holdout-v1";
+
 
 
 const ISSUE_OPTIONS: Array<{ code: MathQAIssueCode; label: string }> = [
@@ -616,7 +619,80 @@ export default function MathIntelligenceQAView() {
 
 
 
-  async function generateSample() {
+  async function buildPhase4A2C5Holdout() {
+
+    if (!sample) return;
+
+    if (sample.seed !== PHASE4A2C5_FIXED_SEED || sample.actual_size !== 240) {
+      setError(
+        "C5 holdout must be built while the fixed 240-question phase-2i-v1 cohort is loaded.",
+      );
+      return;
+    }
+
+    const baselineIds = sample.items.map((item) => item.question_id);
+
+    setBuildingSample(true);
+    setError(null);
+    setNotice(null);
+    clearQAFilters();
+
+    try {
+      const nextSample = await loadRealBankMathQASample({
+        targetSize: 240,
+        seed: PHASE4A2C5_HOLDOUT_SEED,
+        excludeQuestionIds: baselineIds,
+      });
+
+      const baselineSet = new Set(baselineIds);
+      const overlap = nextSample.items.filter((item) =>
+        baselineSet.has(item.question_id),
+      );
+
+      const balanced = [1, 2, 3, 4, 5, 6].every((level) =>
+        nextSample.levels.some(
+          (entry) =>
+            entry.primary_level === level &&
+            entry.selected === 40,
+        ),
+      );
+
+      if (nextSample.actual_size !== 240) {
+        throw new Error(
+          `C5 holdout produced ${nextSample.actual_size} questions instead of 240. No fallback cohort was accepted.`,
+        );
+      }
+
+      if (!balanced) {
+        throw new Error(
+          "C5 holdout is not balanced at exactly 40 questions per P1-P6 level. No fallback cohort was accepted.",
+        );
+      }
+
+      if (overlap.length > 0) {
+        throw new Error(
+          `C5 holdout overlaps the fixed cohort by ${overlap.length} question(s).`,
+        );
+      }
+
+      setSampleSize(240);
+      setSeed(PHASE4A2C5_HOLDOUT_SEED);
+      setSample(nextSample);
+      setResults([]);
+      setStoredReviews(new Map());
+      setRunId("");
+      setSelectedQuestionId(nextSample.items[0]?.question_id || "");
+      setNotice(
+        "Built the fixed C5 holdout: 240 new questions, 40 per P1-P6 level, with zero overlap against the loaded phase-2i-v1 cohort. Run Math Intelligence next.",
+      );
+    } catch (holdoutError) {
+      setError(errorMessage(holdoutError));
+    } finally {
+      setBuildingSample(false);
+    }
+  }
+
+  async function generateSample() {
 
     if (!sample) return;
 
@@ -1054,7 +1130,21 @@ export default function MathIntelligenceQAView() {
 
           </button>
 
-          {sample && results.length === 0 && !runId ? (
+          {sample?.seed === PHASE4A2C5_FIXED_SEED &&
+          sample.actual_size === 240 &&
+          results.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => void buildPhase4A2C5Holdout()}
+              disabled={buildingSample || generating}
+              style={secondaryButton}
+              title="Build the fixed 240-question C5 holdout while excluding every question in the loaded phase-2i-v1 cohort."
+            >
+              Build 4A-2C-5 holdout
+            </button>
+          ) : null}
+
+          {sample && results.length === 0 && !runId ? (
 
             <button
 
