@@ -260,7 +260,7 @@ function QuestionDetail({
 
       <section>
         <h5>
-          4A-2C-2A Semantic Guardrails
+          4A-2C-2B Conflict Arbitration
         </h5>
         <dl>
           <div>
@@ -483,7 +483,7 @@ function QuestionDetail({
 
         {u.issues.length === 0 ? (
           <p className="phase4a2b-muted">
-            No 4A-2C-2A issues.
+            No 4A-2C-2B issues.
           </p>
         ) : (
           <ul className="phase4a2b-issues">
@@ -670,7 +670,7 @@ export default function Phase4A2TeachingQA({
     if (!run) return;
 
     downloadJson(
-      `phase-4a2c2a-semantic-guardrails-${
+      `phase-4a2c2b-conflict-arbitration-${
         run.sourceRunId?.slice(
           0,
           8,
@@ -687,8 +687,8 @@ export default function Phase4A2TeachingQA({
       <header className="phase4a2b-header">
         <div>
           <p className="phase4a2b-eyebrow">
-            PHASE 4A-2C-2A ·
-            SEMANTIC GUARDRAILS
+            PHASE 4A-2C-2B ·
+            CONFLICT ARBITRATION
           </p>
 
           <h3>
@@ -697,11 +697,7 @@ export default function Phase4A2TeachingQA({
           </h3>
 
           <p>
-            Curriculum-aware
-            deterministic understanding
-            with strict 4C gating.
-            No Luna call and no
-            database write.
+            Curriculum-aware deterministic understanding with strict 4C gating and explicit stale-MI supersession. No Luna call and no database write.
           </p>
         </div>
 
@@ -730,7 +726,7 @@ export default function Phase4A2TeachingQA({
             onClick={handleRun}
             disabled={!hasSample}
           >
-            Run 4A-2C-2A Guardrail Check
+            Run 4A-2C-2B Arbitration Check
           </button>
         </div>
       </header>
@@ -952,7 +948,7 @@ export default function Phase4A2TeachingQA({
               className="phase4a2b-secondary"
               onClick={handleExport}
             >
-              Export 4A-2C-2A JSON
+              Export 4A-2C-2B JSON
             </button>
           </div>
 

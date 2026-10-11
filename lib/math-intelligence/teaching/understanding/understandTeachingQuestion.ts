@@ -58,6 +58,10 @@ import {
   determineTeachingReadiness,
 } from "./rules/readinessGate";
 
+import {
+  evaluateCurrentEvidenceStrength,
+} from "./rules/conflictArbitration";
+
 function inferPromptDomain(
   text: string,
 ): {
@@ -932,6 +936,27 @@ export function understandTeachingQuestion(
         structure.computedAnswer,
     });
 
+  const arbitration =
+    evaluateCurrentEvidenceStrength({
+      resolvedDomain: domain,
+      curriculum:
+        curriculumContext,
+      promptDomain:
+        domainResolution.promptDomain,
+      promptConfidence:
+        domainResolution.promptConfidence,
+      problemStructure:
+        structure.problemStructure,
+      structureConfidence:
+        structure.confidence,
+      structureReasonCode:
+        structure.reasonCode,
+      answerStatus:
+        answerValidation.status,
+      baselineDomainEvidenceWins:
+        domainResolution.currentEvidenceWins,
+    });
+
   const domainComparison =
     compareDomains({
       resolved: domain,
@@ -941,8 +966,7 @@ export function understandTeachingQuestion(
         curriculumContext
           .inferredDomain,
       currentEvidenceWins:
-        domainResolution.currentEvidenceWins &&
-        structure.confidence >= 0.82,
+        arbitration.safeToSupersedeDomain,
     });
 
   const structureComparison =
@@ -953,11 +977,7 @@ export function understandTeachingQuestion(
         question.intelligence
           .problemStructure,
       currentEvidenceWins:
-        structure.confidence >= 0.9 &&
-        (
-          answerValidation.status === "matched" ||
-          domainResolution.currentEvidenceWins
-        ),
+        arbitration.safeToSupersedeStructure,
     });
 
   let domainRelationship =
@@ -995,6 +1015,27 @@ export function understandTeachingQuestion(
           structure.confidence,
       },
     ];
+
+  if (
+    arbitration.safeToSupersedeDomain ||
+    arbitration.safeToSupersedeStructure
+  ) {
+    evidence.push({
+      source: "rules",
+      code:
+        "CONFLICT_ARBITRATION_CURRENT_EVIDENCE",
+      message:
+        `Current evidence is strong enough to supersede stale Math Intelligence evidence (${arbitration.reasonCodes.join(", ")}).`,
+      confidence:
+        Math.min(
+          0.99,
+          Math.max(
+            domainResolution.confidence,
+            structure.confidence,
+          ),
+        ),
+    });
+  }
 
   if (
     domainRelationship
