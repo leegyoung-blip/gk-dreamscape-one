@@ -12,51 +12,52 @@ import type { MathAuthoringBatchItem } from "@/lib/math-intelligence/MathBatchGe
 
 import {
 
-  buildMathQuizVisualQASummary,
+  buildMathQuizVisualQASummary,
 
-  hasGeneratedAcceptableQuizVisual,
+  hasGeneratedAcceptableQuizVisual,
 
-  isMathQuizVisualQAItem,
+  isMathQuizVisualQAItem,
 
-  mathQuizVisualQAGateLabel,
+  mathQuizVisualQAGateLabel,
 
 } from "@/lib/math-intelligence/MathQuizVisualQA";
 
 import type {
 
-  MathQAIssueCode,
+  MathQAIssueCode,
 
-  MathQASampleSelection,
+  MathQASampleSelection,
 
-  MathQAStrategySummary,
+  MathQAStrategySummary,
 
-  MathQAVerdict,
+  MathQAVerdict,
 
 } from "@/lib/math-intelligence/MathQATypes";
 
 import MathIntelligenceProposalPreview from "./math-intelligence/MathIntelligenceProposalPreview";
 
 import Phase4A2TeachingQA from "@/components/math-intelligence/qa/Phase4A2TeachingQA";
+import Phase4A3TeachingContractQA from "@/components/math-intelligence/qa/Phase4A3TeachingContractQA";
 
 import { requestMathBatchProposalsInChunks } from "./math-intelligence/requestMathBatchProposals";
 
 import {
 
-  attachMathQAResults,
+  attachMathQAResults,
 
-  completeMathQARun,
+  completeMathQARun,
 
-  createMathQARun,
+  createMathQARun,
 
-  loadMathQARun,
+  loadMathQARun,
 
-  loadMathQARunItems,
+  loadMathQARunItems,
 
-  loadRealBankMathQASample,
+  loadRealBankMathQASample,
 
-  loadRecentMathQARuns,
+  loadRecentMathQARuns,
 
-  saveMathQAReview,
+  saveMathQAReview,
 
 } from "./math-intelligence/mathQAClient";
 
@@ -101,43 +102,43 @@ function loadPhase4A2C5BaselineQuestionIds(): string[] {
 
 const ISSUE_OPTIONS: Array<{ code: MathQAIssueCode; label: string }> = [
 
-  { code: "wrong_need_decision", label: "Wrong need decision" },
+  { code: "wrong_need_decision", label: "Wrong need decision" },
 
-  { code: "wrong_strategy", label: "Wrong strategy" },
+  { code: "wrong_strategy", label: "Wrong strategy" },
 
-  { code: "wrong_values_or_relationships", label: "Wrong values / relationships" },
+  { code: "wrong_values_or_relationships", label: "Wrong values / relationships" },
 
-  { code: "answer_leak", label: "Answer leak" },
+  { code: "answer_leak", label: "Answer leak" },
 
-  { code: "missing_visual", label: "Visual should exist" },
+  { code: "missing_visual", label: "Visual should exist" },
 
-  { code: "unnecessary_visual", label: "Visual unnecessary" },
+  { code: "unnecessary_visual", label: "Visual unnecessary" },
 
-  { code: "visual_clarity", label: "Visual clarity" },
+  { code: "visual_clarity", label: "Visual clarity" },
 
-  { code: "source_fidelity", label: "Source fidelity" },
+  { code: "source_fidelity", label: "Source fidelity" },
 
-  { code: "label_quality", label: "Labels / wording" },
+  { code: "label_quality", label: "Labels / wording" },
 
-  { code: "scale_or_proportion", label: "Scale / proportion" },
+  { code: "scale_or_proportion", label: "Scale / proportion" },
 
-  { code: "semantic_colour", label: "Semantic colour" },
+  { code: "semantic_colour", label: "Semantic colour" },
 
-  { code: "layout_or_spacing", label: "Layout / spacing" },
+  { code: "layout_or_spacing", label: "Layout / spacing" },
 
-  { code: "teaching_sequence", label: "Teaching sequence" },
+  { code: "teaching_sequence", label: "Teaching sequence" },
 
-  { code: "teaching_wording", label: "Teaching wording" },
+  { code: "teaching_wording", label: "Teaching wording" },
 
-  { code: "unsupported_v2_semantics", label: "V2 semantics gap" },
+  { code: "unsupported_v2_semantics", label: "V2 semantics gap" },
 
-  { code: "luna_unnecessary", label: "Luna unnecessary" },
+  { code: "luna_unnecessary", label: "Luna unnecessary" },
 
-  { code: "luna_needed_but_not_used", label: "Luna should have been used" },
+  { code: "luna_needed_but_not_used", label: "Luna should have been used" },
 
-  { code: "legacy_media_should_be_preserved", label: "Legacy media should be preserved" },
+  { code: "legacy_media_should_be_preserved", label: "Legacy media should be preserved" },
 
-  { code: "other", label: "Other" },
+  { code: "other", label: "Other" },
 
 ];
 
@@ -145,35 +146,35 @@ const ISSUE_OPTIONS: Array<{ code: MathQAIssueCode; label: string }> = [
 
 const DIAGRAM_ISSUE_CODES = new Set<MathQAIssueCode>([
 
-  "wrong_need_decision",
+  "wrong_need_decision",
 
-  "wrong_strategy",
+  "wrong_strategy",
 
-  "wrong_values_or_relationships",
+  "wrong_values_or_relationships",
 
-  "answer_leak",
+  "answer_leak",
 
-  "missing_visual",
+  "missing_visual",
 
-  "unnecessary_visual",
+  "unnecessary_visual",
 
-  "visual_clarity",
+  "visual_clarity",
 
-  "source_fidelity",
+  "source_fidelity",
 
-  "label_quality",
+  "label_quality",
 
-  "scale_or_proportion",
+  "scale_or_proportion",
 
-  "semantic_colour",
+  "semantic_colour",
 
-  "layout_or_spacing",
+  "layout_or_spacing",
 
-  "unsupported_v2_semantics",
+  "unsupported_v2_semantics",
 
-  "legacy_media_should_be_preserved",
+  "legacy_media_should_be_preserved",
 
-  "other",
+  "other",
 
 ]);
 
@@ -181,17 +182,17 @@ const DIAGRAM_ISSUE_CODES = new Set<MathQAIssueCode>([
 
 type StoredReview = {
 
-  id: string;
+  id: string;
 
-  question_id: string;
+  question_id: string;
 
-  verdict: MathQAVerdict;
+  verdict: MathQAVerdict;
 
-  issue_codes: MathQAIssueCode[];
+  issue_codes: MathQAIssueCode[];
 
-  reviewer_notes: string;
+  reviewer_notes: string;
 
-  reviewed_at: string | null;
+  reviewed_at: string | null;
 
 };
 
@@ -201,21 +202,21 @@ type StoredReview = {
 
 type QAStatusFilter =
 
-  | "all"
+  | "all"
 
-  | "resolved"
+  | "resolved"
 
-  | "auto_review"
+  | "auto_review"
 
-  | "generated"
+  | "generated"
 
-  | "required_v2"
+  | "required_v2"
 
-  | "not_needed"
+  | "not_needed"
 
-  | "preserved"
+  | "preserved"
 
-  | "invalid_failed";
+  | "invalid_failed";
 
 
 
@@ -225,7 +226,7 @@ type QASourceFilter = "all" | "rules_only" | "luna";
 
 function errorMessage(error: unknown) {
 
-  return error instanceof Error ? error.message : String(error || "Unknown error");
+  return error instanceof Error ? error.message : String(error || "Unknown error");
 
 }
 
@@ -233,357 +234,357 @@ function errorMessage(error: unknown) {
 
 export default function MathIntelligenceQAView() {
 
-  const [sampleSize, setSampleSize] = useState(240);
+  const [sampleSize, setSampleSize] = useState(240);
 
-  const [seed, setSeed] = useState("phase-2i-v1");
+  const [seed, setSeed] = useState("phase-2i-v1");
 
-  const [sample, setSample] = useState<MathQASampleSelection | null>(null);
+  const [sample, setSample] = useState<MathQASampleSelection | null>(null);
 
-  const [runId, setRunId] = useState("");
+  const [runId, setRunId] = useState("");
 
-  const [results, setResults] = useState<MathAuthoringBatchItem[]>([]);
+  const [results, setResults] = useState<MathAuthoringBatchItem[]>([]);
 
-  const [storedReviews, setStoredReviews] = useState<Map<string, StoredReview>>(new Map());
+  const [storedReviews, setStoredReviews] = useState<Map<string, StoredReview>>(new Map());
 
-  const [selectedQuestionId, setSelectedQuestionId] = useState("");
+  const [selectedQuestionId, setSelectedQuestionId] = useState("");
 
-  const [buildingSample, setBuildingSample] = useState(false);
+  const [buildingSample, setBuildingSample] = useState(false);
 
-  const [generating, setGenerating] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
-  const [savingReview, setSavingReview] = useState(false);
+  const [savingReview, setSavingReview] = useState(false);
 
-  const [completing, setCompleting] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
-  const [progress, setProgress] = useState({ completed: 0, total: 0 });
+  const [progress, setProgress] = useState({ completed: 0, total: 0 });
 
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const [recentRuns, setRecentRuns] = useState<any[]>([]);
+  const [recentRuns, setRecentRuns] = useState<any[]>([]);
 
-  const [loadingRecent, setLoadingRecent] = useState(false);
+  const [loadingRecent, setLoadingRecent] = useState(false);
 
-  const [strategyFilter, setStrategyFilter] = useState("all");
+  const [strategyFilter, setStrategyFilter] = useState("all");
 
-  const [statusFilter, setStatusFilter] = useState<QAStatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<QAStatusFilter>("all");
 
-  const [sourceFilter, setSourceFilter] = useState<QASourceFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<QASourceFilter>("all");
 
-  const [levelFilter, setLevelFilter] = useState("all");
+  const [levelFilter, setLevelFilter] = useState("all");
 
-  const [topicFilter, setTopicFilter] = useState("all");
+  const [topicFilter, setTopicFilter] = useState("all");
 
 
 
-  const resultByQuestion = useMemo(
+  const resultByQuestion = useMemo(
 
-    () => new Map(results.map((item) => [item.client_id, item])),
+    () => new Map(results.map((item) => [item.client_id, item])),
 
-    [results],
+    [results],
 
-  );
+  );
 
-  const sampleByQuestion = useMemo(
+  const sampleByQuestion = useMemo(
 
-    () => new Map((sample?.items || []).map((item) => [item.question_id, item])),
+    () => new Map((sample?.items || []).map((item) => [item.question_id, item])),
 
-    [sample],
+    [sample],
 
-  );
+  );
 
 
 
-  const selectedSampleItem = selectedQuestionId
+  const selectedSampleItem = selectedQuestionId
 
-    ? sampleByQuestion.get(selectedQuestionId) || null
+    ? sampleByQuestion.get(selectedQuestionId) || null
 
-    : null;
+    : null;
 
-  const selectedResult = selectedQuestionId
+  const selectedResult = selectedQuestionId
 
-    ? resultByQuestion.get(selectedQuestionId) || null
+    ? resultByQuestion.get(selectedQuestionId) || null
 
-    : null;
+    : null;
 
-  const selectedReview = selectedQuestionId
+  const selectedReview = selectedQuestionId
 
-    ? storedReviews.get(selectedQuestionId) || null
+    ? storedReviews.get(selectedQuestionId) || null
 
-    : null;
+    : null;
 
 
 
-  const reviewedCount = useMemo(
+  const reviewedCount = useMemo(
 
-    () => [...storedReviews.values()].filter((item) => item.verdict !== "unreviewed").length,
+    () => [...storedReviews.values()].filter((item) => item.verdict !== "unreviewed").length,
 
-    [storedReviews],
+    [storedReviews],
 
-  );
+  );
 
 
 
-  const strategySummary = useMemo(
+  const strategySummary = useMemo(
 
-    () => buildStrategySummary(results, storedReviews),
+    () => buildStrategySummary(results, storedReviews),
 
-    [results, storedReviews],
+    [results, storedReviews],
 
-  );
+  );
 
 
 
-  const quizVisualQASummary = useMemo(
+  const quizVisualQASummary = useMemo(
 
-    () => buildMathQuizVisualQASummary(results, storedReviews),
+    () => buildMathQuizVisualQASummary(results, storedReviews),
 
-    [results, storedReviews],
+    [results, storedReviews],
 
-  );
+  );
 
 
 
-  const topicOptions = useMemo(() => {
+  const topicOptions = useMemo(() => {
 
-    const values = new Map<string, string>();
+    const values = new Map<string, string>();
 
-    for (const item of sample?.items || []) values.set(item.topic_id, item.topic_title);
+    for (const item of sample?.items || []) values.set(item.topic_id, item.topic_title);
 
-    return [...values.entries()].sort((left, right) => left[1].localeCompare(right[1]));
+    return [...values.entries()].sort((left, right) => left[1].localeCompare(right[1]));
 
-  }, [sample]);
+  }, [sample]);
 
 
 
-  const filteredSampleItems = useMemo(() => {
+  const filteredSampleItems = useMemo(() => {
 
-    return (sample?.items || []).filter((item) => {
+    return (sample?.items || []).filter((item) => {
 
-      const result = resultByQuestion.get(item.question_id);
+      const result = resultByQuestion.get(item.question_id);
 
-      const strategy = result?.proposal?.decision.strategy || (result ? "generation_failed" : "not_run");
+      const strategy = result?.proposal?.decision.strategy || (result ? "generation_failed" : "not_run");
 
-      const lunaUsed = Boolean(
+      const lunaUsed = Boolean(
 
-        result?.proposal?.sources.interpretation.source === "luna" ||
+        result?.proposal?.sources.interpretation.source === "luna" ||
 
-        result?.proposal?.sources.teaching.source === "luna"
+        result?.proposal?.sources.teaching.source === "luna"
 
-      );
+      );
 
-      const status = result?.status || "not_run";
+      const status = result?.status || "not_run";
 
-      const resolved = ["generated", "not_needed", "preserved"].includes(status);
+      const resolved = ["generated", "not_needed", "preserved"].includes(status);
 
-      const autoReview = ["needs_review", "invalid", "failed"].includes(status);
+      const autoReview = ["needs_review", "invalid", "failed"].includes(status);
 
 
 
-      if (strategyFilter !== "all" && strategy !== strategyFilter) return false;
+      if (strategyFilter !== "all" && strategy !== strategyFilter) return false;
 
-      if (levelFilter !== "all" && item.primary_level !== Number(levelFilter)) return false;
+      if (levelFilter !== "all" && item.primary_level !== Number(levelFilter)) return false;
 
-      if (topicFilter !== "all" && item.topic_id !== topicFilter) return false;
+      if (topicFilter !== "all" && item.topic_id !== topicFilter) return false;
 
-      if (sourceFilter === "luna" && !lunaUsed) return false;
+      if (sourceFilter === "luna" && !lunaUsed) return false;
 
-      if (sourceFilter === "rules_only" && (!result?.proposal || lunaUsed)) return false;
+      if (sourceFilter === "rules_only" && (!result?.proposal || lunaUsed)) return false;
 
-      if (statusFilter === "resolved" && !resolved) return false;
+      if (statusFilter === "resolved" && !resolved) return false;
 
-      if (statusFilter === "auto_review" && !autoReview) return false;
+      if (statusFilter === "auto_review" && !autoReview) return false;
 
-      if (statusFilter === "generated" && status !== "generated") return false;
+      if (statusFilter === "generated" && status !== "generated") return false;
 
-      if (statusFilter === "required_v2" && (!result || !isMathQuizVisualQAItem(result))) return false;
+      if (statusFilter === "required_v2" && (!result || !isMathQuizVisualQAItem(result))) return false;
 
-      if (statusFilter === "not_needed" && status !== "not_needed") return false;
+      if (statusFilter === "not_needed" && status !== "not_needed") return false;
 
-      if (statusFilter === "preserved" && status !== "preserved") return false;
+      if (statusFilter === "preserved" && status !== "preserved") return false;
 
-      if (statusFilter === "invalid_failed" && !["invalid", "failed"].includes(status)) return false;
+      if (statusFilter === "invalid_failed" && !["invalid", "failed"].includes(status)) return false;
 
-      return true;
+      return true;
 
-    });
+    });
 
-  }, [sample, resultByQuestion, strategyFilter, levelFilter, topicFilter, sourceFilter, statusFilter]);
+  }, [sample, resultByQuestion, strategyFilter, levelFilter, topicFilter, sourceFilter, statusFilter]);
 
 
 
-  useEffect(() => {
+  useEffect(() => {
 
-    if (filteredSampleItems.length === 0) {
+    if (filteredSampleItems.length === 0) {
 
-      if (selectedQuestionId) setSelectedQuestionId("");
+      if (selectedQuestionId) setSelectedQuestionId("");
 
-      return;
+      return;
 
-    }
+    }
 
-    if (!filteredSampleItems.some((item) => item.question_id === selectedQuestionId)) {
+    if (!filteredSampleItems.some((item) => item.question_id === selectedQuestionId)) {
 
-      setSelectedQuestionId(filteredSampleItems[0].question_id);
+      setSelectedQuestionId(filteredSampleItems[0].question_id);
 
-    }
+    }
 
-  }, [filteredSampleItems, selectedQuestionId]);
+  }, [filteredSampleItems, selectedQuestionId]);
 
 
 
-  function clearQAFilters() {
+  function clearQAFilters() {
 
-    setStrategyFilter("all");
+    setStrategyFilter("all");
 
-    setStatusFilter("all");
+    setStatusFilter("all");
 
-    setSourceFilter("all");
+    setSourceFilter("all");
 
-    setLevelFilter("all");
+    setLevelFilter("all");
 
-    setTopicFilter("all");
+    setTopicFilter("all");
 
-  }
+  }
 
 
 
-  function focusStrategy(strategy: string, mode: "all" | "auto_review" | "luna" = "all") {
+  function focusStrategy(strategy: string, mode: "all" | "auto_review" | "luna" = "all") {
 
-    setStrategyFilter(strategy);
+    setStrategyFilter(strategy);
 
-    setStatusFilter(mode === "auto_review" ? "auto_review" : "all");
+    setStatusFilter(mode === "auto_review" ? "auto_review" : "all");
 
-    setSourceFilter(mode === "luna" ? "luna" : "all");
+    setSourceFilter(mode === "luna" ? "luna" : "all");
 
-  }
+  }
 
 
 
-  function selectNextFilteredQuestion() {
+  function selectNextFilteredQuestion() {
 
-    if (filteredSampleItems.length === 0) return;
+    if (filteredSampleItems.length === 0) return;
 
-    const index = filteredSampleItems.findIndex((item) => item.question_id === selectedQuestionId);
+    const index = filteredSampleItems.findIndex((item) => item.question_id === selectedQuestionId);
 
-    const next = filteredSampleItems[(index + 1 + filteredSampleItems.length) % filteredSampleItems.length];
+    const next = filteredSampleItems[(index + 1 + filteredSampleItems.length) % filteredSampleItems.length];
 
-    setSelectedQuestionId(next.question_id);
+    setSelectedQuestionId(next.question_id);
 
-  }
+  }
 
 
 
-  function focusPhase3CReview() {
+  function focusPhase3CReview() {
 
-    setStrategyFilter("all");
+    setStrategyFilter("all");
 
-    setStatusFilter("required_v2");
+    setStatusFilter("required_v2");
 
-    setSourceFilter("all");
+    setSourceFilter("all");
 
-    setLevelFilter("all");
+    setLevelFilter("all");
 
-    setTopicFilter("all");
+    setTopicFilter("all");
 
-  }
+  }
 
 
 
-  function selectNextUnreviewedRequiredVisual(excludeQuestionId = "") {
+  function selectNextUnreviewedRequiredVisual(excludeQuestionId = "") {
 
-    const cohort = (sample?.items || []).filter((item) => {
+    const cohort = (sample?.items || []).filter((item) => {
 
-      if (item.question_id === excludeQuestionId) return false;
+      if (item.question_id === excludeQuestionId) return false;
 
-      const result = resultByQuestion.get(item.question_id);
+      const result = resultByQuestion.get(item.question_id);
 
-      if (!result || !hasGeneratedAcceptableQuizVisual(result)) return false;
+      if (!result || !hasGeneratedAcceptableQuizVisual(result)) return false;
 
-      const verdict = storedReviews.get(item.question_id)?.verdict || "unreviewed";
+      const verdict = storedReviews.get(item.question_id)?.verdict || "unreviewed";
 
-      return verdict === "unreviewed";
+      return verdict === "unreviewed";
 
-    });
+    });
 
-    if (cohort.length === 0) return;
+    if (cohort.length === 0) return;
 
-    const index = cohort.findIndex((item) => item.question_id === selectedQuestionId);
+    const index = cohort.findIndex((item) => item.question_id === selectedQuestionId);
 
-    const next = cohort[(index + 1 + cohort.length) % cohort.length];
+    const next = cohort[(index + 1 + cohort.length) % cohort.length];
 
-    setSelectedQuestionId(next.question_id);
+    setSelectedQuestionId(next.question_id);
 
-  }
+  }
 
 
 
-  async function refreshRecentRuns() {
+  async function refreshRecentRuns() {
 
-    setLoadingRecent(true);
+    setLoadingRecent(true);
 
-    try {
+    try {
 
-      setRecentRuns((await loadRecentMathQARuns()) as any[]);
+      setRecentRuns((await loadRecentMathQARuns()) as any[]);
 
-    } catch (recentError) {
+    } catch (recentError) {
 
-      setError(errorMessage(recentError));
+      setError(errorMessage(recentError));
 
-    } finally {
+    } finally {
 
-      setLoadingRecent(false);
+      setLoadingRecent(false);
 
-    }
+    }
 
-  }
+  }
 
 
 
-  useEffect(() => {
+  useEffect(() => {
 
-    void refreshRecentRuns();
+    void refreshRecentRuns();
 
-  }, []);
+  }, []);
 
 
 
-  async function refreshStoredReviews(nextRunId = runId) {
+  async function refreshStoredReviews(nextRunId = runId) {
 
-    if (!nextRunId) return;
+    if (!nextRunId) return;
 
-    const rows = await loadMathQARunItems(nextRunId);
+    const rows = await loadMathQARunItems(nextRunId);
 
-    const next = new Map<string, StoredReview>();
+    const next = new Map<string, StoredReview>();
 
-    for (const row of rows as any[]) {
+    for (const row of rows as any[]) {
 
-      next.set(String(row.question_id), {
+      next.set(String(row.question_id), {
 
-        id: String(row.id),
+        id: String(row.id),
 
-        question_id: String(row.question_id),
+        question_id: String(row.question_id),
 
-        verdict: (row.verdict || "unreviewed") as MathQAVerdict,
+        verdict: (row.verdict || "unreviewed") as MathQAVerdict,
 
-        issue_codes: Array.isArray(row.issue_codes)
+        issue_codes: Array.isArray(row.issue_codes)
 
-          ? (row.issue_codes as MathQAIssueCode[])
+          ? (row.issue_codes as MathQAIssueCode[])
 
-          : [],
+          : [],
 
-        reviewer_notes: String(row.reviewer_notes || ""),
+        reviewer_notes: String(row.reviewer_notes || ""),
 
-        reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
+        reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
 
-      });
+      });
 
-    }
+    }
 
-    setStoredReviews(next);
+    setStoredReviews(next);
 
-  }
+  }
 
 
 
@@ -704,443 +705,443 @@ export default function MathIntelligenceQAView() {
 
   async function generateSample() {
 
-    if (!sample) return;
+    if (!sample) return;
 
-    setGenerating(true);
+    setGenerating(true);
 
-    setError(null);
+    setError(null);
 
-    setNotice(null);
+    setNotice(null);
 
-    setProgress({ completed: 0, total: sample.items.length });
+    setProgress({ completed: 0, total: sample.items.length });
 
-    try {
+    try {
 
-      const generated = await requestMathBatchProposalsInChunks(
+      const generated = await requestMathBatchProposalsInChunks(
 
-        sample.items.map((item) => ({
+        sample.items.map((item) => ({
 
-          client_id: item.question_id,
+          client_id: item.question_id,
 
-          question: item.question,
+          question: item.question,
 
-        })),
+        })),
 
-        (completed, total) => setProgress({ completed, total }),
+        (completed, total) => setProgress({ completed, total }),
 
-      );
+      );
 
-      const nextRunId = runId || (await createMathQARun(sample));
+      const nextRunId = runId || (await createMathQARun(sample));
 
-      if (!nextRunId) throw new Error("Dreamscape could not create the QA run record.");
+      if (!nextRunId) throw new Error("Dreamscape could not create the QA run record.");
 
-      setRunId(nextRunId);
+      setRunId(nextRunId);
 
-      setResults(generated);
+      setResults(generated);
 
-      await attachMathQAResults(nextRunId, generated);
+      await attachMathQAResults(nextRunId, generated);
 
-      await refreshStoredReviews(nextRunId);
+      await refreshStoredReviews(nextRunId);
 
-      await refreshRecentRuns();
+      await refreshRecentRuns();
 
-      setNotice(
+      setNotice(
 
-        `Math Intelligence analysed all ${generated.length} sampled questions. QA run ${nextRunId.slice(0, 8).toUpperCase()} is saved and ready for human review.`,
+        `Math Intelligence analysed all ${generated.length} sampled questions. QA run ${nextRunId.slice(0, 8).toUpperCase()} is saved and ready for human review.`,
 
-      );
+      );
 
-    } catch (generationError) {
+    } catch (generationError) {
 
-      setError(errorMessage(generationError));
+      setError(errorMessage(generationError));
 
-    } finally {
+    } finally {
 
-      setGenerating(false);
+      setGenerating(false);
 
-    }
+    }
 
-  }
+  }
 
 
 
-  async function saveReview(
+  async function saveReview(
 
-    verdict: MathQAVerdict,
+    verdict: MathQAVerdict,
 
-    issueCodes: MathQAIssueCode[],
+    issueCodes: MathQAIssueCode[],
 
-    notes: string,
+    notes: string,
 
-  ) {
+  ) {
 
-    if (!selectedReview) return;
+    if (!selectedReview) return;
 
-    setSavingReview(true);
+    setSavingReview(true);
 
-    setError(null);
+    setError(null);
 
-    try {
+    try {
 
-      await saveMathQAReview({
+      await saveMathQAReview({
 
-        itemId: selectedReview.id,
+        itemId: selectedReview.id,
 
-        verdict,
+        verdict,
 
-        issueCodes,
+        issueCodes,
 
-        notes,
+        notes,
 
-      });
+      });
 
-      await refreshStoredReviews();
+      await refreshStoredReviews();
 
-    } catch (reviewError) {
+    } catch (reviewError) {
 
-      setError(errorMessage(reviewError));
+      setError(errorMessage(reviewError));
 
-    } finally {
+    } finally {
 
-      setSavingReview(false);
+      setSavingReview(false);
 
-    }
+    }
 
-  }
+  }
 
 
 
-  async function completeRun() {
+  async function completeRun() {
 
-    if (!runId) return;
+    if (!runId) return;
 
-    setCompleting(true);
+    setCompleting(true);
 
-    setError(null);
+    setError(null);
 
-    try {
+    try {
 
-      await completeMathQARun(runId);
+      await completeMathQARun(runId);
 
-      setNotice(
+      setNotice(
 
-        `QA run ${runId.slice(0, 8).toUpperCase()} completed. Its reviewed results are retained for coverage analysis.`,
+        `QA run ${runId.slice(0, 8).toUpperCase()} completed. Its reviewed results are retained for coverage analysis.`,
 
-      );
+      );
 
-      await refreshRecentRuns();
+      await refreshRecentRuns();
 
-    } catch (completeError) {
+    } catch (completeError) {
 
-      setError(errorMessage(completeError));
+      setError(errorMessage(completeError));
 
-    } finally {
+    } finally {
 
-      setCompleting(false);
+      setCompleting(false);
 
-    }
+    }
 
-  }
+  }
 
 
 
-  async function resumeRun(nextRunId: string) {
+  async function resumeRun(nextRunId: string) {
 
-    setBuildingSample(true);
+    setBuildingSample(true);
 
-    setError(null);
+    setError(null);
 
-    setNotice(null);
+    setNotice(null);
 
-    clearQAFilters();
+    clearQAFilters();
 
-    try {
+    try {
 
-      const loaded = await loadMathQARun(nextRunId);
+      const loaded = await loadMathQARun(nextRunId);
 
-      setRunId(nextRunId);
+      setRunId(nextRunId);
 
-      setSample(loaded.sample);
+      setSample(loaded.sample);
 
-      setResults(loaded.results);
+      setResults(loaded.results);
 
-      setSelectedQuestionId(loaded.sample.items[0]?.question_id || "");
+      setSelectedQuestionId(loaded.sample.items[0]?.question_id || "");
 
-      const next = new Map<string, StoredReview>();
+      const next = new Map<string, StoredReview>();
 
-      for (const row of loaded.items as any[]) {
+      for (const row of loaded.items as any[]) {
 
-        next.set(String(row.question_id), {
+        next.set(String(row.question_id), {
 
-          id: String(row.id),
+          id: String(row.id),
 
-          question_id: String(row.question_id),
+          question_id: String(row.question_id),
 
-          verdict: (row.verdict || "unreviewed") as MathQAVerdict,
+          verdict: (row.verdict || "unreviewed") as MathQAVerdict,
 
-          issue_codes: Array.isArray(row.issue_codes) ? row.issue_codes : [],
+          issue_codes: Array.isArray(row.issue_codes) ? row.issue_codes : [],
 
-          reviewer_notes: String(row.reviewer_notes || ""),
+          reviewer_notes: String(row.reviewer_notes || ""),
 
-          reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
+          reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
 
-        });
+        });
 
-      }
+      }
 
-      setStoredReviews(next);
+      setStoredReviews(next);
 
-      setNotice(`Resumed QA run ${nextRunId.slice(0, 8).toUpperCase()}.`);
+      setNotice(`Resumed QA run ${nextRunId.slice(0, 8).toUpperCase()}.`);
 
-    } catch (resumeError) {
+    } catch (resumeError) {
 
-      setError(errorMessage(resumeError));
+      setError(errorMessage(resumeError));
 
-    } finally {
+    } finally {
 
-      setBuildingSample(false);
+      setBuildingSample(false);
 
-    }
+    }
 
-  }
+  }
 
 
 
-  function exportReport() {
+  function exportReport() {
 
-    if (!sample) return;
+    if (!sample) return;
 
-    const payload = {
+    const payload = {
 
-      exported_at: new Date().toISOString(),
+      exported_at: new Date().toISOString(),
 
-      run_id: runId,
+      run_id: runId,
 
-      sample,
+      sample,
 
-      results,
+      results,
 
-      reviews: [...storedReviews.values()],
+      reviews: [...storedReviews.values()],
 
-      strategy_summary: strategySummary,
+      strategy_summary: strategySummary,
 
-    };
+    };
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
 
-      type: "application/json",
+      type: "application/json",
 
-    });
+    });
 
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
 
-    const anchor = document.createElement("a");
+    const anchor = document.createElement("a");
 
-    anchor.href = url;
+    anchor.href = url;
 
-    anchor.download = `math-intelligence-qa-${runId.slice(0, 8) || "sample"}.json`;
+    anchor.download = `math-intelligence-qa-${runId.slice(0, 8) || "sample"}.json`;
 
-    anchor.click();
+    anchor.click();
 
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(url);
 
-  }
+  }
 
 
 
-  function exportPhase3CReport() {
+  function exportPhase3CReport() {
 
-    if (!sample) return;
+    if (!sample) return;
 
-    const cohort = sample.items
+    const cohort = sample.items
 
-      .map((item) => {
+      .map((item) => {
 
-        const result = resultByQuestion.get(item.question_id);
+        const result = resultByQuestion.get(item.question_id);
 
-        if (!result || !isMathQuizVisualQAItem(result)) return null;
+        if (!result || !isMathQuizVisualQAItem(result)) return null;
 
-        const review = storedReviews.get(item.question_id) || null;
+        const review = storedReviews.get(item.question_id) || null;
 
-        return {
+        return {
 
-          question: {
+          question: {
 
-            question_id: item.question_id,
+            question_id: item.question_id,
 
-            question_code: item.question_code,
+            question_code: item.question_code,
 
-            primary_level: item.primary_level,
+            primary_level: item.primary_level,
 
-            topic_title: item.topic_title,
+            topic_title: item.topic_title,
 
-            prompt: item.prompt,
+            prompt: item.prompt,
 
-          },
+          },
 
-          automatic_status: result.status,
+          automatic_status: result.status,
 
-          source_contract: result.proposal?.decision.quiz_visual_contract || null,
+          source_contract: result.proposal?.decision.quiz_visual_contract || null,
 
-          visual: result.proposal?.visual || null,
+          visual: result.proposal?.visual || null,
 
-          review,
+          review,
 
-        };
+        };
 
-      })
+      })
 
-      .filter(Boolean);
+      .filter(Boolean);
 
 
 
-    const payload = {
+    const payload = {
 
-      exported_at: new Date().toISOString(),
+      exported_at: new Date().toISOString(),
 
-      phase: "3C",
+      phase: "3C",
 
-      run_id: runId,
+      run_id: runId,
 
-      seed: sample.seed,
+      seed: sample.seed,
 
-      summary: quizVisualQASummary,
+      summary: quizVisualQASummary,
 
-      items: cohort,
+      items: cohort,
 
-    };
+    };
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
 
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
 
-    const anchor = document.createElement("a");
+    const anchor = document.createElement("a");
 
-    anchor.href = url;
+    anchor.href = url;
 
-    anchor.download = `math-quiz-visual-qa-3C-${runId.slice(0, 8) || "sample"}.json`;
+    anchor.download = `math-quiz-visual-qa-3C-${runId.slice(0, 8) || "sample"}.json`;
 
-    anchor.click();
+    anchor.click();
 
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(url);
 
-  }
+  }
 
 
 
-  return (
+  return (
 
-    <div style={stack}>
+    <div style={stack}>
 
-      <div style={safeBanner}>
+      <div style={safeBanner}>
 
-        <strong>Real-bank QA only.</strong> The sample is taken from the existing
+        <strong>Real-bank QA only.</strong> The sample is taken from the existing
 
-        linked Math question bank in Supabase. This workspace stores QA evidence,
+        linked Math question bank in Supabase. This workspace stores QA evidence,
 
-        but never changes the sampled Math questions or publishes content.
+        but never changes the sampled Math questions or publishes content.
 
-      </div>
+      </div>
 
 
 
-      {error ? <div style={errorBanner}>{error}</div> : null}
+      {error ? <div style={errorBanner}>{error}</div> : null}
 
-      {notice ? <div style={successBanner}>{notice}</div> : null}
+      {notice ? <div style={successBanner}>{notice}</div> : null}
 
 
 
-      <section style={card}>
+      <section style={card}>
 
-        <div>
+        <div>
 
-          <p style={eyebrow}>PHASE 2I · REAL-BANK SAMPLE</p>
+          <p style={eyebrow}>PHASE 2I · REAL-BANK SAMPLE</p>
 
-          <h2 style={heading}>Build a reproducible P1–P6 QA sample</h2>
+          <h2 style={heading}>Build a reproducible P1–P6 QA sample</h2>
 
-          <p style={muted}>
+          <p style={muted}>
 
-            The default 240-question sample targets about 40 questions per level,
+            The default 240-question sample targets about 40 questions per level,
 
-            balances across active topics, and rotates across legacy visuals,
+            balances across active topics, and rotates across legacy visuals,
 
-            word problems, direct text questions and any existing V2 questions.
+            word problems, direct text questions and any existing V2 questions.
 
-          </p>
+          </p>
 
-        </div>
+        </div>
 
 
 
-        <div style={formGrid}>
+        <div style={formGrid}>
 
-          <label style={label}>
+          <label style={label}>
 
-            Target sample size
+            Target sample size
 
-            <select
+            <select
 
-              value={sampleSize}
+              value={sampleSize}
 
-              disabled={buildingSample || generating}
+              disabled={buildingSample || generating}
 
-              onChange={(event: any) => setSampleSize(Number(event.target.value))}
+              onChange={(event: any) => setSampleSize(Number(event.target.value))}
 
-              style={input}
+              style={input}
 
-            >
+            >
 
-              {SAMPLE_SIZES.map((value) => (
+              {SAMPLE_SIZES.map((value) => (
 
-                <option key={value} value={value}>{value} questions</option>
+                <option key={value} value={value}>{value} questions</option>
 
-              ))}
+              ))}
 
-            </select>
+            </select>
 
-          </label>
+          </label>
 
-          <label style={label}>
+          <label style={label}>
 
-            Reproducible seed
+            Reproducible seed
 
-            <input
+            <input
 
-              value={seed}
+              value={seed}
 
-              disabled={buildingSample || generating}
+              disabled={buildingSample || generating}
 
-              onChange={(event: any) => setSeed(event.target.value)}
+              onChange={(event: any) => setSeed(event.target.value)}
 
-              style={input}
+              style={input}
 
-            />
+            />
 
-          </label>
+          </label>
 
-        </div>
+        </div>
 
 
 
-        <div style={buttonRow}>
+        <div style={buttonRow}>
 
-          <button
+          <button
 
-            type="button"
+            type="button"
 
-            onClick={() => void buildSample()}
+            onClick={() => void buildSample()}
 
-            disabled={buildingSample || generating}
+            disabled={buildingSample || generating}
 
-            style={primaryButton}
+            style={primaryButton}
 
-          >
+          >
 
-            {buildingSample ? "Building sample…" : "Build real-bank QA sample"}
+            {buildingSample ? "Building sample…" : "Build real-bank QA sample"}
 
-          </button>
+          </button>
 
-          {sample ? (
+          {sample ? (
             <button
               type="button"
               onClick={() => void buildPhase4A2C5Holdout()}
@@ -1156,685 +1157,693 @@ export default function MathIntelligenceQAView() {
 
           {sample && results.length === 0 && !runId ? (
 
-            <button
+            <button
 
-              type="button"
+              type="button"
 
-              onClick={() => void generateSample()}
+              onClick={() => void generateSample()}
 
-              disabled={generating || buildingSample}
+              disabled={generating || buildingSample}
 
-              style={secondaryButton}
+              style={secondaryButton}
 
-            >
+            >
 
-              {generating
+              {generating
 
-                ? `Analysing ${progress.completed}/${progress.total}…`
+                ? `Analysing ${progress.completed}/${progress.total}…`
 
-                : `Run Math Intelligence on ${sample.actual_size} questions`}
+                : `Run Math Intelligence on ${sample.actual_size} questions`}
 
-            </button>
+            </button>
 
-          ) : null}
+          ) : null}
 
-        </div>
+        </div>
 
-      </section>
+      </section>
 
 
 
-      {recentRuns.length > 0 ? (
+      {recentRuns.length > 0 ? (
 
-        <section style={card}>
+        <section style={card}>
 
-          <div style={sectionHeader}>
+          <div style={sectionHeader}>
 
-            <div>
+            <div>
 
-              <p style={eyebrow}>RECENT QA RUNS</p>
+              <p style={eyebrow}>RECENT QA RUNS</p>
 
-              <h2 style={heading}>Resume a saved review</h2>
+              <h2 style={heading}>Resume a saved review</h2>
 
-            </div>
+            </div>
 
-            {loadingRecent ? <span style={muted}>Refreshing…</span> : null}
+            {loadingRecent ? <span style={muted}>Refreshing…</span> : null}
 
-          </div>
+          </div>
 
-          <div style={recentRunGrid}>
+          <div style={recentRunGrid}>
 
-            {recentRuns.map((run) => (
+            {recentRuns.map((run) => (
 
-              <button
+              <button
 
-                key={String(run.id)}
+                key={String(run.id)}
 
-                type="button"
+                type="button"
 
-                onClick={() => void resumeRun(String(run.id))}
+                onClick={() => void resumeRun(String(run.id))}
 
-                style={recentRunButton}
+                style={recentRunButton}
 
-              >
+              >
 
-                <strong>{String(run.id).slice(0, 8).toUpperCase()}</strong>
+                <strong>{String(run.id).slice(0, 8).toUpperCase()}</strong>
 
-                <span>{Number(run.actual_size || 0)} questions · {String(run.status || "sampled")}</span>
+                <span>{Number(run.actual_size || 0)} questions · {String(run.status || "sampled")}</span>
 
-                <small>{String(run.seed || "")}</small>
+                <small>{String(run.seed || "")}</small>
 
-              </button>
+              </button>
 
-            ))}
+            ))}
 
-          </div>
+          </div>
 
-        </section>
+        </section>
 
-      ) : null}
+      ) : null}
 
 
 
-      {sample ? (
+      {sample ? (
 
-        <section style={card}>
+        <section style={card}>
 
-          <div style={sectionHeader}>
+          <div style={sectionHeader}>
 
-            <div>
+            <div>
 
-              <p style={eyebrow}>SAMPLE COMPOSITION</p>
+              <p style={eyebrow}>SAMPLE COMPOSITION</p>
 
-              <h2 style={heading}>{sample.actual_size} real Math questions</h2>
+              <h2 style={heading}>{sample.actual_size} real Math questions</h2>
 
-              <p style={muted}>
+              <p style={muted}>
 
-                Seed {sample.seed} · Sampling {sample.sampling_version} · Run {runId ? runId.slice(0, 8).toUpperCase() : "pending"}
+                Seed {sample.seed} · Sampling {sample.sampling_version} · Run {runId ? runId.slice(0, 8).toUpperCase() : "pending"}
 
-              </p>
+              </p>
 
-            </div>
+            </div>
 
-          </div>
+          </div>
 
-          <div style={levelGrid}>
+          <div style={levelGrid}>
 
-            {sample.levels.map((level) => (
+            {sample.levels.map((level) => (
 
-              <div key={level.primary_level} style={levelCard}>
+              <div key={level.primary_level} style={levelCard}>
 
-                <strong>P{level.primary_level}: {level.selected}</strong>
+                <strong>P{level.primary_level}: {level.selected}</strong>
 
-                <span>{level.topic_count} topic(s)</span>
+                <span>{level.topic_count} topic(s)</span>
 
-                <small>Legacy {level.strata.legacy_visual} · Word {level.strata.text_word_problem} · Direct {level.strata.text_direct} · V2 {level.strata.existing_v2}</small>
+                <small>Legacy {level.strata.legacy_visual} · Word {level.strata.text_word_problem} · Direct {level.strata.text_direct} · V2 {level.strata.existing_v2}</small>
 
-              </div>
+              </div>
 
-            ))}
+            ))}
 
-          </div>
+          </div>
 
-        </section>
+        </section>
 
-      ) : null}
+      ) : null}
 
 
 
-      {results.length > 0 && sample ? (
+      {results.length > 0 && sample ? (
 
-        <>
+        <>
 
-          <section style={metricGrid}>
+          <section style={metricGrid}>
 
-            <Metric label="Sampled" value={results.length} />
+            <Metric label="Sampled" value={results.length} />
 
-            <Metric label="Reviewed" value={reviewedCount} />
+            <Metric label="Reviewed" value={reviewedCount} />
 
-            <Metric label="Rules only" value={results.filter((item) => item.proposal?.sources.interpretation.source === "rules" && item.proposal?.sources.teaching.source !== "luna").length} />
+            <Metric label="Rules only" value={results.filter((item) => item.proposal?.sources.interpretation.source === "rules" && item.proposal?.sources.teaching.source !== "luna").length} />
 
-            <Metric label="Luna used" value={results.filter((item) => item.proposal?.sources.interpretation.source === "luna" || item.proposal?.sources.teaching.source === "luna").length} />
+            <Metric label="Luna used" value={results.filter((item) => item.proposal?.sources.interpretation.source === "luna" || item.proposal?.sources.teaching.source === "luna").length} />
 
-            <Metric label="Needs review" value={results.filter((item) => item.status === "needs_review" || item.status === "invalid" || item.status === "failed").length} />
+            <Metric label="Needs review" value={results.filter((item) => item.status === "needs_review" || item.status === "invalid" || item.status === "failed").length} />
 
-          </section>
+          </section>
 
 
 
-          <section style={card}>
+          <section style={card}>
 
-            <div style={sectionHeader}>
+            <div style={sectionHeader}>
 
-              <div>
+              <div>
 
-                <p style={eyebrow}>PHASE 3A FILTER</p>
+                <p style={eyebrow}>PHASE 3A FILTER</p>
 
-                <h2 style={heading}>Quiz visual eligibility</h2>
+                <h2 style={heading}>Quiz visual eligibility</h2>
 
-                <p style={muted}>Only “Required V2” questions are allowed into automatic quiz diagram generation.</p>
+                <p style={muted}>Only “Required V2” questions are allowed into automatic quiz diagram generation.</p>
 
-              </div>
+              </div>
 
-            </div>
+            </div>
 
-            <div style={metricGrid}>
+            <div style={metricGrid}>
 
-              <Metric label="Required V2" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "required").length} />
+              <Metric label="Required V2" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "required").length} />
 
-              <Metric label="Existing media" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "existing_media").length} />
+              <Metric label="Existing media" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "existing_media").length} />
 
-              <Metric label="Optional media" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "optional_enrichment").length} />
+              <Metric label="Optional media" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "optional_enrichment").length} />
 
-              <Metric label="No visual" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "not_needed").length} />
+              <Metric label="No visual" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "not_needed").length} />
 
-              <Metric label="Missing media" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "missing_required_media").length} />
+              <Metric label="Missing media" value={results.filter((item) => item.proposal?.decision.quiz_visual_requirement === "missing_required_media").length} />
 
-            </div>
+            </div>
 
-          </section>
+          </section>
 
 
 
-          <section style={phase3CCard}>
+          <section style={phase3CCard}>
 
-            <div style={sectionHeader}>
+            <div style={sectionHeader}>
 
-              <div>
+              <div>
 
-                <p style={phase3CEyebrow}>PHASE 3C · DIAGRAM QA GATE</p>
+                <p style={phase3CEyebrow}>PHASE 3C · DIAGRAM QA GATE</p>
 
-                <h2 style={heading}>Review only the required learner-facing V2 diagrams</h2>
+                <h2 style={heading}>Review only the required learner-facing V2 diagrams</h2>
 
-                <p style={muted}>Teaching is deliberately excluded. A PASS means the quiz diagram is mathematically faithful, clear, age-appropriate and does not leak the answer.</p>
+                <p style={muted}>Teaching is deliberately excluded. A PASS means the quiz diagram is mathematically faithful, clear, age-appropriate and does not leak the answer.</p>
 
-              </div>
+              </div>
 
-              <span style={gatePill(quizVisualQASummary.gate_status)}>
+              <span style={gatePill(quizVisualQASummary.gate_status)}>
 
-                {mathQuizVisualQAGateLabel(quizVisualQASummary.gate_status)}
+                {mathQuizVisualQAGateLabel(quizVisualQASummary.gate_status)}
 
-              </span>
+              </span>
 
-            </div>
+            </div>
 
-            <div style={metricGrid}>
+            <div style={metricGrid}>
 
-              <Metric label="Required V2" value={quizVisualQASummary.required_v2} />
+              <Metric label="Required V2" value={quizVisualQASummary.required_v2} />
 
-              <Metric label="Generated safely" value={quizVisualQASummary.generated_visuals} />
+              <Metric label="Generated safely" value={quizVisualQASummary.generated_visuals} />
 
-              <Metric label="Reviewed" value={quizVisualQASummary.reviewed} />
+              <Metric label="Reviewed" value={quizVisualQASummary.reviewed} />
 
-              <Metric label="Pass" value={quizVisualQASummary.pass} />
+              <Metric label="Pass" value={quizVisualQASummary.pass} />
 
-              <Metric label="Minor" value={quizVisualQASummary.minor} />
+              <Metric label="Minor" value={quizVisualQASummary.minor} />
 
-              <Metric label="Fail" value={quizVisualQASummary.fail + quizVisualQASummary.visual_generation_failures} />
+              <Metric label="Fail" value={quizVisualQASummary.fail + quizVisualQASummary.visual_generation_failures} />
 
-            </div>
+            </div>
 
-            <div style={phase3CRules}>
+            <div style={phase3CRules}>
 
-              <strong>3C acceptance rules</strong>
+              <strong>3C acceptance rules</strong>
 
-              <span><b>PASS</b> — exact source meaning, correct labels/data/geometry, clear layout, no answer leak.</span>
+              <span><b>PASS</b> — exact source meaning, correct labels/data/geometry, clear layout, no answer leak.</span>
 
-              <span><b>MINOR</b> — mathematically correct but presentation needs polish.</span>
+              <span><b>MINOR</b> — mathematically correct but presentation needs polish.</span>
 
-              <span><b>FAIL</b> — wrong or misleading mathematics, missing required information, answer leak, or unusable visual.</span>
+              <span><b>FAIL</b> — wrong or misleading mathematics, missing required information, answer leak, or unusable visual.</span>
 
-            </div>
+            </div>
 
-            <div style={buttonRow}>
+            <div style={buttonRow}>
 
-              <button type="button" onClick={focusPhase3CReview} style={primaryButton}>Review required V2 only</button>
+              <button type="button" onClick={focusPhase3CReview} style={primaryButton}>Review required V2 only</button>
 
-              <button type="button" onClick={() => selectNextUnreviewedRequiredVisual()} disabled={quizVisualQASummary.unreviewed === 0} style={secondaryButton}>Next unreviewed 3C</button>
+              <button type="button" onClick={() => selectNextUnreviewedRequiredVisual()} disabled={quizVisualQASummary.unreviewed === 0} style={secondaryButton}>Next unreviewed 3C</button>
 
-              <button type="button" onClick={exportPhase3CReport} style={secondaryButton}>Export 3C diagram QA</button>
+              <button type="button" onClick={exportPhase3CReport} style={secondaryButton}>Export 3C diagram QA</button>
 
-            </div>
+            </div>
 
-          </section>
+          </section>
 
 
 
-                    <Phase4A2TeachingQA
-            qaExport={{
-              run_id: runId || null,
-              sample: sample as any,
-              results: results as any,
-            }}
-          />
+                    <Phase4A2TeachingQA
+            qaExport={{
+              run_id: runId || null,
+              sample: sample as any,
+              results: results as any,
+            }}
+          />
+
+          <Phase4A3TeachingContractQA
+            qaExport={{
+              run_id: runId || null,
+              sample: sample as any,
+              results: results as any,
+            }}
+          />
 
 <section style={card}>
 
-            <div style={sectionHeader}>
+            <div style={sectionHeader}>
 
-              <div>
+              <div>
 
-                <p style={eyebrow}>COVERAGE REPORT</p>
+                <p style={eyebrow}>COVERAGE REPORT</p>
 
-                <h2 style={heading}>Strategy performance</h2>
+                <h2 style={heading}>Strategy performance</h2>
 
-                <p style={muted}>Human verdicts are intentionally separate from automatic validator results.</p>
+                <p style={muted}>Human verdicts are intentionally separate from automatic validator results.</p>
 
-              </div>
+              </div>
 
-              <div style={buttonRow}>
+              <div style={buttonRow}>
 
-                <button type="button" onClick={exportReport} style={secondaryButton}>Export QA JSON</button>
+                <button type="button" onClick={exportReport} style={secondaryButton}>Export QA JSON</button>
 
-                <button
+                <button
 
-                  type="button"
+                  type="button"
 
-                  onClick={() => void completeRun()}
+                  onClick={() => void completeRun()}
 
-                  disabled={completing || reviewedCount < results.length}
+                  disabled={completing || reviewedCount < results.length}
 
-                  style={primaryButton}
+                  style={primaryButton}
 
-                  title={reviewedCount < results.length ? "Review every sampled item before completing the run." : undefined}
+                  title={reviewedCount < results.length ? "Review every sampled item before completing the run." : undefined}
 
-                >
+                >
 
-                  {completing ? "Completing…" : "Complete QA run"}
+                  {completing ? "Completing…" : "Complete QA run"}
 
-                </button>
+                </button>
 
-              </div>
+              </div>
 
-            </div>
+            </div>
 
-            <div style={tableWrap}>
+            <div style={tableWrap}>
 
-              <table style={table}>
+              <table style={table}>
 
-                <thead>
+                <thead>
 
-                  <tr>
+                  <tr>
 
-                    <th style={th}>Strategy</th>
+                    <th style={th}>Strategy</th>
 
-                    <th style={th}>N</th>
+                    <th style={th}>N</th>
 
-                    <th style={th}>Resolved</th>
+                    <th style={th}>Resolved</th>
 
-                    <th style={th}>Auto review</th>
+                    <th style={th}>Auto review</th>
 
-                    <th style={th}>Luna</th>
+                    <th style={th}>Luna</th>
 
-                    <th style={th}>Pass</th>
+                    <th style={th}>Pass</th>
 
-                    <th style={th}>Minor</th>
+                    <th style={th}>Minor</th>
 
-                    <th style={th}>Fail</th>
+                    <th style={th}>Fail</th>
 
-                  </tr>
+                  </tr>
 
-                </thead>
+                </thead>
 
-                <tbody>
+                <tbody>
 
-                  {strategySummary.map((row) => (
+                  {strategySummary.map((row) => (
 
-                    <tr key={row.strategy}>
+                    <tr key={row.strategy}>
 
-                      <td style={td}>
+                      <td style={td}>
 
-                        <button type="button" onClick={() => focusStrategy(row.strategy)} style={tableLinkButton}>
+                        <button type="button" onClick={() => focusStrategy(row.strategy)} style={tableLinkButton}>
 
-                          {row.strategy}
+                          {row.strategy}
 
-                        </button>
+                        </button>
 
-                      </td>
+                      </td>
 
-                      <td style={td}>{row.sampled}</td>
+                      <td style={td}>{row.sampled}</td>
 
-                      <td style={td}>
+                      <td style={td}>
 
-                        <button type="button" onClick={() => { setStrategyFilter(row.strategy); setStatusFilter("resolved"); setSourceFilter("all"); }} style={tableCountButton}>
+                        <button type="button" onClick={() => { setStrategyFilter(row.strategy); setStatusFilter("resolved"); setSourceFilter("all"); }} style={tableCountButton}>
 
-                          {row.generated}
+                          {row.generated}
 
-                        </button>
+                        </button>
 
-                      </td>
+                      </td>
 
-                      <td style={td}>
+                      <td style={td}>
 
-                        <button type="button" onClick={() => focusStrategy(row.strategy, "auto_review")} style={tableCountButton}>
+                        <button type="button" onClick={() => focusStrategy(row.strategy, "auto_review")} style={tableCountButton}>
 
-                          {row.needs_review + row.invalid_or_failed}
+                          {row.needs_review + row.invalid_or_failed}
 
-                        </button>
+                        </button>
 
-                      </td>
+                      </td>
 
-                      <td style={td}>
+                      <td style={td}>
 
-                        <button type="button" onClick={() => focusStrategy(row.strategy, "luna")} style={tableCountButton}>
+                        <button type="button" onClick={() => focusStrategy(row.strategy, "luna")} style={tableCountButton}>
 
-                          {row.luna_used}
+                          {row.luna_used}
 
-                        </button>
+                        </button>
 
-                      </td>
+                      </td>
 
-                      <td style={td}>{row.human_pass}</td>
+                      <td style={td}>{row.human_pass}</td>
 
-                      <td style={td}>{row.human_minor}</td>
+                      <td style={td}>{row.human_minor}</td>
 
-                      <td style={td}>{row.human_fail}</td>
+                      <td style={td}>{row.human_fail}</td>
 
-                    </tr>
+                    </tr>
 
-                  ))}
+                  ))}
 
-                </tbody>
+                </tbody>
 
-              </table>
+              </table>
 
-            </div>
+            </div>
 
-          </section>
+          </section>
 
 
 
-          <section style={card}>
+          <section style={card}>
 
-            <div style={sectionHeader}>
+            <div style={sectionHeader}>
 
-              <div>
+              <div>
 
-                <p style={eyebrow}>QA DRILL-DOWN</p>
+                <p style={eyebrow}>QA DRILL-DOWN</p>
 
-                <h2 style={heading}>Inspect the questions behind each result</h2>
+                <h2 style={heading}>Inspect the questions behind each result</h2>
 
-                <p style={muted}>Click a strategy, Resolved, Auto review or Luna count above, or filter directly below.</p>
+                <p style={muted}>Click a strategy, Resolved, Auto review or Luna count above, or filter directly below.</p>
 
-              </div>
+              </div>
 
-              <div style={buttonRow}>
+              <div style={buttonRow}>
 
-                <button type="button" onClick={focusPhase3CReview} style={secondaryButton}>3C required V2</button>
+                <button type="button" onClick={focusPhase3CReview} style={secondaryButton}>3C required V2</button>
 
-                <button type="button" onClick={() => { setStatusFilter("auto_review"); setSourceFilter("all"); }} style={secondaryButton}>Auto-review items</button>
+                <button type="button" onClick={() => { setStatusFilter("auto_review"); setSourceFilter("all"); }} style={secondaryButton}>Auto-review items</button>
 
-                <button type="button" onClick={() => { setSourceFilter("luna"); setStatusFilter("all"); }} style={secondaryButton}>Luna-used items</button>
+                <button type="button" onClick={() => { setSourceFilter("luna"); setStatusFilter("all"); }} style={secondaryButton}>Luna-used items</button>
 
-                <button type="button" onClick={clearQAFilters} style={secondaryButton}>Clear filters</button>
+                <button type="button" onClick={clearQAFilters} style={secondaryButton}>Clear filters</button>
 
-              </div>
+              </div>
 
-            </div>
+            </div>
 
-            <div style={filterGrid}>
+            <div style={filterGrid}>
 
-              <label style={label}>
+              <label style={label}>
 
-                Strategy
+                Strategy
 
-                <select value={strategyFilter} onChange={(event: any) => setStrategyFilter(event.target.value)} style={input}>
+                <select value={strategyFilter} onChange={(event: any) => setStrategyFilter(event.target.value)} style={input}>
 
-                  <option value="all">All strategies</option>
+                  <option value="all">All strategies</option>
 
-                  {strategySummary.map((row) => <option key={row.strategy} value={row.strategy}>{row.strategy}</option>)}
+                  {strategySummary.map((row) => <option key={row.strategy} value={row.strategy}>{row.strategy}</option>)}
 
-                </select>
+                </select>
 
-              </label>
+              </label>
 
-              <label style={label}>
+              <label style={label}>
 
-                Automatic status
+                Automatic status
 
-                <select value={statusFilter} onChange={(event: any) => setStatusFilter(event.target.value as QAStatusFilter)} style={input}>
+                <select value={statusFilter} onChange={(event: any) => setStatusFilter(event.target.value as QAStatusFilter)} style={input}>
 
-                  <option value="all">All statuses</option>
+                  <option value="all">All statuses</option>
 
-                  <option value="resolved">Resolved automatically</option>
+                  <option value="resolved">Resolved automatically</option>
 
-                  <option value="auto_review">Needs automatic review</option>
+                  <option value="auto_review">Needs automatic review</option>
 
-                  <option value="generated">Generated visual</option>
+                  <option value="generated">Generated visual</option>
 
-                  <option value="required_v2">Phase 3C · Required V2</option>
+                  <option value="required_v2">Phase 3C · Required V2</option>
 
-                  <option value="not_needed">No visual needed</option>
+                  <option value="not_needed">No visual needed</option>
 
-                  <option value="preserved">Preserved media</option>
+                  <option value="preserved">Preserved media</option>
 
-                  <option value="invalid_failed">Invalid / failed</option>
+                  <option value="invalid_failed">Invalid / failed</option>
 
-                </select>
+                </select>
 
-              </label>
+              </label>
 
-              <label style={label}>
+              <label style={label}>
 
-                Intelligence source
+                Intelligence source
 
-                <select value={sourceFilter} onChange={(event: any) => setSourceFilter(event.target.value as QASourceFilter)} style={input}>
+                <select value={sourceFilter} onChange={(event: any) => setSourceFilter(event.target.value as QASourceFilter)} style={input}>
 
-                  <option value="all">Rules + Luna</option>
+                  <option value="all">Rules + Luna</option>
 
-                  <option value="rules_only">Dreamscape rules only</option>
+                  <option value="rules_only">Dreamscape rules only</option>
 
-                  <option value="luna">Luna used</option>
+                  <option value="luna">Luna used</option>
 
-                </select>
+                </select>
 
-              </label>
+              </label>
 
-              <label style={label}>
+              <label style={label}>
 
-                Level
+                Level
 
-                <select value={levelFilter} onChange={(event: any) => setLevelFilter(event.target.value)} style={input}>
+                <select value={levelFilter} onChange={(event: any) => setLevelFilter(event.target.value)} style={input}>
 
-                  <option value="all">P1–P6</option>
+                  <option value="all">P1–P6</option>
 
-                  {[1,2,3,4,5,6].map((level) => <option key={level} value={String(level)}>P{level}</option>)}
+                  {[1,2,3,4,5,6].map((level) => <option key={level} value={String(level)}>P{level}</option>)}
 
-                </select>
+                </select>
 
-              </label>
+              </label>
 
-              <label style={label}>
+              <label style={label}>
 
-                Topic
+                Topic
 
-                <select value={topicFilter} onChange={(event: any) => setTopicFilter(event.target.value)} style={input}>
+                <select value={topicFilter} onChange={(event: any) => setTopicFilter(event.target.value)} style={input}>
 
-                  <option value="all">All topics</option>
+                  <option value="all">All topics</option>
 
-                  {topicOptions.map(([id, title]) => <option key={id} value={id}>{title}</option>)}
+                  {topicOptions.map(([id, title]) => <option key={id} value={id}>{title}</option>)}
 
-                </select>
+                </select>
 
-              </label>
+              </label>
 
-            </div>
+            </div>
 
-            <div style={filterSummary}>
+            <div style={filterSummary}>
 
-              <strong>{filteredSampleItems.length.toLocaleString()}</strong> of {sample.items.length.toLocaleString()} sampled questions shown
+              <strong>{filteredSampleItems.length.toLocaleString()}</strong> of {sample.items.length.toLocaleString()} sampled questions shown
 
-              <button type="button" onClick={selectNextFilteredQuestion} disabled={filteredSampleItems.length === 0} style={secondaryButton}>Next filtered question</button>
+              <button type="button" onClick={selectNextFilteredQuestion} disabled={filteredSampleItems.length === 0} style={secondaryButton}>Next filtered question</button>
 
-            </div>
+            </div>
 
-          </section>
+          </section>
 
 
 
-          <section style={qaGrid}>
+          <section style={qaGrid}>
 
-            <div style={questionList}>
+            <div style={questionList}>
 
-              {filteredSampleItems.map((item) => {
+              {filteredSampleItems.map((item) => {
 
-                const result = resultByQuestion.get(item.question_id);
+                const result = resultByQuestion.get(item.question_id);
 
-                const review = storedReviews.get(item.question_id);
+                const review = storedReviews.get(item.question_id);
 
-                const selected = selectedQuestionId === item.question_id;
+                const selected = selectedQuestionId === item.question_id;
 
-                return (
+                return (
 
-                  <button
+                  <button
 
-                    key={item.question_id}
+                    key={item.question_id}
 
-                    type="button"
+                    type="button"
 
-                    onClick={() => setSelectedQuestionId(item.question_id)}
+                    onClick={() => setSelectedQuestionId(item.question_id)}
 
-                    style={selected ? questionButtonActive : questionButton}
+                    style={selected ? questionButtonActive : questionButton}
 
-                  >
+                  >
 
-                    <span style={questionCode}>{item.question_code}</span>
+                    <span style={questionCode}>{item.question_code}</span>
 
-                    <span style={questionMeta}>P{item.primary_level} · {item.topic_title}</span>
+                    <span style={questionMeta}>P{item.primary_level} · {item.topic_title}</span>
 
-                    <span style={questionPrompt}>{item.prompt}</span>
+                    <span style={questionPrompt}>{item.prompt}</span>
 
-                    <span style={pillRow}>
+                    <span style={pillRow}>
 
-                      <small style={miniPill}>{item.sample_stratum.replaceAll("_", " ")}</small>
+                      <small style={miniPill}>{item.sample_stratum.replaceAll("_", " ")}</small>
 
-                      <small style={miniPill}>{result?.proposal?.decision.strategy || "not run"}</small>
+                      <small style={miniPill}>{result?.proposal?.decision.strategy || "not run"}</small>
 
-                      {result?.proposal ? (
+                      {result?.proposal ? (
 
-                        <small style={miniPill}>Quiz: {(result.proposal.decision.quiz_visual_requirement || result.proposal.decision.visual_need).replaceAll("_", " ")}</small>
+                        <small style={miniPill}>Quiz: {(result.proposal.decision.quiz_visual_requirement || result.proposal.decision.visual_need).replaceAll("_", " ")}</small>
 
-                      ) : null}
+                      ) : null}
 
-                      <small style={miniPill}>{result?.status || "not run"}</small>
+                      <small style={miniPill}>{result?.status || "not run"}</small>
 
-                      <small style={miniPill}>{!result?.proposal ? "No proposal" : (result.proposal.sources.interpretation.source === "luna" || result.proposal.sources.teaching.source === "luna") ? "Luna used" : "Rules only"}</small>
+                      <small style={miniPill}>{!result?.proposal ? "No proposal" : (result.proposal.sources.interpretation.source === "luna" || result.proposal.sources.teaching.source === "luna") ? "Luna used" : "Rules only"}</small>
 
-                      <small style={reviewPill(review?.verdict || "unreviewed")}>{review?.verdict || "unreviewed"}</small>
+                      <small style={reviewPill(review?.verdict || "unreviewed")}>{review?.verdict || "unreviewed"}</small>
 
-                    </span>
+                    </span>
 
-                  </button>
+                  </button>
 
-                );
+                );
 
-              })}
+              })}
 
-            </div>
+            </div>
 
 
 
-            <div style={detailPane}>
+            <div style={detailPane}>
 
-              {selectedSampleItem && selectedResult?.proposal ? (
+              {selectedSampleItem && selectedResult?.proposal ? (
 
-                <>
+                <>
 
-                  <div style={questionSourceCard}>
+                  <div style={questionSourceCard}>
 
-                    <strong>{selectedSampleItem.question_code}</strong>
+                    <strong>{selectedSampleItem.question_code}</strong>
 
-                    <span>P{selectedSampleItem.primary_level} · {selectedSampleItem.topic_title}</span>
+                    <span>P{selectedSampleItem.primary_level} · {selectedSampleItem.topic_title}</span>
 
-                    <span>{selectedSampleItem.quiz_code || "Quiz"} · {selectedSampleItem.quiz_title || ""}</span>
+                    <span>{selectedSampleItem.quiz_code || "Quiz"} · {selectedSampleItem.quiz_title || ""}</span>
 
-                    <p>{selectedSampleItem.prompt}</p>
+                    <p>{selectedSampleItem.prompt}</p>
 
-                  </div>
+                  </div>
 
-                  <MathIntelligenceProposalPreview
+                  <MathIntelligenceProposalPreview
 
-                    proposal={selectedResult.proposal}
+                    proposal={selectedResult.proposal}
 
-                    diagramOnly={isMathQuizVisualQAItem(selectedResult)}
+                    diagramOnly={isMathQuizVisualQAItem(selectedResult)}
 
-                  />
+                  />
 
-                  {selectedReview ? (
+                  {selectedReview ? (
 
-                    <QAReviewEditor
+                    <QAReviewEditor
 
-                      key={`${selectedReview.id}-${selectedReview.reviewed_at || "new"}`}
+                      key={`${selectedReview.id}-${selectedReview.reviewed_at || "new"}`}
 
-                      review={selectedReview}
+                      review={selectedReview}
 
-                      busy={savingReview}
+                      busy={savingReview}
 
-                      diagramOnly={isMathQuizVisualQAItem(selectedResult)}
+                      diagramOnly={isMathQuizVisualQAItem(selectedResult)}
 
-                      onSave={saveReview}
+                      onSave={saveReview}
 
-                      onSavedNext={() => selectNextUnreviewedRequiredVisual(selectedQuestionId)}
+                      onSavedNext={() => selectNextUnreviewedRequiredVisual(selectedQuestionId)}
 
-                    />
+                    />
 
-                  ) : null}
+                  ) : null}
 
-                </>
+                </>
 
-              ) : selectedSampleItem && selectedResult ? (
+              ) : selectedSampleItem && selectedResult ? (
 
-                <>
+                <>
 
-                  <div style={questionSourceCard}>
+                  <div style={questionSourceCard}>
 
-                    <strong>{selectedSampleItem.question_code}</strong>
+                    <strong>{selectedSampleItem.question_code}</strong>
 
-                    <span>P{selectedSampleItem.primary_level} · {selectedSampleItem.topic_title}</span>
+                    <span>P{selectedSampleItem.primary_level} · {selectedSampleItem.topic_title}</span>
 
-                    <p>{selectedSampleItem.prompt}</p>
+                    <p>{selectedSampleItem.prompt}</p>
 
-                  </div>
+                  </div>
 
-                  <div style={errorBanner}>{selectedResult.error?.message || "No proposal was generated for this question."}</div>
+                  <div style={errorBanner}>{selectedResult.error?.message || "No proposal was generated for this question."}</div>
 
-                  {selectedReview ? (
+                  {selectedReview ? (
 
-                    <QAReviewEditor
+                    <QAReviewEditor
 
-                      key={`${selectedReview.id}-${selectedReview.reviewed_at || "new"}`}
+                      key={`${selectedReview.id}-${selectedReview.reviewed_at || "new"}`}
 
-                      review={selectedReview}
+                      review={selectedReview}
 
-                      busy={savingReview}
+                      busy={savingReview}
 
-                      diagramOnly={false}
+                      diagramOnly={false}
 
-                      onSave={saveReview}
+                      onSave={saveReview}
 
-                    />
+                    />
 
-                  ) : null}
+                  ) : null}
 
-                </>
+                </>
 
-              ) : (
+              ) : (
 
-                <div style={emptyState}>Select a generated sample question to review its diagram and Teaching steps.</div>
+                <div style={emptyState}>Select a generated sample question to review its diagram and Teaching steps.</div>
 
-              )}
+              )}
 
-            </div>
+            </div>
 
-          </section>
+          </section>
 
-        </>
+        </>
 
-      ) : null}
+      ) : null}
 
-    </div>
+    </div>
 
-  );
+  );
 
 }
 
@@ -1842,167 +1851,167 @@ export default function MathIntelligenceQAView() {
 
 function QAReviewEditor({
 
-  review,
+  review,
 
-  busy,
+  busy,
 
-  diagramOnly = false,
+  diagramOnly = false,
 
-  onSave,
+  onSave,
 
-  onSavedNext,
+  onSavedNext,
 
 }: {
 
-  review: StoredReview;
+  review: StoredReview;
 
-  busy: boolean;
+  busy: boolean;
 
-  diagramOnly?: boolean;
+  diagramOnly?: boolean;
 
-  onSave: (verdict: MathQAVerdict, issues: MathQAIssueCode[], notes: string) => Promise<void>;
+  onSave: (verdict: MathQAVerdict, issues: MathQAIssueCode[], notes: string) => Promise<void>;
 
-  onSavedNext?: () => void;
+  onSavedNext?: () => void;
 
 }) {
 
-  const [verdict, setVerdict] = useState<MathQAVerdict>(review.verdict);
+  const [verdict, setVerdict] = useState<MathQAVerdict>(review.verdict);
 
-  const [issues, setIssues] = useState<MathQAIssueCode[]>(review.issue_codes);
+  const [issues, setIssues] = useState<MathQAIssueCode[]>(review.issue_codes);
 
-  const [notes, setNotes] = useState(review.reviewer_notes);
+  const [notes, setNotes] = useState(review.reviewer_notes);
 
 
 
-  function toggleIssue(code: MathQAIssueCode) {
+  function toggleIssue(code: MathQAIssueCode) {
 
-    setIssues((current) => current.includes(code) ? current.filter((item) => item !== code) : [...current, code]);
+    setIssues((current) => current.includes(code) ? current.filter((item) => item !== code) : [...current, code]);
 
-  }
+  }
 
 
 
-  return (
+  return (
 
-    <div style={reviewCard}>
+    <div style={reviewCard}>
 
-      <div>
+      <div>
 
-        <p style={eyebrow}>HUMAN QA VERDICT</p>
+        <p style={eyebrow}>HUMAN QA VERDICT</p>
 
-        <div style={verdictRow}>
+        <div style={verdictRow}>
 
-          {(["pass", "minor", "fail", "not_applicable"] as MathQAVerdict[]).map((value) => (
+          {(["pass", "minor", "fail", "not_applicable"] as MathQAVerdict[]).map((value) => (
 
-            <button
+            <button
 
-              key={value}
+              key={value}
 
-              type="button"
+              type="button"
 
-              onClick={() => setVerdict(value)}
+              onClick={() => setVerdict(value)}
 
-              style={verdict === value ? verdictButtonActive : verdictButton}
+              style={verdict === value ? verdictButtonActive : verdictButton}
 
-            >
+            >
 
-              {value.replaceAll("_", " ")}
+              {value.replaceAll("_", " ")}
 
-            </button>
+            </button>
 
-          ))}
+          ))}
 
-        </div>
+        </div>
 
-      </div>
+      </div>
 
-      <div style={issueGrid}>
+      <div style={issueGrid}>
 
-        {ISSUE_OPTIONS.filter((option) => !diagramOnly || DIAGRAM_ISSUE_CODES.has(option.code)).map((option) => (
+        {ISSUE_OPTIONS.filter((option) => !diagramOnly || DIAGRAM_ISSUE_CODES.has(option.code)).map((option) => (
 
-          <label key={option.code} style={issueLabel}>
+          <label key={option.code} style={issueLabel}>
 
-            <input
+            <input
 
-              type="checkbox"
+              type="checkbox"
 
-              checked={issues.includes(option.code)}
+              checked={issues.includes(option.code)}
 
-              onChange={() => toggleIssue(option.code)}
+              onChange={() => toggleIssue(option.code)}
 
-            />
+            />
 
-            {option.label}
+            {option.label}
 
-          </label>
+          </label>
 
-        ))}
+        ))}
 
-      </div>
+      </div>
 
-      <textarea
+      <textarea
 
-        value={notes}
+        value={notes}
 
-        onChange={(event: any) => setNotes(event.target.value)}
+        onChange={(event: any) => setNotes(event.target.value)}
 
-        placeholder={diagramOnly ? "What is wrong or what needs polishing in the quiz diagram?" : "Optional reviewer notes"}
+        placeholder={diagramOnly ? "What is wrong or what needs polishing in the quiz diagram?" : "Optional reviewer notes"}
 
-        rows={3}
+        rows={3}
 
-        style={textarea}
+        style={textarea}
 
-      />
+      />
 
-      <div style={buttonRow}>
+      <div style={buttonRow}>
 
-        <button
+        <button
 
-          type="button"
+          type="button"
 
-          disabled={busy || verdict === "unreviewed"}
+          disabled={busy || verdict === "unreviewed"}
 
-          onClick={() => void onSave(verdict, issues, notes)}
+          onClick={() => void onSave(verdict, issues, notes)}
 
-          style={primaryButton}
+          style={primaryButton}
 
-        >
+        >
 
-          {busy ? "Saving QA…" : diagramOnly ? "Save 3C verdict" : "Save QA verdict"}
+          {busy ? "Saving QA…" : diagramOnly ? "Save 3C verdict" : "Save QA verdict"}
 
-        </button>
+        </button>
 
-        {diagramOnly && onSavedNext ? (
+        {diagramOnly && onSavedNext ? (
 
-          <button
+          <button
 
-            type="button"
+            type="button"
 
-            disabled={busy || verdict === "unreviewed"}
+            disabled={busy || verdict === "unreviewed"}
 
-            onClick={async () => {
+            onClick={async () => {
 
-              await onSave(verdict, issues, notes);
+              await onSave(verdict, issues, notes);
 
-              onSavedNext();
+              onSavedNext();
 
-            }}
+            }}
 
-            style={secondaryButton}
+            style={secondaryButton}
 
-          >
+          >
 
-            Save & next 3C
+            Save & next 3C
 
-          </button>
+          </button>
 
-        ) : null}
+        ) : null}
 
-      </div>
+      </div>
 
-    </div>
+    </div>
 
-  );
+  );
 
 }
 
@@ -2010,67 +2019,67 @@ function QAReviewEditor({
 
 function buildStrategySummary(
 
-  results: MathAuthoringBatchItem[],
+  results: MathAuthoringBatchItem[],
 
-  reviews: Map<string, StoredReview>,
+  reviews: Map<string, StoredReview>,
 
 ): MathQAStrategySummary[] {
 
-  const byStrategy = new Map<string, MathQAStrategySummary>();
+  const byStrategy = new Map<string, MathQAStrategySummary>();
 
-  for (const item of results) {
+  for (const item of results) {
 
-    const strategy = item.proposal?.decision.strategy || "generation_failed";
+    const strategy = item.proposal?.decision.strategy || "generation_failed";
 
-    const row = byStrategy.get(strategy) || {
+    const row = byStrategy.get(strategy) || {
 
-      strategy,
+      strategy,
 
-      sampled: 0,
+      sampled: 0,
 
-      generated: 0,
+      generated: 0,
 
-      needs_review: 0,
+      needs_review: 0,
 
-      invalid_or_failed: 0,
+      invalid_or_failed: 0,
 
-      luna_used: 0,
+      luna_used: 0,
 
-      human_pass: 0,
+      human_pass: 0,
 
-      human_minor: 0,
+      human_minor: 0,
 
-      human_fail: 0,
+      human_fail: 0,
 
-      unreviewed: 0,
+      unreviewed: 0,
 
-    };
+    };
 
-    row.sampled += 1;
+    row.sampled += 1;
 
-    if (item.status === "generated" || item.status === "not_needed" || item.status === "preserved") row.generated += 1;
+    if (item.status === "generated" || item.status === "not_needed" || item.status === "preserved") row.generated += 1;
 
-    if (item.status === "needs_review") row.needs_review += 1;
+    if (item.status === "needs_review") row.needs_review += 1;
 
-    if (item.status === "invalid" || item.status === "failed") row.invalid_or_failed += 1;
+    if (item.status === "invalid" || item.status === "failed") row.invalid_or_failed += 1;
 
-    if (item.proposal?.sources.interpretation.source === "luna" || item.proposal?.sources.teaching.source === "luna") row.luna_used += 1;
+    if (item.proposal?.sources.interpretation.source === "luna" || item.proposal?.sources.teaching.source === "luna") row.luna_used += 1;
 
-    const verdict = reviews.get(item.client_id)?.verdict || "unreviewed";
+    const verdict = reviews.get(item.client_id)?.verdict || "unreviewed";
 
-    if (verdict === "pass") row.human_pass += 1;
+    if (verdict === "pass") row.human_pass += 1;
 
-    else if (verdict === "minor") row.human_minor += 1;
+    else if (verdict === "minor") row.human_minor += 1;
 
-    else if (verdict === "fail") row.human_fail += 1;
+    else if (verdict === "fail") row.human_fail += 1;
 
-    else row.unreviewed += 1;
+    else row.unreviewed += 1;
 
-    byStrategy.set(strategy, row);
+    byStrategy.set(strategy, row);
 
-  }
+  }
 
-  return [...byStrategy.values()].sort((left, right) => right.sampled - left.sampled || left.strategy.localeCompare(right.strategy));
+  return [...byStrategy.values()].sort((left, right) => right.sampled - left.sampled || left.strategy.localeCompare(right.strategy));
 
 }
 
@@ -2078,17 +2087,17 @@ function buildStrategySummary(
 
 function Metric({ label, value }: { label: string; value: number }) {
 
-  return (
+  return (
 
-    <div style={metricCard}>
+    <div style={metricCard}>
 
-      <strong style={metricValue}>{value.toLocaleString()}</strong>
+      <strong style={metricValue}>{value.toLocaleString()}</strong>
 
-      <span style={metricLabel}>{label}</span>
+      <span style={metricLabel}>{label}</span>
 
-    </div>
+    </div>
 
-  );
+  );
 
 }
 
@@ -2096,21 +2105,21 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function reviewPill(verdict: MathQAVerdict): CSSProperties {
 
-  const colors: Record<MathQAVerdict, string> = {
+  const colors: Record<MathQAVerdict, string> = {
 
-    unreviewed: "#94A3B8",
+    unreviewed: "#94A3B8",
 
-    pass: "#86EFAC",
+    pass: "#86EFAC",
 
-    minor: "#FDE68A",
+    minor: "#FDE68A",
 
-    fail: "#FCA5A5",
+    fail: "#FCA5A5",
 
-    not_applicable: "#C4B5FD",
+    not_applicable: "#C4B5FD",
 
-  };
+  };
 
-  return { ...miniPill, color: colors[verdict] };
+  return { ...miniPill, color: colors[verdict] };
 
 }
 
@@ -2132,9 +2141,9 @@ const phase3CRules: CSSProperties = { display: "grid", gap: 5, padding: 12, bord
 
 function gatePill(status: ReturnType<typeof buildMathQuizVisualQASummary>["gate_status"]): CSSProperties {
 
-  const color = status === "ready" ? "#86EFAC" : status === "blocked" ? "#FCA5A5" : status === "needs_polish" ? "#FDE68A" : "#93C5FD";
+  const color = status === "ready" ? "#86EFAC" : status === "blocked" ? "#FCA5A5" : status === "needs_polish" ? "#FDE68A" : "#93C5FD";
 
-  return { border: `1px solid ${color}66`, color, background: `${color}14`, borderRadius: 999, padding: "7px 10px", fontSize: 10, fontWeight: 900, letterSpacing: ".08em" };
+  return { border: `1px solid ${color}66`, color, background: `${color}14`, borderRadius: 999, padding: "7px 10px", fontSize: 10, fontWeight: 900, letterSpacing: ".08em" };
 
 }
 

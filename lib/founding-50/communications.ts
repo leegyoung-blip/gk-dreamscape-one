@@ -1,6 +1,7 @@
 import { adminDb, safeError } from "@/lib/founding-50/server";
 import { decryptInviteToken, publicOrigin } from "@/lib/founding-50/invite-crypto";
 import { htmlEscape } from "@/lib/founding-50/email";
+import { founding50ResendApiKey, founding50ResendSender } from "@/lib/founding-50/resend-config";
 
 type MailKind =
   | "application_received" | "invitation" | "invite_reminder_3d" | "invite_reminder_1d"
@@ -155,9 +156,9 @@ function renderHtml(draft: MailDraft): string {
 }
 
 async function submitEmail(to: string, draft: MailDraft, idempotency: string) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL;
-  if (!apiKey || !from) throw new Error("Resend API key or verified sender is not configured");
+  const apiKey = founding50ResendApiKey();
+  const from = founding50ResendSender();
+  if (!apiKey) throw new Error("RESEND_API_KEY is missing on the server");
   const result = await fetch("https://api.resend.com/emails", {
     method: "POST", cache: "no-store",
     headers: {

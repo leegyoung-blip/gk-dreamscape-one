@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { adminDb, authorizedAdmin, safeError } from "@/lib/founding-50/server";
 import { encryptInviteToken, publicOrigin } from "@/lib/founding-50/invite-crypto";
 import { deliverQueuedF50Mail } from "@/lib/founding-50/communications";
+import { founding50ResendApiKey } from "@/lib/founding-50/resend-config";
 export const runtime = "nodejs";
 
 /** Approve + reserve a seat + queue invitation in ONE database transaction. */
@@ -11,8 +12,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
     publicOrigin(); // Fail before reserving a seat if activation links cannot be created.
-    if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
-      return NextResponse.json({ error: "Configure Resend before sending invitations." }, { status: 503 });
+    // Use Dreamscape's working RESEND_API_KEY + RESEND_FROM configuration.
+    // A verified sender fallback is resolved by founding50ResendSender() when sending.
+    if (!founding50ResendApiKey()) {
+      return NextResponse.json({ error: "RESEND_API_KEY is missing on the server." }, { status: 503 });
     }
     const token = randomBytes(32).toString("base64url");
     const hash = createHash("sha256").update(token).digest("hex");
