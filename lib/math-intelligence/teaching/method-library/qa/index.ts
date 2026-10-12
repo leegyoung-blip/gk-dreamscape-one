@@ -6,3 +6,5 @@ export * from "./types4B3";
 export * from "./runPhase4B3NumberArithmeticLibraryAudit";
 export * from "./types4B4";
 export * from "./runPhase4B4WordProblemHeuristicsAudit";
+export * from "./types4B5";
+export * from "./runPhase4B5RationalNumberAudit";
