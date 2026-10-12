@@ -15,7 +15,7 @@ type MailKind =
   | "application_received" | "invitation" | "invite_reminder_3d" | "invite_reminder_1d"
   | "waitlisted" | "declined"
   | "beta_welcome" | "beta_checkin_day7" | "beta_feedback_day23"
-  | "beta_feedback_reminder_day27" | "beta_feedback_received" | "beta_complete";
+  | "beta_feedback_reminder_day27" | "beta_feedback_manual" | "beta_feedback_received" | "beta_complete";
 type Claimed = {
   mail_id: string; app_id: string; mail_kind: MailKind;
   mail_generation: number; claim_token: string; attempt_number: number;
@@ -150,6 +150,7 @@ function draftFor(kind: MailKind, app: Application): MailDraft | null {
     if (
       kind === "beta_feedback_day23" ||
       kind === "beta_feedback_reminder_day27" ||
+      kind === "beta_feedback_manual" ||
       kind === "beta_feedback_received" ||
       kind === "beta_complete"
     ) {
@@ -160,10 +161,13 @@ function draftFor(kind: MailKind, app: Application): MailDraft | null {
           (app.survey_completed_at || now < start + 23 * day || now >= start + 27 * day)) return null;
       if (kind === "beta_feedback_reminder_day27" &&
           (app.survey_completed_at || now < start + 27 * day || now >= end)) return null;
+      if (kind === "beta_feedback_manual" &&
+          (app.survey_completed_at || now < start + 23 * day || now >= end)) return null;
       if (kind === "beta_feedback_received" && !app.survey_completed_at) return null;
       if (kind === "beta_complete" && (now < end || now >= end + 7 * day)) return null;
       const followup = renderFounding50SurveyMail({
-        kind: kind as Founding50SurveyMailKind,
+        // The manual send reuses the approved invitation wording, even after Day 27.
+        kind: (kind === "beta_feedback_manual" ? "beta_feedback_day23" : kind) as Founding50SurveyMailKind,
         studentName: name,
         origin: publicOrigin(),
         betaEndsAt: app.beta_ends_at,
@@ -265,7 +269,7 @@ export async function deliverQueuedF50Mail(options: { limit?: number; applicatio
       // when survey_completed_at was never populated. Treat such families as
       // completed and prevent an unnecessary Day-23/Day-27 reminder. This check
       // also covers scheduled but unsent jobs following a late survey response.
-      if (["beta_feedback_day23", "beta_feedback_reminder_day27", "beta_feedback_received", "beta_complete"].includes(kind)) {
+      if (["beta_feedback_day23", "beta_feedback_reminder_day27", "beta_feedback_manual", "beta_feedback_received", "beta_complete"].includes(kind)) {
         const { data: feedbackRow, error: feedbackError } = await db
           .from("founding_50_feedback")
           .select("application_id")

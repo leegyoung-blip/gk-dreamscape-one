@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
+import Founding50FeedbackTab from "./Founding50FeedbackTab";
 
 type ApplicantStatus = "pending" | "approved" | "invited" | "activated" | "waitlisted" | "declined";
 type Application = {
@@ -22,6 +23,7 @@ const filters=["all","pending","invited","activated","approved","waitlisted","de
 const actions={waitlisted:"Waitlist",declined:"Decline",pending:"Back to Pending",approved:"Mark Approved"} as const;
 
 export default function Founding50AdminPanel(){
+  const [activeView,setActiveView]=useState<"applications"|"feedback">("applications");
   const [filter,setFilter]=useState("all");
   const [query,setQuery]=useState("");
   const [applications,setApplications]=useState<Application[]>([]);
@@ -150,6 +152,15 @@ export default function Founding50AdminPanel(){
         </div>
         <button onClick={()=>void load(filter)} type="button" style={outlineBtn}>Refresh</button>
       </div>
+      <div role="tablist" aria-label="Founding 50 admin sections" style={{display:"flex",gap:10,marginTop:22,flexWrap:"wrap"}}>
+        <button type="button" role="tab" aria-selected={activeView==="applications"}
+          onClick={()=>setActiveView("applications")}
+          style={{...outlineBtn,background:activeView==="applications"?"#7655AF":"rgba(255,255,255,.04)"}}>Applications & Invitations</button>
+        <button type="button" role="tab" aria-selected={activeView==="feedback"}
+          onClick={()=>setActiveView("feedback")}
+          style={{...outlineBtn,background:activeView==="feedback"?"#7655AF":"rgba(255,255,255,.04)"}}>Feedback & Insights</button>
+      </div>
+      {activeView === "applications" && <>
       {!forbidden && <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:13,marginTop:25}}>
         <Stat label="Activated" number={`${seats.activated_count}`} note="Permanent beta places"/>
         <Stat label="Reserved" number={`${seats.reserved_count}`} note="Unexpired invitations"/>
@@ -168,7 +179,7 @@ export default function Founding50AdminPanel(){
           background:filter===f?"linear-gradient(90deg,#8ee8ff,#c58cff)":"rgba(255,255,255,.04)",
           color:filter===f?"#100622":"white",border:filter===f?"none":outlineBtn.border,
         }}>{f.toUpperCase()}</button>)}
-        <input aria-label="Search applicants" value={query} onChange={e=>setQuery(e.target.value)}
+        <input aria-label="Search applicants" value={query} onChange={(e:{target:{value:string}})=>setQuery(e.target.value)}
           placeholder="Search student or email" style={{...inputStyle,maxWidth:280,marginLeft:"auto"}}/>
       </div>
       {message&&<p role="status" style={{padding:14,background:"rgba(142,232,255,.09)",border:"1px solid rgba(142,232,255,.24)",borderRadius:16,color:"#aceafe"}}>{message}</p>}
@@ -203,7 +214,7 @@ export default function Founding50AdminPanel(){
             </div>
             {expandedId===a.id&&<div style={{marginTop:21,paddingTop:20,borderTop:"1px solid rgba(255,255,255,.13)"}}>
               <label htmlFor={`notes-${a.id}`} style={{fontSize:12,fontWeight:800,color:"#b9c9db",letterSpacing:".06em"}}>ADMIN NOTES</label>
-              <textarea id={`notes-${a.id}`} value={notes[a.id]??a.admin_notes??""} onChange={e=>setNotes(p=>({...p,[a.id]:e.target.value}))}
+              <textarea id={`notes-${a.id}`} value={notes[a.id]??a.admin_notes??""} onChange={(e:{target:{value:string}})=>setNotes(p=>({...p,[a.id]:e.target.value}))}
                 rows={3} style={{...inputStyle,width:"100%",display:"block",resize:"vertical",marginTop:10,minHeight:90}} />
               <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:10}}>
                 <button type="button" disabled={busy} style={outlineBtn} onClick={()=>void saveNotes(a)}>Save notes</button>
@@ -230,6 +241,8 @@ export default function Founding50AdminPanel(){
           </section>;
         })}
       </div>}
+      </>}
+      {activeView === "feedback" && !forbidden && <Founding50FeedbackTab />}
     </div>
   </section>;
 }
