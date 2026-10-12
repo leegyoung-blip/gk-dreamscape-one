@@ -4,3 +4,5 @@ export * from "./types4B2";
 export * from "./runPhase4B2SchemaGovernanceAudit";
 export * from "./types4B3";
 export * from "./runPhase4B3NumberArithmeticLibraryAudit";
+export * from "./types4B4";
+export * from "./runPhase4B4WordProblemHeuristicsAudit";
