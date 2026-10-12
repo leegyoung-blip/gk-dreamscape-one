@@ -10,3 +10,5 @@ export * from "./types4B5";
 export * from "./runPhase4B5RationalNumberAudit";
 export * from "./types4B6";
 export * from "./runPhase4B6MeasurementGeometryDataAudit";
+export * from "./types4B7";
+export * from "./runPhase4B7LibraryClosureAuditFromExport";

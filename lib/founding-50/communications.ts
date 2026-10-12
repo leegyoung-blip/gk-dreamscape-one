@@ -2,6 +2,7 @@ import { adminDb, safeError } from "@/lib/founding-50/server";
 import { decryptInviteToken, publicOrigin } from "@/lib/founding-50/invite-crypto";
 import { htmlEscape } from "@/lib/founding-50/email";
 import { renderFounding50WelcomeEmail } from "@/lib/founding-50/welcome-email";
+import { renderFounding50SurveyMail, type Founding50SurveyMailKind } from "@/lib/founding-50/followup-emails";
 import {
   FOUNDING50_ADMIN_NOTIFICATION_TO,
   founding50ResendApiKey,
@@ -32,7 +33,7 @@ type Application = {
 type MailDraft = {
   subject: string; heading: string; body: string; actionUrl?: string; actionLabel?: string;
   audience?: "admin" | "applicant";
-  // Only beta_welcome overrides the default reusable F50 email shell.
+  // Onboarding and Phase 3B surveys override the reusable F50 email shell.
   html?: string; text?: string;
 };
 
@@ -146,46 +147,34 @@ function draftFor(kind: MailKind, app: Application): MailDraft | null {
         actionUrl: benefits, actionLabel: "Continue exploring →",
       };
     }
-    if (kind === "beta_feedback_day23") {
-      if (app.survey_completed_at || now < start + 23 * day || now >= start + 27 * day) return null;
+    if (
+      kind === "beta_feedback_day23" ||
+      kind === "beta_feedback_reminder_day27" ||
+      kind === "beta_feedback_received" ||
+      kind === "beta_complete"
+    ) {
+      // Check current state at dispatch as well as in the SQL scheduler.
+      // This is especially important when a family submits their feedback
+      // after their Day-27 reminder has already been queued.
+      if (kind === "beta_feedback_day23" &&
+          (app.survey_completed_at || now < start + 23 * day || now >= start + 27 * day)) return null;
+      if (kind === "beta_feedback_reminder_day27" &&
+          (app.survey_completed_at || now < start + 27 * day || now >= end)) return null;
+      if (kind === "beta_feedback_received" && !app.survey_completed_at) return null;
+      if (kind === "beta_complete" && (now < end || now >= end + 7 * day)) return null;
+      const followup = renderFounding50SurveyMail({
+        kind: kind as Founding50SurveyMailKind,
+        studentName: name,
+        origin: publicOrigin(),
+        betaEndsAt: app.beta_ends_at,
+        surveyCompleted: !!app.survey_completed_at,
+      });
       return {
-        subject: "Founding 50 — Your short feedback survey is ready",
-        heading: "Your feedback helps shape Dreamscape.",
-        body: `Thank you for exploring NOVA+ with ${name}. During your final beta week, please share your experience in our short parent survey. Completion of the survey is required to qualify for the Founding 50 post-launch subscription discount.`,
-        actionUrl: feedback, actionLabel: "Complete my feedback →",
-      };
-    }
-    if (kind === "beta_feedback_reminder_day27") {
-      if (app.survey_completed_at || now < start + 27 * day || now >= end) return null;
-      return {
-        subject: "Founding 50 — A quick feedback reminder",
-        heading: "We'd love to hear from you.",
-        body: `Just a quick reminder to share your feedback on ${name}'s NOVA+ experience. The survey takes only a few minutes. Completing the beta and survey qualifies your family for the Founding 50 six-month launch discount, subject to the programme terms.`,
-        actionUrl: feedback, actionLabel: "Share my feedback →",
-      };
-    }
-    if (kind === "beta_feedback_received") {
-      if (!app.survey_completed_at) return null;
-      return {
-        subject: "Founding 50 — Thank you for your feedback",
-        heading: "Your feedback is in.",
-        body: `Thank you for completing ${name}'s Founding 50 survey. Your input helps us improve Dreamscape. Once the full 30-day beta is complete, you can check your benefits page for any launch discount eligibility. There is no automatic paid subscription.`,
-        actionUrl: benefits, actionLabel: "View my benefits →",
-      };
-    }
-    if (kind === "beta_complete") {
-      if (now < end || now >= end + 7 * day) return null;
-      if (app.survey_completed_at) return {
-        subject: "Founding 50 — Thank you for being part of our beta",
-        heading: "You've completed your Founding 50 beta.",
-        body: `Thank you for helping us shape Dreamscape with ${name}. Your complimentary NOVA+ beta has ended and no subscription has started automatically. You have completed the survey and can check the benefits page for your 30% six-month NOVA+ launch discount eligibility, subject to the programme terms.`,
-        actionUrl: benefits, actionLabel: "View my launch benefits →",
-      };
-      return {
-        subject: "Founding 50 — Thank you for being part of our beta",
-        heading: "Your 30-day beta has ended.",
-        body: `Thank you for trying NOVA+ with ${name}. Your complimentary access has ended and no paid subscription has started. If you haven't completed the short parent feedback survey, you can still submit it to qualify for the Founding 50 launch discount under the programme terms.`,
-        actionUrl: feedback, actionLabel: "Complete the feedback survey →",
+        subject: followup.subject,
+        heading: followup.subject,
+        body: followup.text,
+        html: followup.html,
+        text: followup.text,
       };
     }
     return null;
@@ -270,6 +259,23 @@ export async function deliverQueuedF50Mail(options: { limit?: number; applicatio
           Date.parse(entitlement.ends_at) > now;
         if (!isLinked || !hasCurrentAccess) {
           throw new Error("NOVA+ beta entitlement is not yet verifiable for welcome email");
+        }
+      }
+      // Phase 3B: older imported/legacy surveys may have a feedback row even
+      // when survey_completed_at was never populated. Treat such families as
+      // completed and prevent an unnecessary Day-23/Day-27 reminder. This check
+      // also covers scheduled but unsent jobs following a late survey response.
+      if (["beta_feedback_day23", "beta_feedback_reminder_day27", "beta_feedback_received", "beta_complete"].includes(kind)) {
+        const { data: feedbackRow, error: feedbackError } = await db
+          .from("founding_50_feedback")
+          .select("application_id")
+          .eq("application_id", app.id)
+          .maybeSingle();
+        if (feedbackError) throw feedbackError;
+        if (feedbackRow && !app.survey_completed_at) {
+          // Only used for rendering / suppression. Never rewrite the historic
+          // application or feedback row while dispatching mail.
+          app.survey_completed_at = app.beta_ends_at || app.beta_starts_at || app.created_at;
         }
       }
       const generationValid = ["invitation", "invite_reminder_3d", "invite_reminder_1d"].includes(kind)

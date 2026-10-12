@@ -45,6 +45,7 @@ import Phase4B3NumberArithmeticLibraryQA from "@/components/math-intelligence/qa
 import Phase4B4WordProblemHeuristicsQA from "@/components/math-intelligence/qa/Phase4B4WordProblemHeuristicsQA";
 import Phase4B5RationalNumberQA from "@/components/math-intelligence/qa/Phase4B5RationalNumberQA";
 import Phase4B6MeasurementGeometryDataQA from "@/components/math-intelligence/qa/Phase4B6MeasurementGeometryDataQA";
+import Phase4B7LibraryClosureQA from "@/components/math-intelligence/qa/Phase4B7LibraryClosureQA";
 
 import { requestMathBatchProposalsInChunks } from "./math-intelligence/requestMathBatchProposals";
 
@@ -1449,6 +1450,14 @@ export default function MathIntelligenceQAView() {
           <Phase4B5RationalNumberQA />
 
           <Phase4B6MeasurementGeometryDataQA />
+
+          <Phase4B7LibraryClosureQA
+            qaExport={{
+              run_id: runId || null,
+              sample: sample as any,
+              results: results as any,
+            }}
+          />
 
 <section style={card}>
 
