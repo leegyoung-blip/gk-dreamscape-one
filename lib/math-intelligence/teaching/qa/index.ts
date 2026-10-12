@@ -1,8 +1,7 @@
 export * from "./types";
 export {
-  PHASE4A3_FIXED_SEED,
-  PHASE4A3_HOLDOUT_SEED,
-  PHASE4A3_LOCKED_EXPECTATIONS,
-  runPhase4A3QaFromExport,
-  toPhase4A3CompactExport,
-} from "./runPhase4A3QaFromExport";
+  prepareQaQuestionForTeaching,
+  runPhase4A2QaFromExport,
+  toPhase4A2CompactExport,
+} from "./runPhase4A2QaFromExport";
+export * from "./c5";
