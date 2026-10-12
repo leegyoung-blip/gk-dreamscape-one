@@ -40,6 +40,7 @@ import Phase4A2TeachingQA from "@/components/math-intelligence/qa/Phase4A2Teachi
 import Phase4A3TeachingContractQA from "@/components/math-intelligence/qa/Phase4A3TeachingContractQA";
 import Phase4A4TeachingDiagnostics from "@/components/math-intelligence/qa/Phase4A4TeachingDiagnostics";
 import Phase4B1MethodCoverageAudit from "@/components/math-intelligence/qa/Phase4B1MethodCoverageAudit";
+import Phase4B2MethodSchemaGovernance from "@/components/math-intelligence/qa/Phase4B2MethodSchemaGovernance";
 
 import { requestMathBatchProposalsInChunks } from "./math-intelligence/requestMathBatchProposals";
 
@@ -1434,6 +1435,8 @@ export default function MathIntelligenceQAView() {
               results: results as any,
             }}
           />
+
+          <Phase4B2MethodSchemaGovernance />
 
 <section style={card}>
 
