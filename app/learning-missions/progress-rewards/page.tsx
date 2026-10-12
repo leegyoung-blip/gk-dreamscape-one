@@ -422,6 +422,8 @@ export default function TeachingDashboardPage() {
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [viewerRole, setViewerRole] = useState<string>("regular");
   const [hasNovaPlusRole, setHasNovaPlusRole] = useState(false);
+  const [hasExistingNovaPlusRole, setHasExistingNovaPlusRole] = useState(false);
+  const [betaLearnerId, setBetaLearnerId] = useState<string | null>(null);
   const [students, setStudents] = useState<DashboardStudent[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [attempts, setAttempts] = useState<DashboardAttempt[]>([]);
@@ -464,6 +466,8 @@ export default function TeachingDashboardPage() {
         setViewerId(null);
         setViewerRole("regular");
         setHasNovaPlusRole(false);
+        setHasExistingNovaPlusRole(false);
+        setBetaLearnerId(null);
         setSelectedStudentId(null);
         setStudents([]);
         setAttempts([]);
@@ -500,9 +504,10 @@ export default function TeachingDashboardPage() {
       // Preserve existing paid/trial/manual NOVA+ access and add only an
       // active, time-limited Founding 50 beta entitlement. Neither RPC
       // alters an account's primary role or its Stripe subscription.
-      const [existingNovaPlusResult, founding50Result] = await Promise.all([
+      const [existingNovaPlusResult, founding50Result, selectedBetaLearnerResult] = await Promise.all([
         supabase.rpc("current_user_has_nova_plus"),
         supabase.rpc("current_user_has_founding50_nova_plus"),
+        supabase.rpc("current_user_f50_nova_plus_learner_id"),
       ]);
 
       if (cancelled) return;
@@ -520,6 +525,12 @@ export default function TeachingDashboardPage() {
         );
       }
 
+      setHasExistingNovaPlusRole(existingNovaPlusResult.data === true);
+      setBetaLearnerId(
+        typeof selectedBetaLearnerResult.data === "string"
+          ? selectedBetaLearnerResult.data
+          : null,
+      );
       setHasNovaPlusRole(
         existingNovaPlusResult.data === true || founding50Result.data === true,
       );
@@ -1521,7 +1532,9 @@ export default function TeachingDashboardPage() {
    */
   const canAccessNovaPlus =
     normaliseRole(viewerRole) === "admin" ||
-    hasNovaPlusRole;
+    hasExistingNovaPlusRole ||
+    (hasNovaPlusRole && Boolean(selectedStudentId) &&
+      betaLearnerId === selectedStudentId);
 
   return (
     <main className="dashboard-page">

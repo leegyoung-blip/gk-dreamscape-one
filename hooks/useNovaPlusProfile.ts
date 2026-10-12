@@ -85,8 +85,9 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
 
           if (!betaCheckError && activeBeta === true) {
             message =
-              "Your Founding 50 beta is active, but NOVA+ learning data access " +
-              "still needs to be enabled in the database. Please contact Dreamscape support.";
+              "Your Founding 50 beta is active, but this learner's NOVA+ " +
+              "profile could not be opened. Confirm that the learner is " +
+              "selected for the beta and linked to this account.";
             console.warn(
               "Founding 50 access integration: NOVA+ profile RPC rejected an active beta account.",
               rpcName,
@@ -209,6 +210,38 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
             relationship: "self",
           },
         ];
+      }
+
+      // Only beta-only accounts are narrowed to the one selected learner.
+      // Paid/manual/admin access retains the original accessible-learner list.
+      const [existingAccess, selectedBetaLearner] = await Promise.all([
+        supabase.rpc("current_user_has_nova_plus"),
+        supabase.rpc("current_user_f50_nova_plus_learner_id"),
+      ]);
+      if (cancelled) return;
+      const hasExistingAccess = role === "admin" || existingAccess.data === true;
+      if (!hasExistingAccess) {
+        const selectedBetaId = typeof selectedBetaLearner.data === "string"
+          ? selectedBetaLearner.data
+          : null;
+        const permittedLearner = learners.find((account) => account.id === selectedBetaId);
+        if (!permittedLearner) {
+          setState((current) => ({
+            ...current,
+            viewerId: user.id,
+            viewerRole: role,
+            learners: [],
+            selectedLearnerId: null,
+            profile: null,
+            loading: false,
+            error:
+              "NOVA+ is not yet assigned to a learner in this account. " +
+              "If your Founding 50 beta is active, contact Dreamscape support " +
+              "to confirm the selected learner.",
+          }));
+          return;
+        }
+        learners = [permittedLearner];
       }
 
       const requestedIsAllowed =
