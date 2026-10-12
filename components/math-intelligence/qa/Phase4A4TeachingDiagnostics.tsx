@@ -66,7 +66,7 @@ function SummaryCard({
         minWidth: 135,
       }}
     >
-      <div style={{ fontSize: 22, fontWeight: 800 }}>{value}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: "#101828" }}>{value}</div>
       <div style={{ fontSize: 12, color: "#5c667a", marginTop: 2 }}>{label}</div>
     </div>
   );
@@ -84,7 +84,7 @@ function CheckRow({ label, passed }: { label: string; passed: boolean }) {
         borderBottom: "1px solid #edf0f5",
       }}
     >
-      <span>{label}</span>
+      <span style={{ color: "#344054" }}>{label}</span>
       <strong style={{ color: passed ? "#18794e" : "#b42318" }}>
         {passed ? "PASS" : "FAIL"}
       </strong>
@@ -161,6 +161,7 @@ export default function Phase4A4TeachingDiagnostics({ qaExport }: Props) {
         padding: 18,
         marginTop: 18,
         background: "#ffffff",
+        color: "#101828",
       }}
     >
       <div
@@ -184,7 +185,7 @@ export default function Phase4A4TeachingDiagnostics({ qaExport }: Props) {
           >
             PHASE 4A-4 · VALIDATION & ADMIN DIAGNOSTICS
           </p>
-          <h2 style={{ margin: "5px 0 6px", fontSize: 22 }}>
+          <h2 style={{ margin: "5px 0 6px", fontSize: 22, color: "#101828" }}>
             Phase 4A final gate
           </h2>
           <p style={{ margin: 0, color: "#667085", maxWidth: 820 }}>
@@ -223,6 +224,8 @@ export default function Phase4A4TeachingDiagnostics({ qaExport }: Props) {
               fontWeight: 700,
               cursor: run ? "pointer" : "not-allowed",
               background: "white",
+              color: "#101828",
+              opacity: run ? 1 : 0.55,
             }}
           >
             Export 4A-4 JSON
@@ -301,7 +304,7 @@ export default function Phase4A4TeachingDiagnostics({ qaExport }: Props) {
             }}
           >
             <div>
-              <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Final acceptance checks</h3>
+              <h3 style={{ margin: "0 0 8px", fontSize: 15, color: "#101828" }}>Final acceptance checks</h3>
               <CheckRow label="4A-3 cohort QA still passes" passed={run.checks.phase4A3CohortQaStillPasses} />
               <CheckRow label="Every ready contract validates" passed={run.checks.everyReadyContractValidates} />
               <CheckRow label="Every ready contract reaches 4B" passed={run.checks.everyReadyContractReachesPhase4B} />
@@ -314,7 +317,7 @@ export default function Phase4A4TeachingDiagnostics({ qaExport }: Props) {
             </div>
 
             <div>
-              <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Admin notes</h3>
+              <h3 style={{ margin: "0 0 8px", fontSize: 15, color: "#101828" }}>Admin notes</h3>
               <div style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}>
                 <div>Run: {run.sourceRunId ?? "—"}</div>
                 <div>Seed: {run.sourceSeed ?? "—"}</div>
@@ -339,7 +342,7 @@ export default function Phase4A4TeachingDiagnostics({ qaExport }: Props) {
               }}
             >
               <div>
-                <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>Admin diagnostic queue</h3>
+                <h3 style={{ margin: "0 0 4px", fontSize: 15, color: "#101828" }}>Admin diagnostic queue</h3>
                 <div style={{ fontSize: 12, color: "#667085" }}>
                   {visibleResults.length} item(s) shown. Source-data review is a warning queue, not an engine failure.
                 </div>
@@ -348,7 +351,7 @@ export default function Phase4A4TeachingDiagnostics({ qaExport }: Props) {
                 <select
                   value={filter}
                   onChange={(event) => setFilter(event.target.value as FilterValue)}
-                  style={{ border: "1px solid #cfd7e3", borderRadius: 8, padding: "8px 10px" }}
+                  style={{ border: "1px solid #cfd7e3", borderRadius: 8, padding: "8px 10px", background: "#ffffff", color: "#101828" }}
                 >
                   <option value="attention">Needs attention</option>
                   <option value="all">All questions</option>
@@ -362,7 +365,7 @@ export default function Phase4A4TeachingDiagnostics({ qaExport }: Props) {
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Question code / ID"
-                  style={{ border: "1px solid #cfd7e3", borderRadius: 8, padding: "8px 10px", minWidth: 190 }}
+                  style={{ border: "1px solid #cfd7e3", borderRadius: 8, padding: "8px 10px", minWidth: 190, background: "#ffffff", color: "#101828" }}
                 />
               </div>
             </div>
@@ -381,13 +384,13 @@ export default function Phase4A4TeachingDiagnostics({ qaExport }: Props) {
                   }}
                 >
                   <div>
-                    <strong>{item.questionCode ?? item.questionId ?? "Unknown"}</strong>
+                    <strong style={{ color: "#101828" }}>{item.questionCode ?? item.questionId ?? "Unknown"}</strong>
                     <div style={{ color: "#667085", marginTop: 2 }}>
                       P{item.learnerLevel ?? "?"} · {item.contractStatus}
                     </div>
                   </div>
                   <div>
-                    <strong>{classificationLabel(item.classification)}</strong>
+                    <strong style={{ color: "#101828" }}>{classificationLabel(item.classification)}</strong>
                     <div style={{ color: item.attentionSeverity === "blocking" ? "#b42318" : "#667085", marginTop: 2 }}>
                       {item.attentionSeverity}
                     </div>

@@ -67,7 +67,7 @@ function SummaryCard({
         minWidth: 130,
       }}
     >
-      <div style={{ fontSize: 22, fontWeight: 800 }}>{value}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: "#101828" }}>{value}</div>
       <div style={{ fontSize: 12, color: "#5c667a", marginTop: 2 }}>{label}</div>
     </div>
   );
@@ -91,7 +91,7 @@ function CheckRow({
         borderBottom: "1px solid #edf0f5",
       }}
     >
-      <span>{label}</span>
+      <span style={{ color: "#344054" }}>{label}</span>
       <strong style={{ color: passed ? "#18794e" : "#b42318" }}>
         {passed ? "PASS" : "FAIL"}
       </strong>
@@ -146,6 +146,7 @@ export default function Phase4A3TeachingContractQA({ qaExport }: Props) {
         padding: 18,
         marginTop: 18,
         background: "#ffffff",
+        color: "#101828",
       }}
     >
       <div
@@ -169,7 +170,7 @@ export default function Phase4A3TeachingContractQA({ qaExport }: Props) {
           >
             PHASE 4A-3.2 · CONTRACT COHORT QA & INTEGRATION
           </p>
-          <h2 style={{ margin: "5px 0 6px", fontSize: 22 }}>
+          <h2 style={{ margin: "5px 0 6px", fontSize: 22, color: "#101828" }}>
             Teaching Contract QA
           </h2>
           <p style={{ margin: 0, color: "#667085", maxWidth: 760 }}>
@@ -208,6 +209,8 @@ export default function Phase4A3TeachingContractQA({ qaExport }: Props) {
               fontWeight: 700,
               cursor: run ? "pointer" : "not-allowed",
               background: "white",
+              color: "#101828",
+              opacity: run ? 1 : 0.55,
             }}
           >
             Export 4A-3.2 JSON
@@ -277,7 +280,7 @@ export default function Phase4A3TeachingContractQA({ qaExport }: Props) {
             }}
           >
             <div>
-              <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Acceptance checks</h3>
+              <h3 style={{ margin: "0 0 8px", fontSize: 15, color: "#101828" }}>Acceptance checks</h3>
               <CheckRow
                 label="Expected cohort total"
                 passed={run.checks.totalMatchesExpectation}
@@ -317,7 +320,7 @@ export default function Phase4A3TeachingContractQA({ qaExport }: Props) {
             </div>
 
             <div>
-              <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Locked expectation</h3>
+              <h3 style={{ margin: "0 0 8px", fontSize: 15, color: "#101828" }}>Locked expectation</h3>
               <div style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}>
                 <div>Seed: {run.sourceSeed ?? "—"}</div>
                 <div>Run: {run.sourceRunId ?? "—"}</div>
@@ -341,7 +344,7 @@ export default function Phase4A3TeachingContractQA({ qaExport }: Props) {
 
           {failedResults.length > 0 ? (
             <div style={{ marginTop: 18 }}>
-              <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>
+              <h3 style={{ margin: "0 0 8px", fontSize: 15, color: "#101828" }}>
                 Contract QA failures
               </h3>
               <div style={{ maxHeight: 260, overflow: "auto" }}>
@@ -354,7 +357,7 @@ export default function Phase4A3TeachingContractQA({ qaExport }: Props) {
                       fontSize: 12,
                     }}
                   >
-                    <strong>{item.questionCode ?? item.questionId ?? "Unknown"}</strong>
+                    <strong style={{ color: "#101828" }}>{item.questionCode ?? item.questionId ?? "Unknown"}</strong>
                     <span style={{ marginLeft: 8, color: "#667085" }}>
                       {item.contractStatus} · deterministic={String(item.deterministic)} ·
                       validation={String(item.validationPassed)}

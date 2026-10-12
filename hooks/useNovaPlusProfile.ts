@@ -30,6 +30,16 @@ function cleanAccountName(value: unknown, fallback = "Account") {
   return name || fallback;
 }
 
+/**
+ * This hook intentionally DOES NOT grant access or modify NOVA+ roles.
+ * The Postgres functions get_nova_plus_learning_profile() and
+ * refresh_nova_plus_learning_profile() must independently authorize the
+ * authenticated viewer and the requested linked learner.
+ *
+ * If Founding 50 passes the outer UI gate but this database RPC rejects the
+ * account, we report the missing database integration instead of claiming the
+ * beta is inactive. See sql/inspect_nova_plus_functions.sql.
+ */
 export function useNovaPlusProfile(requestedLearnerId?: string | null) {
   const [state, setState] = useState<HookState>({
     viewerId: null,
@@ -62,15 +72,34 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
       });
 
       if (error) {
+        let message = error.message;
+
+        if (error.message.includes("NOVA_PLUS_ACCESS_REQUIRED")) {
+          message = "NOVA+ is not available for this account yet.";
+
+          // Diagnostics only. An active beta does not override a database
+          // rejection or give access to an unrelated learner's records.
+          const { data: activeBeta, error: betaCheckError } = await supabase.rpc(
+            "current_user_has_founding50_nova_plus",
+          );
+
+          if (!betaCheckError && activeBeta === true) {
+            message =
+              "Your Founding 50 beta is active, but NOVA+ learning data access " +
+              "still needs to be enabled in the database. Please contact Dreamscape support.";
+            console.warn(
+              "Founding 50 access integration: NOVA+ profile RPC rejected an active beta account.",
+              rpcName,
+            );
+          }
+        }
+
         setState((current) => ({
           ...current,
           profile: null,
           loading: false,
           refreshing: false,
-          error:
-            error.message.includes("NOVA_PLUS_ACCESS_REQUIRED")
-              ? "NOVA+ is not available for this account yet."
-              : error.message,
+          error: message,
         }));
         return;
       }
