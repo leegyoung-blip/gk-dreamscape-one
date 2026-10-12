@@ -39,6 +39,7 @@ import MathIntelligenceProposalPreview from "./math-intelligence/MathIntelligenc
 import Phase4A2TeachingQA from "@/components/math-intelligence/qa/Phase4A2TeachingQA";
 import Phase4A3TeachingContractQA from "@/components/math-intelligence/qa/Phase4A3TeachingContractQA";
 import Phase4A4TeachingDiagnostics from "@/components/math-intelligence/qa/Phase4A4TeachingDiagnostics";
+import Phase4B1MethodCoverageAudit from "@/components/math-intelligence/qa/Phase4B1MethodCoverageAudit";
 
 import { requestMathBatchProposalsInChunks } from "./math-intelligence/requestMathBatchProposals";
 
@@ -1419,6 +1420,14 @@ export default function MathIntelligenceQAView() {
           />
 
           <Phase4A4TeachingDiagnostics
+            qaExport={{
+              run_id: runId || null,
+              sample: sample as any,
+              results: results as any,
+            }}
+          />
+
+          <Phase4B1MethodCoverageAudit
             qaExport={{
               run_id: runId || null,
               sample: sample as any,
