@@ -1,6 +1,7 @@
 import { adminDb, safeError } from "@/lib/founding-50/server";
 import { decryptInviteToken, publicOrigin } from "@/lib/founding-50/invite-crypto";
 import { htmlEscape } from "@/lib/founding-50/email";
+import { renderFounding50WelcomeEmail } from "@/lib/founding-50/welcome-email";
 import {
   FOUNDING50_ADMIN_NOTIFICATION_TO,
   founding50ResendApiKey,
@@ -20,6 +21,7 @@ type Claimed = {
 };
 type Application = {
   id: string; parent_email: string; student_name: string; student_age: number; created_at: string; status: string;
+  account_user_id: string | null;
   invite_generation: number; notice_version: number;
   invite_token_ciphertext: string | null;
   invite_expires_at: string | null; invite_delivery_status: string | null;
@@ -27,7 +29,12 @@ type Application = {
   survey_completed_at: string | null;
 };
 
-type MailDraft = { subject: string; heading: string; body: string; actionUrl?: string; actionLabel?: string; audience?: "admin" | "applicant" };
+type MailDraft = {
+  subject: string; heading: string; body: string; actionUrl?: string; actionLabel?: string;
+  audience?: "admin" | "applicant";
+  // Only beta_welcome overrides the default reusable F50 email shell.
+  html?: string; text?: string;
+};
 
 function draftFor(kind: MailKind, app: Application): MailDraft | null {
   const name = app.student_name;
@@ -116,11 +123,18 @@ function draftFor(kind: MailKind, app: Application): MailDraft | null {
     const feedback = `${publicOrigin()}/founding-50/feedback`;
     if (kind === "beta_welcome") {
       if (now < start || now >= start + 7 * day) return null;
+      const welcome = renderFounding50WelcomeEmail({
+        studentName: name,
+        startsAt: app.beta_starts_at,
+        endsAt: app.beta_ends_at,
+        origin: publicOrigin(),
+      });
       return {
-        subject: "Founding 50 — Welcome to your NOVA+ beta",
-        heading: "Your 30-day adventure starts now.",
-        body: `Welcome! ${name}'s complimentary NOVA+ beta is now active. Your 30-day access starts from activation. Explore Learning Missions, Think Lab, Knowledge Arena and your progress insights. Your Founding 50 badge is recorded; any Dream Token and Dream Gem credit will show when the wallet confirms delivery. No payment details are needed and no paid plan starts automatically.`,
-        actionUrl: benefits, actionLabel: "View my Founding 50 benefits →",
+        subject: welcome.subject,
+        heading: "Your Adventure Begins Here!",
+        body: welcome.text,
+        html: welcome.html,
+        text: welcome.text,
       };
     }
     if (kind === "beta_checkin_day7") {
@@ -205,8 +219,8 @@ async function submitEmail(to: string, draft: MailDraft, idempotency: string) {
       "Content-Type": "application/json",
       "Idempotency-Key": `founding50-${idempotency}`,
     },
-    body: JSON.stringify({ from, reply_to: founding50ResendReplyTo(), to: [to], subject: draft.subject, html: renderHtml(draft),
-      text: `${draft.heading}\n\n${draft.body}${draft.actionUrl ? `\n\n${draft.actionUrl}` : ""}` }),
+    body: JSON.stringify({ from, reply_to: founding50ResendReplyTo(), to: [to], subject: draft.subject, html: draft.html ?? renderHtml(draft),
+      text: draft.text ?? `${draft.heading}\n\n${draft.body}${draft.actionUrl ? `\n\n${draft.actionUrl}` : ""}` }),
   });
   if (!result.ok) throw new Error(`Resend HTTP ${result.status}`);
   const json = await result.json().catch(() => ({}));
@@ -231,10 +245,33 @@ export async function deliverQueuedF50Mail(options: { limit?: number; applicatio
     const match = { id: job.mail_id, claim_id: job.claim_token, status: "processing" };
     try {
       const { data: app, error: loadError } = await db.from("founding_50_applications")
-        .select("id,parent_email,student_name,student_age,created_at,status,invite_generation,notice_version,invite_token_ciphertext,invite_expires_at,invite_delivery_status,beta_starts_at,beta_ends_at,survey_completed_at")
+        .select("id,parent_email,student_name,student_age,created_at,status,account_user_id,invite_generation,notice_version,invite_token_ciphertext,invite_expires_at,invite_delivery_status,beta_starts_at,beta_ends_at,survey_completed_at")
         .eq("id", job.app_id).single();
       if (loadError || !app) throw new Error("Application missing");
       const kind = job.mail_kind;
+      if (kind === "beta_welcome") {
+        // Do not announce unlocked NOVA+ access unless the specific activated
+        // account actually owns an active Founding 50 NOVA+ entitlement.
+        // A transient database/entitlement issue is retried, not emailed as success.
+        const { data: entitlement, error: entitlementError } = await db
+          .from("founding_50_entitlements")
+          .select("user_id,product,starts_at,ends_at")
+          .eq("application_id", app.id)
+          .eq("product", "nova_plus_beta")
+          .maybeSingle();
+        if (entitlementError) throw entitlementError;
+        const now = Date.now();
+        const isLinked = typeof app.account_user_id === "string" &&
+          entitlement?.user_id === app.account_user_id;
+        const hasCurrentAccess = !!entitlement &&
+          Number.isFinite(Date.parse(entitlement.starts_at)) &&
+          Number.isFinite(Date.parse(entitlement.ends_at)) &&
+          Date.parse(entitlement.starts_at) <= now &&
+          Date.parse(entitlement.ends_at) > now;
+        if (!isLinked || !hasCurrentAccess) {
+          throw new Error("NOVA+ beta entitlement is not yet verifiable for welcome email");
+        }
+      }
       const generationValid = ["invitation", "invite_reminder_3d", "invite_reminder_1d"].includes(kind)
         ? app.invite_generation === job.mail_generation
         : ["waitlisted", "declined"].includes(kind)
