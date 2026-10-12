@@ -9,3 +9,4 @@ export {
   validateTeachingContract,
 } from "./validateTeachingContract";
 export * from "./qa";
+export * from "./consumer";
