@@ -497,22 +497,32 @@ export default function TeachingDashboardPage() {
        * primary account role. A user can therefore be Student + NOVA+ or
        * Teacher + NOVA+ without changing profiles.role.
        */
-      const {
-        data: novaPlusEntitlement,
-        error: novaPlusEntitlementError,
-      } = await supabase.rpc("current_user_has_nova_plus");
+      // Preserve existing paid/trial/manual NOVA+ access and add only an
+      // active, time-limited Founding 50 beta entitlement. Neither RPC
+      // alters an account's primary role or its Stripe subscription.
+      const [existingNovaPlusResult, founding50Result] = await Promise.all([
+        supabase.rpc("current_user_has_nova_plus"),
+        supabase.rpc("current_user_has_founding50_nova_plus"),
+      ]);
 
       if (cancelled) return;
 
-      if (novaPlusEntitlementError) {
+      if (existingNovaPlusResult.error) {
         console.info(
-          "Could not load the NOVA+ additional role:",
-          novaPlusEntitlementError.message,
+          "Could not check existing NOVA+ access:",
+          existingNovaPlusResult.error.message,
         );
-        setHasNovaPlusRole(false);
-      } else {
-        setHasNovaPlusRole(Boolean(novaPlusEntitlement));
       }
+      if (founding50Result.error) {
+        console.info(
+          "Could not check Founding 50 beta access:",
+          founding50Result.error.message,
+        );
+      }
+
+      setHasNovaPlusRole(
+        existingNovaPlusResult.data === true || founding50Result.data === true,
+      );
 
       const accessibleStudents: DashboardStudent[] = [
         { id: user.id, label: "My learning", relationship: "self" },
@@ -571,9 +581,18 @@ export default function TeachingDashboardPage() {
       void initialise();
     });
 
+    const refreshNovaPlus = () => { void initialise(); };
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") void initialise();
+    };
+    window.addEventListener("dreamscape-access-changed", refreshNovaPlus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+
     return () => {
       cancelled = true;
       subscription.unsubscribe();
+      window.removeEventListener("dreamscape-access-changed", refreshNovaPlus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
     };
   }, []);
 

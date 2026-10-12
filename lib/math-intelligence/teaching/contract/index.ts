@@ -10,3 +10,4 @@ export {
 } from "./validateTeachingContract";
 export * from "./qa";
 export * from "./consumer";
+export * from "./admin";
