@@ -44,6 +44,7 @@ import Phase4B2MethodSchemaGovernance from "@/components/math-intelligence/qa/Ph
 import Phase4B3NumberArithmeticLibraryQA from "@/components/math-intelligence/qa/Phase4B3NumberArithmeticLibraryQA";
 import Phase4B4WordProblemHeuristicsQA from "@/components/math-intelligence/qa/Phase4B4WordProblemHeuristicsQA";
 import Phase4B5RationalNumberQA from "@/components/math-intelligence/qa/Phase4B5RationalNumberQA";
+import Phase4B6MeasurementGeometryDataQA from "@/components/math-intelligence/qa/Phase4B6MeasurementGeometryDataQA";
 
 import { requestMathBatchProposalsInChunks } from "./math-intelligence/requestMathBatchProposals";
 
@@ -1446,6 +1447,8 @@ export default function MathIntelligenceQAView() {
           <Phase4B4WordProblemHeuristicsQA />
 
           <Phase4B5RationalNumberQA />
+
+          <Phase4B6MeasurementGeometryDataQA />
 
 <section style={card}>
 
