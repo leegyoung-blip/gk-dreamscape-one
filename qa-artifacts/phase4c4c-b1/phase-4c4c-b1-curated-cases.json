@@ -1,0 +1,541 @@
+{
+  "schemaVersion": "4C-4C-B1.CASES.1",
+  "kind": "curated_question_anchored_proposals",
+  "status": "proposal_not_pedagogical_ground_truth",
+  "manualMethodVerdicts": 0,
+  "examples": [
+    {
+      "questionCode": "MATH-P1-PROB-057-Q03",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-08"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "3 × □ + 8 = 20"
+        }
+      ],
+      "pedagogicalHypothesis": "Two-step inverse operations match the equation, but presentation at P1 requires deliberate enrichment/curriculum review.",
+      "requiredReview": "Confirm early-primary enrichment status and preferred teaching representation.",
+      "candidateContrast": "Current inverse_two_step_early method plausibly fits; no assumed P1 violation.",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-GEO-002-Q05",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-06",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "How many triangles are used to make this picture?"
+        }
+      ],
+      "pedagogicalHypothesis": "Spatial enumeration is plausible but the triangle count is not verified from the missing picture.",
+      "requiredReview": "Inspect and independently count the actual image and decide whether counting visible components vs composites applies.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-MEAS-011-Q05",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-07",
+        "B1-12"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "Which object is heavier: a circle or a square?"
+        }
+      ],
+      "pedagogicalHypothesis": "Source answer says cannot tell; actual diagram and reason for insufficiency need inspection.",
+      "requiredReview": "Confirm whether comparison is underdetermined from what is visibly shown.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [
+        "source_image_required",
+        "answer_requires_independent_check"
+      ],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-DATA-020-Q05",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-04",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "One child changes from Dolls to Blocks."
+        }
+      ],
+      "pedagogicalHypothesis": "Source explanation uses initial category counts and a one-child transfer; inspect source representation.",
+      "requiredReview": "Confirm bar/picture data and whether compare_classify is sufficient for dynamic category changes.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-NUM-009-Q04",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-02",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "whole of 5 and one part of 4"
+        }
+      ],
+      "pedagogicalHypothesis": "Question structure indicates unknown part (5 - 4) rather than numerical ordering.",
+      "requiredReview": "Human-review potential mismatch between selected compare_order and missing-part objective.",
+      "candidateContrast": "Selected number.place_value.compare_order may not be specific enough.",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P2-GEO-026-Q01",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-06",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "How many triangles are also in the diagram?"
+        }
+      ],
+      "pedagogicalHypothesis": "Spatial sweep could fit but exact triangles and overlap cannot be independently verified without diagram.",
+      "requiredReview": "Inspect image and enumerate its distinct shapes without overcounting.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P2-MEAS-053-Q07",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-12",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "160 cm rope"
+        }
+      ],
+      "pedagogicalHypothesis": "Source solution describes 160 minus the four labelled sections; inspect picture for correct segment interpretation.",
+      "requiredReview": "Confirm diagram measurements and whether method label describes known-total remainder rather than general sequence.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-NUM-010-Q04",
+      "cohort": "holdout",
+      "ruleIds": [
+        "B1-02",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "whole of 10 and one part of 7"
+        }
+      ],
+      "pedagogicalHypothesis": "Missing-part relationship is specified in text; selected compare_order is a concern.",
+      "requiredReview": "Human-review selected method against part–whole relation, inspecting image first.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-NUM-010-Q02",
+      "cohort": "holdout",
+      "ruleIds": [
+        "B1-02",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "whole of 10 and one part of 3"
+        }
+      ],
+      "pedagogicalHypothesis": "Missing-part relationship is specified in text; selected compare_order is a concern.",
+      "requiredReview": "Human-review selected method against part–whole relation, inspecting image first.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P2-PROB-041-Q03",
+      "cohort": "holdout",
+      "ruleIds": [
+        "B1-11",
+        "B1-08"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "Nine workers work at the same rate."
+        }
+      ],
+      "pedagogicalHypothesis": "Constant-rate and same-job assumptions make inverse work-rate mathematically plausible.",
+      "requiredReview": "Confirm if this is P2 enrichment, how unitary reasoning should be taught, and grade suitability.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P2-MEAS-061-Q03",
+      "cohort": "holdout",
+      "ruleIds": [
+        "B1-12",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "15 minutes fast"
+        }
+      ],
+      "pedagogicalHypothesis": "Correct time requires subtracting the fast-clock offset; elapsed_timeline may be defensible with verified visual.",
+      "requiredReview": "Inspect external clock image, check displayed hands and teaching representation.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-ASSESS-012-Q01",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-03"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "each box is the sum of the two boxes directly below it"
+        }
+      ],
+      "pedagogicalHypothesis": "Adjacent-box sum is explicit; this is different from extrapolating growing differences in the bottom row.",
+      "requiredReview": "Review whether growing_difference is fit-for-purpose for the top-box computation.",
+      "candidateContrast": "Selected growing_difference requires taxonomy review.",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-ASSESS-012-Q06",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-05"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "9 people in front of Ali"
+        }
+      ],
+      "pedagogicalHypothesis": "Ordinal indexing gives Ali 10th and Tricia 11th, followed by subtraction from 15.",
+      "requiredReview": "Check whether elimination is an appropriate primary strategy vs ordinal-position calculation.",
+      "candidateContrast": "Selected elimination is potentially too generic.",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-PROB-050-Q02",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-01"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "has 90 toys"
+        },
+        {
+          "field": "prompt",
+          "text": "sells 28"
+        },
+        {
+          "field": "prompt",
+          "text": "How many toys are left?"
+        }
+      ],
+      "pedagogicalHypothesis": "Known start and known decrease imply unknown final quantity.",
+      "requiredReview": "Review forward_change versus find_change; confirm math-role mapping before adding any ranking signal.",
+      "candidateContrast": "find_change and forward_change are tied at 77.",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-GEO-037-Q05",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-06"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "4 columns and 3 rows"
+        },
+        {
+          "field": "prompt",
+          "text": "2 by 2 squares"
+        }
+      ],
+      "pedagogicalHypothesis": "2×2 placements have three horizontal starts and two vertical starts, six total.",
+      "requiredReview": "Confirm spatial_sweep as reasonable primary strategy, separate from future visual highlighting.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-ASSESS-011-Q07",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-02"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "Which statement is false?"
+        }
+      ],
+      "pedagogicalHypothesis": "Source response requires checking every assertion, including comparisons and place value.",
+      "requiredReview": "Confirm compare_order is adequate as primary for this multi-choice structure.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-DATA-003-Q02",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-04"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "Use the list: car, bus, truck"
+        }
+      ],
+      "pedagogicalHypothesis": "Data appears as a written list; picture_graph_scale and read_table both scored equally without graph/table evidence.",
+      "requiredReview": "Review representation evidence and whether a frequency tally, rather than a graph/table method, is appropriate.",
+      "candidateContrast": "Tie at 77; do not force either choice.",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P3-FRAC-035-Q104",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-09"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "18 equal pieces"
+        },
+        {
+          "field": "prompt",
+          "text": "4/9 of the pizza was left"
+        }
+      ],
+      "pedagogicalHypothesis": "The original pizza has 18 pieces and 4/9 remains; another piece was given away.",
+      "requiredReview": "Check whole references and the distinction among equal_piece_combination, dependency_model and remaining_fraction.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P5-RATIO-RB-Q102",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-10"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "2/3 of Ali’s money equals 1/5 of Ben’s money"
+        }
+      ],
+      "pedagogicalHypothesis": "Equal fractional amounts from two different wholes imply comparing their total money.",
+      "requiredReview": "Review method choices ratio_units vs part_whole_connection; verify fraction-to-ratio algebra.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P3-PROB-053-Q106",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-03"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "6, 7, 4, 9, 2 repeats"
+        }
+      ],
+      "pedagogicalHypothesis": "A repeated five-term cycle is explicit and distinguishable from growing differences.",
+      "requiredReview": "Review whether repeating_cycle should be recognized when calculating sums over repeated cycles.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P2-PROB-036-Q04",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-05"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "4th row from the front and the 3rd row from the back"
+        }
+      ],
+      "pedagogicalHypothesis": "Overlap in ordinal row counting implies 4+3−1 rows.",
+      "requiredReview": "Review alternatives to elimination and guard off-by-one.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P2-NUM-094-Q06",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-02"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "343 chickens and 536 ducks"
+        }
+      ],
+      "pedagogicalHypothesis": "Known two parts and requested total distinguish parts_find_whole from known_whole_find_part.",
+      "requiredReview": "Review equal-score part-whole candidates without arbitrary tie breaker.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P1-PROB-003-Q05",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-01"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "9 balloons"
+        },
+        {
+          "field": "prompt",
+          "text": "2 pop"
+        },
+        {
+          "field": "prompt",
+          "text": "How many are left?"
+        }
+      ],
+      "pedagogicalHypothesis": "Initial and decrease are known, leaving final quantity unknown.",
+      "requiredReview": "Review the same forward_change/find_change ambiguity in an independent simple example.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    },
+    {
+      "questionCode": "MATH-P3-GEO-017-Q106",
+      "cohort": "fixed",
+      "ruleIds": [
+        "B1-12"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "area 36 cm² more than a smaller square"
+        }
+      ],
+      "pedagogicalHypothesis": "Difference of square areas with integer sides is distinct from basic perimeter-vs-area recognition.",
+      "requiredReview": "Review whether the candidate method family contains a suitable difference-of-squares strategy before altering quality threshold.",
+      "candidateContrast": "",
+      "furtherEvidenceNeeded": [],
+      "state": "proposed_unverified",
+      "mayAlterScores": false,
+      "humanApproved": false
+    }
+  ]
+}

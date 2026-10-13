@@ -1,0 +1,1713 @@
+{
+  "schemaVersion": "4C-4C-B1.CASE_OUTPUT.1",
+  "approval": "none",
+  "cases": [
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P1-PROB-057-Q03",
+      "level": 1,
+      "reviewPriority": "P0",
+      "f4Status": "selected",
+      "prompt": "What is the missing number? 3 × □ + 8 = 20",
+      "reportedAnswer": "4",
+      "sourceExplanation": "20 − 8 = 12, and 12 ÷ 3 = 4.",
+      "selectedMethodId": "algebra.equation_unknown.inverse_two_step_early",
+      "primaryFamilies": [
+        "algebra.equation_unknown"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "algebra.equation_unknown",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "algebra.equation_unknown.inverse_two_step_early",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-08"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "3 × □ + 8 = 20"
+        }
+      ],
+      "pedagogicalHypothesis": "Two-step inverse operations match the equation, but presentation at P1 requires deliberate enrichment/curriculum review.",
+      "candidateContrast": "Current inverse_two_step_early method plausibly fits; no assumed P1 violation.",
+      "requiredReview": "Confirm early-primary enrichment status and preferred teaching representation.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P1-GEO-002-Q05",
+      "level": 1,
+      "reviewPriority": "P0",
+      "f4Status": "selected",
+      "prompt": "How many triangles are used to make this picture?",
+      "reportedAnswer": "3",
+      "sourceExplanation": "3 triangles are used in this image.",
+      "selectedMethodId": "heuristic.systematic_enumeration.spatial_sweep",
+      "primaryFamilies": [
+        "heuristic.systematic_enumeration"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "heuristic.systematic_enumeration",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "heuristic.systematic_enumeration.spatial_sweep",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "heuristic.systematic_enumeration.ordered_list",
+              "rank": 2,
+              "score": 68.666667,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "external_image_reference",
+        "hasRepresentation": true,
+        "requiresExternalImageVerification": true,
+        "embeddedImageFields": [],
+        "assetReferences": [
+          "core-question-assets/math/p1/math-p1-geo-002-q05/stimulus/1788348400813-09qvgn0-p1-20.png"
+        ],
+        "imageAlt": "",
+        "diagramMentionInPrompt": true
+      },
+      "ruleIds": [
+        "B1-06",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "How many triangles are used to make this picture?"
+        }
+      ],
+      "pedagogicalHypothesis": "Spatial enumeration is plausible but the triangle count is not verified from the missing picture.",
+      "candidateContrast": "",
+      "requiredReview": "Inspect and independently count the actual image and decide whether counting visible components vs composites applies.",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "sourceMediaGate": "image_not_verified",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P1-MEAS-011-Q05",
+      "level": 1,
+      "reviewPriority": "P0",
+      "f4Status": "selected",
+      "prompt": "Which object is heavier: a circle or a square?",
+      "reportedAnswer": "cannot tell",
+      "sourceExplanation": "We cannot tell from this diagram alone. We need more diagrams to calculate which object is heavier!",
+      "selectedMethodId": "measurement.compare_change_total.compare_same_unit",
+      "primaryFamilies": [
+        "measurement.compare_change_total"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "measurement.compare_change_total",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "measurement.compare_change_total.compare_same_unit",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "external_image_reference",
+        "hasRepresentation": true,
+        "requiresExternalImageVerification": true,
+        "embeddedImageFields": [
+          "stimulus_image_url"
+        ],
+        "assetReferences": [
+          "math/p1/math-p1-meas-011-q05/assets/1788332590522-tmrez7s-p1-9.png"
+        ],
+        "imageAlt": "Primary 1 Mathematics diagram",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-07",
+        "B1-12"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "Which object is heavier: a circle or a square?"
+        }
+      ],
+      "pedagogicalHypothesis": "Source answer says cannot tell; actual diagram and reason for insufficiency need inspection.",
+      "candidateContrast": "",
+      "requiredReview": "Confirm whether comparison is underdetermined from what is visibly shown.",
+      "furtherEvidenceNeeded": [
+        "source_image_required",
+        "answer_requires_independent_check"
+      ],
+      "sourceMediaGate": "image_not_verified",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P1-DATA-020-Q05",
+      "level": 1,
+      "reviewPriority": "P0",
+      "f4Status": "selected",
+      "prompt": "One child changes from Dolls to Blocks. Which statement will be true?",
+      "reportedAnswer": "Dolls and Blocks will have the same number.",
+      "sourceExplanation": "Blocks has 6 children. After one child moves from Dolls to Blocks, Dolls changes from 8 to 7 and Blocks changes from 6 to 7, so they have the same number.",
+      "selectedMethodId": "data.read_compare_classify.compare_classify",
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "data.read_compare_classify",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "data.read_compare_classify.compare_classify",
+              "rank": 1,
+              "score": 82,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "external_image_reference",
+        "hasRepresentation": true,
+        "requiresExternalImageVerification": true,
+        "embeddedImageFields": [],
+        "assetReferences": [
+          "core-question-assets/math/p1/math-p1-data-020-q05/stimulus/1788421161892-tn8qvvv-p1-54.png"
+        ],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-04",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "One child changes from Dolls to Blocks."
+        }
+      ],
+      "pedagogicalHypothesis": "Source explanation uses initial category counts and a one-child transfer; inspect source representation.",
+      "candidateContrast": "",
+      "requiredReview": "Confirm bar/picture data and whether compare_classify is sufficient for dynamic category changes.",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "sourceMediaGate": "image_not_verified",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P1-NUM-009-Q04",
+      "level": 1,
+      "reviewPriority": "P0",
+      "f4Status": "selected",
+      "prompt": "The part–whole model shows a whole of 5 and one part of 4. What is the missing part?",
+      "reportedAnswer": "1",
+      "sourceExplanation": "4 + 1 = 5.",
+      "selectedMethodId": "number.place_value.compare_order",
+      "primaryFamilies": [
+        "number.place_value"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "number.place_value",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "number.place_value.compare_order",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "number.place_value.place_value_chart",
+              "rank": 2,
+              "score": 64.5,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "external_image_reference",
+        "hasRepresentation": true,
+        "requiresExternalImageVerification": true,
+        "embeddedImageFields": [
+          "inline_diagram"
+        ],
+        "assetReferences": [
+          "math/p1/math-p1-num-009/math-p1-num-009-q04-prompt.svg"
+        ],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-02",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "whole of 5 and one part of 4"
+        }
+      ],
+      "pedagogicalHypothesis": "Question structure indicates unknown part (5 - 4) rather than numerical ordering.",
+      "candidateContrast": "Selected number.place_value.compare_order may not be specific enough.",
+      "requiredReview": "Human-review potential mismatch between selected compare_order and missing-part objective.",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "sourceMediaGate": "image_not_verified",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P2-GEO-026-Q01",
+      "level": 2,
+      "reviewPriority": "P0",
+      "f4Status": "selected",
+      "prompt": "The source diagram is made up of 5 squares. How many triangles are also in the diagram?",
+      "reportedAnswer": "4",
+      "sourceExplanation": "The diagram contains 4 triangular regions in addition to the 5 squares.",
+      "selectedMethodId": "heuristic.systematic_enumeration.spatial_sweep",
+      "primaryFamilies": [
+        "heuristic.systematic_enumeration"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "heuristic.systematic_enumeration",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "heuristic.systematic_enumeration.spatial_sweep",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "heuristic.systematic_enumeration.ordered_list",
+              "rank": 2,
+              "score": 68.666667,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "heuristic.systematic_enumeration.tabulation",
+              "rank": 3,
+              "score": 60.333333,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "external_image_reference",
+        "hasRepresentation": true,
+        "requiresExternalImageVerification": true,
+        "embeddedImageFields": [],
+        "assetReferences": [
+          "math/p2/geometry-batch-01/prompt/p2-geo-af01.png"
+        ],
+        "imageAlt": "",
+        "diagramMentionInPrompt": true
+      },
+      "ruleIds": [
+        "B1-06",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "How many triangles are also in the diagram?"
+        }
+      ],
+      "pedagogicalHypothesis": "Spatial sweep could fit but exact triangles and overlap cannot be independently verified without diagram.",
+      "candidateContrast": "",
+      "requiredReview": "Inspect image and enumerate its distinct shapes without overcounting.",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "sourceMediaGate": "image_not_verified",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P2-MEAS-053-Q07",
+      "level": 2,
+      "reviewPriority": "P0",
+      "f4Status": "selected",
+      "prompt": "A 160 cm rope forms a pattern. Four labelled sections measure 36 cm, 21 cm, 7 cm and 5 cm. How long is the remaining section?",
+      "reportedAnswer": "91 cm",
+      "sourceExplanation": "36 + 21 + 7 + 5 = 69; 160 - 69 = 91 cm.",
+      "selectedMethodId": "patterns.sequence_rule.measurement_known_total",
+      "primaryFamilies": [
+        "patterns.sequence_rule"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "patterns.sequence_rule",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "patterns.sequence_rule.measurement_known_total",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "external_image_reference",
+        "hasRepresentation": true,
+        "requiresExternalImageVerification": true,
+        "embeddedImageFields": [],
+        "assetReferences": [
+          "math/p2/measurement-batch-02/prompt/p2-meas-af12.png"
+        ],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-12",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "160 cm rope"
+        }
+      ],
+      "pedagogicalHypothesis": "Source solution describes 160 minus the four labelled sections; inspect picture for correct segment interpretation.",
+      "candidateContrast": "",
+      "requiredReview": "Confirm diagram measurements and whether method label describes known-total remainder rather than general sequence.",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "sourceMediaGate": "image_not_verified",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "holdout",
+      "questionCode": "MATH-P1-NUM-010-Q04",
+      "level": 1,
+      "reviewPriority": "P0",
+      "f4Status": "selected",
+      "prompt": "The part–whole model shows a whole of 10 and one part of 7. What is the missing part?",
+      "reportedAnswer": "3",
+      "sourceExplanation": "7 + 3 = 10.",
+      "selectedMethodId": "number.place_value.compare_order",
+      "primaryFamilies": [
+        "number.place_value"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "number.place_value",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "number.place_value.compare_order",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "number.place_value.place_value_chart",
+              "rank": 2,
+              "score": 64.5,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "external_image_reference",
+        "hasRepresentation": true,
+        "requiresExternalImageVerification": true,
+        "embeddedImageFields": [
+          "inline_diagram"
+        ],
+        "assetReferences": [
+          "math/p1/math-p1-num-010/math-p1-num-010-q04-prompt.svg"
+        ],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-02",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "whole of 10 and one part of 7"
+        }
+      ],
+      "pedagogicalHypothesis": "Missing-part relationship is specified in text; selected compare_order is a concern.",
+      "candidateContrast": "",
+      "requiredReview": "Human-review selected method against part–whole relation, inspecting image first.",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "sourceMediaGate": "image_not_verified",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "holdout",
+      "questionCode": "MATH-P1-NUM-010-Q02",
+      "level": 1,
+      "reviewPriority": "P0",
+      "f4Status": "selected",
+      "prompt": "The part–whole model shows a whole of 10 and one part of 3. What is the missing part?",
+      "reportedAnswer": "7",
+      "sourceExplanation": "3 + 7 = 10.",
+      "selectedMethodId": "number.place_value.compare_order",
+      "primaryFamilies": [
+        "number.place_value"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "number.place_value",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "number.place_value.compare_order",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "number.place_value.place_value_chart",
+              "rank": 2,
+              "score": 64.5,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "external_image_reference",
+        "hasRepresentation": true,
+        "requiresExternalImageVerification": true,
+        "embeddedImageFields": [
+          "inline_diagram"
+        ],
+        "assetReferences": [
+          "math/p1/math-p1-num-010/math-p1-num-010-q02-prompt.svg"
+        ],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-02",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "whole of 10 and one part of 3"
+        }
+      ],
+      "pedagogicalHypothesis": "Missing-part relationship is specified in text; selected compare_order is a concern.",
+      "candidateContrast": "",
+      "requiredReview": "Human-review selected method against part–whole relation, inspecting image first.",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "sourceMediaGate": "image_not_verified",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "holdout",
+      "questionCode": "MATH-P2-PROB-041-Q03",
+      "level": 2,
+      "reviewPriority": "P0",
+      "f4Status": "selected",
+      "prompt": "Three workers take 12 days to complete a job. Nine workers work at the same rate. How many days would they take?",
+      "reportedAnswer": "4 days",
+      "sourceExplanation": "Nine workers is 3 times as many workers, so the time is one third of 12 days: 4 days.",
+      "selectedMethodId": "speed.distance_time.inverse_work_rate",
+      "primaryFamilies": [
+        "speed.distance_time"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "speed.distance_time",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "speed.distance_time.inverse_work_rate",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-11",
+        "B1-08"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "Nine workers work at the same rate."
+        }
+      ],
+      "pedagogicalHypothesis": "Constant-rate and same-job assumptions make inverse work-rate mathematically plausible.",
+      "candidateContrast": "",
+      "requiredReview": "Confirm if this is P2 enrichment, how unitary reasoning should be taught, and grade suitability.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "holdout",
+      "questionCode": "MATH-P2-MEAS-061-Q03",
+      "level": 2,
+      "reviewPriority": "P0",
+      "f4Status": "selected",
+      "prompt": "A clock is 15 minutes fast and shows 4:25 p.m. What is the correct time?",
+      "reportedAnswer": "4:10 p.m.",
+      "sourceExplanation": "Subtract 15 minutes from the fast clock: 4:10 p.m.",
+      "selectedMethodId": "time.read_interval.elapsed_timeline",
+      "primaryFamilies": [
+        "time.read_interval"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "time.read_interval",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "time.read_interval.elapsed_timeline",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "time.read_interval.hour_minute_conversion",
+              "rank": 2,
+              "score": 64.5,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "external_image_reference",
+        "hasRepresentation": true,
+        "requiresExternalImageVerification": true,
+        "embeddedImageFields": [],
+        "assetReferences": [
+          "math/p2/measurement-batch-06/prompt/p2-meas-af35.png"
+        ],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-12",
+        "B1-07"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "15 minutes fast"
+        }
+      ],
+      "pedagogicalHypothesis": "Correct time requires subtracting the fast-clock offset; elapsed_timeline may be defensible with verified visual.",
+      "candidateContrast": "",
+      "requiredReview": "Inspect external clock image, check displayed hands and teaching representation.",
+      "furtherEvidenceNeeded": [
+        "source_image_required"
+      ],
+      "sourceMediaGate": "image_not_verified",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P1-ASSESS-012-Q01",
+      "level": 1,
+      "reviewPriority": "P1",
+      "f4Status": "selected",
+      "prompt": "In a number pyramid, each box is the sum of the two boxes directly below it. The bottom row is 1, 3, 5, 7. What number belongs at the top?",
+      "reportedAnswer": "32",
+      "sourceExplanation": "The next rows are 4, 8, 12; then 12, 20; and finally 12 + 20 = 32.",
+      "selectedMethodId": "patterns.sequence_rule.growing_difference",
+      "primaryFamilies": [
+        "patterns.sequence_rule"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "patterns.sequence_rule",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "patterns.sequence_rule.growing_difference",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "patterns.sequence_rule.repeating_cycle",
+              "rank": 2,
+              "score": 64.5,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-03"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "each box is the sum of the two boxes directly below it"
+        }
+      ],
+      "pedagogicalHypothesis": "Adjacent-box sum is explicit; this is different from extrapolating growing differences in the bottom row.",
+      "candidateContrast": "Selected growing_difference requires taxonomy review.",
+      "requiredReview": "Review whether growing_difference is fit-for-purpose for the top-box computation.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P1-ASSESS-012-Q06",
+      "level": 1,
+      "reviewPriority": "P1",
+      "f4Status": "selected",
+      "prompt": "Ali and Tricia are in a queue of 15 people. There are 9 people in front of Ali, and Tricia stands directly behind him. How many people are behind Tricia?",
+      "reportedAnswer": "4",
+      "sourceExplanation": "Ali is 10th and Tricia is 11th. There are 15 − 11 = 4 people behind Tricia.",
+      "selectedMethodId": "heuristic.logic_strategy.elimination",
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "heuristic.logic_strategy",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "heuristic.logic_strategy.elimination",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-05"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "9 people in front of Ali"
+        }
+      ],
+      "pedagogicalHypothesis": "Ordinal indexing gives Ali 10th and Tricia 11th, followed by subtraction from 15.",
+      "candidateContrast": "Selected elimination is potentially too generic.",
+      "requiredReview": "Check whether elimination is an appropriate primary strategy vs ordinal-position calculation.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P1-PROB-050-Q02",
+      "level": 1,
+      "reviewPriority": "P1",
+      "f4Status": "ambiguous",
+      "prompt": "A shop has 90 toys and sells 28. How many toys are left?",
+      "reportedAnswer": "62",
+      "sourceExplanation": "The correct answer is 62.",
+      "selectedMethodId": null,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "model.change",
+          "selectorStatus": "ambiguous",
+          "selectorIssues": [
+            "INSUFFICIENT_WINNER_MARGIN"
+          ],
+          "assessedMethods": [
+            {
+              "methodId": "model.change.find_change",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "model.change.forward_change",
+              "rank": 2,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "embedded_diagram",
+        "hasRepresentation": true,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [
+          "stimulus_image_url"
+        ],
+        "assetReferences": [],
+        "imageAlt": "ninety minus twenty-eight",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-01"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "has 90 toys"
+        },
+        {
+          "field": "prompt",
+          "text": "sells 28"
+        },
+        {
+          "field": "prompt",
+          "text": "How many toys are left?"
+        }
+      ],
+      "pedagogicalHypothesis": "Known start and known decrease imply unknown final quantity.",
+      "candidateContrast": "find_change and forward_change are tied at 77.",
+      "requiredReview": "Review forward_change versus find_change; confirm math-role mapping before adding any ranking signal.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P1-GEO-037-Q05",
+      "level": 1,
+      "reviewPriority": "P1",
+      "f4Status": "selected",
+      "prompt": "In a grid with 4 columns and 3 rows of unit squares, how many different 2 by 2 squares can be found?",
+      "reportedAnswer": "6",
+      "sourceExplanation": "A 2 by 2 square can start in 3 horizontal positions and 2 vertical positions, giving 3 × 2 = 6.",
+      "selectedMethodId": "heuristic.systematic_enumeration.spatial_sweep",
+      "primaryFamilies": [
+        "heuristic.systematic_enumeration"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "heuristic.systematic_enumeration",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "heuristic.systematic_enumeration.spatial_sweep",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "heuristic.systematic_enumeration.ordered_list",
+              "rank": 2,
+              "score": 68.666667,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": true
+      },
+      "ruleIds": [
+        "B1-06"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "4 columns and 3 rows"
+        },
+        {
+          "field": "prompt",
+          "text": "2 by 2 squares"
+        }
+      ],
+      "pedagogicalHypothesis": "2×2 placements have three horizontal starts and two vertical starts, six total.",
+      "candidateContrast": "",
+      "requiredReview": "Confirm spatial_sweep as reasonable primary strategy, separate from future visual highlighting.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P1-ASSESS-011-Q07",
+      "level": 1,
+      "reviewPriority": "P1",
+      "f4Status": "selected",
+      "prompt": "Which statement is false?",
+      "reportedAnswer": "87 is between 89 and 88.",
+      "sourceExplanation": "87 is less than both 88 and 89, so it is not between them. The other statements are true.",
+      "selectedMethodId": "number.place_value.compare_order",
+      "primaryFamilies": [
+        "number.place_value"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "number.place_value",
+          "selectorStatus": "selected",
+          "selectorIssues": [],
+          "assessedMethods": [
+            {
+              "methodId": "number.place_value.compare_order",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "number.place_value.place_value_chart",
+              "rank": 2,
+              "score": 64.5,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-02"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "Which statement is false?"
+        }
+      ],
+      "pedagogicalHypothesis": "Source response requires checking every assertion, including comparisons and place value.",
+      "candidateContrast": "",
+      "requiredReview": "Confirm compare_order is adequate as primary for this multi-choice structure.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P1-DATA-003-Q02",
+      "level": 1,
+      "reviewPriority": "P1",
+      "f4Status": "ambiguous",
+      "prompt": "Use the list: car, bus, truck, bus, truck, truck, car, car, car. motorcycle. How many times does bus and truck appear?",
+      "reportedAnswer": "5",
+      "sourceExplanation": "bus and truck appear 5 times.",
+      "selectedMethodId": null,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "data.read_compare_classify",
+          "selectorStatus": "ambiguous",
+          "selectorIssues": [
+            "INSUFFICIENT_WINNER_MARGIN"
+          ],
+          "assessedMethods": [
+            {
+              "methodId": "data.read_compare_classify.picture_graph_scale",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "data.read_compare_classify.read_table",
+              "rank": 2,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-04"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "Use the list: car, bus, truck"
+        }
+      ],
+      "pedagogicalHypothesis": "Data appears as a written list; picture_graph_scale and read_table both scored equally without graph/table evidence.",
+      "candidateContrast": "Tie at 77; do not force either choice.",
+      "requiredReview": "Review representation evidence and whether a frequency tally, rather than a graph/table method, is appropriate.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P3-FRAC-035-Q104",
+      "level": 3,
+      "reviewPriority": "P2",
+      "f4Status": "ambiguous",
+      "prompt": "George cut a pizza into 18 equal pieces. He gave 1 piece to his sister and 4/9 of the pizza was left. How many pieces did George eat?",
+      "reportedAnswer": "9",
+      "sourceExplanation": "4/9 of 18 is 8 pieces. George ate 18 − 1 − 8 = 9 pieces.",
+      "selectedMethodId": null,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "fraction.multi_step",
+          "selectorStatus": "ambiguous",
+          "selectorIssues": [
+            "LOW_WINNER_QUALITY"
+          ],
+          "assessedMethods": [
+            {
+              "methodId": "fraction.multi_step.equal_piece_combination",
+              "rank": 1,
+              "score": 72,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "fraction.multi_step.dependency_model",
+              "rank": 2,
+              "score": 67,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "fraction.multi_step.remaining_fraction",
+              "rank": 3,
+              "score": 62,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-09"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "18 equal pieces"
+        },
+        {
+          "field": "prompt",
+          "text": "4/9 of the pizza was left"
+        }
+      ],
+      "pedagogicalHypothesis": "The original pizza has 18 pieces and 4/9 remains; another piece was given away.",
+      "candidateContrast": "",
+      "requiredReview": "Check whole references and the distinction among equal_piece_combination, dependency_model and remaining_fraction.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P5-RATIO-RB-Q102",
+      "level": 5,
+      "reviewPriority": "P2",
+      "f4Status": "ambiguous",
+      "prompt": "2/3 of Ali’s money equals 1/5 of Ben’s money. Express Ali’s money as a ratio of Ben’s money.",
+      "reportedAnswer": "3 : 10",
+      "sourceExplanation": "If (2/3)A = (1/5)B, then 10A = 3B, so A : B = 3 : 10.",
+      "selectedMethodId": null,
+      "primaryFamilies": [
+        "ratio.relationship"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "ratio.relationship",
+          "selectorStatus": "ambiguous",
+          "selectorIssues": [
+            "LOW_WINNER_QUALITY"
+          ],
+          "assessedMethods": [
+            {
+              "methodId": "ratio.relationship.part_whole_connection",
+              "rank": 1,
+              "score": 64.5,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "ratio.relationship.ratio_units",
+              "rank": 2,
+              "score": 64.5,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "ratio.relationship.equivalent_ratio_scale",
+              "rank": 3,
+              "score": 58.25,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "ratio.relationship.scale_table",
+              "rank": 4,
+              "score": 58.25,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-10"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "2/3 of Ali’s money equals 1/5 of Ben’s money"
+        }
+      ],
+      "pedagogicalHypothesis": "Equal fractional amounts from two different wholes imply comparing their total money.",
+      "candidateContrast": "",
+      "requiredReview": "Review method choices ratio_units vs part_whole_connection; verify fraction-to-ratio algebra.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P3-PROB-053-Q106",
+      "level": 3,
+      "reviewPriority": "P2",
+      "f4Status": "ambiguous",
+      "prompt": "The sequence 6, 7, 4, 9, 2 repeats. What is the sum of the first 52 terms?",
+      "reportedAnswer": "293",
+      "sourceExplanation": "One cycle sums to 28. Fifty terms make 10 cycles = 280, then the next two terms are 6 and 7. Total = 293.",
+      "selectedMethodId": null,
+      "primaryFamilies": [
+        "patterns.sequence_rule"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "patterns.sequence_rule",
+          "selectorStatus": "ambiguous",
+          "selectorIssues": [
+            "LOW_WINNER_QUALITY"
+          ],
+          "assessedMethods": [
+            {
+              "methodId": "patterns.sequence_rule.growing_difference",
+              "rank": 1,
+              "score": 64.5,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "patterns.sequence_rule.recursive_rule",
+              "rank": 2,
+              "score": 64.5,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "patterns.sequence_rule.repeating_cycle",
+              "rank": 3,
+              "score": 64.5,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-03"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "6, 7, 4, 9, 2 repeats"
+        }
+      ],
+      "pedagogicalHypothesis": "A repeated five-term cycle is explicit and distinguishable from growing differences.",
+      "candidateContrast": "",
+      "requiredReview": "Review whether repeating_cycle should be recognized when calculating sums over repeated cycles.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P2-PROB-036-Q04",
+      "level": 2,
+      "reviewPriority": "P1",
+      "f4Status": "ambiguous",
+      "prompt": "Lionel sits in the 4th row from the front and the 3rd row from the back. How many rows are there altogether?",
+      "reportedAnswer": "6",
+      "sourceExplanation": "Count Lionel's row once: 4 + 3 - 1 = 6 rows.",
+      "selectedMethodId": null,
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "heuristic.logic_strategy",
+          "selectorStatus": "ambiguous",
+          "selectorIssues": [
+            "INSUFFICIENT_WINNER_MARGIN"
+          ],
+          "assessedMethods": [
+            {
+              "methodId": "heuristic.logic_strategy.constraint_table",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "heuristic.logic_strategy.elimination",
+              "rank": 2,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-05"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "4th row from the front and the 3rd row from the back"
+        }
+      ],
+      "pedagogicalHypothesis": "Overlap in ordinal row counting implies 4+3−1 rows.",
+      "candidateContrast": "",
+      "requiredReview": "Review alternatives to elimination and guard off-by-one.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P2-NUM-094-Q06",
+      "level": 2,
+      "reviewPriority": "P1",
+      "f4Status": "ambiguous",
+      "prompt": "A farmer has 343 chickens and 536 ducks. How many birds are there altogether?",
+      "reportedAnswer": "879",
+      "sourceExplanation": "343 + 536 = 879.",
+      "selectedMethodId": null,
+      "primaryFamilies": [
+        "model.part_whole"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "model.part_whole",
+          "selectorStatus": "ambiguous",
+          "selectorIssues": [
+            "INSUFFICIENT_WINNER_MARGIN"
+          ],
+          "assessedMethods": [
+            {
+              "methodId": "model.part_whole.known_whole_find_part",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "model.part_whole.multi_part_strip",
+              "rank": 2,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "model.part_whole.parts_find_whole",
+              "rank": 3,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-02"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "343 chickens and 536 ducks"
+        }
+      ],
+      "pedagogicalHypothesis": "Known two parts and requested total distinguish parts_find_whole from known_whole_find_part.",
+      "candidateContrast": "",
+      "requiredReview": "Review equal-score part-whole candidates without arbitrary tie breaker.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P1-PROB-003-Q05",
+      "level": 1,
+      "reviewPriority": "P1",
+      "f4Status": "ambiguous",
+      "prompt": "There are 9 balloons. 2 pop. How many are left?",
+      "reportedAnswer": "7",
+      "sourceExplanation": "9−2=7.",
+      "selectedMethodId": null,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "model.change",
+          "selectorStatus": "ambiguous",
+          "selectorIssues": [
+            "INSUFFICIENT_WINNER_MARGIN"
+          ],
+          "assessedMethods": [
+            {
+              "methodId": "model.change.find_change",
+              "rank": 1,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "model.change.forward_change",
+              "rank": 2,
+              "score": 77,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-01"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "9 balloons"
+        },
+        {
+          "field": "prompt",
+          "text": "2 pop"
+        },
+        {
+          "field": "prompt",
+          "text": "How many are left?"
+        }
+      ],
+      "pedagogicalHypothesis": "Initial and decrease are known, leaving final quantity unknown.",
+      "candidateContrast": "",
+      "requiredReview": "Review the same forward_change/find_change ambiguity in an independent simple example.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    },
+    {
+      "cohort": "fixed",
+      "questionCode": "MATH-P3-GEO-017-Q106",
+      "level": 3,
+      "reviewPriority": "P2",
+      "f4Status": "ambiguous",
+      "prompt": "A square has area 36 cm² more than a smaller square. Both side lengths are positive whole numbers. What is the smaller square's side length?",
+      "reportedAnswer": "8 cm",
+      "sourceExplanation": "Let the side lengths be a > b. Then (a − b)(a + b) = 36. The positive same-parity factor pair 2 and 18 gives a = 10 and b = 8.",
+      "selectedMethodId": null,
+      "primaryFamilies": [
+        "geometry.area_perimeter"
+      ],
+      "selectorFamilies": [
+        {
+          "familyId": "geometry.area_perimeter",
+          "selectorStatus": "ambiguous",
+          "selectorIssues": [
+            "LOW_WINNER_QUALITY"
+          ],
+          "assessedMethods": [
+            {
+              "methodId": "geometry.area_perimeter.distinguish_boundary_surface",
+              "rank": 1,
+              "score": 60.333333,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            },
+            {
+              "methodId": "geometry.area_perimeter.rectangle_formula_meaning",
+              "rank": 2,
+              "score": 60.333333,
+              "eligibility": "eligible",
+              "prerequisiteEvidence": "unverified",
+              "exclusionCodes": []
+            }
+          ]
+        }
+      ],
+      "media": {
+        "kind": "text_only",
+        "hasRepresentation": false,
+        "requiresExternalImageVerification": false,
+        "embeddedImageFields": [],
+        "assetReferences": [],
+        "imageAlt": "",
+        "diagramMentionInPrompt": false
+      },
+      "ruleIds": [
+        "B1-12"
+      ],
+      "anchors": [
+        {
+          "field": "prompt",
+          "text": "area 36 cm² more than a smaller square"
+        }
+      ],
+      "pedagogicalHypothesis": "Difference of square areas with integer sides is distinct from basic perimeter-vs-area recognition.",
+      "candidateContrast": "",
+      "requiredReview": "Review whether the candidate method family contains a suitable difference-of-squares strategy before altering quality threshold.",
+      "furtherEvidenceNeeded": [],
+      "sourceMediaGate": "no_external_image_required",
+      "proposalState": "proposed_unverified",
+      "scoringAuthorized": false,
+      "reviewerVerdict": null,
+      "reviewer": null,
+      "reviewerNotes": ""
+    }
+  ]
+}

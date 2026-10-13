@@ -14,7 +14,8 @@ type PayBasis =
   | "hourly"
   | "per_class"
   | "per_session"
-  | "custom";
+  | "custom"
+  | "invoice_commission";
 
 type StaffCategory =
   | "management"
@@ -235,6 +236,7 @@ function payBasisLabel(value: PayBasis) {
     per_class: "Per class",
     per_session: "Per session",
     custom: "Custom",
+    invoice_commission: "Invoice commission",
   };
   return labels[value];
 }
@@ -244,6 +246,7 @@ function unitLabel(value: PayBasis) {
   if (value === "per_class") return "Classes";
   if (value === "per_session") return "Sessions";
   if (value === "monthly_salary") return "Months";
+  if (value === "invoice_commission") return "Invoices";
   return "Units";
 }
 
@@ -588,7 +591,10 @@ export default function StaffPaymentsClient({
     setError("");
     setNotice("");
 
-    const defaultRate = Number(staffForm.default_rate);
+    const defaultRate =
+      staffForm.pay_basis === "invoice_commission"
+        ? 0
+        : Number(staffForm.default_rate);
     if (!staffForm.full_name.trim()) {
       setError("Enter the staff member's name.");
       return;
@@ -666,6 +672,15 @@ export default function StaffPaymentsClient({
 
   function openNewPayment(row?: StaffRow) {
     const target = row || activeStaff[0] || null;
+
+    if (target?.pay_basis === "invoice_commission") {
+      setError("");
+      setNotice(
+        "This staff member is paid by GKP invoice commission. Standard manual payment entry is disabled so the commission is not double-counted.",
+      );
+      return;
+    }
+
     const range = period;
     const rate = target ? numberValue(target.default_rate) : 0;
     setPaymentForm({
@@ -1050,7 +1065,11 @@ export default function StaffPaymentsClient({
                       <span className="mt-1 block text-xs text-[#81796d]">{categoryLabel(row.staff_category)}</span>
                     </td>
                     <td className="px-4 py-4 text-sm">{payBasisLabel(row.pay_basis)}</td>
-                    <td className="px-4 py-4 text-sm font-bold">{money(row.default_rate, row.currency)}</td>
+                    <td className="px-4 py-4 text-sm font-bold">
+                      {row.pay_basis === "invoice_commission"
+                        ? "Tiered %"
+                        : money(row.default_rate, row.currency)}
+                    </td>
                     <td className="px-4 py-4"><StatusPill status={row.employment_status} /></td>
                     <td className="px-4 py-4 text-sm">
                       {row.last_payment_date ? (
@@ -1061,7 +1080,24 @@ export default function StaffPaymentsClient({
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap justify-end gap-2">
                         <button type="button" onClick={() => openEditStaff(row)} className="rounded-full border border-[#d7c9ae] bg-white px-3 py-2 text-[10px] font-bold">Edit</button>
-                        <button type="button" onClick={() => openNewPayment(row)} disabled={row.employment_status !== "active"} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-bold text-emerald-700 disabled:opacity-40">Add payment</button>
+                        <button
+                          type="button"
+                          onClick={() => openNewPayment(row)}
+                          disabled={
+                            row.employment_status !== "active" ||
+                            row.pay_basis === "invoice_commission"
+                          }
+                          title={
+                            row.pay_basis === "invoice_commission"
+                              ? "Commission payments are generated from finalized GKP invoices."
+                              : undefined
+                          }
+                          className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-bold text-emerald-700 disabled:opacity-40"
+                        >
+                          {row.pay_basis === "invoice_commission"
+                            ? "Invoice commission"
+                            : "Add payment"}
+                        </button>
                         <button type="button" onClick={() => showStaffHistory(row)} className="rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-[10px] font-bold text-sky-700">History</button>
                         {row.employment_status === "active" ? (
                           <button type="button" onClick={() => void changeEmploymentStatus(row, "inactive")} className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-700">Deactivate</button>
@@ -1203,13 +1239,58 @@ export default function StaffPaymentsClient({
               ["management", "Management"], ["full_time", "Full-time staff"], ["part_time", "Part-time staff"], ["teacher", "Teacher"], ["assistant_teacher", "Assistant teacher"], ["contractor", "Contractor"], ["other", "Other"],
             ]} />
             <SelectField label="Employment status" value={staffForm.status} onChange={(value) => setStaffForm((current) => ({ ...current, status: value as EmploymentStatus }))} options={[["active", "Active"], ["inactive", "Inactive"], ["ended", "Ended"]]} />
-            <SelectField label="Pay basis" value={staffForm.pay_basis} onChange={(value) => setStaffForm((current) => ({ ...current, pay_basis: value as PayBasis }))} options={[["monthly_salary", "Monthly salary"], ["hourly", "Hourly"], ["per_class", "Per class"], ["per_session", "Per session"], ["custom", "Custom"]]} />
+            <SelectField
+              label="Pay basis"
+              value={staffForm.pay_basis}
+              onChange={(value) =>
+                setStaffForm((current) => ({
+                  ...current,
+                  pay_basis: value as PayBasis,
+                  default_rate:
+                    value === "invoice_commission"
+                      ? "0"
+                      : current.default_rate,
+                }))
+              }
+              options={[
+                ["monthly_salary", "Monthly salary"],
+                ["hourly", "Hourly"],
+                ["per_class", "Per class"],
+                ["per_session", "Per session"],
+                ["custom", "Custom"],
+                ["invoice_commission", "Invoice commission"],
+              ]}
+            />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-4">
             <TextField label="Start date" type="date" value={staffForm.start_date} onChange={(value) => setStaffForm((current) => ({ ...current, start_date: value }))} required />
             <TextField label="End date" type="date" value={staffForm.end_date} onChange={(value) => setStaffForm((current) => ({ ...current, end_date: value }))} />
-            <TextField label="Standard salary / rate" type="number" min="0" step="0.01" value={staffForm.default_rate} onChange={(value) => setStaffForm((current) => ({ ...current, default_rate: value }))} required />
+            {staffForm.pay_basis === "invoice_commission" ? (
+              <div className="rounded-xl border border-[#d9cfbd] bg-[#f2eee6] px-4 py-3">
+                <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-[#83796b]">
+                  Standard salary / rate
+                </span>
+                <strong className="mt-1 block text-sm text-[#15233b]">
+                  Tiered invoice %
+                </strong>
+              </div>
+            ) : (
+              <TextField
+                label="Standard salary / rate"
+                type="number"
+                min="0"
+                step="0.01"
+                value={staffForm.default_rate}
+                onChange={(value) =>
+                  setStaffForm((current) => ({
+                    ...current,
+                    default_rate: value,
+                  }))
+                }
+                required
+              />
+            )}
             <TextField label="Currency" value={staffForm.currency} onChange={(value) => setStaffForm((current) => ({ ...current, currency: value.toUpperCase() }))} required />
           </div>
 
@@ -1239,7 +1320,10 @@ export default function StaffPaymentsClient({
 
           {selectedPaymentEmployment && (
             <div className="rounded-2xl border border-[#e6dfd3] bg-[#fbfaf7] p-4 text-xs leading-5 text-[#6f675a]">
-              <strong className="text-[#15233b]">{payBasisLabel(selectedPaymentEmployment.pay_basis)}</strong> · Standard rate {money(selectedPaymentEmployment.default_rate, selectedPaymentEmployment.currency)}. {selectedPaymentEmployment.pay_basis === "monthly_salary" ? "Base pay defaults to the monthly salary." : "Leave Base pay override blank to calculate units × rate."}
+              <strong className="text-[#15233b]">{payBasisLabel(selectedPaymentEmployment.pay_basis)}</strong>
+              {selectedPaymentEmployment.pay_basis === "invoice_commission"
+                ? " · Commission is calculated from finalized GKP invoices; standard manual payment entry is not used."
+                : <> · Standard rate {money(selectedPaymentEmployment.default_rate, selectedPaymentEmployment.currency)}. {selectedPaymentEmployment.pay_basis === "monthly_salary" ? "Base pay defaults to the monthly salary." : "Leave Base pay override blank to calculate units × rate."}</>}
             </div>
           )}
 

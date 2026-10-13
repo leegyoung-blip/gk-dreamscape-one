@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "4C-4C-B1.RULES.1",
+  "policy": "review_only_no_scoring_change",
+  "appliesTo": "existing_4C4C_A_joined_questions",
+  "fixedDecisionThresholds": {
+    "minimumQuality": 75,
+    "minimumMargin": 8
+  },
+  "provenanceRules": [
+    "Anchors must be literal substrings of the exported original question prompt or answer explanation.",
+    "Question prompt supports proposed structure, but automatic approval is forbidden.",
+    "Bank explanation and answer are source claims, not independent mathematical proof.",
+    "External image paths and alt text cannot certify diagram content.",
+    "No fabricated mastery evidence, no arbitrary tie breaker, and no curriculum verdict without reviewer.",
+    "Holdout questions already inspected: use fresh unseen holdout for any later tuning evaluation."
+  ],
+  "rules": [
+    {
+      "id": "B1-01",
+      "featureKey": "quantity_roles",
+      "purpose": "Identify known initial amount, change, final amount, and requested unknown separately.",
+      "constraint": "Mathematical relationship; no raw-keyword bonus.",
+      "reviewGate": "Ambiguity can be resolved only after explicit verified role mapping.",
+      "lifecycle": "proposed_requires_human_review",
+      "scoringAuthorized": false
+    },
+    {
+      "id": "B1-02",
+      "featureKey": "part_whole_unknown",
+      "purpose": "Distinguish known whole / missing part from known parts / missing whole.",
+      "constraint": "A part-whole picture mentioned in text is not by itself a verified image.",
+      "reviewGate": "No automatic method substitution; compare candidates to grounded roles.",
+      "lifecycle": "proposed_requires_human_review",
+      "scoringAuthorized": false
+    },
+    {
+      "id": "B1-03",
+      "featureKey": "sequence_rule_type",
+      "purpose": "Separate repeated cycle, growing differences, adjacent-term recurrence, and spatial-rule pyramids.",
+      "constraint": "A sequence label or increasing bottom row does not prove the overall pyramid rule.",
+      "reviewGate": "Require actual rule evidence; defer if multiple rules fit.",
+      "lifecycle": "proposed_requires_human_review",
+      "scoringAuthorized": false
+    },
+    {
+      "id": "B1-04",
+      "featureKey": "data_representation",
+      "purpose": "Separate data provided as a plain list, table, picture graph, or bar chart.",
+      "constraint": "Do not infer the presence of a graph/table from topic title or method family.",
+      "reviewGate": "Unverified external graphic blocks visual-specific proof.",
+      "lifecycle": "proposed_requires_human_review",
+      "scoringAuthorized": false
+    },
+    {
+      "id": "B1-05",
+      "featureKey": "ordinal_position",
+      "purpose": "Track front/back ordinal positions, before/after, inclusive counts and overlap.",
+      "constraint": "Position indexing is not automatically logical elimination.",
+      "reviewGate": "Check off-by-one and inclusive counting in explanation.",
+      "lifecycle": "proposed_requires_human_review",
+      "scoringAuthorized": false
+    },
+    {
+      "id": "B1-06",
+      "featureKey": "spatial_enumeration",
+      "purpose": "Identify counted objects, size, and distinct legal placements in grids or drawings.",
+      "constraint": "Grid dimensions in text can support counts; external shape pixels still require inspection.",
+      "reviewGate": "Visual highlighting is deferred to diagram engine.",
+      "lifecycle": "proposed_requires_human_review",
+      "scoringAuthorized": false
+    },
+    {
+      "id": "B1-07",
+      "featureKey": "media_verified",
+      "purpose": "Require accessible and visually inspected media before diagram-accuracy certification.",
+      "constraint": "File paths, alt text and answer keys are not independent pixel verification.",
+      "reviewGate": "Keep method-fit proposal tentative and visual verdict unverified.",
+      "lifecycle": "proposed_requires_human_review",
+      "scoringAuthorized": false
+    },
+    {
+      "id": "B1-08",
+      "featureKey": "curriculum_fit",
+      "purpose": "Assess concept and representation appropriateness for stated primary level and enrichment context.",
+      "constraint": "Mathematical correctness does not establish grade-level pedagogical suitability.",
+      "reviewGate": "Require human curriculum lead decision; do not relabel question automatically.",
+      "lifecycle": "proposed_requires_human_review",
+      "scoringAuthorized": false
+    },
+    {
+      "id": "B1-09",
+      "featureKey": "fraction_whole_tracking",
+      "purpose": "Distinguish portions of original whole, changed whole, fraction left and multistep dependencies.",
+      "constraint": "Correct answer in source is not an independently verified worked solution.",
+      "reviewGate": "Do not reward method without verified base of each fraction.",
+      "lifecycle": "proposed_requires_human_review",
+      "scoringAuthorized": false
+    },
+    {
+      "id": "B1-10",
+      "featureKey": "ratio_unit_equivalence",
+      "purpose": "Trace equal fractions of different wholes, ratio units, scale factors and changing quantities.",
+      "constraint": "A ratio-looking word problem can require more than one method.",
+      "reviewGate": "Keep multiple methods ambiguous until unit interpretation confirmed.",
+      "lifecycle": "proposed_requires_human_review",
+      "scoringAuthorized": false
+    },
+    {
+      "id": "B1-11",
+      "featureKey": "inverse_work_relation",
+      "purpose": "State assumption of constant total work and uniform worker rates for inverse-rate methods.",
+      "constraint": "Method may be mathematically valid but needs separate curriculum appropriateness.",
+      "reviewGate": "Do not merge this into the speed-distance formula by name alone.",
+      "lifecycle": "proposed_requires_human_review",
+      "scoringAuthorized": false
+    },
+    {
+      "id": "B1-12",
+      "featureKey": "measure_time_context",
+      "purpose": "Track measurement units, required remaining quantity, and time-offset direction.",
+      "constraint": "Do not classify a clock that is fast as a positive elapsed-time addition.",
+      "reviewGate": "Diagrams and units still require separate inspection.",
+      "lifecycle": "proposed_requires_human_review",
+      "scoringAuthorized": false
+    }
+  ]
+}

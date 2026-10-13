@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "4C-4C-B1.REVIEW.1",
+  "policy": "review_only_no_scoring_change",
+  "sourceQuestions": 480,
+  "readyQuestions": 320,
+  "upstreamBlocked": 160,
+  "selected": 84,
+  "ambiguous": 236,
+  "P0": 11,
+  "priorityDistribution": {
+    "P1": 195,
+    "P2": 114,
+    "P0": 11
+  },
+  "ruleCount": 12,
+  "curatedCases": 24,
+  "curatedP0": 11,
+  "curatedByRule": {
+    "B1-08": 2,
+    "B1-06": 3,
+    "B1-07": 9,
+    "B1-12": 4,
+    "B1-04": 2,
+    "B1-02": 5,
+    "B1-11": 1,
+    "B1-03": 2,
+    "B1-05": 2,
+    "B1-01": 2,
+    "B1-09": 1,
+    "B1-10": 1
+  },
+  "readyWithoutCuratedProposal": 296,
+  "humanReviewedReady": 0,
+  "externalImageReady": 17,
+  "externalImageInCurated": 9,
+  "humanApprovedCases": 0,
+  "automaticSelectionChanges": 0,
+  "scoringChanges": 0,
+  "minimumQuality": 75,
+  "minimumMargin": 8,
+  "holdoutStatus": "inspected_not_unseen",
+  "gate": "Human confirmation of question structure and diagrams is required before Phase 4C-4C-B2 scorer integration."
+}

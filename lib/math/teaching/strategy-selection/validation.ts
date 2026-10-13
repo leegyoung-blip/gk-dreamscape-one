@@ -77,7 +77,14 @@ export function validateStrategySelection(value: StrategySelection): ContractVal
     if (!top || !value.primaryMethodId || value.primaryMethodId !== top.methodId ||
         value.primaryFamilyId !== top.familyId) issues.push('WINNER_MISMATCH');
     if (value.issues.length > 0) issues.push('SELECTED_HAS_ISSUES');
-    const margin = top && second ? (top.score as number)-(second.score as number) : null;
+    // Selector stores score differences rounded to six decimal places.
+    // Recompute that same canonical representation before comparing, rather
+    // than requiring exact equality with a raw binary floating-point subtraction.
+    // Confidence classification still uses the *unrounded* scores and the
+    // original thresholds; no quality or margin gate is relaxed by this check.
+    const margin = top && second
+      ? Math.round(((top.score as number) - (second.score as number)) * 1e6) / 1e6
+      : null;
     if (value.winnerMargin !== margin || value.confidenceScore !== top?.score ||
         value.confidence !== classifyConfidence(top?.score ?? -1, second?.score ?? null) ||
         value.confidence === 'none') issues.push('CONFIDENCE_INVALID');
