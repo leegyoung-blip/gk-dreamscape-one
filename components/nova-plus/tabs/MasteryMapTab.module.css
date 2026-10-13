@@ -988,3 +988,381 @@
     line-height: 1.35;
   }
 }
+
+
+/* =========================================================
+   C3D-v5 — make the Mastery Map self-explanatory
+   ========================================================= */
+
+.purposeGuide {
+  margin: 2px 20px 12px;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: minmax(280px, 1.35fr) minmax(380px, 1fr);
+  gap: 18px;
+  align-items: center;
+  border: 1px solid rgba(109, 221, 255, 0.11);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(83, 215, 255, 0.055), rgba(139, 92, 246, 0.035)),
+    rgba(2, 11, 27, 0.58);
+}
+
+.purposeCopy > span,
+.coachingCard > span {
+  color: #8dfcff;
+  font-size: 9.5px;
+  font-weight: 950;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.purposeCopy h3 {
+  margin: 5px 0 4px;
+  color: #f7fbff;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.purposeCopy p {
+  max-width: 690px;
+  margin: 0;
+  color: rgba(235, 247, 255, 0.60);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.purposeSteps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.purposeSteps > span {
+  min-height: 66px;
+  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 7px;
+  align-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.purposeSteps b {
+  grid-row: 1 / 3;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  align-self: center;
+  border: 1px solid rgba(141, 252, 255, 0.22);
+  border-radius: 999px;
+  color: #8dfcff;
+  background: rgba(83, 215, 255, 0.05);
+  font-size: 9px;
+}
+
+.purposeSteps strong {
+  color: rgba(247, 251, 255, 0.90);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.purposeSteps small {
+  margin-top: 2px;
+  color: rgba(235, 247, 255, 0.35);
+  font-size: 8.5px;
+}
+
+.legendTitle {
+  color: rgba(235, 247, 255, 0.62);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+}
+
+.selectionPrompt {
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 9px 14px;
+  border: 1px solid rgba(142, 232, 255, 0.10);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(83, 215, 255, 0.045), rgba(139, 92, 246, 0.025)),
+    rgba(4, 13, 28, 0.74);
+}
+
+.selectionPrompt > span {
+  color: #8dfcff;
+  font-size: 8.5px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+}
+
+.selectionPrompt strong {
+  color: white;
+  font-size: 12.5px;
+}
+
+.selectionPrompt p {
+  margin: 0;
+  color: rgba(235, 247, 255, 0.48);
+  font-size: 10px;
+}
+
+.detailPanel {
+  position: relative;
+  bottom: auto;
+  z-index: 30;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(76, 193, 255, 0.055), transparent 26%),
+    rgba(4, 13, 28, 0.97);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.42),
+    0 0 30px rgba(83, 215, 255, 0.055);
+  backdrop-filter: blur(18px);
+}
+
+.detailIdentity {
+  padding-right: 48px;
+}
+
+.detailIdentity h3 {
+  margin: 7px 0 0;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
+}
+
+.detailIdentity p {
+  margin: 5px 0 0;
+  color: rgba(235, 247, 255, 0.45);
+  font-size: 10.5px;
+}
+
+.detailStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.detailStatus i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.coachingGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.coachingCard {
+  min-height: 148px;
+  padding: 16px;
+  border: 1px solid rgba(142, 232, 255, 0.09);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.coachingCard strong {
+  display: block;
+  margin-top: 7px;
+  color: #fff;
+  font-size: 16px;
+  line-height: 1.22;
+}
+
+.coachingCard p {
+  margin: 7px 0 0;
+  color: rgba(235, 247, 255, 0.60);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.nextStepCard {
+  border-color: rgba(141, 252, 255, 0.14);
+  background:
+    linear-gradient(135deg, rgba(83, 215, 255, 0.065), rgba(139, 92, 246, 0.04)),
+    rgba(255, 255, 255, 0.018);
+}
+
+.nextStepCard button {
+  margin-top: 12px;
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid rgba(141, 252, 255, 0.22);
+  border-radius: 10px;
+  background: rgba(83, 215, 255, 0.085);
+  color: #dcfaff;
+  font-size: 10.5px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.nextStepCard button:hover {
+  background: rgba(83, 215, 255, 0.13);
+}
+
+.evidenceSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.evidenceSummary > span {
+  min-height: 74px;
+  padding: 11px 12px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.evidenceSummary b {
+  color: #f7fbff;
+  font-size: 14px;
+  line-height: 1.22;
+}
+
+.evidenceSummary small {
+  color: rgba(235, 247, 255, 0.39);
+  font-size: 8.5px;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.technicalDetails {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.technicalDetails summary {
+  padding: 12px 14px;
+  color: rgba(235, 247, 255, 0.60);
+  font-size: 10px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.technicalDetails[open] summary {
+  color: #dffaff;
+}
+
+.technicalGrid {
+  padding: 0 12px 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.technicalGrid > span {
+  min-height: 58px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.technicalGrid small {
+  display: block;
+  color: rgba(235, 247, 255, 0.34);
+  font-size: 7.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.technicalGrid strong {
+  display: block;
+  margin-top: 5px;
+  color: rgba(247, 251, 255, 0.82);
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-transform: none;
+}
+
+.technicalWide {
+  grid-column: span 2;
+}
+
+.closeDetail {
+  position: absolute;
+  right: 15px;
+  top: 15px;
+  width: 35px;
+  height: 35px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.035);
+  color: white;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.closeDetail:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+@media (max-width: 900px) {
+  .purposeGuide {
+    grid-template-columns: 1fr;
+  }
+
+  .coachingGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .evidenceSummary,
+  .technicalGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .purposeGuide {
+    margin-inline: 12px;
+    padding: 13px;
+  }
+
+  .purposeSteps {
+    grid-template-columns: 1fr;
+  }
+
+  .selectionPrompt {
+    grid-template-columns: 1fr;
+  }
+
+  .evidenceSummary,
+  .technicalGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .technicalWide {
+    grid-column: 1 / -1;
+  }
+
+  .coachingCard {
+    min-height: auto;
+  }
+}

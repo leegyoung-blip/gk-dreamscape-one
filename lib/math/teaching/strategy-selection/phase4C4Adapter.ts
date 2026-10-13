@@ -11,6 +11,14 @@ import { composeTeachingMethods, type MethodComposition } from './composition';
 import type { StrategySelection, SelectionInputBoundary, ScoreDimension } from './types';
 
 export const PHASE4C4_ADAPTER_VERSION = '4C-4A.1' as const;
+export const PHASE4C4_F3_POLICY_VERSION = '4C-4B-F3.1' as const;
+export type MethodPrerequisiteMasteryState =
+  'not_required' | 'verified_satisfied' | 'verified_unmet' | 'not_affirmed' | 'unknown';
+/** Explicitly sourced learner evidence, never inferred from question readiness or level. */
+export type VerifiedLearnerPrerequisiteEvidence = Readonly<Record<string, {
+  status: 'met' | 'unmet';
+  source: string;
+}>>;
 type EvidenceByMethod = Readonly<Record<string, {
   /** Proven separately from the method's declarative prerequisites. */
   mandatoryPrerequisitesSatisfied: boolean;
@@ -26,6 +34,8 @@ export type Phase4C4AdapterInput = {
   strategyEnvelope: TeachingContractConsumerEnvelope;
   /** External, explicitly verified facts; missing entries are not presumed true. */
   verifiedEvidence?: EvidenceByMethod;
+  /** Verified learner mastery/weakness, indexed by method ID. Omission means unknown. */
+  learnerPrerequisiteEvidence?: VerifiedLearnerPrerequisiteEvidence;
 };
 export type Phase4C4AdapterResult = {
   schemaVersion: typeof PHASE4C4_ADAPTER_VERSION;
@@ -39,12 +49,22 @@ export type Phase4C4AdapterResult = {
 };
 const dims: readonly ScoreDimension[] = ['problem_structure','required_reasoning','curriculum_skill','learner_level','math_domain','representation_fit','prerequisites'];
 const zero = (method: TeachingMethod, domain: ScoreDimension, detail: string) => ({dimension:domain,code:'4B_METADATA_CHECK',detail:`${method.methodId}: ${detail}`});
-function makeEvidence(method: TeachingMethod, contract: TeachingContractConsumerEnvelope['contract'], verified?: EvidenceByMethod[string]): MethodCandidateEvidence {
+function makeEvidence(
+  method: TeachingMethod, contract: TeachingContractConsumerEnvelope['contract'],
+  verified?: EvidenceByMethod[string], learner?: VerifiedLearnerPrerequisiteEvidence[string],
+): MethodCandidateEvidence {
   const matchingReasoning=method.applicability.reasoning.filter(r=>contract.mathematics.requiredReasoning.includes(r));
   const skillKeys=[contract.curriculum.primarySkill?.code, contract.curriculum.primarySkill?.id,
     ...contract.curriculum.secondarySkills.flatMap(s=>[s.code,s.id]),...contract.curriculum.skillTags].filter((x):x is string=>!!x);
   const declarativeSkillMatch=method.applicability.curriculumSkills.some(s=>skillKeys.includes(s));
-  const prerequisites=method.pedagogy.prerequisiteConcepts.length===0 || verified?.mandatoryPrerequisitesSatisfied===true;
+  const mastery: MethodPrerequisiteMasteryState = method.pedagogy.prerequisiteConcepts.length === 0
+    ? 'not_required'
+    : learner?.status === 'met' ? 'verified_satisfied'
+    : learner?.status === 'unmet' ? 'verified_unmet'
+    : verified?.mandatoryPrerequisitesSatisfied === true ? 'verified_satisfied'
+    : verified?.mandatoryPrerequisitesSatisfied === false ? 'not_affirmed'
+    : 'unknown';
+  const prerequisites = mastery === 'not_required' || mastery === 'verified_satisfied';
   const skillMatch=declarativeSkillMatch || (verified?.curriculumSkillMatch===true);
   const visualRelevant=contract.visual.hasVisual && method.visualGuidance.visualUse!=='never';
   const representationFit=verified?.representationFit===true || (visualRelevant && method.visualGuidance.originalDiagramPolicy==='use_when_present');
@@ -59,6 +79,7 @@ function makeEvidence(method: TeachingMethod, contract: TeachingContractConsumer
   };
   return { methodId:method.methodId,familyId:method.familyId,active:method.status==='active',
     eligibleLevels:method.applicability.levels,mandatoryPrerequisitesSatisfied:prerequisites,
+    prerequisiteEvidenceState:mastery,
     matches,complexity:method.pedagogy.teachingSequence.length,
     positiveEvidence:dims.filter(d=>matches[d]>0).map(d=>zero(method,d,`verified match ${d}`)),
     penalties:[] };
@@ -81,9 +102,18 @@ export function phase4AConsumerPayloadsAgree(
     stableStringify(b.contract) === stableStringify(c.contract);
 }
 
-/** Never bypasses existing 4A consumer validation, never treats applicability as prerequisite proof. */
+/** Never bypasses existing 4A consumer validation, never treats applicability as mastery proof. */
 export function selectFromPhase4A4B(input:Phase4C4AdapterInput):Phase4C4AdapterResult {
   if (!input?.methodLibraryEnvelope || !input?.strategyEnvelope) return fail('ENVELOPES_REQUIRED');
+  // Fail closed on invented, malformed or contradictory learner mastery assertions.
+  const assertions = input.learnerPrerequisiteEvidence ?? {};
+  for (const [methodId, entry] of Object.entries(assertions)) {
+    if (!methodId.trim() || !entry || (entry.status !== 'met' && entry.status !== 'unmet') ||
+      typeof entry.source !== 'string' || !entry.source.trim()) return fail('INVALID_LEARNER_PREREQUISITE_EVIDENCE');
+    const legacy = input.verifiedEvidence?.[methodId]?.mandatoryPrerequisitesSatisfied;
+    if (typeof legacy === 'boolean' && legacy !== (entry.status === 'met'))
+      return fail('CONFLICTING_PREREQUISITE_EVIDENCE');
+  }
   const b=input.methodLibraryEnvelope, c=input.strategyEnvelope;
   if (!validateTeachingContractConsumerEnvelope(b,'phase_4b_method_library').valid ||
       !validateTeachingContractConsumerEnvelope(c,'phase_4c_strategy_selector').valid) return fail('INVALID_4A_ENVELOPE');
@@ -106,7 +136,7 @@ export function selectFromPhase4A4B(input:Phase4C4AdapterInput):Phase4C4AdapterR
       teachingConsumerSchema:c.schemaVersion,methodLibrarySchema:'4B.1',methodTaxonomySchema:requirement.schemaVersion,
       primaryFamilyId:family};
     return selectTeachingStrategy({boundary,learnerLevel:requirement.learnerLevel,
-      candidates:primary.filter(m=>m.familyId===family).map(m=>makeEvidence(m,c.contract,input.verifiedEvidence?.[m.methodId]))});
+      candidates:primary.filter(m=>m.familyId===family).map(m=>makeEvidence(m,c.contract,input.verifiedEvidence?.[m.methodId],input.learnerPrerequisiteEvidence?.[m.methodId]))});
   });
   if (selections.some(s=>s.status==='blocked')) return fail('FAMILY_SELECTION_BLOCKED',families,candidates.length,selections);
   // 4C-2 only ranks within a single family. Do not pretend its margin proves cross-family superiority.

@@ -29,10 +29,14 @@ export function runPhase4C4BCohortAudit(input:MathIntelligenceQaExportLike){
  const counts={upstreamBlocked:0,adapterBlocked:0,ambiguous:0,selected:0,nondeterministic:0};
  const reasons:Record<string,number>={};
  const levels:Record<string,Record<string,number>>={};
+ const f3Counts={policyVersion:'4C-4B-F3.1',readyQuestionsWithUnknownMastery:0,
+   unknownMasteryEligibleCandidates:0,verifiedUnmetExcludedCandidates:0,
+   selectedWithUnknownMastery:0,ambiguousWithUnknownMastery:0,
+   selectedWithVerifiedUnmet:0};
  const f2Counts={withFamilyDiagnostics:0,allCandidatesUnverified:0,prerequisiteExcludedMixedEvidence:0,
    eligibleCandidatesPresent:0,otherOrMixedExclusions:0,candidateAssessments:0,
    unverifiedCandidatePrerequisites:0,notAffirmedCandidatePrerequisites:0,
-   verifiedCandidatePrerequisites:0,otherHardExclusions:0};
+   verifiedCandidatePrerequisites:0,verifiedUnmetCandidatePrerequisites:0,otherHardExclusions:0};
  const results:Phase4C4BQuestionRecord[]=run.items.map(item=>{
   const level=`P${item.primaryLevel??'unknown'}`;
   const record=(status:Phase4C4BQuestionRecord['status'],code:string,adapter?:Phase4C4AdapterResult,stable=true,diagnostics?:Phase4C4BF2Diagnostics):Phase4C4BQuestionRecord=>{
@@ -49,6 +53,15 @@ export function runPhase4C4BCohortAudit(input:MathIntelligenceQaExportLike){
      f2Counts.unverifiedCandidatePrerequisites+=diagnostics.candidatePrerequisitesUnverified;
      f2Counts.notAffirmedCandidatePrerequisites+=diagnostics.candidatePrerequisitesNotAffirmed;
      f2Counts.verifiedCandidatePrerequisites+=diagnostics.candidatePrerequisitesVerified;
+     f2Counts.verifiedUnmetCandidatePrerequisites+=diagnostics.candidatePrerequisitesVerifiedUnmet;
+     const methods=diagnostics.familyDiagnostics.flatMap(f=>f.methods);
+     const unknown=methods.filter(m=>m.prerequisiteEvidence==='unverified');
+     if(unknown.length)f3Counts.readyQuestionsWithUnknownMastery++;
+     f3Counts.unknownMasteryEligibleCandidates+=unknown.filter(m=>m.eligibility==='eligible').length;
+     f3Counts.verifiedUnmetExcludedCandidates+=methods.filter(m=>m.prerequisiteEvidence==='verified_unmet'&&m.eligibility==='excluded').length;
+     if(status==='selected' && unknown.length)f3Counts.selectedWithUnknownMastery++;
+     if(status==='ambiguous' && unknown.length)f3Counts.ambiguousWithUnknownMastery++;
+     if(status==='selected' && methods.some(m=>m.prerequisiteEvidence==='verified_unmet'&&m.eligibility==='eligible'))f3Counts.selectedWithVerifiedUnmet++;
      f2Counts.otherHardExclusions+=diagnostics.candidateOtherHardExclusions;
    }
    return {questionId:item.questionId,questionCode:item.questionCode,level:item.primaryLevel,status,
@@ -76,6 +89,7 @@ export function runPhase4C4BCohortAudit(input:MathIntelligenceQaExportLike){
  const upstreamExpected=exp?counts.upstreamBlocked===exp.blocked:null;
  const summary={total:results.length,...counts,byReason:reasons,byLevel:levels,
   f2Diagnostics:{version:'4C-4B-F2.1',...f2Counts,methodRegistry:countPhase4BPrerequisiteMetadata()},
+  f3Policy:f3Counts,
   expected:exp??null,checks:{matchesExpectedTotal:exp?results.length===exp.total:null,
     matchesExpectedUpstreamBlocks:upstreamExpected,totalsReconcile:results.length===counts.upstreamBlocked+counts.adapterBlocked+counts.ambiguous+counts.selected,
     deterministic:counts.nondeterministic===0}};

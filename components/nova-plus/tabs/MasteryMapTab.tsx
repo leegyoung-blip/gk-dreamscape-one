@@ -14,7 +14,6 @@ import type {
 } from "@/lib/nova-plus/types";
 import type {
   EnglishMasteryItem,
-  EnglishMasteryStage,
 } from "@/lib/nova-plus/english-mastery-types";
 import {
   isNovaPlusAssessedConcept,
@@ -22,7 +21,6 @@ import {
   SUBJECT_META,
 } from "@/lib/nova-plus/helpers";
 import {
-  ENGLISH_STAGE_COLOURS,
   englishMasteriesAtLevel,
   englishMasteryDisplayGroup,
   inferCurrentEnglishLevel,
@@ -43,6 +41,11 @@ type SubjectKey = "english" | "math" | "science";
 type LiveSubject = "english" | "math";
 type LegacyMapState = "strong" | "developing" | "attention" | "unknown";
 type ConfidenceLabel = "Low" | "Moderate" | "High";
+type PurposeState =
+  | "secure"
+  | "building"
+  | "needs_practice"
+  | "needs_evidence";
 
 type OrbitGroup = {
   id: string;
@@ -175,6 +178,40 @@ const LEGACY_STATE_META: Record<
   developing: { label: "Developing", colour: "#ffae57" },
   attention: { label: "Needs Attention", colour: "#ff6c72" },
   unknown: { label: "Not assessed", colour: "#8d9caf" },
+};
+
+const PURPOSE_STATE_META: Record<
+  PurposeState,
+  {
+    label: string;
+    colour: string;
+    meaning: string;
+  }
+> = {
+  secure: {
+    label: "Secure",
+    colour: "#4de2a1",
+    meaning:
+      "Nova has enough evidence to show that this skill is secure right now.",
+  },
+  building: {
+    label: "Building",
+    colour: "#6fc7ff",
+    meaning:
+      "This skill is developing. Progress is happening, but it is not secure yet.",
+  },
+  needs_practice: {
+    label: "Needs Practice",
+    colour: "#ff747c",
+    meaning:
+      "Nova has enough evidence to treat this as a real practice priority.",
+  },
+  needs_evidence: {
+    label: "Needs More Evidence",
+    colour: "#93a3b8",
+    meaning:
+      "Nova has not seen enough varied work yet, so this is not a confirmed weakness.",
+  },
 };
 
 const ORBIT_PAGE_SIZE = 12;
@@ -312,6 +349,84 @@ function englishGroup(item: EnglishMasteryItem): EnglishMasteryDisplayGroup {
   return englishMasteryDisplayGroup(item);
 }
 
+function englishPurposeState(item: EnglishMasteryItem): PurposeState {
+  const group = englishGroup(item);
+
+  if (group === "strong") return "secure";
+  if (group === "attention") return "needs_practice";
+  if (group === "needs_evidence") return "needs_evidence";
+  return "building";
+}
+
+function mathPurposeState(concept: CurriculumConcept): PurposeState {
+  const state = mathConceptState(concept);
+
+  if (state === "strong") return "secure";
+  if (state === "attention") return "needs_practice";
+  if (state === "unknown") return "needs_evidence";
+  return "building";
+}
+
+function englishNextStep(
+  item: EnglishMasteryItem,
+  state: PurposeState,
+) {
+  if (state === "needs_evidence") {
+    return `Try a few more questions that use “${item.mastery_name}”. Nova will update this skill once it has seen more varied evidence.`;
+  }
+
+  if (state === "needs_practice") {
+    return `Focus on “${item.mastery_name}” next with targeted practice, then check the skill again after a few more questions.`;
+  }
+
+  if (state === "building") {
+    return `Keep practising “${item.mastery_name}” across a few more questions and contexts until it becomes secure.`;
+  }
+
+  return `This skill looks secure. Keep it fresh with occasional review, then move on to a new challenge.`;
+}
+
+function mathNextStep(
+  concept: CurriculumConcept,
+  state: PurposeState,
+) {
+  const skill = String(concept.skill_name || "this skill");
+
+  if (state === "needs_evidence") {
+    return `Try a few more questions that use “${skill}”. Nova needs more work samples before making a confident judgement.`;
+  }
+
+  if (state === "needs_practice") {
+    return `Give “${skill}” focused practice next, then revisit it after a few more questions.`;
+  }
+
+  if (state === "building") {
+    return `Keep practising “${skill}” until the learner can use it consistently and independently.`;
+  }
+
+  return `This concept looks secure. Keep it fresh with occasional review and move on to a new challenge.`;
+}
+
+function rememberMasteryFocus(node: OrbitNode) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.sessionStorage.setItem(
+      "nova-plus-mastery-focus-v1",
+      JSON.stringify({
+        id: node.id,
+        label: node.label,
+        kind: node.kind,
+        english_mastery_code: node.english?.mastery_code ?? null,
+        math_skill_id: node.math?.skill_id ?? null,
+        saved_at: new Date().toISOString(),
+      }),
+    );
+  } catch {
+    // Recommendation navigation still works if browser storage is unavailable.
+  }
+}
+
 function buildEnglishGroups(items: EnglishMasteryItem[]): OrbitGroup[] {
   return ENGLISH_FAMILY_ORDER.map((family) => {
     const rows = items.filter((item) => item.mastery_family === family);
@@ -384,15 +499,20 @@ function englishNodes(
         a.progression_key.localeCompare(b.progression_key) ||
         a.mastery_name.localeCompare(b.mastery_name),
     )
-    .map((item) => ({
-      id: item.mastery_code,
-      label: item.mastery_name,
-      statusLabel: `${item.stage} · ${item.evidence_confidence} evidence`,
-      colour: ENGLISH_STAGE_COLOURS[item.stage],
-      confidence: item.evidence_confidence,
-      kind: "english" as const,
-      english: item,
-    }));
+    .map((item) => {
+      const purposeState = englishPurposeState(item);
+      const purposeMeta = PURPOSE_STATE_META[purposeState];
+
+      return {
+        id: item.mastery_code,
+        label: item.mastery_name,
+        statusLabel: `${purposeMeta.label} · ${item.evidence_confidence} evidence`,
+        colour: purposeMeta.colour,
+        confidence: item.evidence_confidence,
+        kind: "english" as const,
+        english: item,
+      };
+    });
 }
 
 function mathNodes(
@@ -408,12 +528,14 @@ function mathNodes(
       String(a.skill_name || "").localeCompare(String(b.skill_name || "")),
     )
     .map((concept) => {
-      const state = mathConceptState(concept);
+      const purposeState = mathPurposeState(concept);
+      const purposeMeta = PURPOSE_STATE_META[purposeState];
+
       return {
         id: String(concept.skill_id),
         label: concept.skill_name,
-        statusLabel: LEGACY_STATE_META[state].label,
-        colour: LEGACY_STATE_META[state].colour,
+        statusLabel: purposeMeta.label,
+        colour: purposeMeta.colour,
         confidence: confidenceFromLegacyScore(concept.confidence_score),
         kind: "math" as const,
         math: concept,
@@ -481,28 +603,6 @@ function nodeLabelPlacement(point: { x: number; y: number }) {
   if (point.x <= 42) return "left" as const;
   if (point.y < 50) return "top" as const;
   return "bottom" as const;
-}
-
-function englishStageExplanation(item: EnglishMasteryItem) {
-  const group = englishGroup(item);
-
-  if (item.stage === "Not Yet Assessed") {
-    return "Nova has not yet seen enough eligible English evidence for this mastery.";
-  }
-
-  if (group === "needs_evidence") {
-    return "Nova has early evidence, but Evidence Confidence is still Low. This is not treated as a confirmed weakness.";
-  }
-
-  if (group === "attention") {
-    return "The learner is at an early mastery stage and Nova has enough evidence to treat this as a genuine priority.";
-  }
-
-  if (group === "strong") {
-    return "The learner has reached a secure upper mastery stage with enough supporting evidence.";
-  }
-
-  return "The learner is progressing through this mastery but has not yet reached the secure upper stages.";
 }
 
 export default function MasteryMapTab({
@@ -718,14 +818,44 @@ export default function MasteryMapTab({
           <div className={styles.legend}>
             <span>
               <i className={styles.legendStage} />
-              Node colour = mastery stage/status
+              Node colour = learning status
             </span>
             <span>
               <i className={styles.legendHalo} />
-              Halo = Evidence Confidence
+              Halo = strength of evidence
             </span>
           </div>
         </header>
+
+        <section className={styles.purposeGuide}>
+          <div className={styles.purposeCopy}>
+            <span>WHAT THIS MAP IS FOR</span>
+            <h3>See what you know and what to work on next.</h3>
+            <p>
+              Choose a learning area, then select a skill. Nova shows what is
+              secure, what is still building, and where more practice or more
+              evidence is needed.
+            </p>
+          </div>
+
+          <div className={styles.purposeSteps} aria-label="How to use the Mastery Map">
+            <span>
+              <b>1</b>
+              <strong>Choose an area</strong>
+              <small>Inner ring</small>
+            </span>
+            <span>
+              <b>2</b>
+              <strong>Select a skill</strong>
+              <small>Outer orbit</small>
+            </span>
+            <span>
+              <b>3</b>
+              <strong>Read your next step</strong>
+              <small>Coaching panel</small>
+            </span>
+          </div>
+        </section>
 
         {subject === "english" && mastery.error ? (
           <div className={styles.stateCard}>
@@ -864,7 +994,7 @@ export default function MasteryMapTab({
                 </span>
                 <span>
                   <i className={styles.corePriority} />
-                  {selectedGroup?.priority ?? 0} priority
+                  {selectedGroup?.priority ?? 0} need practice
                 </span>
               </div>
             </div>
@@ -950,220 +1080,279 @@ export default function MasteryMapTab({
         )}
 
         <footer className={styles.statusLegend}>
-          {subject === "english" ? (
-            <>
-              {(
-                [
-                  "Strong",
-                  "Consolidating",
-                  "Developing",
-                  "Progressing",
-                  "Building",
-                  "Starting",
-                  "Not Yet Assessed",
-                ] as EnglishMasteryStage[]
-              ).map((stage) => (
-                <span key={stage}>
-                  <i style={{ background: ENGLISH_STAGE_COLOURS[stage] }} />
-                  {stage}
-                </span>
-              ))}
-            </>
-          ) : (
-            <>
-              {(Object.keys(LEGACY_STATE_META) as LegacyMapState[]).map(
-                (state) => (
-                  <span key={state}>
-                    <i
-                      style={{
-                        background: LEGACY_STATE_META[state].colour,
-                      }}
-                    />
-                    {LEGACY_STATE_META[state].label}
-                  </span>
-                ),
-              )}
-            </>
-          )}
+          <strong className={styles.legendTitle}>MAP KEY</strong>
+          {(
+            [
+              "secure",
+              "building",
+              "needs_practice",
+              "needs_evidence",
+            ] as PurposeState[]
+          ).map((state) => (
+            <span key={state}>
+              <i style={{ background: PURPOSE_STATE_META[state].colour }} />
+              {PURPOSE_STATE_META[state].label}
+            </span>
+          ))}
         </footer>
       </section>
 
-      {selectedNode?.english && (
-        <section className={styles.detailPanel}>
-          <div className={styles.detailIdentity}>
-            <span
-              className={styles.detailStatus}
-              style={{
-                color: ENGLISH_STAGE_COLOURS[selectedNode.english.stage],
-              }}
-            >
-              <i
-                style={{
-                  background: ENGLISH_STAGE_COLOURS[selectedNode.english.stage],
-                }}
-              />
-              {selectedNode.english.stage}
-            </span>
-
-            <h3>{selectedNode.english.mastery_name}</h3>
-            <p>
-              Primary {selectedNode.english.primary_level} English ·{" "}
-              {selectedNode.english.mastery_family}
-            </p>
-          </div>
-
-          <div className={styles.detailMetrics}>
-            <span>
-              <small>Mastery stage</small>
-              <strong>{selectedNode.english.stage}</strong>
-            </span>
-            <span>
-              <small>Evidence Confidence</small>
-              <strong>{selectedNode.english.evidence_confidence}</strong>
-            </span>
-            <span>
-              <small>Unique questions</small>
-              <strong>{selectedNode.english.unique_questions}</strong>
-            </span>
-            <span>
-              <small>Difficulty bands</small>
-              <strong>{selectedNode.english.bands_encountered.length}</strong>
-            </span>
-          </div>
-
-          <div className={styles.detailExplanation}>
-            {englishStageExplanation(selectedNode.english)}
-            <small>
-              Contexts:{" "}
-              {selectedNode.english.contexts_seen.length
-                ? selectedNode.english.contexts_seen.join(", ")
-                : "No context evidence yet"}
-            </small>
-          </div>
-
-          <div className={styles.detailFooter}>
-            <span>
-              Last evidence:{" "}
-              {formatDate(selectedNode.english.last_evidence_at)}
-            </span>
-
-            {englishGroup(selectedNode.english) !== "needs_evidence" && (
-              <button type="button" onClick={onOpenRecommendations}>
-                See Nova&apos;s recommendation →
-              </button>
-            )}
-
-            <button
-              type="button"
-              className={styles.closeDetail}
-              onClick={() => setSelectedNode(null)}
-              aria-label="Close mastery detail"
-            >
-              ×
-            </button>
-          </div>
+      {!selectedNode && (
+        <section className={styles.selectionPrompt}>
+          <span>SELECT A SKILL</span>
+          <strong>Choose any skill dot around the orbit.</strong>
+          <p>
+            Nova will explain what the status means, what evidence it has seen,
+            and what the learner should do next.
+          </p>
         </section>
       )}
 
-      {selectedNode?.math && (
-        <section className={styles.detailPanel}>
-          <div className={styles.detailIdentity}>
-            {(() => {
-              const state = mathConceptState(selectedNode.math!);
-              const meta = LEGACY_STATE_META[state];
-              return (
+      {selectedNode?.english &&
+        (() => {
+          const item = selectedNode.english;
+          const purposeState = englishPurposeState(item);
+          const purposeMeta = PURPOSE_STATE_META[purposeState];
+
+          return (
+            <section className={styles.detailPanel}>
+              <div className={styles.detailIdentity}>
                 <span
                   className={styles.detailStatus}
-                  style={{ color: meta.colour }}
+                  style={{ color: purposeMeta.colour }}
                 >
-                  <i style={{ background: meta.colour }} />
-                  {meta.label}
+                  <i style={{ background: purposeMeta.colour }} />
+                  {purposeMeta.label}
                 </span>
-              );
-            })()}
 
-            <h3>{selectedNode.math.skill_name}</h3>
-            <p>
-              Primary {selectedNode.math.primary_level} Mathematics ·{" "}
-              {selectedNode.math.topic}
-            </p>
-          </div>
-
-          <div className={styles.detailMetrics}>
-            <span>
-              <small>Mastery</small>
-              <strong>
-                {selectedNode.math.has_evidence &&
-                selectedNode.math.mastery_score !== null
-                  ? `${Math.round(selectedNode.math.mastery_score)}%`
-                  : "—"}
-              </strong>
-            </span>
-            <span>
-              <small>Confidence</small>
-              <strong>
-                {selectedNode.math.has_evidence &&
-                selectedNode.math.confidence_score !== null
-                  ? `${Math.round(selectedNode.math.confidence_score)}%`
-                  : "—"}
-              </strong>
-            </span>
-            <span>
-              <small>Questions</small>
-              <strong>{selectedNode.math.questions_attempted}</strong>
-            </span>
-            <span>
-              <small>Trend</small>
-              <strong>
-                {selectedNode.math.trend === "no_data"
-                  ? "—"
-                  : selectedNode.math.trend}
-              </strong>
-            </span>
-          </div>
-
-          {(() => {
-            const schoolwork = schoolworkEvidence.bySkillId.get(
-              String(selectedNode.math!.skill_id),
-            );
-            if (!schoolwork) return null;
-
-            return (
-              <div className={styles.detailExplanation}>
-                <b>Uploaded schoolwork</b>
-                <small>
-                  {schoolwork.event_count} approved question
-                  {schoolwork.event_count === 1 ? "" : "s"} from{" "}
-                  {schoolwork.upload_count} upload
-                  {schoolwork.upload_count === 1 ? "" : "s"}.
-                </small>
+                <h3>{item.mastery_name}</h3>
+                <p>
+                  Primary {item.primary_level} English · {item.mastery_family}
+                </p>
               </div>
-            );
-          })()}
 
-          <div className={styles.detailFooter}>
-            <span>
-              Last practised:{" "}
-              {formatDate(selectedNode.math.last_attempted_at)}
-            </span>
+              <div className={styles.coachingGrid}>
+                <article className={styles.coachingCard}>
+                  <span>WHAT THIS MEANS</span>
+                  <strong>{purposeMeta.label}</strong>
+                  <p>{purposeMeta.meaning}</p>
+                </article>
 
-            {mathConceptState(selectedNode.math) !== "unknown" && (
-              <button type="button" onClick={onOpenRecommendations}>
-                See Nova&apos;s recommendation →
+                <article className={`${styles.coachingCard} ${styles.nextStepCard}`}>
+                  <span>WHAT TO DO NEXT</span>
+                  <strong>Nova&apos;s suggested next move</strong>
+                  <p>{englishNextStep(item, purposeState)}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      rememberMasteryFocus(selectedNode);
+                      onOpenRecommendations();
+                    }}
+                  >
+                    Open Nova Recommends →
+                  </button>
+                </article>
+              </div>
+
+              <section className={styles.evidenceSummary}>
+                <span>
+                  <b>{item.unique_questions}</b>
+                  <small>
+                    different question{item.unique_questions === 1 ? "" : "s"}
+                  </small>
+                </span>
+                <span>
+                  <b>{item.bands_encountered.length}</b>
+                  <small>
+                    difficulty level
+                    {item.bands_encountered.length === 1 ? "" : "s"}
+                  </small>
+                </span>
+                <span>
+                  <b>{item.contexts_seen.length}</b>
+                  <small>
+                    learning context
+                    {item.contexts_seen.length === 1 ? "" : "s"}
+                  </small>
+                </span>
+                <span>
+                  <b>{formatDate(item.last_evidence_at)}</b>
+                  <small>last practised</small>
+                </span>
+              </section>
+
+              <details className={styles.technicalDetails}>
+                <summary>How Nova reached this judgement</summary>
+                <div className={styles.technicalGrid}>
+                  <span>
+                    <small>Mastery stage</small>
+                    <strong>{item.stage}</strong>
+                  </span>
+                  <span>
+                    <small>Evidence Confidence</small>
+                    <strong>{item.evidence_confidence}</strong>
+                  </span>
+                  <span>
+                    <small>Difficulty bands</small>
+                    <strong>
+                      {item.bands_encountered.length
+                        ? item.bands_encountered.join(", ")
+                        : "None yet"}
+                    </strong>
+                  </span>
+                  <span>
+                    <small>Contexts seen</small>
+                    <strong>
+                      {item.contexts_seen.length
+                        ? item.contexts_seen.join(", ")
+                        : "None yet"}
+                    </strong>
+                  </span>
+                </div>
+              </details>
+
+              <button
+                type="button"
+                className={styles.closeDetail}
+                onClick={() => setSelectedNode(null)}
+                aria-label="Close mastery detail"
+              >
+                ×
               </button>
-            )}
+            </section>
+          );
+        })()}
 
-            <button
-              type="button"
-              className={styles.closeDetail}
-              onClick={() => setSelectedNode(null)}
-              aria-label="Close concept detail"
-            >
-              ×
-            </button>
-          </div>
-        </section>
-      )}
+      {selectedNode?.math &&
+        (() => {
+          const concept = selectedNode.math;
+          const purposeState = mathPurposeState(concept);
+          const purposeMeta = PURPOSE_STATE_META[purposeState];
+          const schoolwork = schoolworkEvidence.bySkillId.get(
+            String(concept.skill_id),
+          );
+
+          return (
+            <section className={styles.detailPanel}>
+              <div className={styles.detailIdentity}>
+                <span
+                  className={styles.detailStatus}
+                  style={{ color: purposeMeta.colour }}
+                >
+                  <i style={{ background: purposeMeta.colour }} />
+                  {purposeMeta.label}
+                </span>
+
+                <h3>{concept.skill_name}</h3>
+                <p>
+                  Primary {concept.primary_level} Mathematics · {concept.topic}
+                </p>
+              </div>
+
+              <div className={styles.coachingGrid}>
+                <article className={styles.coachingCard}>
+                  <span>WHAT THIS MEANS</span>
+                  <strong>{purposeMeta.label}</strong>
+                  <p>{purposeMeta.meaning}</p>
+                </article>
+
+                <article className={`${styles.coachingCard} ${styles.nextStepCard}`}>
+                  <span>WHAT TO DO NEXT</span>
+                  <strong>Nova&apos;s suggested next move</strong>
+                  <p>{mathNextStep(concept, purposeState)}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      rememberMasteryFocus(selectedNode);
+                      onOpenRecommendations();
+                    }}
+                  >
+                    Open Nova Recommends →
+                  </button>
+                </article>
+              </div>
+
+              <section className={styles.evidenceSummary}>
+                <span>
+                  <b>{concept.questions_attempted}</b>
+                  <small>
+                    question{concept.questions_attempted === 1 ? "" : "s"} seen
+                  </small>
+                </span>
+                <span>
+                  <b>{concept.unique_activities}</b>
+                  <small>
+                    learning activit
+                    {concept.unique_activities === 1 ? "y" : "ies"}
+                  </small>
+                </span>
+                <span>
+                  <b>{concept.active_weeks}</b>
+                  <small>
+                    active week{concept.active_weeks === 1 ? "" : "s"}
+                  </small>
+                </span>
+                <span>
+                  <b>{formatDate(concept.last_attempted_at)}</b>
+                  <small>last practised</small>
+                </span>
+              </section>
+
+              <details className={styles.technicalDetails}>
+                <summary>How Nova reached this judgement</summary>
+                <div className={styles.technicalGrid}>
+                  <span>
+                    <small>Current model status</small>
+                    <strong>{LEGACY_STATE_META[mathConceptState(concept)].label}</strong>
+                  </span>
+                  <span>
+                    <small>Mastery</small>
+                    <strong>
+                      {concept.has_evidence && concept.mastery_score !== null
+                        ? `${Math.round(concept.mastery_score)}%`
+                        : "—"}
+                    </strong>
+                  </span>
+                  <span>
+                    <small>Confidence</small>
+                    <strong>
+                      {concept.has_evidence && concept.confidence_score !== null
+                        ? `${Math.round(concept.confidence_score)}%`
+                        : "—"}
+                    </strong>
+                  </span>
+                  <span>
+                    <small>Trend</small>
+                    <strong>
+                      {concept.trend === "no_data" ? "—" : concept.trend}
+                    </strong>
+                  </span>
+                  {schoolwork && (
+                    <span className={styles.technicalWide}>
+                      <small>Uploaded schoolwork</small>
+                      <strong>
+                        {schoolwork.event_count} approved question
+                        {schoolwork.event_count === 1 ? "" : "s"} from{" "}
+                        {schoolwork.upload_count} upload
+                        {schoolwork.upload_count === 1 ? "" : "s"}
+                      </strong>
+                    </span>
+                  )}
+                </div>
+              </details>
+
+              <button
+                type="button"
+                className={styles.closeDetail}
+                onClick={() => setSelectedNode(null)}
+                aria-label="Close concept detail"
+              >
+                ×
+              </button>
+            </section>
+          );
+        })()}
+
     </div>
   );
 }

@@ -14,6 +14,7 @@ export const PHASE4C4B_F2_DIAGNOSTICS_VERSION = '4C-4B-F2.1' as const;
 export type PrerequisiteEvidenceState =
   | 'not_required'
   | 'verified_satisfied'
+  | 'verified_unmet'
   | 'not_affirmed'
   | 'unverified';
 
@@ -58,6 +59,8 @@ export type Phase4C4BF2Diagnostics = {
   candidatePrerequisitesUnverified: number;
   candidatePrerequisitesNotAffirmed: number;
   candidatePrerequisitesVerified: number;
+  /** F3: explicit confirmed non-mastery, distinct from non-affirmed legacy evidence. */
+  candidatePrerequisitesVerifiedUnmet: number;
   candidateOtherHardExclusions: number;
   familyDiagnostics: Phase4C4BFamilyDiagnostic[];
 };
@@ -82,11 +85,14 @@ export function countPhase4BPrerequisiteMetadata(): {
     byPrerequisiteCount: counts};
 }
 
-function annotateCandidate(candidate: CandidateAssessment, evidence: Phase4C4AdapterInput['verifiedEvidence']): Phase4C4BMethodDiagnostic {
+function annotateCandidate(candidate: CandidateAssessment, evidence: Phase4C4AdapterInput): Phase4C4BMethodDiagnostic {
   const method = methodIndex.get(candidate.methodId);
   const concepts = [...(method?.pedagogy.prerequisiteConcepts ?? [])];
-  const verified = evidence?.[candidate.methodId]?.mandatoryPrerequisitesSatisfied;
+  const verified = evidence?.verifiedEvidence?.[candidate.methodId]?.mandatoryPrerequisitesSatisfied;
+  const learner = evidence?.learnerPrerequisiteEvidence?.[candidate.methodId];
   const prerequisiteEvidence: PrerequisiteEvidenceState = concepts.length === 0 ? 'not_required'
+    : learner?.status === 'met' ? 'verified_satisfied'
+    : learner?.status === 'unmet' ? 'verified_unmet'
     : verified === true ? 'verified_satisfied'
     : verified === false ? 'not_affirmed'
     : 'unverified';
@@ -110,7 +116,7 @@ export function diagnosePhase4C4Selection(
   result: Phase4C4AdapterResult,
 ): Phase4C4BF2Diagnostics {
   const familyDiagnostics: Phase4C4BFamilyDiagnostic[] = result.familySelections.map(selection => {
-    const methods = selection.candidates.map(candidate => annotateCandidate(candidate, input.verifiedEvidence));
+    const methods = selection.candidates.map(candidate => annotateCandidate(candidate, input));
     return {
       familyId: selection.primaryFamilyId ?? 'unresolved',
       status: selection.status,
@@ -129,6 +135,7 @@ export function diagnosePhase4C4Selection(
   const candidatePrerequisitesUnverified = methods.filter(m => m.prerequisiteEvidence === 'unverified').length;
   const candidatePrerequisitesNotAffirmed = methods.filter(m => m.prerequisiteEvidence === 'not_affirmed').length;
   const candidatePrerequisitesVerified = methods.filter(m => m.prerequisiteEvidence === 'verified_satisfied' || m.prerequisiteEvidence === 'not_required').length;
+  const candidatePrerequisitesVerifiedUnmet = methods.filter(m => m.prerequisiteEvidence === 'verified_unmet').length;
   const candidateOtherHardExclusions = methods.filter(m => m.otherExclusionCodes.length > 0).length;
   const allPrereqExcluded = methods.length > 0 && methods.every(m =>
     m.eligibility === 'excluded' &&
@@ -146,7 +153,7 @@ export function diagnosePhase4C4Selection(
     stage, classification,
     candidateAssessments: methods.length, eligibleCandidates,
     candidatePrerequisitesUnverified, candidatePrerequisitesNotAffirmed,
-    candidatePrerequisitesVerified, candidateOtherHardExclusions,
+    candidatePrerequisitesVerified, candidatePrerequisitesVerifiedUnmet, candidateOtherHardExclusions,
     familyDiagnostics,
   };
 }
