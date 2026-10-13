@@ -9,6 +9,7 @@ import type { Phase4BMethodFamilyId } from '../../../math-intelligence/teaching/
 import { selectTeachingStrategy, type MethodCandidateEvidence } from './selector';
 import { composeTeachingMethods, type MethodComposition } from './composition';
 import type { StrategySelection, SelectionInputBoundary, ScoreDimension } from './types';
+import {validateReviewedStructureEvidence, type ReviewedStructureEvidence, type B2EvidenceTrace} from './reviewedStructureEvidence';
 
 export const PHASE4C4_ADAPTER_VERSION = '4C-4A.1' as const;
 export const PHASE4C4_F3_POLICY_VERSION = '4C-4B-F3.1' as const;
@@ -36,6 +37,8 @@ export type Phase4C4AdapterInput = {
   verifiedEvidence?: EvidenceByMethod;
   /** Verified learner mastery/weakness, indexed by method ID. Omission means unknown. */
   learnerPrerequisiteEvidence?: VerifiedLearnerPrerequisiteEvidence;
+  /** B2: trusted reviewer-approved, prompt-grounded method-fit findings. Never derived from bank solutions. */
+  reviewedMathEvidence?: ReviewedStructureEvidence;
 };
 export type Phase4C4AdapterResult = {
   schemaVersion: typeof PHASE4C4_ADAPTER_VERSION;
@@ -46,12 +49,15 @@ export type Phase4C4AdapterResult = {
   familySelections: StrategySelection[];
   selection: StrategySelection | null;
   composition: MethodComposition | null;
+  /** Present only when B2 evidence was supplied and provenance validated. */
+  b2EvidenceTrace?: B2EvidenceTrace;
 };
 const dims: readonly ScoreDimension[] = ['problem_structure','required_reasoning','curriculum_skill','learner_level','math_domain','representation_fit','prerequisites'];
 const zero = (method: TeachingMethod, domain: ScoreDimension, detail: string) => ({dimension:domain,code:'4B_METADATA_CHECK',detail:`${method.methodId}: ${detail}`});
 function makeEvidence(
   method: TeachingMethod, contract: TeachingContractConsumerEnvelope['contract'],
   verified?: EvidenceByMethod[string], learner?: VerifiedLearnerPrerequisiteEvidence[string],
+  reviewedFit?: 'compatible' | 'incompatible',
 ): MethodCandidateEvidence {
   const matchingReasoning=method.applicability.reasoning.filter(r=>contract.mathematics.requiredReasoning.includes(r));
   const skillKeys=[contract.curriculum.primarySkill?.code, contract.curriculum.primarySkill?.id,
@@ -69,7 +75,8 @@ function makeEvidence(
   const visualRelevant=contract.visual.hasVisual && method.visualGuidance.visualUse!=='never';
   const representationFit=verified?.representationFit===true || (visualRelevant && method.visualGuidance.originalDiagramPolicy==='use_when_present');
   const matches: Record<ScoreDimension,number>={
-    problem_structure: Number(method.applicability.structures.includes(contract.mathematics.problemStructure)),
+    // B2 may SUPPRESS a reviewer-confirmed structural mismatch, never boost a fit.
+    problem_structure: reviewedFit === 'incompatible' ? 0 : Number(method.applicability.structures.includes(contract.mathematics.problemStructure)),
     required_reasoning: matchingReasoning.length ? matchingReasoning.length/contract.mathematics.requiredReasoning.length : 0,
     curriculum_skill: method.applicability.curriculumSkills.length===0 ? 0 : Number(skillMatch),
     learner_level: Number(method.applicability.levels.includes(contract.curriculum.learnerLevel)),
@@ -82,7 +89,8 @@ function makeEvidence(
     prerequisiteEvidenceState:mastery,
     matches,complexity:method.pedagogy.teachingSequence.length,
     positiveEvidence:dims.filter(d=>matches[d]>0).map(d=>zero(method,d,`verified match ${d}`)),
-    penalties:[] };
+    penalties:reviewedFit === 'incompatible' ? [{dimension:'problem_structure',code:'B2_REVIEWED_STRUCTURE_MISMATCH',
+      detail:`${method.methodId}: reviewer-approved structural mismatch; no positive structure points`}] : [] }; 
 }
 const fail=(reason:string, families:string[]=[], count=0, selections:StrategySelection[]=[]):Phase4C4AdapterResult=>({
   schemaVersion:PHASE4C4_ADAPTER_VERSION,status:'blocked',reasonCodes:[reason],primaryFamilies:families,
@@ -130,26 +138,35 @@ export function selectFromPhase4A4B(input:Phase4C4AdapterInput):Phase4C4AdapterR
     problemStructure:requirement.problemStructure,requiredReasoning:[...requirement.requiredReasoning],candidateFamilies:[...requirement.allCandidateFamilies]});
   const primary=candidates.filter(m=>families.includes(m.familyId));
   if (!primary.length) return fail('NO_4B_PRIMARY_CANDIDATES',families,candidates.length);
+  // Only validated, reviewer-attested question structure can affect B2 scoring.
+  // This is an opt-in trusted-server boundary, NOT evidence extracted from bank answers.
+  const reviewCheck=input.reviewedMathEvidence
+    ? validateReviewedStructureEvidence(input.reviewedMathEvidence,c,primary.map(m=>m.methodId)) : null;
+  if (reviewCheck && !reviewCheck.valid) return fail('INVALID_REVIEWED_STRUCTURE_EVIDENCE:'+reviewCheck.issues.join(','),families,candidates.length);
+  const validatedReview=reviewCheck?.valid ? reviewCheck : null;
+  const fitByMethod=new Map(validatedReview?.evidence.methodJudgements.map(m=>[m.methodId,m.structuralFit] as const)??[]);
+  const reviewTrace=validatedReview ? {b2EvidenceTrace:validatedReview.trace} : {};
+
   const selections=families.map(family=>{
     const boundary:SelectionInputBoundary={questionId:c.questionId,readyForMethodSelection:true,
       teachingContractFingerprint:c.payloadFingerprint,teachingContractSchema:c.contractSchemaVersion,
       teachingConsumerSchema:c.schemaVersion,methodLibrarySchema:'4B.1',methodTaxonomySchema:requirement.schemaVersion,
       primaryFamilyId:family};
     return selectTeachingStrategy({boundary,learnerLevel:requirement.learnerLevel,
-      candidates:primary.filter(m=>m.familyId===family).map(m=>makeEvidence(m,c.contract,input.verifiedEvidence?.[m.methodId],input.learnerPrerequisiteEvidence?.[m.methodId]))});
+      candidates:primary.filter(m=>m.familyId===family).map(m=>makeEvidence(m,c.contract,input.verifiedEvidence?.[m.methodId],input.learnerPrerequisiteEvidence?.[m.methodId],fitByMethod.get(m.methodId)))});
   });
-  if (selections.some(s=>s.status==='blocked')) return fail('FAMILY_SELECTION_BLOCKED',families,candidates.length,selections);
+  if (selections.some(s=>s.status==='blocked')) return {...fail('FAMILY_SELECTION_BLOCKED',families,candidates.length,selections),...reviewTrace};
   // 4C-2 only ranks within a single family. Do not pretend its margin proves cross-family superiority.
   if (families.length!==1) return {schemaVersion:PHASE4C4_ADAPTER_VERSION,status:'ambiguous',
     reasonCodes:['CROSS_FAMILY_SELECTION_UNRESOLVED'],primaryFamilies:families,candidateMethodCount:candidates.length,
-    familySelections:selections,selection:null,composition:null};
+    familySelections:selections,selection:null,composition:null,...reviewTrace};
   const selected=selections[0];
   if (selected.status!=='selected') return {schemaVersion:PHASE4C4_ADAPTER_VERSION,status:'ambiguous',
     reasonCodes:['SINGLE_FAMILY_SELECTION_AMBIGUOUS'],primaryFamilies:families,candidateMethodCount:candidates.length,
-    familySelections:selections,selection:selected,composition:null};
+    familySelections:selections,selection:selected,composition:null,...reviewTrace};
   // No learner-specific support necessity evidence is provided by the 4B source. Empty support is intentional.
   const composition=composeTeachingMethods({selection:selected,supportCandidates:[]});
   if (composition.status!=='primary_only') return fail('COMPOSITION_NOT_VALID',families,candidates.length,selections);
   return {schemaVersion:PHASE4C4_ADAPTER_VERSION,status:'selected',reasonCodes:[],primaryFamilies:families,
-    candidateMethodCount:candidates.length,familySelections:selections,selection:selected,composition};
+    candidateMethodCount:candidates.length,familySelections:selections,selection:selected,composition,...reviewTrace};
 }

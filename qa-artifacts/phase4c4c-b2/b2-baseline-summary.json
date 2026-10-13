@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "4C-4C-B2.BASELINE.1",
+  "source": "The same already-inspected F4 fixed and holdout QA exports",
+  "note": "No reviewer-approved method judgements supplied. Zero changes is the expected safe default; this is not pedagogical accuracy certification.",
+  "baseline": {
+    "fixed": {
+      "seed": "phase-2i-v1",
+      "sourceRunId": "4aaabc72-3326-488a-8ebf-a171d1075bff",
+      "evaluationClass": "exploratory_inspected_overlap",
+      "totals": {
+        "total": 240,
+        "upstreamBlocked": 61,
+        "baselineSelected": 50,
+        "baselineAmbiguous": 129,
+        "baselineAdapterBlocked": 0,
+        "reviewedSelected": 50,
+        "reviewedAmbiguous": 129,
+        "reviewedAdapterBlocked": 0,
+        "reviewApplied": 0,
+        "changedOutcomes": 0,
+        "changedMethods": 0,
+        "scoreIncreases": 0,
+        "nondeterministic": 0
+      },
+      "inspectedOverlapCount": 240,
+      "checks": {
+        "accounting": true,
+        "reviewAccounting": true,
+        "noScoreInflation": true,
+        "deterministic": true
+      }
+    },
+    "holdout": {
+      "seed": "phase-4a2c5-holdout-v1",
+      "sourceRunId": "b2ace146-ea22-4339-af8a-c625e0e0ee89",
+      "evaluationClass": "exploratory_inspected_overlap",
+      "totals": {
+        "total": 240,
+        "upstreamBlocked": 99,
+        "baselineSelected": 34,
+        "baselineAmbiguous": 107,
+        "baselineAdapterBlocked": 0,
+        "reviewedSelected": 34,
+        "reviewedAmbiguous": 107,
+        "reviewedAdapterBlocked": 0,
+        "reviewApplied": 0,
+        "changedOutcomes": 0,
+        "changedMethods": 0,
+        "scoreIncreases": 0,
+        "nondeterministic": 0
+      },
+      "inspectedOverlapCount": 240,
+      "checks": {
+        "accounting": true,
+        "reviewAccounting": true,
+        "noScoreInflation": true,
+        "deterministic": true
+      }
+    }
+  },
+  "combined": {
+    "total": 480,
+    "upstreamBlocked": 160,
+    "baselineSelected": 84,
+    "baselineAmbiguous": 236,
+    "changedOutcomes": 0,
+    "reviewApplied": 0,
+    "scoreIncreases": 0,
+    "nondeterministic": 0
+  }
+}
