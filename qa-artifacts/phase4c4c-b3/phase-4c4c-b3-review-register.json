@@ -1,0 +1,1081 @@
+{
+  "schemaVersion": "4C-4C-B3.REVIEW.1",
+  "phase": "review_only_do_not_enable_scoring",
+  "source": {
+    "fixedRunId": "4aaabc72-3326-488a-8ebf-a171d1075bff",
+    "holdoutRunId": "b2ace146-ea22-4339-af8a-c625e0e0ee89",
+    "cohorts": "both_previously_inspected"
+  },
+  "policy": {
+    "teacherApprovalRequired": true,
+    "externalImageVerificationRequired": true,
+    "reviewerAuthenticationExternal": true,
+    "acceptedAsB2ApprovedEvidence": false,
+    "scoringThresholds": {
+      "quality": 75,
+      "margin": 8
+    }
+  },
+  "stats": {
+    "total480": 480,
+    "ready320": 320,
+    "selected84": 84,
+    "ambiguous236": 236,
+    "upstream160": 160,
+    "curated": 24,
+    "P0": 11,
+    "textMathChecks": 20,
+    "matchingSourceAnswers": 20,
+    "conflictingSourceAnswers": 0,
+    "imageDependentUnresolved": 4,
+    "externalImageReferences": 9,
+    "humanApproved": 0,
+    "approvedB2Records": 0,
+    "productionScoreChanges": 0
+  },
+  "flags": {
+    "fits_mathematics_curriculum_pending": 2,
+    "requires_image_verification": 4,
+    "selected_method_mismatch_suspected": 4,
+    "visual_semantics_pending": 2,
+    "method_fit_review": 3,
+    "tied_methods_distinguishable": 4,
+    "fits_mathematics": 2,
+    "tied_methods_both_questionable": 2,
+    "method_family_coverage_review": 1
+  },
+  "rows": [
+    {
+      "questionId": "8448be5a-f43a-46ce-85e3-e3b8be5aef25",
+      "questionCode": "MATH-P1-PROB-057-Q03",
+      "cohort": "fixed",
+      "level": 1,
+      "priority": "P0",
+      "f4Status": "selected",
+      "selectedMethodId": "algebra.equation_unknown.inverse_two_step_early",
+      "methodIds": [
+        "algebra.equation_unknown.inverse_two_step_early"
+      ],
+      "methodScores": [
+        {
+          "methodId": "algebra.equation_unknown.inverse_two_step_early",
+          "score": 77
+        }
+      ],
+      "prompt": "What is the missing number? 3 × □ + 8 = 20",
+      "reportedAnswer": "4",
+      "independentExpectedAnswer": "4",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "two_step_inverse",
+      "independentReasoning": "(20−8)÷3=4; undo +8 before ×3.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "fits_mathematics_curriculum_pending",
+      "requiredEducatorReview": "P1 multiplication equation merits teacher assessment for core versus enrichment.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "1899f3e8-a208-499f-805c-c1942d4b8d70",
+      "questionCode": "MATH-P1-GEO-002-Q05",
+      "cohort": "fixed",
+      "level": 1,
+      "priority": "P0",
+      "f4Status": "selected",
+      "selectedMethodId": "heuristic.systematic_enumeration.spatial_sweep",
+      "methodIds": [
+        "heuristic.systematic_enumeration.spatial_sweep",
+        "heuristic.systematic_enumeration.ordered_list"
+      ],
+      "methodScores": [
+        {
+          "methodId": "heuristic.systematic_enumeration.spatial_sweep",
+          "score": 77
+        },
+        {
+          "methodId": "heuristic.systematic_enumeration.ordered_list",
+          "score": 68.666667
+        }
+      ],
+      "prompt": "How many triangles are used to make this picture?",
+      "reportedAnswer": "3",
+      "independentExpectedAnswer": null,
+      "independentAnswerAgreement": null,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": true,
+      "diagramStatus": "external_image_not_inspected",
+      "independentRelation": "spatial_enumeration",
+      "independentReasoning": "Triangle count cannot be verified from prompt without the pictured arrangement.",
+      "verificationMode": "requires_original_image",
+      "pedagogicalFlag": "requires_image_verification",
+      "requiredEducatorReview": "Inspect stored picture and distinguish component triangles from composite triangles.",
+      "mathVerificationStatus": "pending_image_evidence",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "190250bb-49e6-435a-9c93-94981f03628f",
+      "questionCode": "MATH-P1-MEAS-011-Q05",
+      "cohort": "fixed",
+      "level": 1,
+      "priority": "P0",
+      "f4Status": "selected",
+      "selectedMethodId": "measurement.compare_change_total.compare_same_unit",
+      "methodIds": [
+        "measurement.compare_change_total.compare_same_unit"
+      ],
+      "methodScores": [
+        {
+          "methodId": "measurement.compare_change_total.compare_same_unit",
+          "score": 77
+        }
+      ],
+      "prompt": "Which object is heavier: a circle or a square?",
+      "reportedAnswer": "cannot tell",
+      "independentExpectedAnswer": null,
+      "independentAnswerAgreement": null,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": true,
+      "diagramStatus": "external_image_not_inspected",
+      "independentRelation": "comparison_unknown_visual",
+      "independentReasoning": "Whether the circle or square is heavier cannot be deduced from the prompt alone.",
+      "verificationMode": "requires_original_image",
+      "pedagogicalFlag": "requires_image_verification",
+      "requiredEducatorReview": "Inspect balance drawing or scale; cannot confirm “cannot tell” from words.",
+      "mathVerificationStatus": "pending_image_evidence",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "2f38c300-5c7b-46f4-a90d-b9a02e473b56",
+      "questionCode": "MATH-P1-DATA-020-Q05",
+      "cohort": "fixed",
+      "level": 1,
+      "priority": "P0",
+      "f4Status": "selected",
+      "selectedMethodId": "data.read_compare_classify.compare_classify",
+      "methodIds": [
+        "data.read_compare_classify.compare_classify"
+      ],
+      "methodScores": [
+        {
+          "methodId": "data.read_compare_classify.compare_classify",
+          "score": 82
+        }
+      ],
+      "prompt": "One child changes from Dolls to Blocks. Which statement will be true?",
+      "reportedAnswer": "Dolls and Blocks will have the same number.",
+      "independentExpectedAnswer": null,
+      "independentAnswerAgreement": null,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": true,
+      "diagramStatus": "external_image_not_inspected",
+      "independentRelation": "data_transfer_visual",
+      "independentReasoning": "A one-child transfer affects two category totals, but their initial counts are absent from text.",
+      "verificationMode": "requires_original_image",
+      "pedagogicalFlag": "requires_image_verification",
+      "requiredEducatorReview": "Read initial category counts directly from the original figure.",
+      "mathVerificationStatus": "pending_image_evidence",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "4a9cc927-2232-49a8-8712-1aeed06e4620",
+      "questionCode": "MATH-P1-NUM-009-Q04",
+      "cohort": "fixed",
+      "level": 1,
+      "priority": "P0",
+      "f4Status": "selected",
+      "selectedMethodId": "number.place_value.compare_order",
+      "methodIds": [
+        "number.place_value.compare_order",
+        "number.place_value.place_value_chart"
+      ],
+      "methodScores": [
+        {
+          "methodId": "number.place_value.compare_order",
+          "score": 77
+        },
+        {
+          "methodId": "number.place_value.place_value_chart",
+          "score": 64.5
+        }
+      ],
+      "prompt": "The part–whole model shows a whole of 5 and one part of 4. What is the missing part?",
+      "reportedAnswer": "1",
+      "independentExpectedAnswer": "1",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": true,
+      "diagramStatus": "external_image_not_inspected",
+      "independentRelation": "part_whole_known_whole_part_unknown",
+      "independentReasoning": "Known whole 5 and known part 4 imply missing part 1.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "selected_method_mismatch_suspected",
+      "requiredEducatorReview": "The chosen comparison/order method does not express the unknown-part operation.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "c49be2b1-8696-4332-9341-d4b5eef31304",
+      "questionCode": "MATH-P2-GEO-026-Q01",
+      "cohort": "fixed",
+      "level": 2,
+      "priority": "P0",
+      "f4Status": "selected",
+      "selectedMethodId": "heuristic.systematic_enumeration.spatial_sweep",
+      "methodIds": [
+        "heuristic.systematic_enumeration.spatial_sweep",
+        "heuristic.systematic_enumeration.ordered_list",
+        "heuristic.systematic_enumeration.tabulation"
+      ],
+      "methodScores": [
+        {
+          "methodId": "heuristic.systematic_enumeration.spatial_sweep",
+          "score": 77
+        },
+        {
+          "methodId": "heuristic.systematic_enumeration.ordered_list",
+          "score": 68.666667
+        },
+        {
+          "methodId": "heuristic.systematic_enumeration.tabulation",
+          "score": 60.333333
+        }
+      ],
+      "prompt": "The source diagram is made up of 5 squares. How many triangles are also in the diagram?",
+      "reportedAnswer": "4",
+      "independentExpectedAnswer": null,
+      "independentAnswerAgreement": null,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": true,
+      "diagramStatus": "external_image_not_inspected",
+      "independentRelation": "spatial_enumeration",
+      "independentReasoning": "The exact triangle count depends on the unseen geometry of the five-square diagram.",
+      "verificationMode": "requires_original_image",
+      "pedagogicalFlag": "requires_image_verification",
+      "requiredEducatorReview": "Inspect polygons and every triangle outline before confirmation.",
+      "mathVerificationStatus": "pending_image_evidence",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "0c92f3eb-3a75-44fd-b1ed-a56dcceddfd3",
+      "questionCode": "MATH-P2-MEAS-053-Q07",
+      "cohort": "fixed",
+      "level": 2,
+      "priority": "P0",
+      "f4Status": "selected",
+      "selectedMethodId": "patterns.sequence_rule.measurement_known_total",
+      "methodIds": [
+        "patterns.sequence_rule.measurement_known_total"
+      ],
+      "methodScores": [
+        {
+          "methodId": "patterns.sequence_rule.measurement_known_total",
+          "score": 77
+        }
+      ],
+      "prompt": "A 160 cm rope forms a pattern. Four labelled sections measure 36 cm, 21 cm, 7 cm and 5 cm. How long is the remaining section?",
+      "reportedAnswer": "91 cm",
+      "independentExpectedAnswer": "91 cm",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": true,
+      "diagramStatus": "external_image_not_inspected",
+      "independentRelation": "measurement_known_total_remainder",
+      "independentReasoning": "160−(36+21+7+5)=91 cm, if sections exhaust the rope exactly once.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "visual_semantics_pending",
+      "requiredEducatorReview": "Verify on the figure that labelled sections do not overlap and form the claimed partition.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "abc1e1e9-d86f-4da9-99a0-74730675c118",
+      "questionCode": "MATH-P1-NUM-010-Q04",
+      "cohort": "holdout",
+      "level": 1,
+      "priority": "P0",
+      "f4Status": "selected",
+      "selectedMethodId": "number.place_value.compare_order",
+      "methodIds": [
+        "number.place_value.compare_order",
+        "number.place_value.place_value_chart"
+      ],
+      "methodScores": [
+        {
+          "methodId": "number.place_value.compare_order",
+          "score": 77
+        },
+        {
+          "methodId": "number.place_value.place_value_chart",
+          "score": 64.5
+        }
+      ],
+      "prompt": "The part–whole model shows a whole of 10 and one part of 7. What is the missing part?",
+      "reportedAnswer": "3",
+      "independentExpectedAnswer": "3",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": true,
+      "diagramStatus": "external_image_not_inspected",
+      "independentRelation": "part_whole_known_whole_part_unknown",
+      "independentReasoning": "Known whole 10 and part 7 yield 3 missing.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "selected_method_mismatch_suspected",
+      "requiredEducatorReview": "Place-value comparison is a poor structural account of a missing part.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "2bb5ba50-336f-422e-be97-300517030a1c",
+      "questionCode": "MATH-P1-NUM-010-Q02",
+      "cohort": "holdout",
+      "level": 1,
+      "priority": "P0",
+      "f4Status": "selected",
+      "selectedMethodId": "number.place_value.compare_order",
+      "methodIds": [
+        "number.place_value.compare_order",
+        "number.place_value.place_value_chart"
+      ],
+      "methodScores": [
+        {
+          "methodId": "number.place_value.compare_order",
+          "score": 77
+        },
+        {
+          "methodId": "number.place_value.place_value_chart",
+          "score": 64.5
+        }
+      ],
+      "prompt": "The part–whole model shows a whole of 10 and one part of 3. What is the missing part?",
+      "reportedAnswer": "7",
+      "independentExpectedAnswer": "7",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": true,
+      "diagramStatus": "external_image_not_inspected",
+      "independentRelation": "part_whole_known_whole_part_unknown",
+      "independentReasoning": "Known whole 10 and part 3 yield 7 missing.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "selected_method_mismatch_suspected",
+      "requiredEducatorReview": "Part–whole subtraction should be examined against comparison/order.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "cec2fa99-4164-47bb-900b-9e6451453967",
+      "questionCode": "MATH-P2-PROB-041-Q03",
+      "cohort": "holdout",
+      "level": 2,
+      "priority": "P0",
+      "f4Status": "selected",
+      "selectedMethodId": "speed.distance_time.inverse_work_rate",
+      "methodIds": [
+        "speed.distance_time.inverse_work_rate"
+      ],
+      "methodScores": [
+        {
+          "methodId": "speed.distance_time.inverse_work_rate",
+          "score": 77
+        }
+      ],
+      "prompt": "Three workers take 12 days to complete a job. Nine workers work at the same rate. How many days would they take?",
+      "reportedAnswer": "4 days",
+      "independentExpectedAnswer": "4 days",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "inverse_constant_work",
+      "independentReasoning": "3×12 = 9×4 = 36 worker-days, assuming identical constant rate and equal job.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "fits_mathematics_curriculum_pending",
+      "requiredEducatorReview": "Inverse work rate mathematically sound; P2 core/enrichment decision requires teacher.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "12fa5180-c1e9-414e-bb6a-1de36d0434cc",
+      "questionCode": "MATH-P2-MEAS-061-Q03",
+      "cohort": "holdout",
+      "level": 2,
+      "priority": "P0",
+      "f4Status": "selected",
+      "selectedMethodId": "time.read_interval.elapsed_timeline",
+      "methodIds": [
+        "time.read_interval.elapsed_timeline",
+        "time.read_interval.hour_minute_conversion"
+      ],
+      "methodScores": [
+        {
+          "methodId": "time.read_interval.elapsed_timeline",
+          "score": 77
+        },
+        {
+          "methodId": "time.read_interval.hour_minute_conversion",
+          "score": 64.5
+        }
+      ],
+      "prompt": "A clock is 15 minutes fast and shows 4:25 p.m. What is the correct time?",
+      "reportedAnswer": "4:10 p.m.",
+      "independentExpectedAnswer": "4:10 p.m.",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": true,
+      "diagramStatus": "external_image_not_inspected",
+      "independentRelation": "time_offset_direction",
+      "independentReasoning": "A clock 15 minutes fast reads 4:25 p.m.; actual time is 4:10 p.m.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "visual_semantics_pending",
+      "requiredEducatorReview": "Text supports subtracting 15 minutes; verify clock image and instructional method.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "3f061288-ad99-4cdd-939d-1194f3c58e39",
+      "questionCode": "MATH-P1-ASSESS-012-Q01",
+      "cohort": "fixed",
+      "level": 1,
+      "priority": "P1",
+      "f4Status": "selected",
+      "selectedMethodId": "patterns.sequence_rule.growing_difference",
+      "methodIds": [
+        "patterns.sequence_rule.growing_difference",
+        "patterns.sequence_rule.repeating_cycle"
+      ],
+      "methodScores": [
+        {
+          "methodId": "patterns.sequence_rule.growing_difference",
+          "score": 77
+        },
+        {
+          "methodId": "patterns.sequence_rule.repeating_cycle",
+          "score": 64.5
+        }
+      ],
+      "prompt": "In a number pyramid, each box is the sum of the two boxes directly below it. The bottom row is 1, 3, 5, 7. What number belongs at the top?",
+      "reportedAnswer": "32",
+      "independentExpectedAnswer": "32",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "sequence_adjacent_sum_recurrence",
+      "independentReasoning": "Rows: [4,8,12], [12,20], then 32. It is an adjacent-sum recurrence.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "selected_method_mismatch_suspected",
+      "requiredEducatorReview": "Growing-difference extrapolation is not the rule given for pyramid boxes.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "7cd968ef-c826-48b6-b95e-18c15bd6de54",
+      "questionCode": "MATH-P1-ASSESS-012-Q06",
+      "cohort": "fixed",
+      "level": 1,
+      "priority": "P1",
+      "f4Status": "selected",
+      "selectedMethodId": "heuristic.logic_strategy.elimination",
+      "methodIds": [
+        "heuristic.logic_strategy.elimination"
+      ],
+      "methodScores": [
+        {
+          "methodId": "heuristic.logic_strategy.elimination",
+          "score": 77
+        }
+      ],
+      "prompt": "Ali and Tricia are in a queue of 15 people. There are 9 people in front of Ali, and Tricia stands directly behind him. How many people are behind Tricia?",
+      "reportedAnswer": "4",
+      "independentExpectedAnswer": "4",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "ordinal_position",
+      "independentReasoning": "9 in front => Ali 10th; Tricia 11th; 15−11=4 behind.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "method_fit_review",
+      "requiredEducatorReview": "Ordinal indexing is more direct than generic elimination; teacher compare.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "4f8dfba9-c4ea-4417-9a56-9c0581ddfb8c",
+      "questionCode": "MATH-P1-PROB-050-Q02",
+      "cohort": "fixed",
+      "level": 1,
+      "priority": "P1",
+      "f4Status": "ambiguous",
+      "selectedMethodId": null,
+      "methodIds": [
+        "model.change.find_change",
+        "model.change.forward_change"
+      ],
+      "methodScores": [
+        {
+          "methodId": "model.change.find_change",
+          "score": 77
+        },
+        {
+          "methodId": "model.change.forward_change",
+          "score": 77
+        }
+      ],
+      "prompt": "A shop has 90 toys and sells 28. How many toys are left?",
+      "reportedAnswer": "62",
+      "independentExpectedAnswer": "62",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "embedded_diagram_not_semantically_certified",
+      "independentRelation": "change_known_initial_and_change_final_unknown",
+      "independentReasoning": "90 starts, 28 sold, remainder 90−28=62; change magnitude is already known.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "tied_methods_distinguishable",
+      "requiredEducatorReview": "Forward-change suits known decrease to unknown final; find_change targets unknown change.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "d07255bd-fca3-4842-bff7-ed9da43593cb",
+      "questionCode": "MATH-P1-GEO-037-Q05",
+      "cohort": "fixed",
+      "level": 1,
+      "priority": "P1",
+      "f4Status": "selected",
+      "selectedMethodId": "heuristic.systematic_enumeration.spatial_sweep",
+      "methodIds": [
+        "heuristic.systematic_enumeration.spatial_sweep",
+        "heuristic.systematic_enumeration.ordered_list"
+      ],
+      "methodScores": [
+        {
+          "methodId": "heuristic.systematic_enumeration.spatial_sweep",
+          "score": 77
+        },
+        {
+          "methodId": "heuristic.systematic_enumeration.ordered_list",
+          "score": 68.666667
+        }
+      ],
+      "prompt": "In a grid with 4 columns and 3 rows of unit squares, how many different 2 by 2 squares can be found?",
+      "reportedAnswer": "6",
+      "independentExpectedAnswer": "6",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "spatial_enumeration",
+      "independentReasoning": "2×2 block has 4−2+1=3 column starts and 3−2+1=2 row starts; total 6.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "fits_mathematics",
+      "requiredEducatorReview": "Spatial sweep is plausibly aligned with the specified placements.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "eb95a52d-4f11-4bcd-a896-03d539d2f307",
+      "questionCode": "MATH-P1-ASSESS-011-Q07",
+      "cohort": "fixed",
+      "level": 1,
+      "priority": "P1",
+      "f4Status": "selected",
+      "selectedMethodId": "number.place_value.compare_order",
+      "methodIds": [
+        "number.place_value.compare_order",
+        "number.place_value.place_value_chart"
+      ],
+      "methodScores": [
+        {
+          "methodId": "number.place_value.compare_order",
+          "score": 77
+        },
+        {
+          "methodId": "number.place_value.place_value_chart",
+          "score": 64.5
+        }
+      ],
+      "prompt": "Which statement is false?",
+      "reportedAnswer": "87 is between 89 and 88.",
+      "independentExpectedAnswer": "87 is between 89 and 88.",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "multiple_statement_check",
+      "independentReasoning": "87 is below both 88 and 89, so “87 is between 89 and 88” is false.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "fits_mathematics",
+      "requiredEducatorReview": "Method is plausible; other listed statements also need checking.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "6d60cb73-5a6d-4bdc-ae1c-d1ebfe3aac09",
+      "questionCode": "MATH-P1-DATA-003-Q02",
+      "cohort": "fixed",
+      "level": 1,
+      "priority": "P1",
+      "f4Status": "ambiguous",
+      "selectedMethodId": null,
+      "methodIds": [
+        "data.read_compare_classify.picture_graph_scale",
+        "data.read_compare_classify.read_table"
+      ],
+      "methodScores": [
+        {
+          "methodId": "data.read_compare_classify.picture_graph_scale",
+          "score": 77
+        },
+        {
+          "methodId": "data.read_compare_classify.read_table",
+          "score": 77
+        }
+      ],
+      "prompt": "Use the list: car, bus, truck, bus, truck, truck, car, car, car. motorcycle. How many times does bus and truck appear?",
+      "reportedAnswer": "5",
+      "independentExpectedAnswer": "5",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "data_plain_list",
+      "independentReasoning": "The written list contains bus twice and truck three times, total 5.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "tied_methods_both_questionable",
+      "requiredEducatorReview": "The source is a plain list; neither graph-specific nor table-specific method is evidenced.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "6f8d5128-b9e7-40ff-b56a-7eddea84a847",
+      "questionCode": "MATH-P3-FRAC-035-Q104",
+      "cohort": "fixed",
+      "level": 3,
+      "priority": "P2",
+      "f4Status": "ambiguous",
+      "selectedMethodId": null,
+      "methodIds": [
+        "fraction.multi_step.equal_piece_combination",
+        "fraction.multi_step.dependency_model",
+        "fraction.multi_step.remaining_fraction"
+      ],
+      "methodScores": [
+        {
+          "methodId": "fraction.multi_step.equal_piece_combination",
+          "score": 72
+        },
+        {
+          "methodId": "fraction.multi_step.dependency_model",
+          "score": 67
+        },
+        {
+          "methodId": "fraction.multi_step.remaining_fraction",
+          "score": 62
+        }
+      ],
+      "prompt": "George cut a pizza into 18 equal pieces. He gave 1 piece to his sister and 4/9 of the pizza was left. How many pieces did George eat?",
+      "reportedAnswer": "9",
+      "independentExpectedAnswer": "9",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "fraction_original_whole",
+      "independentReasoning": "4/9 of 18 = 8 pieces remain; one piece given to sister; eaten = 18−8−1=9.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "method_fit_review",
+      "requiredEducatorReview": "Original whole remains 18. Fraction of remaining must not be silently substituted.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "8a84f5ba-c594-44e5-b748-d3cd02799515",
+      "questionCode": "MATH-P5-RATIO-RB-Q102",
+      "cohort": "fixed",
+      "level": 5,
+      "priority": "P2",
+      "f4Status": "ambiguous",
+      "selectedMethodId": null,
+      "methodIds": [
+        "ratio.relationship.part_whole_connection",
+        "ratio.relationship.ratio_units",
+        "ratio.relationship.equivalent_ratio_scale",
+        "ratio.relationship.scale_table"
+      ],
+      "methodScores": [
+        {
+          "methodId": "ratio.relationship.part_whole_connection",
+          "score": 64.5
+        },
+        {
+          "methodId": "ratio.relationship.ratio_units",
+          "score": 64.5
+        },
+        {
+          "methodId": "ratio.relationship.equivalent_ratio_scale",
+          "score": 58.25
+        },
+        {
+          "methodId": "ratio.relationship.scale_table",
+          "score": 58.25
+        }
+      ],
+      "prompt": "2/3 of Ali’s money equals 1/5 of Ben’s money. Express Ali’s money as a ratio of Ben’s money.",
+      "reportedAnswer": "3 : 10",
+      "independentExpectedAnswer": "3 : 10",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "ratio_equivalent_units",
+      "independentReasoning": "(2/3)A=(1/5)B => A/B=(1/5)÷(2/3)=3/10.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "method_fit_review",
+      "requiredEducatorReview": "Equivalent common fractional quantity should govern the relationship.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "b8f6c3d2-c365-430f-bc06-c7b733711a72",
+      "questionCode": "MATH-P3-PROB-053-Q106",
+      "cohort": "fixed",
+      "level": 3,
+      "priority": "P2",
+      "f4Status": "ambiguous",
+      "selectedMethodId": null,
+      "methodIds": [
+        "patterns.sequence_rule.growing_difference",
+        "patterns.sequence_rule.recursive_rule",
+        "patterns.sequence_rule.repeating_cycle"
+      ],
+      "methodScores": [
+        {
+          "methodId": "patterns.sequence_rule.growing_difference",
+          "score": 64.5
+        },
+        {
+          "methodId": "patterns.sequence_rule.recursive_rule",
+          "score": 64.5
+        },
+        {
+          "methodId": "patterns.sequence_rule.repeating_cycle",
+          "score": 64.5
+        }
+      ],
+      "prompt": "The sequence 6, 7, 4, 9, 2 repeats. What is the sum of the first 52 terms?",
+      "reportedAnswer": "293",
+      "independentExpectedAnswer": "293",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "sequence_repeating_cycle",
+      "independentReasoning": "Cycle sum 6+7+4+9+2=28; 52=10×5+2, sum 10×28+6+7=293.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "tied_methods_distinguishable",
+      "requiredEducatorReview": "Explicit repetition should distinguish repeating_cycle from growing_difference.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "a4f97e63-c15f-4ec2-9b50-7cbea48782ab",
+      "questionCode": "MATH-P2-PROB-036-Q04",
+      "cohort": "fixed",
+      "level": 2,
+      "priority": "P1",
+      "f4Status": "ambiguous",
+      "selectedMethodId": null,
+      "methodIds": [
+        "heuristic.logic_strategy.constraint_table",
+        "heuristic.logic_strategy.elimination"
+      ],
+      "methodScores": [
+        {
+          "methodId": "heuristic.logic_strategy.constraint_table",
+          "score": 77
+        },
+        {
+          "methodId": "heuristic.logic_strategy.elimination",
+          "score": 77
+        }
+      ],
+      "prompt": "Lionel sits in the 4th row from the front and the 3rd row from the back. How many rows are there altogether?",
+      "reportedAnswer": "6",
+      "independentExpectedAnswer": "6",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "ordinal_position",
+      "independentReasoning": "4th from front and 3rd from back overlap in one row: 4+3−1=6.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "tied_methods_both_questionable",
+      "requiredEducatorReview": "Ordinal overlap is more specific than elimination or a constraint table.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "fe77f8eb-9dae-404e-baaf-4d90928134cc",
+      "questionCode": "MATH-P2-NUM-094-Q06",
+      "cohort": "fixed",
+      "level": 2,
+      "priority": "P1",
+      "f4Status": "ambiguous",
+      "selectedMethodId": null,
+      "methodIds": [
+        "model.part_whole.known_whole_find_part",
+        "model.part_whole.multi_part_strip",
+        "model.part_whole.parts_find_whole"
+      ],
+      "methodScores": [
+        {
+          "methodId": "model.part_whole.known_whole_find_part",
+          "score": 77
+        },
+        {
+          "methodId": "model.part_whole.multi_part_strip",
+          "score": 77
+        },
+        {
+          "methodId": "model.part_whole.parts_find_whole",
+          "score": 77
+        }
+      ],
+      "prompt": "A farmer has 343 chickens and 536 ducks. How many birds are there altogether?",
+      "reportedAnswer": "879",
+      "independentExpectedAnswer": "879",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "part_whole_known_parts_whole_unknown",
+      "independentReasoning": "343 chickens plus 536 ducks = 879 birds.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "tied_methods_distinguishable",
+      "requiredEducatorReview": "parts_find_whole is structurally different from known_whole_find_part.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "405fa915-8e4a-423a-be44-682578d51bbb",
+      "questionCode": "MATH-P1-PROB-003-Q05",
+      "cohort": "fixed",
+      "level": 1,
+      "priority": "P1",
+      "f4Status": "ambiguous",
+      "selectedMethodId": null,
+      "methodIds": [
+        "model.change.find_change",
+        "model.change.forward_change"
+      ],
+      "methodScores": [
+        {
+          "methodId": "model.change.find_change",
+          "score": 77
+        },
+        {
+          "methodId": "model.change.forward_change",
+          "score": 77
+        }
+      ],
+      "prompt": "There are 9 balloons. 2 pop. How many are left?",
+      "reportedAnswer": "7",
+      "independentExpectedAnswer": "7",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "change_known_initial_and_change_final_unknown",
+      "independentReasoning": "9 balloons initially; 2 pop; final is 9−2=7.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "tied_methods_distinguishable",
+      "requiredEducatorReview": "Magnitude of change known; final unknown; not find-change.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    },
+    {
+      "questionId": "5a64a847-6a99-4e08-a79f-10e7f21a618b",
+      "questionCode": "MATH-P3-GEO-017-Q106",
+      "cohort": "fixed",
+      "level": 3,
+      "priority": "P2",
+      "f4Status": "ambiguous",
+      "selectedMethodId": null,
+      "methodIds": [
+        "geometry.area_perimeter.distinguish_boundary_surface",
+        "geometry.area_perimeter.rectangle_formula_meaning"
+      ],
+      "methodScores": [
+        {
+          "methodId": "geometry.area_perimeter.distinguish_boundary_surface",
+          "score": 60.333333
+        },
+        {
+          "methodId": "geometry.area_perimeter.rectangle_formula_meaning",
+          "score": 60.333333
+        }
+      ],
+      "prompt": "A square has area 36 cm² more than a smaller square. Both side lengths are positive whole numbers. What is the smaller square's side length?",
+      "reportedAnswer": "8 cm",
+      "independentExpectedAnswer": "8 cm",
+      "independentAnswerAgreement": true,
+      "sourceExplanationUsedForCalculation": false,
+      "sourceImageReferenceRequired": false,
+      "diagramStatus": "not_evaluated",
+      "independentRelation": "difference_of_square_areas",
+      "independentReasoning": "For positive integer sides x>y, (x−y)(x+y)=36; only positive same-parity factor pair 2,18 gives y=8.",
+      "verificationMode": "prompt_mathematics_check",
+      "pedagogicalFlag": "method_family_coverage_review",
+      "requiredEducatorReview": "Neither basic perimeter/area-distinction method describes difference-of-squares reasoning.",
+      "mathVerificationStatus": "prompt_calculation_matches_reported_answer",
+      "curriculumStatus": "not_approved",
+      "methodFitStatus": "not_approved",
+      "diagramApproval": "not_approved",
+      "humanReviewer": null,
+      "approvalRef": null,
+      "scoringAuthorized": false,
+      "note": "Authored mathematical analysis is NOT a curriculum-reviewer approval. B2 evidence cannot be emitted."
+    }
+  ]
+}

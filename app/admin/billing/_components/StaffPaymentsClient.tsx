@@ -109,6 +109,92 @@ type RoleCostRow = {
   paid_amount: number | string;
 };
 
+
+type CommissionDashboardRow = {
+  employment_id: string;
+  person_id: string;
+  full_name: string;
+  job_title: string;
+  employment_status: EmploymentStatus;
+  currency: string;
+  commission_start_date: string | null;
+  plan_status: string | null;
+  months_1_3_rate: number | string | null;
+  months_4_6_rate: number | string | null;
+  month_7_plus_rate: number | string | null;
+  commission_month: number | null;
+  applicable_rate: number | string | null;
+  calculation_id: string | null;
+  calculation_version: number | null;
+  calculation_status: string | null;
+  calculation_start_date: string | null;
+  calculation_commission_month: number | null;
+  calculation_rate_percent: number | string | null;
+  finalized_invoice_count: number | null;
+  draft_review_invoice_count: number | null;
+  gross_invoice_total: number | string | null;
+  excluded_deposit_total: number | string | null;
+  commissionable_total: number | string | null;
+  commission_total: number | string | null;
+  staff_payment_id: string | null;
+  payment_status: PaymentStatus | null;
+  payment_total: number | string | null;
+  bonus: number | string | null;
+  allowances: number | string | null;
+  deductions: number | string | null;
+  other_adjustment: number | string | null;
+  paid_at: string | null;
+  payment_method: string | null;
+  payment_reference: string | null;
+  payment_notes: string | null;
+};
+
+type CommissionInvoiceLine = {
+  invoice_id: string | null;
+  invoice_number: string;
+  payer_name: string | null;
+  invoice_status: string;
+  invoice_total: number | string;
+  excluded_deposit_total: number | string;
+  commissionable_amount: number | string;
+  rate_percent: number | string;
+  commission_amount: number | string;
+};
+
+type CommissionPlanForm = {
+  employment_id: string;
+  full_name: string;
+  job_title: string;
+  commission_start_date: string;
+  months_1_3_rate: string;
+  months_4_6_rate: string;
+  month_7_plus_rate: string;
+};
+
+type CommissionPaymentForm = {
+  calculation_id: string;
+  employment_id: string;
+  full_name: string;
+  job_title: string;
+  bonus: string;
+  allowances: string;
+  deductions: string;
+  other_adjustment: string;
+  status: "pending" | "paid";
+  paid_at: string;
+  payment_method: string;
+  payment_reference: string;
+  notes: string;
+};
+
+type CommissionPaymentLookup = {
+  calculation_id: string;
+  employment_id: string;
+  billing_period: string;
+  calculation_status: string;
+  is_current: boolean;
+};
+
 type StaffForm = {
   person_id: string;
   full_name: string;
@@ -339,6 +425,40 @@ export default function StaffPaymentsClient({
     };
   });
 
+
+  const [commissionRows, setCommissionRows] = useState<CommissionDashboardRow[]>([]);
+  const [commissionPlanModalOpen, setCommissionPlanModalOpen] = useState(false);
+  const [commissionPlanForm, setCommissionPlanForm] = useState<CommissionPlanForm>({
+    employment_id: "",
+    full_name: "",
+    job_title: "",
+    commission_start_date: singaporeToday(),
+    months_1_3_rate: "50",
+    months_4_6_rate: "30",
+    month_7_plus_rate: "25",
+  });
+  const [commissionBreakdownModalOpen, setCommissionBreakdownModalOpen] = useState(false);
+  const [commissionBreakdownRow, setCommissionBreakdownRow] = useState<CommissionDashboardRow | null>(null);
+  const [commissionLines, setCommissionLines] = useState<CommissionInvoiceLine[]>([]);
+  const [commissionLinesLoading, setCommissionLinesLoading] = useState(false);
+  const [commissionPaymentModalOpen, setCommissionPaymentModalOpen] = useState(false);
+  const [commissionPaymentRow, setCommissionPaymentRow] = useState<CommissionDashboardRow | null>(null);
+  const [commissionPaymentForm, setCommissionPaymentForm] = useState<CommissionPaymentForm>({
+    calculation_id: "",
+    employment_id: "",
+    full_name: "",
+    job_title: "",
+    bonus: "0",
+    allowances: "0",
+    deductions: "0",
+    other_adjustment: "0",
+    status: "pending",
+    paid_at: "",
+    payment_method: "",
+    payment_reference: "",
+    notes: "",
+  });
+
   const period = useMemo(() => monthRange(month), [month]);
 
   const load = useCallback(async () => {
@@ -411,12 +531,33 @@ export default function StaffPaymentsClient({
       return;
     }
 
+    let loadedCommissionRows: CommissionDashboardRow[] = [];
+
+    if (companyCode === "gkp") {
+      const commissionResult = await supabase.rpc(
+        "billing_staff_commission_dashboard",
+        {
+          p_billing_period: period.start,
+        },
+      );
+
+      if (commissionResult.error) {
+        setError(commissionResult.error.message);
+        setLoading(false);
+        return;
+      }
+
+      loadedCommissionRows =
+        (commissionResult.data || []) as CommissionDashboardRow[];
+    }
+
     setPeople((peopleResult.data || []) as StaffPerson[]);
     setStaff((staffResult.data || []) as StaffRow[]);
     setSummary((((summaryResult.data || []) as Summary[])[0] || null) as Summary | null);
     setPayments((paymentsResult.data || []) as PaymentRow[]);
     setRoleCosts((roleCostResult.data || []) as RoleCostRow[]);
     setYtdRoleCosts((ytdRoleCostResult.data || []) as RoleCostRow[]);
+    setCommissionRows(loadedCommissionRows);
     setLoading(false);
   }, [allPaymentHistory, companyCode, month, paymentEmploymentId, period.end, period.start]);
 
@@ -451,6 +592,24 @@ export default function StaffPaymentsClient({
     [staff],
   );
 
+  const payBasisOptions: Array<[string, string]> =
+    companyCode === "gkp"
+      ? [
+          ["monthly_salary", "Monthly salary"],
+          ["hourly", "Hourly"],
+          ["per_class", "Per class"],
+          ["per_session", "Per session"],
+          ["custom", "Custom"],
+          ["invoice_commission", "Invoice commission"],
+        ]
+      : [
+          ["monthly_salary", "Monthly salary"],
+          ["hourly", "Hourly"],
+          ["per_class", "Per class"],
+          ["per_session", "Per session"],
+          ["custom", "Custom"],
+        ];
+
   const selectedPaymentEmployment = useMemo(
     () => staff.find((row) => row.employment_id === paymentForm.employment_id) || null,
     [paymentForm.employment_id, staff],
@@ -476,6 +635,29 @@ export default function StaffPaymentsClient({
     return { base, total };
   }, [paymentForm, selectedPaymentEmployment?.pay_basis]);
 
+
+  const commissionPaymentPreview = useMemo(() => {
+    const base = numberValue(commissionPaymentRow?.commission_total);
+    const total =
+      base +
+      numberValue(commissionPaymentForm.bonus) +
+      numberValue(commissionPaymentForm.allowances) -
+      numberValue(commissionPaymentForm.deductions) +
+      numberValue(commissionPaymentForm.other_adjustment);
+
+    return { base, total };
+  }, [
+    commissionPaymentForm.allowances,
+    commissionPaymentForm.bonus,
+    commissionPaymentForm.deductions,
+    commissionPaymentForm.other_adjustment,
+    commissionPaymentRow?.commission_total,
+  ]);
+
+  const commissionPaymentLocked =
+    commissionPaymentRow?.payment_status === "paid" ||
+    commissionPaymentRow?.calculation_status === "locked";
+
   const payrollReporting = useMemo(() => {
     return roleCosts.reduce(
       (current, row) => ({
@@ -495,7 +677,9 @@ export default function StaffPaymentsClient({
     [ytdRoleCosts],
   );
 
-  function exportPayrollCsv() {
+  async function exportPayrollCsv() {
+    setError("");
+
     const rows: unknown[][] = [];
     rows.push([`${companyName} Staff Payments Export`]);
     rows.push(["Payroll month", monthLabel(month)]);
@@ -523,13 +707,114 @@ export default function StaffPaymentsClient({
         numberValue(row.pending_amount), numberValue(row.paid_amount),
       ]);
     }
+
+    if (companyCode === "gkp" && commissionRows.length > 0) {
+      rows.push([]);
+      rows.push(["INVOICE COMMISSION SUMMARY"]);
+      rows.push([
+        "Name",
+        "Job title",
+        "Commission start",
+        "Commission month",
+        "Current tier %",
+        "Calculated tier %",
+        "Finalized invoices",
+        "Draft/review invoices",
+        "Gross invoices",
+        "Refundable deposits excluded",
+        "Commissionable total",
+        "Commission",
+        "Payroll status",
+        "Payroll total",
+      ]);
+
+      for (const row of commissionRows) {
+        rows.push([
+          row.full_name,
+          row.job_title,
+          row.commission_start_date || "",
+          row.commission_month || "",
+          row.applicable_rate == null ? "" : numberValue(row.applicable_rate),
+          row.calculation_rate_percent == null ? "" : numberValue(row.calculation_rate_percent),
+          Number(row.finalized_invoice_count || 0),
+          Number(row.draft_review_invoice_count || 0),
+          numberValue(row.gross_invoice_total),
+          numberValue(row.excluded_deposit_total),
+          numberValue(row.commissionable_total),
+          numberValue(row.commission_total),
+          row.payment_status || "",
+          numberValue(row.payment_total),
+        ]);
+      }
+
+      rows.push([]);
+      rows.push(["INVOICE COMMISSION BREAKDOWN"]);
+      rows.push([
+        "Staff",
+        "Billing month",
+        "Invoice",
+        "Payer",
+        "Invoice status",
+        "Invoice total",
+        "Deposit excluded",
+        "Commission base",
+        "Rate %",
+        "Commission",
+      ]);
+
+      for (const commissionRow of commissionRows) {
+        if (!commissionRow.calculation_id) continue;
+
+        const lineResult = await supabase.rpc(
+          "billing_staff_commission_calculation_lines",
+          {
+            p_calculation_id: commissionRow.calculation_id,
+          },
+        );
+
+        if (lineResult.error) {
+          setError(
+            `The payroll CSV could not load the commission breakdown for ${commissionRow.full_name}: ${lineResult.error.message}`,
+          );
+          return;
+        }
+
+        for (const line of (lineResult.data || []) as CommissionInvoiceLine[]) {
+          rows.push([
+            commissionRow.full_name,
+            month,
+            line.invoice_number,
+            line.payer_name || "",
+            line.invoice_status,
+            numberValue(line.invoice_total),
+            numberValue(line.excluded_deposit_total),
+            numberValue(line.commissionable_amount),
+            numberValue(line.rate_percent),
+            numberValue(line.commission_amount),
+          ]);
+        }
+      }
+    }
+
     rows.push([]);
     rows.push(["STAFF DIRECTORY"]);
     rows.push(["Name", "Email", "Phone", "Role", "Job title", "Status", "Start", "End", "Pay basis", "Standard rate", "Currency", "YTD paid"]);
     for (const row of staff) {
       rows.push([
-        row.full_name, row.email || "", row.phone || "", categoryLabel(row.staff_category), row.job_title, row.employment_status,
-        row.start_date, row.end_date || "", payBasisLabel(row.pay_basis), numberValue(row.default_rate), row.currency, numberValue(row.ytd_paid_amount),
+        row.full_name,
+        row.email || "",
+        row.phone || "",
+        categoryLabel(row.staff_category),
+        row.job_title,
+        row.employment_status,
+        row.start_date,
+        row.end_date || "",
+        payBasisLabel(row.pay_basis),
+        row.pay_basis === "invoice_commission"
+          ? "Tiered invoice %"
+          : numberValue(row.default_rate),
+        row.currency,
+        numberValue(row.ytd_paid_amount),
       ]);
     }
     rows.push([]);
@@ -537,13 +822,354 @@ export default function StaffPaymentsClient({
     rows.push(["Name", "Job title", "Role", "Period start", "Period end", "Pay basis", "Units", "Rate", "Base", "Bonus", "Allowances", "Deductions", "Adjustment", "Total", "Status", "Paid date", "Method", "Reference", "Notes"]);
     for (const row of payments) {
       rows.push([
-        row.full_name, row.job_title, categoryLabel(row.staff_category), row.period_start, row.period_end, payBasisLabel(row.pay_basis_snapshot),
-        numberValue(row.units), numberValue(row.unit_rate), numberValue(row.base_pay), numberValue(row.bonus), numberValue(row.allowances),
-        numberValue(row.deductions), numberValue(row.other_adjustment), numberValue(row.total_amount), row.payment_status, row.paid_at || "",
-        row.payment_method || "", row.payment_reference || "", row.notes || "",
+        row.full_name,
+        row.job_title,
+        categoryLabel(row.staff_category),
+        row.period_start,
+        row.period_end,
+        payBasisLabel(row.pay_basis_snapshot),
+        numberValue(row.units),
+        row.pay_basis_snapshot === "invoice_commission"
+          ? `${numberValue(row.unit_rate)}%`
+          : numberValue(row.unit_rate),
+        numberValue(row.base_pay),
+        numberValue(row.bonus),
+        numberValue(row.allowances),
+        numberValue(row.deductions),
+        numberValue(row.other_adjustment),
+        numberValue(row.total_amount),
+        row.payment_status,
+        row.paid_at || "",
+        row.payment_method || "",
+        row.payment_reference || "",
+        row.notes || "",
       ]);
     }
     downloadCsv(`${companyCode}-staff-payments-${month}.csv`, rows);
+  }
+
+
+
+  function openCommissionPlan(row: CommissionDashboardRow) {
+    const fallbackStaff = staff.find(
+      (item) => item.employment_id === row.employment_id,
+    );
+
+    setCommissionPlanForm({
+      employment_id: row.employment_id,
+      full_name: row.full_name,
+      job_title: row.job_title,
+      commission_start_date:
+        row.commission_start_date ||
+        fallbackStaff?.start_date ||
+        singaporeToday(),
+      months_1_3_rate:
+        row.months_1_3_rate == null
+          ? "50"
+          : String(numberValue(row.months_1_3_rate)),
+      months_4_6_rate:
+        row.months_4_6_rate == null
+          ? "30"
+          : String(numberValue(row.months_4_6_rate)),
+      month_7_plus_rate:
+        row.month_7_plus_rate == null
+          ? "25"
+          : String(numberValue(row.month_7_plus_rate)),
+    });
+    setError("");
+    setCommissionPlanModalOpen(true);
+  }
+
+  async function saveCommissionPlan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+
+    const rates = [
+      Number(commissionPlanForm.months_1_3_rate),
+      Number(commissionPlanForm.months_4_6_rate),
+      Number(commissionPlanForm.month_7_plus_rate),
+    ];
+
+    if (!commissionPlanForm.commission_start_date) {
+      setError("Choose the commission start date.");
+      return;
+    }
+
+    if (
+      rates.some(
+        (value) =>
+          !Number.isFinite(value) ||
+          value < 0 ||
+          value > 100,
+      )
+    ) {
+      setError("Commission percentages must be between 0% and 100%.");
+      return;
+    }
+
+    setWorking(true);
+
+    const { error: saveError } = await supabase.rpc(
+      "billing_staff_commission_plan_save",
+      {
+        p_employment_id: commissionPlanForm.employment_id,
+        p_commission_start_date:
+          commissionPlanForm.commission_start_date,
+        p_months_1_3_rate: rates[0],
+        p_months_4_6_rate: rates[1],
+        p_month_7_plus_rate: rates[2],
+      },
+    );
+
+    if (saveError) {
+      setError(saveError.message);
+    } else {
+      setCommissionPlanModalOpen(false);
+      setNotice(
+        `${commissionPlanForm.full_name}'s commission terms were updated. Recalculate any pending commission cycle before finalising payroll.`,
+      );
+      await load();
+    }
+
+    setWorking(false);
+  }
+
+  async function calculateCommission(row: CommissionDashboardRow) {
+    if (!row.commission_start_date || row.applicable_rate == null) {
+      setError(
+        "Configure the commission start date and percentage tiers before calculating this billing month.",
+      );
+      return;
+    }
+
+    if (row.payment_status === "paid" || row.calculation_status === "locked") {
+      setError("This commission payroll has already been paid and is locked.");
+      return;
+    }
+
+    setWorking(true);
+    setError("");
+    setNotice("");
+
+    const calculationResult =
+      row.staff_payment_id && row.payment_status === "pending"
+        ? await supabase.rpc(
+            "billing_gkp_invoice_commission_recalculate",
+            {
+              p_employment_id: row.employment_id,
+              p_billing_period: period.start,
+            },
+          )
+        : await supabase.rpc(
+            "billing_gkp_invoice_commission_calculate",
+            {
+              p_employment_id: row.employment_id,
+              p_billing_period: period.start,
+            },
+          );
+
+    const calculationError = calculationResult.error;
+
+    if (calculationError) {
+      setError(calculationError.message);
+    } else {
+      setNotice(
+        `${row.full_name}'s ${monthLabel(month)} invoice commission was ${row.calculation_id ? "recalculated" : "calculated"}.`,
+      );
+      await load();
+    }
+
+    setWorking(false);
+  }
+
+  async function openCommissionBreakdown(row: CommissionDashboardRow) {
+    if (!row.calculation_id) {
+      setError("Calculate this commission cycle before opening the invoice breakdown.");
+      return;
+    }
+
+    setCommissionBreakdownRow(row);
+    setCommissionBreakdownModalOpen(true);
+    setCommissionLines([]);
+    setCommissionLinesLoading(true);
+    setError("");
+
+    const { data, error: lineError } = await supabase.rpc(
+      "billing_staff_commission_calculation_lines",
+      {
+        p_calculation_id: row.calculation_id,
+      },
+    );
+
+    if (lineError) {
+      setError(lineError.message);
+      setCommissionBreakdownModalOpen(false);
+    } else {
+      setCommissionLines((data || []) as CommissionInvoiceLine[]);
+    }
+
+    setCommissionLinesLoading(false);
+  }
+
+  function openCommissionPayment(row: CommissionDashboardRow) {
+    if (!row.calculation_id) {
+      setError("Calculate this commission cycle before creating payroll.");
+      return;
+    }
+
+    setCommissionPaymentRow(row);
+    setCommissionPaymentForm({
+      calculation_id: row.calculation_id,
+      employment_id: row.employment_id,
+      full_name: row.full_name,
+      job_title: row.job_title,
+      bonus: String(numberValue(row.bonus)),
+      allowances: String(numberValue(row.allowances)),
+      deductions: String(numberValue(row.deductions)),
+      other_adjustment: String(numberValue(row.other_adjustment)),
+      status: row.payment_status === "paid" ? "paid" : "pending",
+      paid_at: row.paid_at || "",
+      payment_method: row.payment_method || "",
+      payment_reference: row.payment_reference || "",
+      notes: row.payment_notes || "",
+    });
+    setError("");
+    setCommissionPaymentModalOpen(true);
+  }
+
+  async function saveCommissionPayment(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+
+    if (!commissionPaymentRow || !commissionPaymentForm.calculation_id) {
+      setError("Commission calculation is missing.");
+      return;
+    }
+
+    const amounts = [
+      Number(commissionPaymentForm.bonus),
+      Number(commissionPaymentForm.allowances),
+      Number(commissionPaymentForm.deductions),
+      Number(commissionPaymentForm.other_adjustment),
+    ];
+
+    if (amounts.some((value) => !Number.isFinite(value))) {
+      setError("Check the commission payment adjustments.");
+      return;
+    }
+
+    if (
+      Number(commissionPaymentForm.bonus) < 0 ||
+      Number(commissionPaymentForm.allowances) < 0 ||
+      Number(commissionPaymentForm.deductions) < 0
+    ) {
+      setError("Bonus, allowances and deductions cannot be negative.");
+      return;
+    }
+
+    if (commissionPaymentPreview.total < 0) {
+      setError("Total payable cannot be negative.");
+      return;
+    }
+
+    if (
+      commissionPaymentForm.status === "paid" &&
+      !window.confirm(
+        `Mark ${commissionPaymentForm.full_name}'s ${monthLabel(month)} commission as Paid? This locks the invoice calculation and percentages used for this cycle.`,
+      )
+    ) {
+      return;
+    }
+
+    setWorking(true);
+
+    const { error: paymentError } = await supabase.rpc(
+      "billing_staff_commission_payment_save",
+      {
+        p_calculation_id: commissionPaymentForm.calculation_id,
+        p_bonus: Number(commissionPaymentForm.bonus || 0),
+        p_allowances: Number(commissionPaymentForm.allowances || 0),
+        p_deductions: Number(commissionPaymentForm.deductions || 0),
+        p_other_adjustment: Number(
+          commissionPaymentForm.other_adjustment || 0,
+        ),
+        p_status: commissionPaymentForm.status,
+        p_paid_at:
+          commissionPaymentForm.status === "paid"
+            ? commissionPaymentForm.paid_at || null
+            : null,
+        p_payment_method:
+          commissionPaymentForm.payment_method.trim() || null,
+        p_payment_reference:
+          commissionPaymentForm.payment_reference.trim() || null,
+        p_notes: commissionPaymentForm.notes.trim() || null,
+      },
+    );
+
+    if (paymentError) {
+      setError(paymentError.message);
+    } else {
+      setCommissionPaymentModalOpen(false);
+      setNotice(
+        commissionPaymentForm.status === "paid"
+          ? `${commissionPaymentForm.full_name}'s commission payroll was marked Paid and the calculation is now locked.`
+          : `${commissionPaymentForm.full_name}'s commission payroll was saved as Pending.`,
+      );
+      await load();
+    }
+
+    setWorking(false);
+  }
+
+  async function openCommissionFromPayment(row: PaymentRow) {
+    setError("");
+    setNotice("");
+
+    const { data, error: lookupError } = await supabase.rpc(
+      "billing_staff_commission_calculation_for_payment",
+      {
+        p_payment_id: row.payment_id,
+      },
+    );
+
+    if (lookupError) {
+      setError(lookupError.message);
+      return;
+    }
+
+    const lookup =
+      (((data || []) as CommissionPaymentLookup[])[0] || null);
+
+    if (!lookup) {
+      setError("No commission calculation is linked to this payroll entry.");
+      return;
+    }
+
+    setMonth(lookup.billing_period.slice(0, 7));
+    setPaymentEmploymentId(lookup.employment_id);
+    setAllPaymentHistory(false);
+    setNotice(
+      `Showing the ${monthLabel(lookup.billing_period.slice(0, 7))} commission cycle for ${row.full_name}.`,
+    );
+
+    window.setTimeout(() => {
+      document
+        .getElementById("gkp-invoice-commission")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  }
+
+  function focusCommissionStaff(row: StaffRow) {
+    setPaymentEmploymentId(row.employment_id);
+    window.setTimeout(() => {
+      document
+        .getElementById("gkp-invoice-commission")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   }
 
   function openNewStaff() {
@@ -595,6 +1221,15 @@ export default function StaffPaymentsClient({
       staffForm.pay_basis === "invoice_commission"
         ? 0
         : Number(staffForm.default_rate);
+
+    if (
+      staffForm.pay_basis === "invoice_commission" &&
+      companyCode !== "gkp"
+    ) {
+      setError("Invoice commission is currently available only for Guru Kids Pro staff.");
+      return;
+    }
+
     if (!staffForm.full_name.trim()) {
       setError("Enter the staff member's name.");
       return;
@@ -671,7 +1306,10 @@ export default function StaffPaymentsClient({
   }
 
   function openNewPayment(row?: StaffRow) {
-    const target = row || activeStaff[0] || null;
+    const target =
+      row ||
+      activeStaff.find((item) => item.pay_basis !== "invoice_commission") ||
+      null;
 
     if (target?.pay_basis === "invoice_commission") {
       setError("");
@@ -907,7 +1545,7 @@ export default function StaffPaymentsClient({
           </button>
           <button
             type="button"
-            onClick={exportPayrollCsv}
+            onClick={() => void exportPayrollCsv()}
             disabled={loading || working}
             className="min-h-11 rounded-full border border-[#c8a45c] bg-[#fff9eb] px-4 text-xs font-black text-[#725719] disabled:opacity-50"
           >
@@ -1008,6 +1646,271 @@ export default function StaffPaymentsClient({
         )}
       </section>
 
+
+      {companyCode === "gkp" && (
+        <section
+          id="gkp-invoice-commission"
+          className="mt-6 scroll-mt-28 rounded-[2rem] border border-[#cdbb94] bg-[#fffdf8] p-5 shadow-[0_20px_60px_rgba(21,35,59,0.045)] sm:p-6"
+        >
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#9a7029]">
+                GKP invoice commission
+              </p>
+              <h2 className="mt-2 text-xl font-semibold">
+                Management commission from finalized invoices
+              </h2>
+              <p className="mt-2 max-w-4xl text-xs leading-5 text-[#81796d]">
+                Commission is calculated invoice by invoice for the selected billing month. Draft, review and void invoices are excluded. Refundable Class-Slot Deposits are removed from each invoice before the percentage is applied.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-[#d7c9ae] bg-white px-4 py-3 text-right">
+              <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+                Billing cycle
+              </span>
+              <strong className="mt-1 block text-sm text-[#15233b]">
+                {monthLabel(month)}
+              </strong>
+            </div>
+          </div>
+
+          {commissionRows.length === 0 ? (
+            <MessageCard>
+              No GKP staff are currently configured for invoice commission.
+            </MessageCard>
+          ) : (
+            <div className="mt-5 grid gap-4">
+              {commissionRows.map((row) => {
+                const planConfigured =
+                  Boolean(row.commission_start_date) &&
+                  row.months_1_3_rate != null &&
+                  row.months_4_6_rate != null &&
+                  row.month_7_plus_rate != null;
+
+                const beforeStart =
+                  planConfigured && row.commission_month == null;
+
+                const locked =
+                  row.payment_status === "paid" ||
+                  row.calculation_status === "locked";
+
+                const termsChanged =
+                  Boolean(row.calculation_id) &&
+                  !locked &&
+                  (
+                    row.calculation_start_date !== row.commission_start_date ||
+                    Number(row.calculation_commission_month || 0) !==
+                      Number(row.commission_month || 0) ||
+                    Math.abs(
+                      numberValue(row.calculation_rate_percent) -
+                        numberValue(row.applicable_rate),
+                    ) > 0.0001
+                  );
+
+                return (
+                  <article
+                    key={row.employment_id}
+                    className="rounded-[1.75rem] border border-[#ded5c4] bg-white p-5"
+                  >
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg font-semibold text-[#15233b]">
+                            {row.full_name}
+                          </h3>
+                          <StatusPill status={row.employment_status} />
+                          {row.payment_status && (
+                            <StatusPill status={row.payment_status} />
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm text-[#81796d]">
+                          {row.job_title}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-[#6f675a]">
+                          <span className="rounded-full border border-[#e1d7c6] bg-[#fbfaf7] px-3 py-1.5">
+                            Months 1–3: {row.months_1_3_rate == null ? "Not set" : `${numberValue(row.months_1_3_rate)}%`}
+                          </span>
+                          <span className="rounded-full border border-[#e1d7c6] bg-[#fbfaf7] px-3 py-1.5">
+                            Months 4–6: {row.months_4_6_rate == null ? "Not set" : `${numberValue(row.months_4_6_rate)}%`}
+                          </span>
+                          <span className="rounded-full border border-[#e1d7c6] bg-[#fbfaf7] px-3 py-1.5">
+                            Month 7+: {row.month_7_plus_rate == null ? "Not set" : `${numberValue(row.month_7_plus_rate)}%`}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-xs text-[#81796d]">
+                          Commission start:{" "}
+                          <strong className="text-[#15233b]">
+                            {date(row.commission_start_date)}
+                          </strong>
+                          {row.commission_month != null && (
+                            <>
+                              {" · "}Selected cycle is commission month{" "}
+                              <strong className="text-[#15233b]">
+                                {row.commission_month}
+                              </strong>
+                              {" · "}Current tier{" "}
+                              <strong className="text-[#9a7029]">
+                                {numberValue(row.applicable_rate)}%
+                              </strong>
+                            </>
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openCommissionPlan(row)}
+                          disabled={working}
+                          className="rounded-full border border-[#d7c9ae] bg-white px-4 py-2 text-[11px] font-bold disabled:opacity-45"
+                          title="Changes apply to future calculations and pending cycles you recalculate. Paid history keeps its original snapshot."
+                        >
+                          Edit commission terms
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void calculateCommission(row)}
+                          disabled={
+                            working ||
+                            !planConfigured ||
+                            beforeStart ||
+                            locked
+                          }
+                          className="rounded-full bg-[#15233b] px-4 py-2 text-[11px] font-black text-white disabled:opacity-45"
+                        >
+                          {row.calculation_id ? "Recalculate" : "Calculate from invoices"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void openCommissionBreakdown(row)}
+                          disabled={working || !row.calculation_id}
+                          className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-[11px] font-bold text-sky-700 disabled:opacity-45"
+                        >
+                          Invoice breakdown
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openCommissionPayment(row)}
+                          disabled={working || !row.calculation_id}
+                          className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-[11px] font-bold text-emerald-700 disabled:opacity-45"
+                        >
+                          {row.payment_status === "paid"
+                            ? "View paid payroll"
+                            : row.staff_payment_id
+                              ? "Edit / finalise payroll"
+                              : "Create pending payroll"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {!planConfigured && (
+                      <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
+                        Configure the commission start date and all three percentage tiers before calculating this staff member.
+                      </div>
+                    )}
+
+                    {beforeStart && !row.calculation_id && (
+                      <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs leading-5 text-sky-800">
+                        {monthLabel(month)} is before this staff member&apos;s commission start month, so no commission is due for this cycle.
+                      </div>
+                    )}
+
+                    {termsChanged && (
+                      <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs font-bold leading-5 text-amber-900">
+                        Commission terms have changed since this calculation was created. Recalculate before finalising the pending payroll.
+                      </div>
+                    )}
+
+                    {Number(row.draft_review_invoice_count || 0) > 0 && (
+                      <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
+                        <strong>
+                          {Number(row.draft_review_invoice_count || 0)} invoice(s)
+                        </strong>{" "}
+                        are still Draft or Review for this billing month. They are not included in the commission calculation. Finalise the invoices and recalculate before marking payroll Paid.
+                      </div>
+                    )}
+
+                    {row.calculation_id ? (
+                      <>
+                        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                          <Metric
+                            label="Finalized invoices"
+                            value={String(Number(row.finalized_invoice_count || 0))}
+                            detail={`v${Number(row.calculation_version || 1)}`}
+                          />
+                          <Metric
+                            label="Gross invoice total"
+                            value={money(row.gross_invoice_total, row.currency)}
+                          />
+                          <Metric
+                            label="Deposits excluded"
+                            value={money(row.excluded_deposit_total, row.currency)}
+                          />
+                          <Metric
+                            label="Commissionable"
+                            value={money(row.commissionable_total, row.currency)}
+                          />
+                          <Metric
+                            label="Applied rate"
+                            value={`${numberValue(row.calculation_rate_percent)}%`}
+                            detail={`Commission month ${Number(row.calculation_commission_month || 0)}`}
+                          />
+                          <Metric
+                            label="Commission earned"
+                            value={money(row.commission_total, row.currency)}
+                          />
+                        </div>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                          <Metric
+                            label="Bonus"
+                            value={money(row.bonus, row.currency)}
+                          />
+                          <Metric
+                            label="Allowances"
+                            value={money(row.allowances, row.currency)}
+                          />
+                          <Metric
+                            label="Deductions"
+                            value={money(row.deductions, row.currency)}
+                          />
+                          <Metric
+                            label="Other adjustment"
+                            value={money(row.other_adjustment, row.currency)}
+                          />
+                          <div className="rounded-2xl border border-[#15233b] bg-[#15233b] p-4 text-white">
+                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/55">
+                              Total payable
+                            </p>
+                            <strong className="mt-2 block text-xl text-[#f0cf87]">
+                              {row.staff_payment_id
+                                ? money(row.payment_total, row.currency)
+                                : money(row.commission_total, row.currency)}
+                            </strong>
+                            <span className="mt-1 block text-[11px] text-white/55">
+                              {row.staff_payment_id
+                                ? row.payment_status || "pending"
+                                : "Payroll not created yet"}
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      planConfigured &&
+                      !beforeStart && (
+                        <div className="mt-5 rounded-2xl border border-dashed border-[#d7c9ae] bg-[#fbfaf7] p-5 text-sm text-[#81796d]">
+                          No stored calculation yet for {monthLabel(month)}. Use <strong>Calculate from invoices</strong> after the billing cycle invoices are ready.
+                        </div>
+                      )
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
       <section className="mt-6 rounded-[2rem] border border-[#ded5c4] bg-white p-5 shadow-[0_20px_60px_rgba(21,35,59,0.045)] sm:p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
@@ -1082,20 +1985,21 @@ export default function StaffPaymentsClient({
                         <button type="button" onClick={() => openEditStaff(row)} className="rounded-full border border-[#d7c9ae] bg-white px-3 py-2 text-[10px] font-bold">Edit</button>
                         <button
                           type="button"
-                          onClick={() => openNewPayment(row)}
-                          disabled={
-                            row.employment_status !== "active" ||
+                          onClick={() =>
                             row.pay_basis === "invoice_commission"
+                              ? focusCommissionStaff(row)
+                              : openNewPayment(row)
                           }
+                          disabled={row.employment_status !== "active"}
                           title={
                             row.pay_basis === "invoice_commission"
-                              ? "Commission payments are generated from finalized GKP invoices."
+                              ? "Open the invoice-commission workflow for the selected billing month."
                               : undefined
                           }
                           className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-bold text-emerald-700 disabled:opacity-40"
                         >
                           {row.pay_basis === "invoice_commission"
-                            ? "Invoice commission"
+                            ? "Manage commission"
                             : "Add payment"}
                         </button>
                         <button type="button" onClick={() => showStaffHistory(row)} className="rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-[10px] font-bold text-sky-700">History</button>
@@ -1178,7 +2082,14 @@ export default function StaffPaymentsClient({
                   <tr key={row.payment_id} className={`border-b border-[#f0ece4] last:border-0 ${row.payment_status === "void" ? "opacity-55" : ""}`}>
                     <td className="px-4 py-4"><strong className="block text-sm">{row.full_name}</strong><span className="mt-1 block text-xs text-[#81796d]">{row.job_title}</span></td>
                     <td className="px-4 py-4 text-sm">{date(row.period_start)}<span className="mt-1 block text-xs text-[#81796d]">to {date(row.period_end)}</span></td>
-                    <td className="px-4 py-4 text-xs">{payBasisLabel(row.pay_basis_snapshot)}<span className="mt-1 block text-[#81796d]">{numberValue(row.units)} × {money(row.unit_rate, row.currency)}</span></td>
+                    <td className="px-4 py-4 text-xs">
+                      {payBasisLabel(row.pay_basis_snapshot)}
+                      <span className="mt-1 block text-[#81796d]">
+                        {row.pay_basis_snapshot === "invoice_commission"
+                          ? `${numberValue(row.units)} invoice(s) · ${numberValue(row.unit_rate)}%`
+                          : `${numberValue(row.units)} × ${money(row.unit_rate, row.currency)}`}
+                      </span>
+                    </td>
                     <td className="px-4 py-4 text-sm">{money(row.base_pay, row.currency)}</td>
                     <td className="px-4 py-4 text-sm">{money(row.bonus, row.currency)}</td>
                     <td className="px-4 py-4 text-sm">{money(row.allowances, row.currency)}</td>
@@ -1190,8 +2101,20 @@ export default function StaffPaymentsClient({
                     <td className="px-4 py-4">
                       {row.payment_status !== "void" && (
                         <div className="flex justify-end gap-2">
-                          <button type="button" onClick={() => openEditPayment(row)} className="rounded-full border border-[#d7c9ae] bg-white px-3 py-2 text-[10px] font-bold">Edit</button>
-                          <button type="button" onClick={() => void voidPayment(row)} className="rounded-full border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-bold text-red-700">Void</button>
+                          {row.pay_basis_snapshot === "invoice_commission" ? (
+                            <button
+                              type="button"
+                              onClick={() => void openCommissionFromPayment(row)}
+                              className="rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-[10px] font-bold text-sky-700"
+                            >
+                              {row.payment_status === "paid" ? "View commission" : "Manage commission"}
+                            </button>
+                          ) : (
+                            <>
+                              <button type="button" onClick={() => openEditPayment(row)} className="rounded-full border border-[#d7c9ae] bg-white px-3 py-2 text-[10px] font-bold">Edit</button>
+                              <button type="button" onClick={() => void voidPayment(row)} className="rounded-full border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-bold text-red-700">Void</button>
+                            </>
+                          )}
                         </div>
                       )}
                     </td>
@@ -1202,6 +2125,486 @@ export default function StaffPaymentsClient({
           </div>
         )}
       </section>
+
+
+      <Modal
+        open={commissionPlanModalOpen}
+        onClose={() => !working && setCommissionPlanModalOpen(false)}
+        title="Edit invoice commission terms"
+        description="These percentages control future calculations and any pending cycle you choose to recalculate. Paid commission history keeps the percentage snapshot that was used when it was finalised."
+      >
+        <form onSubmit={saveCommissionPlan} className="grid gap-4">
+          <div className="rounded-2xl border border-[#e6dfd3] bg-[#fbfaf7] p-4 text-sm">
+            <strong className="block text-[#15233b]">
+              {commissionPlanForm.full_name}
+            </strong>
+            <span className="mt-1 block text-xs text-[#81796d]">
+              {commissionPlanForm.job_title}
+            </span>
+          </div>
+
+          <TextField
+            label="Commission start date"
+            type="date"
+            value={commissionPlanForm.commission_start_date}
+            onChange={(value) =>
+              setCommissionPlanForm((current) => ({
+                ...current,
+                commission_start_date: value,
+              }))
+            }
+            required
+          />
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <TextField
+              label="Months 1–3 (%)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={commissionPlanForm.months_1_3_rate}
+              onChange={(value) =>
+                setCommissionPlanForm((current) => ({
+                  ...current,
+                  months_1_3_rate: value,
+                }))
+              }
+              required
+            />
+            <TextField
+              label="Months 4–6 (%)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={commissionPlanForm.months_4_6_rate}
+              onChange={(value) =>
+                setCommissionPlanForm((current) => ({
+                  ...current,
+                  months_4_6_rate: value,
+                }))
+              }
+              required
+            />
+            <TextField
+              label="Month 7 onward (%)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={commissionPlanForm.month_7_plus_rate}
+              onChange={(value) =>
+                setCommissionPlanForm((current) => ({
+                  ...current,
+                  month_7_plus_rate: value,
+                }))
+              }
+              required
+            />
+          </div>
+
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs leading-5 text-sky-900">
+            Month 1 is the calendar month containing the commission start date. For example, a June start means June–August use the first tier, September–November use the second tier, and December onward uses the third tier.
+          </div>
+
+          <ModalActions
+            working={working}
+            onCancel={() => setCommissionPlanModalOpen(false)}
+            submitLabel="Save commission terms"
+          />
+        </form>
+      </Modal>
+
+      <Modal
+        open={commissionBreakdownModalOpen}
+        onClose={() =>
+          !commissionLinesLoading && setCommissionBreakdownModalOpen(false)
+        }
+        title={`${commissionBreakdownRow?.full_name || "Staff"} · invoice commission`}
+        description={`${monthLabel(month)} invoice-by-invoice audit. Refundable Class-Slot Deposits are excluded before the percentage is applied.`}
+        wide
+      >
+        {commissionLinesLoading ? (
+          <MessageCard>Loading commission invoice breakdown…</MessageCard>
+        ) : commissionLines.length === 0 ? (
+          <MessageCard>
+            This calculation contains no finalized monthly invoices.
+          </MessageCard>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <Metric
+                label="Invoices"
+                value={String(commissionLines.length)}
+              />
+              <Metric
+                label="Gross total"
+                value={money(
+                  commissionLines.reduce(
+                    (sum, line) => sum + numberValue(line.invoice_total),
+                    0,
+                  ),
+                  commissionBreakdownRow?.currency || "SGD",
+                )}
+              />
+              <Metric
+                label="Deposits excluded"
+                value={money(
+                  commissionLines.reduce(
+                    (sum, line) =>
+                      sum + numberValue(line.excluded_deposit_total),
+                    0,
+                  ),
+                  commissionBreakdownRow?.currency || "SGD",
+                )}
+              />
+              <Metric
+                label="Commissionable"
+                value={money(
+                  commissionLines.reduce(
+                    (sum, line) =>
+                      sum + numberValue(line.commissionable_amount),
+                    0,
+                  ),
+                  commissionBreakdownRow?.currency || "SGD",
+                )}
+              />
+              <Metric
+                label="Commission"
+                value={money(
+                  commissionLines.reduce(
+                    (sum, line) =>
+                      sum + numberValue(line.commission_amount),
+                    0,
+                  ),
+                  commissionBreakdownRow?.currency || "SGD",
+                )}
+              />
+            </div>
+
+            <div className="mt-5 overflow-x-auto rounded-2xl border border-[#e6dfd3]">
+              <table className="w-full min-w-[980px] border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+                    <th className="px-4 py-3">Invoice</th>
+                    <th className="px-4 py-3">Payer</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Invoice total</th>
+                    <th className="px-4 py-3 text-right">Deposit excluded</th>
+                    <th className="px-4 py-3 text-right">Commission base</th>
+                    <th className="px-4 py-3 text-right">Rate</th>
+                    <th className="px-4 py-3 text-right">Commission</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {commissionLines.map((line) => (
+                    <tr
+                      key={`${line.invoice_id || line.invoice_number}`}
+                      className="border-b border-[#f0ece4] last:border-0"
+                    >
+                      <td className="px-4 py-4 text-sm font-bold text-[#15233b]">
+                        {line.invoice_number}
+                      </td>
+                      <td className="px-4 py-4 text-sm">
+                        {line.payer_name || "—"}
+                      </td>
+                      <td className="px-4 py-4">
+                        <StatusPill status={line.invoice_status} />
+                      </td>
+                      <td className="px-4 py-4 text-right text-sm">
+                        {money(
+                          line.invoice_total,
+                          commissionBreakdownRow?.currency || "SGD",
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-right text-sm">
+                        {money(
+                          line.excluded_deposit_total,
+                          commissionBreakdownRow?.currency || "SGD",
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-right text-sm font-bold">
+                        {money(
+                          line.commissionable_amount,
+                          commissionBreakdownRow?.currency || "SGD",
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-right text-sm">
+                        {numberValue(line.rate_percent)}%
+                      </td>
+                      <td className="px-4 py-4 text-right text-sm font-black text-[#9a7029]">
+                        {money(
+                          line.commission_amount,
+                          commissionBreakdownRow?.currency || "SGD",
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setCommissionBreakdownModalOpen(false)}
+                className="min-h-11 rounded-full border border-[#d7c9ae] bg-white px-5 text-xs font-bold"
+              >
+                Close
+              </button>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      <Modal
+        open={commissionPaymentModalOpen}
+        onClose={() => !working && setCommissionPaymentModalOpen(false)}
+        title={
+          commissionPaymentLocked
+            ? "Paid commission payroll"
+            : commissionPaymentRow?.staff_payment_id
+              ? "Edit commission payroll"
+              : "Create commission payroll"
+        }
+        description="The commission amount comes only from the stored invoice calculation. Bonuses, allowances, deductions and other adjustments are applied after the calculated commission."
+        wide
+      >
+        <form onSubmit={saveCommissionPayment} className="grid gap-4">
+          <div className="rounded-2xl border border-[#e6dfd3] bg-[#fbfaf7] p-4">
+            <strong className="block text-[#15233b]">
+              {commissionPaymentForm.full_name}
+            </strong>
+            <span className="mt-1 block text-xs text-[#81796d]">
+              {commissionPaymentForm.job_title} · {monthLabel(month)}
+            </span>
+          </div>
+
+          {Number(commissionPaymentRow?.draft_review_invoice_count || 0) >
+            0 && (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
+              <strong>
+                {Number(
+                  commissionPaymentRow?.draft_review_invoice_count || 0,
+                )}{" "}
+                invoice(s)
+              </strong>{" "}
+              are still Draft or Review and are excluded. You can keep this payroll Pending, but finalise those invoices and recalculate before marking it Paid.
+            </div>
+          )}
+
+          {commissionPaymentLocked && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold leading-5 text-emerald-800">
+              This payroll has been paid. The invoice list, commission month and percentage snapshot are locked as historical payroll.
+            </div>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Metric
+              label="Finalized invoices"
+              value={String(
+                Number(commissionPaymentRow?.finalized_invoice_count || 0),
+              )}
+            />
+            <Metric
+              label="Commission base"
+              value={money(
+                commissionPaymentRow?.commissionable_total,
+                commissionPaymentRow?.currency || "SGD",
+              )}
+            />
+            <Metric
+              label="Applied rate"
+              value={`${numberValue(
+                commissionPaymentRow?.calculation_rate_percent,
+              )}%`}
+              detail={`Commission month ${Number(
+                commissionPaymentRow?.calculation_commission_month || 0,
+              )}`}
+            />
+            <Metric
+              label="Calculated commission"
+              value={money(
+                commissionPaymentRow?.commission_total,
+                commissionPaymentRow?.currency || "SGD",
+              )}
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <TextField
+              label="Bonus"
+              type="number"
+              min="0"
+              step="0.01"
+              value={commissionPaymentForm.bonus}
+              onChange={(value) =>
+                setCommissionPaymentForm((current) => ({
+                  ...current,
+                  bonus: value,
+                }))
+              }
+              disabled={commissionPaymentLocked}
+            />
+            <TextField
+              label="Allowances"
+              type="number"
+              min="0"
+              step="0.01"
+              value={commissionPaymentForm.allowances}
+              onChange={(value) =>
+                setCommissionPaymentForm((current) => ({
+                  ...current,
+                  allowances: value,
+                }))
+              }
+              disabled={commissionPaymentLocked}
+            />
+            <TextField
+              label="Deductions"
+              type="number"
+              min="0"
+              step="0.01"
+              value={commissionPaymentForm.deductions}
+              onChange={(value) =>
+                setCommissionPaymentForm((current) => ({
+                  ...current,
+                  deductions: value,
+                }))
+              }
+              disabled={commissionPaymentLocked}
+            />
+            <TextField
+              label="Other adjustment (+ / −)"
+              type="number"
+              step="0.01"
+              value={commissionPaymentForm.other_adjustment}
+              onChange={(value) =>
+                setCommissionPaymentForm((current) => ({
+                  ...current,
+                  other_adjustment: value,
+                }))
+              }
+              disabled={commissionPaymentLocked}
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-[#ded5c4] bg-[#fbfaf7] p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+                Commission
+              </p>
+              <strong className="mt-2 block text-xl">
+                {money(
+                  commissionPaymentPreview.base,
+                  commissionPaymentRow?.currency || "SGD",
+                )}
+              </strong>
+            </div>
+            <div className="rounded-2xl border border-[#15233b] bg-[#15233b] p-4 text-white">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/55">
+                Total payable
+              </p>
+              <strong className="mt-2 block text-xl text-[#f0cf87]">
+                {money(
+                  commissionPaymentPreview.total,
+                  commissionPaymentRow?.currency || "SGD",
+                )}
+              </strong>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <SelectField
+              label="Status"
+              value={commissionPaymentForm.status}
+              onChange={(value) =>
+                setCommissionPaymentForm((current) => ({
+                  ...current,
+                  status: value as "pending" | "paid",
+                }))
+              }
+              options={[
+                ["pending", "Pending"],
+                ["paid", "Paid"],
+              ]}
+              disabled={commissionPaymentLocked}
+            />
+            <TextField
+              label="Payment date"
+              type="date"
+              value={commissionPaymentForm.paid_at}
+              onChange={(value) =>
+                setCommissionPaymentForm((current) => ({
+                  ...current,
+                  paid_at: value,
+                }))
+              }
+              disabled={
+                commissionPaymentLocked ||
+                commissionPaymentForm.status !== "paid"
+              }
+            />
+            <TextField
+              label="Payment method"
+              value={commissionPaymentForm.payment_method}
+              onChange={(value) =>
+                setCommissionPaymentForm((current) => ({
+                  ...current,
+                  payment_method: value,
+                }))
+              }
+              placeholder="Bank transfer"
+              disabled={commissionPaymentLocked}
+            />
+            <TextField
+              label="Reference"
+              value={commissionPaymentForm.payment_reference}
+              onChange={(value) =>
+                setCommissionPaymentForm((current) => ({
+                  ...current,
+                  payment_reference: value,
+                }))
+              }
+              disabled={commissionPaymentLocked}
+            />
+          </div>
+
+          <TextArea
+            label="Payment notes"
+            value={commissionPaymentForm.notes}
+            onChange={(value) =>
+              setCommissionPaymentForm((current) => ({
+                ...current,
+                notes: value,
+              }))
+            }
+            disabled={commissionPaymentLocked}
+          />
+
+          {commissionPaymentLocked ? (
+            <div className="mt-2 flex justify-end border-t border-[#e4dbcd] pt-5">
+              <button
+                type="button"
+                onClick={() => setCommissionPaymentModalOpen(false)}
+                className="min-h-11 rounded-full border border-[#d7c9ae] bg-white px-5 text-xs font-bold"
+              >
+                Close
+              </button>
+            </div>
+          ) : (
+            <ModalActions
+              working={working}
+              onCancel={() => setCommissionPaymentModalOpen(false)}
+              submitLabel={
+                commissionPaymentForm.status === "paid"
+                  ? "Mark paid & lock"
+                  : commissionPaymentRow?.staff_payment_id
+                    ? "Save pending payroll"
+                    : "Create pending payroll"
+              }
+            />
+          )}
+        </form>
+      </Modal>
 
       <Modal
         open={staffModalOpen}
@@ -1252,14 +2655,7 @@ export default function StaffPaymentsClient({
                       : current.default_rate,
                 }))
               }
-              options={[
-                ["monthly_salary", "Monthly salary"],
-                ["hourly", "Hourly"],
-                ["per_class", "Per class"],
-                ["per_session", "Per session"],
-                ["custom", "Custom"],
-                ["invoice_commission", "Invoice commission"],
-              ]}
+              options={payBasisOptions}
             />
           </div>
 
@@ -1312,9 +2708,18 @@ export default function StaffPaymentsClient({
           <Field label="Staff member">
             <select value={paymentForm.employment_id} onChange={(event) => selectPaymentEmployment(event.target.value)} className={inputClass} required>
               <option value="">Choose staff member</option>
-              {staff.filter((row) => row.employment_status !== "ended" || row.employment_id === paymentForm.employment_id).map((row) => (
-                <option key={row.employment_id} value={row.employment_id}>{row.full_name} · {row.job_title}</option>
-              ))}
+              {staff
+                .filter(
+                  (row) =>
+                    row.pay_basis !== "invoice_commission" &&
+                    (row.employment_status !== "ended" ||
+                      row.employment_id === paymentForm.employment_id),
+                )
+                .map((row) => (
+                  <option key={row.employment_id} value={row.employment_id}>
+                    {row.full_name} · {row.job_title}
+                  </option>
+                ))}
             </select>
           </Field>
 
@@ -1412,12 +2817,12 @@ function TextField({ label, value, onChange, type = "text", required = false, di
   return <Field label={label}><input type={type} value={value} onChange={(event) => onChange(event.target.value)} required={required} disabled={disabled} min={min} step={step} placeholder={placeholder} className={`${inputClass} disabled:bg-[#f2eee6] disabled:text-[#9b9388]`} /></Field>;
 }
 
-function TextArea({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
-  return <Field label={label}><textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} rows={3} className={`${inputClass} min-h-[90px] py-3`} /></Field>;
+function TextArea({ label, value, onChange, placeholder, disabled = false }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; disabled?: boolean }) {
+  return <Field label={label}><textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} disabled={disabled} rows={3} className={`${inputClass} min-h-[90px] py-3 disabled:bg-[#f2eee6] disabled:text-[#9b9388]`} /></Field>;
 }
 
-function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<[string, string]> }) {
-  return <Field label={label}><select value={value} onChange={(event) => onChange(event.target.value)} className={inputClass}>{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></Field>;
+function SelectField({ label, value, onChange, options, disabled = false }: { label: string; value: string; onChange: (value: string) => void; options: Array<[string, string]>; disabled?: boolean }) {
+  return <Field label={label}><select value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled} className={`${inputClass} disabled:bg-[#f2eee6] disabled:text-[#9b9388]`}>{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></Field>;
 }
 
 function Modal({ open, onClose, title, description, children, wide = false }: { open: boolean; onClose: () => void; title: string; description: string; children: ReactNode; wide?: boolean }) {

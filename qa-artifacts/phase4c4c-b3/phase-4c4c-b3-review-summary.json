@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "4C-4C-B3.REVIEW.1",
+  "stats": {
+    "total480": 480,
+    "ready320": 320,
+    "selected84": 84,
+    "ambiguous236": 236,
+    "upstream160": 160,
+    "curated": 24,
+    "P0": 11,
+    "textMathChecks": 20,
+    "matchingSourceAnswers": 20,
+    "conflictingSourceAnswers": 0,
+    "imageDependentUnresolved": 4,
+    "externalImageReferences": 9,
+    "humanApproved": 0,
+    "approvedB2Records": 0,
+    "productionScoreChanges": 0
+  },
+  "flags": {
+    "fits_mathematics_curriculum_pending": 2,
+    "requires_image_verification": 4,
+    "selected_method_mismatch_suspected": 4,
+    "visual_semantics_pending": 2,
+    "method_fit_review": 3,
+    "tied_methods_distinguishable": 4,
+    "fits_mathematics": 2,
+    "tied_methods_both_questionable": 2,
+    "method_family_coverage_review": 1
+  },
+  "policy": {
+    "teacherApprovalRequired": true,
+    "externalImageVerificationRequired": true,
+    "reviewerAuthenticationExternal": true,
+    "acceptedAsB2ApprovedEvidence": false,
+    "scoringThresholds": {
+      "quality": 75,
+      "margin": 8
+    }
+  }
+}
