@@ -27,10 +27,10 @@ export type Founding50SurveyMail = {
 };
 
 const discountCondition =
-  "Eligible Founding 50 families can receive 30% off a qualifying NOVA+ monthly subscription " +
-  "for six monthly billing periods, subject to completing the 30-day beta, submitting " +
-  "the parent feedback survey and meeting the programme and redemption terms. " +
-  "No paid subscription is started automatically.";
+  "Eligible Founding 50 families will receive special discounted NOVA+ rates after the official launch. " +
+  "The exact rates, duration and redemption details will be shared closer to launch, " +
+  "subject to completing the 30-day beta, submitting the parent feedback survey " +
+  "and meeting programme eligibility requirements. No paid subscription starts automatically.";
 
 const brand = "DREAMSCAPE ONE · FOUNDING 50";
 
@@ -78,7 +78,7 @@ export function renderFounding50SurveyMail(input: Founding50SurveyMailInput): Fo
       headline = "Tell Us About Your Adventure!";
       intro = `We hope ${student} has enjoyed exploring Nova's World! Your Founding 50 beta is entering its final week, and we'd love to hear how it's going for your family.`;
       detail = "Our short parent survey takes about 2–3 minutes. Tell us what your child enjoyed, how easy the experience was, and what we could improve.";
-      footnote = `Your complimentary beta access is scheduled to end on ${expiry} (Singapore date). Survey completion is one requirement for the Founding 50 30%-off NOVA+ benefit. The discount remains subject to the full programme terms and eligibility.`;
+      footnote = `Your complimentary beta access is scheduled to end on ${expiry} (Singapore date). Completing this survey is one step toward your family’s special discounted NOVA+ launch rates. Further details will be shared closer to launch, subject to the programme terms and eligibility.`;
       action = "SHARE OUR FEEDBACK";
       actionUrl = feedback;
       break;
@@ -89,7 +89,7 @@ export function renderFounding50SurveyMail(input: Founding50SurveyMailInput): Fo
       headline = "Could You Share Your Thoughts?";
       intro = `Your family's 30-day NOVA+ trial for ${student} is almost complete. Thank you for being one of the first families to explore DREAMSCAPE ONE.`;
       detail = "If you have a few minutes, please complete our short survey. Your answers help us identify what families love and what needs improvement.";
-      footnote = `Your beta period is scheduled to end on ${expiry} (Singapore date). You can still submit your survey after that date. Completing the feedback survey is one of the conditions for the Founding 50 launch discount; other eligibility rules apply.`;
+      footnote = `Your beta period is scheduled to end on ${expiry} (Singapore date). You can still submit your survey after that date. Completing the feedback survey is one of the conditions for special Founding 50 discounted rates after launch; other eligibility rules apply.`;
       action = "COMPLETE OUR SURVEY";
       actionUrl = feedback;
       break;
@@ -100,7 +100,7 @@ export function renderFounding50SurveyMail(input: Founding50SurveyMailInput): Fo
       headline = "Thank You for Helping Us Grow!";
       intro = `Thank you for sharing your family's experience with ${student}! Your feedback has been received.`;
       detail = "We'll use feedback from our Founding 50 families to improve learning missions, world navigation and the overall experience before launch.";
-      footnote = `You have completed the survey requirement for the Founding 50 launch benefit. After completing the full beta period, eligible families may access the 30% NOVA+ discount for six monthly billing periods, subject to the programme terms and public launch. No subscription starts automatically.`;
+      footnote = `You have completed the feedback-survey requirement for your Founding 50 launch benefit. Eligible families will receive special discounted NOVA+ rates after our official launch. We will share the exact rates, duration and redemption details closer to launch. No subscription starts automatically.`;
       action = "VIEW FOUNDING BENEFITS";
       actionUrl = benefits;
       break;
@@ -115,7 +115,7 @@ export function renderFounding50SurveyMail(input: Founding50SurveyMailInput): Fo
         : "We'd still love to hear from you! If you haven't completed the short parent feedback survey, you can submit it now, even after your beta period has ended.";
       footnote = input.surveyCompleted
         ? `${discountCondition} This notice refers only to Founding 50 beta access; any separate paid subscription or permanent access is unaffected.`
-        : `Submitting the survey and completing the beta are both requirements for the Founding 50 launch discount, subject to eligibility. This notice refers only to Founding 50 beta access; any separate paid subscription or permanent access is unaffected. No paid subscription starts automatically.`;
+        : `Submitting the survey and completing the beta are both requirements for special Founding 50 discounted rates after launch, subject to eligibility. This notice refers only to Founding 50 beta access; any separate paid subscription or permanent access is unaffected. No paid subscription starts automatically.`;
       action = input.surveyCompleted ? "VIEW MY FOUNDING BENEFITS" : "SHARE MY FEEDBACK";
       actionUrl = input.surveyCompleted ? benefits : feedback;
       break;
