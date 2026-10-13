@@ -1,0 +1,3938 @@
+{
+  "schema_version": "4C-4B-QA.1",
+  "source_run_id": "b2ace146-ea22-4339-af8a-c625e0e0ee89",
+  "source_seed": "phase-4a2c5-holdout-v1",
+  "summary": {
+    "total": 240,
+    "upstreamBlocked": 99,
+    "adapterBlocked": 141,
+    "ambiguous": 0,
+    "selected": 0,
+    "nondeterministic": 0,
+    "byReason": {
+      "UPSTREAM_CONTRACT_BLOCKED": 99,
+      "FAMILY_SELECTION_BLOCKED": 141
+    },
+    "byLevel": {
+      "P1": {
+        "upstream_blocked": 19,
+        "adapter_blocked": 21
+      },
+      "P2": {
+        "upstream_blocked": 17,
+        "adapter_blocked": 23
+      },
+      "P3": {
+        "adapter_blocked": 27,
+        "upstream_blocked": 13
+      },
+      "P4": {
+        "adapter_blocked": 23,
+        "upstream_blocked": 17
+      },
+      "P5": {
+        "adapter_blocked": 25,
+        "upstream_blocked": 15
+      },
+      "P6": {
+        "adapter_blocked": 22,
+        "upstream_blocked": 18
+      }
+    },
+    "expected": {
+      "ready": 141,
+      "blocked": 99,
+      "total": 240
+    },
+    "checks": {
+      "matchesExpectedTotal": true,
+      "matchesExpectedUpstreamBlocks": true,
+      "totalsReconcile": true,
+      "deterministic": true
+    }
+  },
+  "results": [
+    {
+      "questionId": "915a98a7-6a6e-4936-877a-62dc8b120b03",
+      "questionCode": "MATH-P1-ASSESS-012-Q04",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "91f94782-a9c6-469d-a44e-9b1e727fe4f5",
+      "questionCode": "MATH-P1-ASSESS-013-Q02",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "d6474cff-1315-47c6-9c69-5700ae498631",
+      "questionCode": "MATH-P1-ASSESS-013-Q04",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "9ec51100-de93-4c25-9bf0-b59356864ae6",
+      "questionCode": "MATH-P1-ASSESS-013-Q08",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "patterns.sequence_rule"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "b2d56fae-98eb-4432-8270-e4612b866d73",
+      "questionCode": "MATH-P1-ASSESS-012-Q03",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "c12c8031-0445-4944-ae6b-96cc978a7b10",
+      "questionCode": "MATH-P1-ASSESS-012-Q08",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "patterns.sequence_rule"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "877f0df8-76fc-462a-853b-f2683241bc29",
+      "questionCode": "MATH-P1-ASSESS-013-Q06",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "heuristic.systematic_enumeration"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "c8d8adfa-e9eb-481e-85a4-a3f2a9728125",
+      "questionCode": "MATH-P1-PROB-053-Q04",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "49ad832e-59e0-495c-a317-3a8aec55528e",
+      "questionCode": "MATH-P1-PROB-010-Q05",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ac9cd62f-16d9-4e77-b0fb-bd7cd8ba99cc",
+      "questionCode": "MATH-P1-PROB-057-Q06",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 1,
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "c41b6eee-7a51-4ab6-87aa-4f799c381f93",
+      "questionCode": "MATH-P1-PROB-008-Q02",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "92208a64-acc1-4501-9e78-2b910db35e4d",
+      "questionCode": "MATH-P1-PROB-007-Q01",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "8701eafc-5a2a-4880-a9e7-5a8f6ecffbf8",
+      "questionCode": "MATH-P1-PROB-053-Q02",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "6dbfe878-a1c6-4bfb-93cd-3abdd994925a",
+      "questionCode": "MATH-P1-PROB-050-Q03",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "model.part_whole"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ad6234bd-0254-4a59-aafd-4c429213e288",
+      "questionCode": "MATH-P1-GEO-039-Q01",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "heuristic.systematic_enumeration"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "bb613c4a-b729-4874-8f3b-cafa409be531",
+      "questionCode": "MATH-P1-GEO-038-Q06",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "geometry.properties"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "f62a5c89-47f4-4774-8cc0-821062e93f41",
+      "questionCode": "MATH-P1-GEO-017-Q02",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "cb67ee91-0b89-48d4-b01c-a756f5e945b3",
+      "questionCode": "MATH-P1-GEO-038-Q08",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "geometry.properties"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "a07fbe76-1c6f-45a4-b697-a544a0869ca4",
+      "questionCode": "MATH-P1-GEO-036-Q02",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "f87b4670-96c4-424d-9ccb-6ec5128e119e",
+      "questionCode": "MATH-P1-GEO-023-Q04",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "geometry.properties"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "9e47290e-9c69-4f5d-9681-64ef4e5f04a9",
+      "questionCode": "MATH-P1-GEO-037-Q07",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "heuristic.systematic_enumeration"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ad19916a-9304-4f68-a28b-514d6f361f64",
+      "questionCode": "MATH-P1-MEAS-007-Q01",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "89283487-090b-47e3-8d1a-28f614e074b6",
+      "questionCode": "MATH-P1-MEAS-022-Q07",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "9659f2c6-dbb4-4206-9fc2-3659cb1e02c5",
+      "questionCode": "MATH-P1-MEAS-008-Q02",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "94278ac0-6c86-4f8c-b83d-66c8d1dfe97a",
+      "questionCode": "MATH-P1-MEAS-014-Q02",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "cb414255-d760-4b03-9304-e7eecf5aa042",
+      "questionCode": "MATH-P1-MEAS-042-Q04",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "f36def59-315c-49cc-9323-b8da720c2b19",
+      "questionCode": "MATH-P1-MEAS-018-Q07",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 1,
+      "primaryFamilies": [
+        "measurement.compare_change_total"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "77f5d4fa-1794-4292-9e46-1ce5c23864ec",
+      "questionCode": "MATH-P1-MEAS-005-Q03",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "5f85c27c-df12-4d75-bc79-88a35fa4f1e5",
+      "questionCode": "MATH-P1-DATA-004-Q02",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "6d0a4cfc-32cd-4cef-959c-bcddca330626",
+      "questionCode": "MATH-P1-DATA-021-Q04",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "3fb4dd0c-4c65-40b9-a1fb-4f232839bbc5",
+      "questionCode": "MATH-P1-DATA-020-Q03",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "47981331-84bd-4c7a-b5b4-daf76af417f7",
+      "questionCode": "MATH-P1-DATA-022-Q01",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "9ba4af0a-a4cc-405b-aebb-59d17b7f1efa",
+      "questionCode": "MATH-P1-DATA-006-Q03",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "b6b05f90-8cb5-46d7-ba07-8d6d7276e87e",
+      "questionCode": "MATH-P1-DATA-023-Q08",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "abc1e1e9-d86f-4da9-99a0-74730675c118",
+      "questionCode": "MATH-P1-NUM-010-Q04",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "number.place_value"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "321cdc3a-d017-4b98-b6ab-745174d4aee5",
+      "questionCode": "MATH-P1-NUM-052-Q05",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ea510ad2-a942-4e72-b020-92fdf200b2c9",
+      "questionCode": "MATH-P1-NUM-080-Q04",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "2bb5ba50-336f-422e-be97-300517030a1c",
+      "questionCode": "MATH-P1-NUM-010-Q02",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "number.place_value"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "2669de1e-e313-4b4b-a8f8-20803d4f5f9d",
+      "questionCode": "MATH-P1-NUM-006-Q02",
+      "level": 1,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "a3b9ecc7-7e36-46b2-90de-6ff5f3e6da65",
+      "questionCode": "MATH-P1-NUM-029-Q09",
+      "level": 1,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "model.equal_groups"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "a58830e5-f6a5-4bde-8cd6-d3de88ca8b67",
+      "questionCode": "MATH-P2-PROB-037-Q08",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "e0d41912-57cf-4b96-bead-9cab3cdf0a77",
+      "questionCode": "MATH-P2-PROB-039-Q04",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "algebra.equation_unknown"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "d3a60f85-afe9-43cb-aef0-a4ac286b2efe",
+      "questionCode": "MATH-P2-PROB-040-Q03",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "money.transaction"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "28675f9a-ceea-46e6-ae6e-d13782301737",
+      "questionCode": "MATH-P2-PROB-039-Q06",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "algebra.equation_unknown"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "cec2fa99-4164-47bb-900b-9e6451453967",
+      "questionCode": "MATH-P2-PROB-041-Q03",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 1,
+      "primaryFamilies": [
+        "speed.distance_time"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "de851d4a-0d66-40d7-8bd2-2f1d2b6d3e99",
+      "questionCode": "MATH-P2-PROB-039-Q08",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "algebra.equation_unknown"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "e88e32a7-0ed6-40f8-991c-44067616b843",
+      "questionCode": "MATH-P2-ASSESS-013-Q04",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "3271d657-fde4-446a-8c1c-deb30f9649fd",
+      "questionCode": "MATH-P2-ASSESS-012-Q06",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "e63e0c2d-f1ca-4273-934c-7117d41365af",
+      "questionCode": "MATH-P2-ASSESS-011-Q01",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "13d97d32-4c3b-4f82-9be5-c4db747ee13c",
+      "questionCode": "MATH-P2-ASSESS-011-Q03",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 1,
+      "primaryFamilies": [
+        "time.read_interval"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "fd99342e-6823-4f21-bff6-90cad28bc194",
+      "questionCode": "MATH-P2-ASSESS-014-Q03",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "56ce4977-410e-4a85-a2aa-ce12b917d479",
+      "questionCode": "MATH-P2-ASSESS-012-Q07",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "4715a769-078a-498b-9afd-2eb472c00c4a",
+      "questionCode": "MATH-P2-GEO-026-Q03",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "d3a0995b-aa8d-4b02-a8c8-d5ab6cb49c54",
+      "questionCode": "MATH-P2-GEO-029-Q04",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "cb666e98-de86-4c12-b11f-289fd820c574",
+      "questionCode": "MATH-P2-GEO-026-Q08",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "469a0de8-77e4-4a55-9d16-d362c46331c1",
+      "questionCode": "MATH-P2-GEO-030-Q02",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "heuristic.systematic_enumeration"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "50fb3f5b-9eef-4930-a4f9-6ca04c0369c4",
+      "questionCode": "MATH-P2-GEO-029-Q08",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "3ea51443-86f2-4f51-b546-fdc72a3b0f49",
+      "questionCode": "MATH-P2-GEO-031-Q01",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "50057d33-4afe-4b17-8784-1c475f2c1c10",
+      "questionCode": "MATH-P2-FRAC-021-Q03",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ec7bf183-d9e1-43da-8576-092b601707c3",
+      "questionCode": "MATH-P2-FRAC-022-Q08",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "fraction.representation"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "f0d52948-14fc-4ceb-ad91-6f47a42d5c60",
+      "questionCode": "MATH-P2-FRAC-028-Q08",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "532a42b1-c577-432a-ad2d-94e5be380b64",
+      "questionCode": "MATH-P2-FRAC-025-Q05",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "fraction.representation"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "b4fab5ab-684d-468c-98c1-30b9e296f640",
+      "questionCode": "MATH-P2-FRAC-025-Q08",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "fraction.representation"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "08baa1da-fc61-4eb1-bffb-8434d06648c8",
+      "questionCode": "MATH-P2-FRAC-027-Q01",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "a0c5e254-6870-4575-b13b-0c4406bfc205",
+      "questionCode": "MATH-P2-NUM-092-Q02",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 5,
+      "primaryFamilies": [
+        "number.place_value"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "d26216e1-3a8c-4e52-81bb-3aa60df58105",
+      "questionCode": "MATH-P2-NUM-104-Q02",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "6c0121e2-f009-4d4c-8790-cabea1af1b99",
+      "questionCode": "MATH-P2-NUM-103-Q05",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 7,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "f01a3193-7af2-476e-91b2-70b20a8f92d7",
+      "questionCode": "MATH-P2-NUM-094-Q08",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "model.part_whole"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "6ce50635-80fa-4894-8519-1ab8fe1c89e8",
+      "questionCode": "MATH-P2-NUM-106-Q07",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "model.part_whole"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "33d8bba6-cb1b-430b-a6fd-fb1ef838e168",
+      "questionCode": "MATH-P2-NUM-092-Q03",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "4e5e1cbd-2067-4cd7-adf1-2c2db92d88c8",
+      "questionCode": "MATH-P2-MEAS-058-Q07",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "2367d7e8-6464-48f0-97ba-695716dfe536",
+      "questionCode": "MATH-P2-MEAS-057-Q03",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "9ad8238a-c4f2-4660-a4a4-83e7002e3869",
+      "questionCode": "MATH-P2-MEAS-054-Q07",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "measurement.compare_change_total"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "12fa5180-c1e9-414e-bb6a-1de36d0434cc",
+      "questionCode": "MATH-P2-MEAS-061-Q03",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "time.read_interval"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "30496dbd-87b5-4792-810a-ad0c96fa3b8f",
+      "questionCode": "MATH-P2-MEAS-064-Q04",
+      "level": 2,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "3de716d8-ab3b-4aa6-b69f-ea2018922303",
+      "questionCode": "MATH-P2-DATA-021-Q02",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "158156cc-1e45-46cd-ac88-e61e23e49e3f",
+      "questionCode": "MATH-P2-DATA-021-Q08",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "4b82f31a-899c-4423-886a-514c0c8fbbf0",
+      "questionCode": "MATH-P2-DATA-024-Q04",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "c7f72911-c1a7-431d-a821-2f83e38061fb",
+      "questionCode": "MATH-P2-DATA-022-Q04",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "39d1e654-4532-417e-a56f-1c88ac1d2222",
+      "questionCode": "MATH-P2-DATA-024-Q03",
+      "level": 2,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "7c8f5dec-6553-4c96-b586-747f0ec37bbd",
+      "questionCode": "MATH-P3-DATA-030-Q101",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "3f41a3fa-2ba1-4c16-b922-1a8ad53025d1",
+      "questionCode": "MATH-P3-DATA-030-Q111",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "8878fe07-4c96-4edd-91fe-2e338d2d390b",
+      "questionCode": "MATH-P3-DATA-030-Q102",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "1bce62d3-fd29-4a7e-86f3-7ff38b75012b",
+      "questionCode": "MATH-P3-DATA-030-Q104",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "23390cee-660c-4069-9b16-c0bc83bc2404",
+      "questionCode": "MATH-P3-DATA-030-Q110",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "7b91516e-2355-4026-a5c0-b36ab094be2e",
+      "questionCode": "MATH-P3-FRAC-035-Q106",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "5ed1092d-62a4-4747-b17c-e7fd94c600db",
+      "questionCode": "MATH-P3-FRAC-035-Q103",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "b2be57e2-e00e-464e-8889-04f3df0a64c4",
+      "questionCode": "MATH-P3-FRAC-035-Q102",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "1d875b78-52d1-47b8-8679-fbc07b44b40e",
+      "questionCode": "MATH-P3-FRAC-035-Q109",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "a73b1477-f61c-47a9-9546-a41f7afe2efb",
+      "questionCode": "MATH-P3-FRAC-035-Q101",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "677eb482-7d59-482c-b97a-cd19b242361d",
+      "questionCode": "MATH-P3-PROB-051-Q103",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "model.part_whole"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "cdb2e5f0-0ebd-4702-808a-01e317f276c7",
+      "questionCode": "MATH-P3-PROB-054-Q107",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "patterns.sequence_rule"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "5ebd0f8b-abe5-4fb3-bd6b-d82e5ec57a40",
+      "questionCode": "MATH-P3-PROB-054-Q106",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "patterns.sequence_rule"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "9ea3dd8e-8d39-4651-a7f7-bced01e2e3b6",
+      "questionCode": "MATH-P3-PROB-051-Q105",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "patterns.sequence_rule"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "6c558923-aee0-4d3e-bce1-3ba4867208a7",
+      "questionCode": "MATH-P3-PROB-052-Q102",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "5e6dfa54-7e12-4964-8c4f-c29b494d8275",
+      "questionCode": "MATH-P3-PROB-055-Q104",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "e4880e20-60a8-4cb9-a616-02fd906f95ea",
+      "questionCode": "MATH-P3-PROB-055-Q106",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "patterns.sequence_rule"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "5a3d6961-b390-453d-8047-925641191e94",
+      "questionCode": "MATH-P3-PROB-053-Q104",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "97ca22d5-e535-4084-80f6-eab9e6ef15f9",
+      "questionCode": "MATH-P3-ASSESS-012-Q109",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "565b5d25-6824-4dc5-8587-baacb0671caf",
+      "questionCode": "MATH-P3-ASSESS-013-Q102",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "51af7c09-3e27-4841-9753-a44cdcffc4e8",
+      "questionCode": "MATH-P3-ASSESS-012-Q103",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "51edb1cf-e940-4c29-9b41-b905808c33a5",
+      "questionCode": "MATH-P3-ASSESS-014-Q103",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "patterns.sequence_rule"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "02d86e10-a360-4890-be07-a18f05bd8489",
+      "questionCode": "MATH-P3-ASSESS-012-Q106",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 5,
+      "primaryFamilies": [
+        "number.place_value"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "dab6ab67-f222-4109-a3af-eafd6f3d42f6",
+      "questionCode": "MATH-P3-ASSESS-014-Q106",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "661ca56f-d92e-40a6-ad60-05c25921c6d9",
+      "questionCode": "MATH-P3-ASSESS-013-Q105",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "20f4a211-e435-4173-aaf1-876674409eef",
+      "questionCode": "MATH-P3-GEO-017-Q104",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "e4b3a5d0-c84c-465a-85a2-c87fa8c22a56",
+      "questionCode": "MATH-P3-MEAS-032-Q101",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "geometry.area_perimeter"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "0846ab20-39e2-4af2-8ebb-38fa24df9bae",
+      "questionCode": "MATH-P3-MEAS-032-Q102",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "geometry.area_perimeter"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "9e83afd5-a627-48da-b8a8-7b659688e4c3",
+      "questionCode": "MATH-P3-MEAS-032-Q103",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "geometry.area_perimeter"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "66486576-48dd-431e-81e8-16ca3d4f6569",
+      "questionCode": "MATH-P3-MEAS-GKP-004-Q04",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "a06bb662-8e92-4781-877d-c24d904de27f",
+      "questionCode": "MATH-P3-MEAS-GKP-006-Q05",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 1,
+      "primaryFamilies": [
+        "measurement.compare_change_total"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "76512a56-e231-4fe8-97ee-abf02235e02c",
+      "questionCode": "MATH-P3-MEAS-GKP-004-Q02",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "722bd728-dc91-4f14-acdb-d86fcc922795",
+      "questionCode": "MATH-P3-MEAS-008-Q105",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "5265ad90-5bf7-426e-91fc-d21c99ed6b30",
+      "questionCode": "MATH-P3-NUM-075-Q104",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "c02f8fc1-a708-4f1b-bbc8-ec551a24de26",
+      "questionCode": "MATH-P3-NUM-072-Q104",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "model.part_whole"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "8912dfde-beba-4b9b-a1ff-efb56f2fc47e",
+      "questionCode": "MATH-P3-NUM-072-Q103",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "37d1e98e-2275-4487-84b2-b9f4f2d33677",
+      "questionCode": "MATH-P3-NUM-072-Q106",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "arithmetic.direct"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "840755b0-a077-4cd1-962d-f978fa6d7a6f",
+      "questionCode": "MATH-P3-NUM-102-Q102",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 7,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "beae3643-893c-4007-b686-749f54d28dde",
+      "questionCode": "MATH-P3-NUM-102-Q101",
+      "level": 3,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "42963a61-fe55-49bc-8830-f94ea53ff634",
+      "questionCode": "MATH-P3-NUM-078-Q104",
+      "level": 3,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 1,
+      "primaryFamilies": [
+        "number.place_value"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "0476c238-a0ce-467d-8830-0afdc0a0b9ee",
+      "questionCode": "MATH-P4-DEC-012-Q104",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "number.place_value"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "a8dc73e8-160a-4b86-a90e-2b2fcae7e965",
+      "questionCode": "MATH-P4-MEAS-029-Q109",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ff4d4390-b9b4-4052-ae0d-15233e486ec3",
+      "questionCode": "MATH-P4-MEAS-028-Q106",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "23bb5817-c612-4fc8-8020-9311966ba9d5",
+      "questionCode": "MATH-P4-MEAS-028-A01",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "a3fd165c-0521-41f7-8213-5c3c9d4074b4",
+      "questionCode": "MATH-P4-MEAS-028-Q108",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "8ea48739-1ede-4441-9a20-86ccc73fd3ab",
+      "questionCode": "MATH-P4-MEAS-028-Q105",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "measurement.compare_change_total"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "1a0e8d0b-de54-4d64-a702-778326357abc",
+      "questionCode": "MATH-P4-MEAS-028-Q103",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "measurement.compare_change_total"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "3fbb4574-3917-403d-b421-9baa4ce6c2ca",
+      "questionCode": "MATH-P4-ASSESS-016-Q116",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "72ad9726-c751-4e57-bfe6-4fb6a450df83",
+      "questionCode": "MATH-P4-ASSESS-016-Q115",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "257d2115-23f4-4322-b9a3-05af12a19250",
+      "questionCode": "MATH-P4-ASSESS-016-Q106",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "448a6918-cc6f-4aae-bbe0-647cb0e6de06",
+      "questionCode": "MATH-P4-ASSESS-016-Q117",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "7e2eb8f5-a3b0-4896-b20e-98dc2dfdb287",
+      "questionCode": "MATH-P4-ASSESS-016-Q113",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 1,
+      "primaryFamilies": [
+        "money.transaction"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "915ed0de-27de-4ea3-beb3-889cfeda3920",
+      "questionCode": "MATH-P4-ASSESS-016-Q103",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "c2cdee2d-e032-42f3-965f-2891bc8e8b82",
+      "questionCode": "MATH-P4-NUM-051-Q104",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "4e000f16-ea4b-432a-9e79-125f713cc204",
+      "questionCode": "MATH-P4-NUM-035-Q107",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "8f05d07a-3588-4c1c-9254-3cbad65027b2",
+      "questionCode": "MATH-P4-NUM-035-Q104",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ce1e2001-b1fe-4bf8-872e-1e3bc1530fab",
+      "questionCode": "MATH-P4-NUM-044-Q105",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "8b41a2cd-853e-459e-9c40-c6f63030677f",
+      "questionCode": "MATH-P4-NUM-038-Q108",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "0888be19-becd-407e-918c-8741cacf9a2d",
+      "questionCode": "MATH-P4-GEO-020-Q104",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "66008dbc-2bfe-4473-b70d-fc697c369552",
+      "questionCode": "MATH-P4-GEO-004-A05",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "9cb3a643-90fa-4b25-b661-a9232f225025",
+      "questionCode": "MATH-P4-GEO-014-A03",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "501d5f1d-125f-454a-8cf4-00dc12257fab",
+      "questionCode": "MATH-P4-GEO-004-A04",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "4ad6e9ca-31d5-4d38-a3b1-f9159403fb80",
+      "questionCode": "MATH-P4-GEO-021-Q105",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 1,
+      "primaryFamilies": [
+        "algebra.equation_unknown"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "45e2cd27-9623-4786-8202-e108fd646c2d",
+      "questionCode": "MATH-P4-FRAC-010-Q102",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 8,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "eda55297-746f-4b27-93d1-345d8d439eab",
+      "questionCode": "MATH-P4-FRAC-001-Q102",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "d6df3f33-6372-458f-97cd-7a7027b56c9b",
+      "questionCode": "MATH-P4-FRAC-010-Q107",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 8,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "0da9441a-020f-47e4-9bd5-56bd9b55b63f",
+      "questionCode": "MATH-P4-FRAC-001-Q104",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "495406f3-41cd-46db-a598-186a73a701ab",
+      "questionCode": "MATH-P4-FRAC-013-Q102",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 8,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "fd0304e7-49ae-4e24-90ba-45750f9b273d",
+      "questionCode": "MATH-P4-PROB-061-Q105",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "patterns.sequence_rule"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "d8f57ea7-0906-40ea-ba3c-671d16389b22",
+      "questionCode": "MATH-P4-PROB-061-Q102",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "patterns.sequence_rule"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "e0d432dc-7b6e-4d5a-8fef-686ab8394ec1",
+      "questionCode": "MATH-P4-PROB-057-Q104",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "money.transaction"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "02961ee7-b1e4-4b3e-b956-9bcf010589a7",
+      "questionCode": "MATH-P4-PROB-057-Q101",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ee1628b5-dae7-403e-8b9d-7efc56c97247",
+      "questionCode": "MATH-P4-PROB-058-Q101",
+      "level": 4,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "915bfa20-955f-4bc3-8d73-89aac366638c",
+      "questionCode": "MATH-P4-MONEY-010-Q102",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 1,
+      "primaryFamilies": [
+        "money.transaction"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "19d025cf-c034-4ffb-b5a1-f1ef8471f0e2",
+      "questionCode": "MATH-P4-MONEY-010-Q106",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "money.transaction"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "56035452-eb2d-49f7-a503-db88e6c410fe",
+      "questionCode": "MATH-P4-DATA-022-Q102",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "94a1474f-0c35-46e6-b573-ff0e5f36097a",
+      "questionCode": "MATH-P4-DATA-019-Q107",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "average.mean"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "09320a1d-edd7-4e9b-962e-624ad104d1bf",
+      "questionCode": "MATH-P4-DATA-019-Q104",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "average.mean"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "7427c725-2593-4717-b6ec-78443b4be9eb",
+      "questionCode": "MATH-P4-DATA-019-Q102",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "data.read_compare_classify"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ddffbe04-e498-4b3e-96dd-aa4731fd77f0",
+      "questionCode": "MATH-P4-DATA-022-Q105",
+      "level": 4,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 1,
+      "primaryFamilies": [
+        "measurement.compare_change_total"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "13f8162e-cad6-4086-a051-66982bb2c46c",
+      "questionCode": "MATH-P5-NUM-020-Q101",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "model.equal_groups"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "2e97d38f-a2d4-4871-86c9-f3163a1aec2c",
+      "questionCode": "MATH-P5-NUM-020-Q105",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "heuristic.transfer_difference"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "c2306c4f-6630-41a5-bc80-f4d8e7596c11",
+      "questionCode": "MATH-P5-NUM-026-Q103",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "e6e81ee2-7075-4b4e-896f-ff415879b9cf",
+      "questionCode": "MATH-P5-NUM-017-Q108",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "average.mean"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "cac0f329-352d-47c5-a95e-859601ececf6",
+      "questionCode": "MATH-P5-NUM-016-Q103",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "8ffaa3ad-2575-4396-a8b2-4d1db4273edc",
+      "questionCode": "MATH-P5-NUM-019-Q102",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "b370ab97-6ba2-4b77-a13c-006503471369",
+      "questionCode": "MATH-P5-NUM-018-Q102",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "9e9086d8-8f53-46ae-9e34-ec6ee9603f19",
+      "questionCode": "MATH-P5-NUM-017-Q102",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "heuristic.age_relationship"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "53bfa5a3-b775-474c-94bb-06cbab1af4da",
+      "questionCode": "MATH-P5-NUM-026-Q104",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "4f95b379-01f1-401d-b886-ac1f2301f51d",
+      "questionCode": "MATH-P5-NUM-018-Q104",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "422b8c3b-a677-49df-a457-1ef2394d38ac",
+      "questionCode": "MATH-P5-NUM-024-Q104",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "429d12ff-4e17-4e7a-8fe5-23c46bdb1fce",
+      "questionCode": "MATH-P5-NUM-025-Q103",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "1ea200f7-d3c2-46c4-ac96-a2f54c88a4ac",
+      "questionCode": "MATH-P5-NUM-015-Q103",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "61c420e6-9c07-4f6a-b1e1-dccc5ceb6711",
+      "questionCode": "MATH-P5-NUM-017-Q101",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "heuristic.age_relationship"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "5f4d902b-a5cf-4c6a-a9f3-a3b5def1e357",
+      "questionCode": "MATH-P5-NUM-019-Q104",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "767421a0-511d-44fd-b2c9-1c59fe787e57",
+      "questionCode": "MATH-P5-NUM-024-Q106",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "638c365e-145e-4e0a-8405-f04e78035240",
+      "questionCode": "MATH-P5-NUM-028-Q107",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "49956ac9-1ad7-43f3-919c-e7c094c616b8",
+      "questionCode": "MATH-P5-NUM-028-Q106",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "model.comparison"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "51293a65-a5a8-4b08-8a32-9bd8ceed2e0b",
+      "questionCode": "MATH-P5-NUM-015-Q102",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "model.equal_groups"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "6f5374ff-4612-4f96-aca1-45cadbc9cab7",
+      "questionCode": "MATH-P5-NUM-024-Q107",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "536089f3-a656-484b-9196-ee7d8012de6e",
+      "questionCode": "MATH-P5-NUM-019-Q105",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "cfe3247f-76cf-4ca0-9467-cd2560738ebc",
+      "questionCode": "MATH-P5-NUM-016-Q106",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "model.comparison"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "8203c6e6-e24f-40f9-b418-88baee968019",
+      "questionCode": "MATH-P5-NUM-016-Q101",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "model.equal_groups"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "f74d033d-2a40-4e0f-a178-56d510a27a67",
+      "questionCode": "MATH-P5-NUM-025-Q105",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "6d0972ab-ab24-4972-8037-8b8c7b40a33f",
+      "questionCode": "MATH-P5-NUM-028-Q103",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ecea0273-57cf-44fa-bbed-89316076db3c",
+      "questionCode": "MATH-P5-NUM-015-Q104",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "model.equal_groups"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "4ee60940-5914-4d37-9476-488d095faf8f",
+      "questionCode": "MATH-P5-NUM-027-Q103",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "e03d954f-73e1-4870-a066-36f661ac2e6c",
+      "questionCode": "MATH-P5-NUM-027-Q106",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "55b94cb2-e24d-45ff-bed9-ed92983d3312",
+      "questionCode": "MATH-P5-NUM-025-Q108",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "46196037-526c-4060-9069-1dab160e3aa1",
+      "questionCode": "MATH-P5-NUM-026-Q107",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "168cee96-1d27-4924-af7d-3f55e41e07f4",
+      "questionCode": "MATH-P5-NUM-024-Q101",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "63689d0c-d0cb-4d6c-82ed-2d7df4c31c20",
+      "questionCode": "MATH-P5-NUM-019-Q101",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "414c55c8-04b4-46c3-af99-6673d68d5899",
+      "questionCode": "MATH-P5-NUM-026-Q108",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "heuristic.unitary"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "0715497e-5d77-477c-ba70-13d927ba7828",
+      "questionCode": "MATH-P5-NUM-020-Q104",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "fec9f2fc-1078-4a1f-a307-94efdd96064b",
+      "questionCode": "MATH-P5-NUM-024-Q103",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "model.part_whole"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "fbf8bea6-7874-404d-a18a-67608e9181c2",
+      "questionCode": "MATH-P5-NUM-018-Q103",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "6c8767b0-f2ea-4f07-96c3-49a3cb97aadc",
+      "questionCode": "MATH-P5-NUM-018-Q106",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "bc27194c-14b5-415f-88d5-6392b6bf7111",
+      "questionCode": "MATH-P5-NUM-026-Q102",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "model.comparison"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "199a13ad-e9ae-4abd-8d5a-45103e56a67b",
+      "questionCode": "MATH-P5-NUM-020-Q108",
+      "level": 5,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 5,
+      "primaryFamilies": [
+        "model.change"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "00adf39a-a817-4688-ac83-8b1967222d83",
+      "questionCode": "MATH-P5-NUM-020-Q107",
+      "level": 5,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "5351cef3-a7e0-4f61-955d-23e2e470a046",
+      "questionCode": "MATH-P6-PROB-015-Q101",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "heuristic.age_relationship"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "24ddbdae-ceed-4601-bd97-32580930a595",
+      "questionCode": "MATH-P6-PROB-019-Q107",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "75750eb4-761d-4bf6-a9a0-3a3293876c3b",
+      "questionCode": "MATH-P6-PROB-014-Q106",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "2a1137c9-c9a8-4f07-b04e-c65ae56021ea",
+      "questionCode": "MATH-P6-PROB-019-Q102",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "76a59f8f-8859-48b4-a7c5-69e7bc41c07a",
+      "questionCode": "MATH-P6-PROB-018-Q102",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "d8ced1d0-6bef-4f18-9bb8-f4d623d9d51d",
+      "questionCode": "MATH-P6-PROB-012-Q105",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "heuristic.unitary"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "c8e969b9-db43-4f46-8c1d-cd6b0f52a50a",
+      "questionCode": "MATH-P6-FRAC-018-Q105",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 7,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "6fbd989f-35be-4ce9-b3e8-ae00ff0ca3c7",
+      "questionCode": "MATH-P6-FRAC-019-Q101",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 7,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "fb95a68e-01ff-4b1e-8c9d-64eb3badc035",
+      "questionCode": "MATH-P6-FRAC-019-Q104",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 7,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "e8a9f96e-444b-4b01-94b1-55d299e5bbf0",
+      "questionCode": "MATH-P6-FRAC-012-Q104",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 7,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "dad41e1e-7e88-44dd-bc0a-7ef472e2a437",
+      "questionCode": "MATH-P6-FRAC-021-Q105",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 7,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "e6bb6999-f8a1-43cd-9a67-b6a9aae2a411",
+      "questionCode": "MATH-P6-FRAC-012-Q102",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 7,
+      "primaryFamilies": [
+        "fraction.multi_step"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "e7a97691-77c8-4941-a77d-d3c5d696e8ba",
+      "questionCode": "MATH-P6-ALG-031-Q103",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "heuristic.logic_strategy"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "128407eb-15d8-4680-96bf-c63abea90ab6",
+      "questionCode": "MATH-P6-ALG-032-Q106",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "5edfd5c9-106c-49ae-8f54-b66eae228e95",
+      "questionCode": "MATH-P6-ALG-001-Q105",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "heuristic.age_relationship"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ec353b0f-fa81-433f-aaee-8bdc668b65cf",
+      "questionCode": "MATH-P6-ALG-032-Q103",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ba85b746-036a-4c0a-8426-e58e1ae05594",
+      "questionCode": "MATH-P6-ALG-031-Q107",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "cfd638a1-78b5-43b2-8706-a1c4bd3d8878",
+      "questionCode": "MATH-P6-RATIO-026-Q107",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "ratio.relationship"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "de255925-e28f-4664-aa4c-f11a543f517c",
+      "questionCode": "MATH-P6-RATIO-017-Q102",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "ratio.relationship"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "f46a6412-5166-422f-b6a7-52a8d36d6ffb",
+      "questionCode": "MATH-P6-RATIO-023-Q102",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "ratio.relationship"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "7be685d6-80e7-497f-9821-a70de8195fb7",
+      "questionCode": "MATH-P6-RATIO-019-Q106",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "ratio.relationship"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "0f1f5146-72ab-464e-9e69-70f8b1283cbc",
+      "questionCode": "MATH-P6-RATIO-026-Q106",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 6,
+      "primaryFamilies": [
+        "ratio.relationship"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "4dddb8f5-74d4-43f7-85d4-7e10eb8bf885",
+      "questionCode": "MATH-P6-ASSESS-003-Q108",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 4,
+      "primaryFamilies": [
+        "heuristic.age_relationship"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "a90b3b81-96f6-421d-a9cf-2fb8a5797a97",
+      "questionCode": "MATH-P6-ASSESS-004-Q107",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "255296c9-6cdd-411e-8cfe-b3a132a84e47",
+      "questionCode": "MATH-P6-ASSESS-003-Q107",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "a099fe46-811e-4e15-84bf-5c87483a70cd",
+      "questionCode": "MATH-P6-ASSESS-005-Q106",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 2,
+      "primaryFamilies": [
+        "number.place_value"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "ffc836af-176f-4916-a309-cf9ca490980e",
+      "questionCode": "MATH-P6-ASSESS-002-Q109",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "3333355b-428c-40af-b44e-a74edd06064b",
+      "questionCode": "MATH-P6-GEO-017-Q105",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "time.read_interval"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "02e1ab7d-bcb9-4f6b-b3aa-bf4fceca99bb",
+      "questionCode": "MATH-P6-GEO-017-Q102",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "9b23b9c8-b959-4157-9736-ca70021aec21",
+      "questionCode": "MATH-P6-GEO-017-Q103",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 3,
+      "primaryFamilies": [
+        "heuristic.systematic_enumeration"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "89fc491c-99d6-4fa8-9d65-04c90100ca95",
+      "questionCode": "MATH-P6-GEO-017-A01",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "30c1f05a-a495-4b90-9c56-61e0b160e5bf",
+      "questionCode": "MATH-P6-CIRC-020-Q102",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "9baf1270-3cad-4886-b9c8-159e38683931",
+      "questionCode": "MATH-P6-CIRC-020-Q108",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 5,
+      "primaryFamilies": [
+        "geometry.area_perimeter"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "8751b641-b578-4ccd-9f67-9ab41dc99cf0",
+      "questionCode": "MATH-P6-CIRC-020-Q103",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 5,
+      "primaryFamilies": [
+        "geometry.area_perimeter"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "694a1353-629b-4487-b478-a1cc1696aa8f",
+      "questionCode": "MATH-P6-CIRC-020-Q104",
+      "level": 6,
+      "status": "adapter_blocked",
+      "reasonCodes": [
+        "FAMILY_SELECTION_BLOCKED"
+      ],
+      "candidateCount": 5,
+      "primaryFamilies": [
+        "geometry.area_perimeter"
+      ],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "605ee8f6-76b8-491f-85b7-eead996a74a3",
+      "questionCode": "MATH-P6-PCT-011-Q103",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "a42ec7ee-f636-4780-bc93-bae35da0ed18",
+      "questionCode": "MATH-P6-PCT-024-Q102",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "8398e4be-079e-4868-ba3e-932d279a70b0",
+      "questionCode": "MATH-P6-PCT-011-Q105",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "31a1b6d5-4456-4f9b-896f-416b5900153e",
+      "questionCode": "MATH-P6-PCT-021-Q106",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    },
+    {
+      "questionId": "c46c2fc3-0673-4b03-9ed4-6dbb6273adb2",
+      "questionCode": "MATH-P6-PCT-024-Q108",
+      "level": 6,
+      "status": "upstream_blocked",
+      "reasonCodes": [
+        "UPSTREAM_CONTRACT_BLOCKED"
+      ],
+      "candidateCount": 0,
+      "primaryFamilies": [],
+      "selectedMethodId": null,
+      "selectionConfidence": null,
+      "compositionStatus": null,
+      "deterministic": true
+    }
+  ]
+}

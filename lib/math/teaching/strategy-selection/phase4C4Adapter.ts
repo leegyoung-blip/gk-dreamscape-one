@@ -1,5 +1,6 @@
 /** Phase 4C-4A: audited bridge from existing 4A/4B source to 4C. Read-only, fail closed. */
 import type { TeachingContractConsumerEnvelope } from '../../../math-intelligence/teaching/contract/consumer/types';
+import { stableStringify } from '../../../math-intelligence/teaching/contract/validateTeachingContract';
 import { validateTeachingContractConsumerEnvelope } from '../../../math-intelligence/teaching/contract/consumer/boundary';
 import { buildPhase4BQuestionCoverageRequirement } from '../../../math-intelligence/teaching/method-library/taxonomy/buildCoverageRequirement';
 import { listPhase4BProductionCandidateMethods } from '../../../math-intelligence/teaching/method-library/methods/phase4BProductionLibrary';
@@ -65,14 +66,31 @@ function makeEvidence(method: TeachingMethod, contract: TeachingContractConsumer
 const fail=(reason:string, families:string[]=[], count=0, selections:StrategySelection[]=[]):Phase4C4AdapterResult=>({
   schemaVersion:PHASE4C4_ADAPTER_VERSION,status:'blocked',reasonCodes:[reason],primaryFamilies:families,
   candidateMethodCount:count,familySelections:selections,selection:null,composition:null});
+/** Compare payload identity across different validated consumer kinds.
+ * This does NOT validate either envelope; caller must first validate both individually.
+ */
+export function phase4AConsumerPayloadsAgree(
+  b: TeachingContractConsumerEnvelope,
+  c: TeachingContractConsumerEnvelope,
+): boolean {
+  return b.consumer === 'phase_4b_method_library' &&
+    c.consumer === 'phase_4c_strategy_selector' &&
+    b.questionId === c.questionId &&
+    b.contractSchemaVersion === c.contractSchemaVersion &&
+    b.schemaVersion === c.schemaVersion &&
+    stableStringify(b.contract) === stableStringify(c.contract);
+}
+
 /** Never bypasses existing 4A consumer validation, never treats applicability as prerequisite proof. */
 export function selectFromPhase4A4B(input:Phase4C4AdapterInput):Phase4C4AdapterResult {
   if (!input?.methodLibraryEnvelope || !input?.strategyEnvelope) return fail('ENVELOPES_REQUIRED');
   const b=input.methodLibraryEnvelope, c=input.strategyEnvelope;
   if (!validateTeachingContractConsumerEnvelope(b,'phase_4b_method_library').valid ||
       !validateTeachingContractConsumerEnvelope(c,'phase_4c_strategy_selector').valid) return fail('INVALID_4A_ENVELOPE');
-  if (b.questionId!==c.questionId || b.payloadFingerprint!==c.payloadFingerprint ||
-      b.contractSchemaVersion!==c.contractSchemaVersion) return fail('UPSTREAM_ENVELOPES_MISMATCH');
+  // Fingerprints are consumer-bound by design in 4A: 4B and 4C fingerprints MUST differ.
+  // Both envelopes have already passed their own kind-specific fingerprint validation.
+  // Compare canonical method-agnostic payloads and identity, without weakening either envelope's validation.
+  if (!phase4AConsumerPayloadsAgree(b,c)) return fail('UPSTREAM_ENVELOPES_MISMATCH');
   const coverage=buildPhase4BQuestionCoverageRequirement(b);
   if (coverage.status!=='covered') return fail('4B_TAXONOMY_UNCOVERED');
   const requirement=coverage.requirement;

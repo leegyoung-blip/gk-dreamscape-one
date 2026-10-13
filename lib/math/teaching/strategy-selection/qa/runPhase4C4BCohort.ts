@@ -5,6 +5,8 @@ import {buildTeachingContract} from '../../../../math-intelligence/teaching/cont
 import {createPhase4BMethodLibraryContractView, createPhase4CStrategySelectorContractView} from '../../../../math-intelligence/teaching/contract/consumer';
 import {selectFromPhase4A4B} from '../phase4C4Adapter';
 import type {Phase4C4AdapterResult} from '../phase4C4Adapter';
+import { diagnosePhase4C4Selection, countPhase4BPrerequisiteMetadata } from './diagnosePhase4C4Selection';
+import type {Phase4C4BF2Diagnostics} from './diagnosePhase4C4Selection';
 
 export const PHASE4C4B_QA_VERSION='4C-4B-QA.1' as const;
 const EXPECTED:Record<string,{ready:number;blocked:number;total:number}>={
@@ -19,23 +21,42 @@ export type Phase4C4BQuestionRecord={
  questionId:string|null;questionCode:string|null;level:number|null;status:'upstream_blocked'|'adapter_blocked'|'ambiguous'|'selected';
  reasonCodes:string[];candidateCount:number;primaryFamilies:string[];selectedMethodId:string|null;
  selectionConfidence:string|null;compositionStatus:string|null;deterministic:boolean;
+ /** F2 audit evidence; omitted for upstream-blocked questions. */
+ diagnostics?:Phase4C4BF2Diagnostics;
 };
 export function runPhase4C4BCohortAudit(input:MathIntelligenceQaExportLike){
  const run=runPhase4A2QaFromExport(input);
  const counts={upstreamBlocked:0,adapterBlocked:0,ambiguous:0,selected:0,nondeterministic:0};
  const reasons:Record<string,number>={};
  const levels:Record<string,Record<string,number>>={};
+ const f2Counts={withFamilyDiagnostics:0,allCandidatesUnverified:0,prerequisiteExcludedMixedEvidence:0,
+   eligibleCandidatesPresent:0,otherOrMixedExclusions:0,candidateAssessments:0,
+   unverifiedCandidatePrerequisites:0,notAffirmedCandidatePrerequisites:0,
+   verifiedCandidatePrerequisites:0,otherHardExclusions:0};
  const results:Phase4C4BQuestionRecord[]=run.items.map(item=>{
   const level=`P${item.primaryLevel??'unknown'}`;
-  const record=(status:Phase4C4BQuestionRecord['status'],code:string,adapter?:Phase4C4AdapterResult,stable=true):Phase4C4BQuestionRecord=>{
+  const record=(status:Phase4C4BQuestionRecord['status'],code:string,adapter?:Phase4C4AdapterResult,stable=true,diagnostics?:Phase4C4BF2Diagnostics):Phase4C4BQuestionRecord=>{
    const k=status==='upstream_blocked'?'upstreamBlocked':status==='adapter_blocked'?'adapterBlocked':status;
    counts[k]++; if(!stable)counts.nondeterministic++;
    increment(reasons,code); if(!levels[level])levels[level]={};increment(levels[level],status);
+   if(diagnostics){
+     if(diagnostics.stage==='family_selector_reached')f2Counts.withFamilyDiagnostics++;
+     if(diagnostics.classification==='all_primary_candidates_unverified_prerequisites')f2Counts.allCandidatesUnverified++;
+     if(diagnostics.classification==='all_primary_candidates_prerequisite_excluded_mixed_evidence')f2Counts.prerequisiteExcludedMixedEvidence++;
+     if(diagnostics.classification==='eligible_candidates_present')f2Counts.eligibleCandidatesPresent++;
+     if(diagnostics.classification==='other_or_mixed_exclusions')f2Counts.otherOrMixedExclusions++;
+     f2Counts.candidateAssessments+=diagnostics.candidateAssessments;
+     f2Counts.unverifiedCandidatePrerequisites+=diagnostics.candidatePrerequisitesUnverified;
+     f2Counts.notAffirmedCandidatePrerequisites+=diagnostics.candidatePrerequisitesNotAffirmed;
+     f2Counts.verifiedCandidatePrerequisites+=diagnostics.candidatePrerequisitesVerified;
+     f2Counts.otherHardExclusions+=diagnostics.candidateOtherHardExclusions;
+   }
    return {questionId:item.questionId,questionCode:item.questionCode,level:item.primaryLevel,status,
     reasonCodes:adapter?.reasonCodes??[code],candidateCount:adapter?.candidateMethodCount??0,
     primaryFamilies:adapter?.primaryFamilies??[],selectedMethodId:adapter?.selection?.primaryMethodId??null,
     selectionConfidence:adapter?.selection?.confidence??null,
-    compositionStatus:adapter?.composition?.status??null,deterministic:stable};
+    compositionStatus:adapter?.composition?.status??null,deterministic:stable,
+    ...(diagnostics ? {diagnostics} : {})};
   };
   const teaching=buildTeachingContract(item.understanding);
   if(teaching.status!=='ready')return record('upstream_blocked','UPSTREAM_CONTRACT_BLOCKED');
@@ -46,13 +67,15 @@ export function runPhase4C4BCohortAudit(input:MathIntelligenceQaExportLike){
   // Missing learner-specific evidence remains missing; no fabricated approvals.
   const first=selectFromPhase4A4B(source), second=selectFromPhase4A4B(source);
   const stable=JSON.stringify(first)===JSON.stringify(second);
-  if(first.status==='selected')return record('selected',outcome(first),first,stable);
-  if(first.status==='ambiguous')return record('ambiguous',outcome(first),first,stable);
-  return record('adapter_blocked',outcome(first),first,stable);
+  const diagnostics=diagnosePhase4C4Selection(source,first);
+  if(first.status==='selected')return record('selected',outcome(first),first,stable,diagnostics);
+  if(first.status==='ambiguous')return record('ambiguous',outcome(first),first,stable,diagnostics);
+  return record('adapter_blocked',outcome(first),first,stable,diagnostics);
  });
  const exp=EXPECTED[run.sourceSeed??''];
  const upstreamExpected=exp?counts.upstreamBlocked===exp.blocked:null;
  const summary={total:results.length,...counts,byReason:reasons,byLevel:levels,
+  f2Diagnostics:{version:'4C-4B-F2.1',...f2Counts,methodRegistry:countPhase4BPrerequisiteMetadata()},
   expected:exp??null,checks:{matchesExpectedTotal:exp?results.length===exp.total:null,
     matchesExpectedUpstreamBlocks:upstreamExpected,totalsReconcile:results.length===counts.upstreamBlocked+counts.adapterBlocked+counts.ambiguous+counts.selected,
     deterministic:counts.nondeterministic===0}};

@@ -7,6 +7,7 @@ import {
   claimMyOrganisationInvites,
   takeOrganisationClaimMessage,
 } from "@/lib/organisation-access";
+import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
 
 type DreamTokenTransaction = {
@@ -1044,7 +1045,7 @@ export default function ProfilePage() {
         subscriptionData,
       );
 
-      setHasStudentRewardsAccess(entitlements.rewards);
+      setHasStudentRewardsAccess(entitlements.rewards || (await hasFounding50StudentAccess()));
       setActiveLearningPlanLabels(
         entitlements.activePlans.map(learningPlanLabel),
       );

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -238,7 +239,7 @@ export default function ThinkMissionsPage() {
 
     const role = profile.role || profile.tier || null;
 
-    if (!roleHasThinkAccess(role)) {
+    if (!roleHasThinkAccess(role) && !(await hasFounding50StudentAccess())) {
       setScreen("locked");
       return;
     }

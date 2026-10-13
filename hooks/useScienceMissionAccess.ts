@@ -10,6 +10,7 @@ import {
   getLearningEntitlements,
   roleHasStaffLearningAccess,
 } from "@/lib/learning-access";
+import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
 
 export type ScienceAccessStatus =
@@ -223,6 +224,7 @@ export function useScienceMissionAccess() {
       const [
         subscriptionResult,
         manualAccessResult,
+        betaStudentAccess,
       ] = await Promise.all([
         supabase
           .from("nova_subscriptions")
@@ -239,6 +241,7 @@ export function useScienceMissionAccess() {
           .eq("user_id", user.id)
           .eq("zone_key", "science")
           .maybeSingle(),
+        hasFounding50StudentAccess(),
       ]);
 
       if (
@@ -284,7 +287,8 @@ export function useScienceMissionAccess() {
        */
       if (
         entitlements.science ||
-        manuallyUnlocked
+        manuallyUnlocked ||
+        betaStudentAccess
       ) {
         setStatus("allowed");
         return;

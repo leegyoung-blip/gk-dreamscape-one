@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
 import ObjectivesPanel, {
   type CurrentObjectivesStatus,
@@ -536,7 +537,8 @@ export default function NovaWorldPage() {
 
       setHasStudentRewardsAccess(
         roleHasStudentRewardsAccess(role) ||
-          hasActiveNovaSubscription(subscriptionRows),
+          hasActiveNovaSubscription(subscriptionRows) ||
+          (await hasFounding50StudentAccess()),
       );
 
       if (gemTransactionsResult.error) {

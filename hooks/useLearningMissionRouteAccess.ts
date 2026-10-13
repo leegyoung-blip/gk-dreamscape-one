@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { getLearningEntitlements } from "@/lib/learning-access";
+import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
 
 export type LearningMissionZoneKey = "core" | "think" | "science";
@@ -168,6 +169,7 @@ export function useLearningMissionRouteAccess(
         subscriptionResult,
         manualAccessResult,
         releaseResult,
+        betaStudentAccess,
       ] = await Promise.all([
         supabase
           .from("profiles")
@@ -192,6 +194,7 @@ export function useLearningMissionRouteAccess(
           .select("zone_key,learner_access_enabled")
           .eq("zone_key", zone)
           .maybeSingle(),
+        hasFounding50StudentAccess(),
       ]);
 
       if (
@@ -279,7 +282,7 @@ export function useLearningMissionRouteAccess(
         return;
       }
 
-      if (subscriptionResult.error) {
+      if (subscriptionResult.error && !betaStudentAccess) {
         console.warn(
           `Could not check ${zone} subscription access:`,
           subscriptionResult.error.message,
@@ -321,7 +324,7 @@ export function useLearningMissionRouteAccess(
           ? entitlements.science
           : entitlements.core;
 
-      if (entitlementAllowed || manuallyUnlocked) {
+      if (entitlementAllowed || manuallyUnlocked || betaStudentAccess) {
         setState({
           status: "allowed",
           userId: user.id,

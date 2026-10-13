@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
 import {
   getThinkGearProgress,
@@ -237,7 +238,7 @@ export default function ThinkGearClient() {
 
     const resolvedRole = profile.role || profile.tier || null;
 
-    if (!roleHasThinkAccess(resolvedRole)) {
+    if (!roleHasThinkAccess(resolvedRole) && !(await hasFounding50StudentAccess())) {
       setStatus("locked");
       return;
     }

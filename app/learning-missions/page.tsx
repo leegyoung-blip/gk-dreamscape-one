@@ -7,6 +7,7 @@ import {
   getLearningEntitlements,
   roleHasStaffLearningAccess,
 } from "@/lib/learning-access";
+import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -483,7 +484,7 @@ export default function LearningMissionsPage() {
         return;
       }
 
-      const [profileResult, subscriptionResult, zoneAccessResult] =
+      const [profileResult, subscriptionResult, zoneAccessResult, betaStudentAccess] =
         await Promise.all([
           supabase
             .from("profiles")
@@ -499,6 +500,7 @@ export default function LearningMissionsPage() {
             .select("zone_key,is_unlocked")
             .eq("user_id", user.id)
             .in("zone_key", ["core", "think", "science"]),
+          hasFounding50StudentAccess(),
         ]);
 
       if (!isMounted) return;
@@ -534,12 +536,12 @@ export default function LearningMissionsPage() {
 
       const isAdmin = isAdminRole(role);
       const canAccessCore =
-        entitlements.core || manuallyUnlockedZones.has("core");
+        entitlements.core || betaStudentAccess || manuallyUnlockedZones.has("core");
       const canAccessThink =
-        entitlements.core || manuallyUnlockedZones.has("think");
+        entitlements.core || betaStudentAccess || manuallyUnlockedZones.has("think");
       const canAccessScience =
-        entitlements.science || manuallyUnlockedZones.has("science");
-      const hasStudentRewardsAccess = entitlements.rewards;
+        entitlements.science || betaStudentAccess || manuallyUnlockedZones.has("science");
+      const hasStudentRewardsAccess = entitlements.rewards || betaStudentAccess;
 
       setDreamGemBalance(
         profileResult.error

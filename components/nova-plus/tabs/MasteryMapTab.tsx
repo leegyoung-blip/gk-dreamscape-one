@@ -177,7 +177,7 @@ const LEGACY_STATE_META: Record<
   unknown: { label: "Not assessed", colour: "#8d9caf" },
 };
 
-const ORBIT_PAGE_SIZE = 16;
+const ORBIT_PAGE_SIZE = 12;
 
 function normalise(value: string | null | undefined) {
   return String(value || "").trim().toLowerCase();
@@ -195,12 +195,6 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     year: "numeric",
   }).format(date);
-}
-
-function clampLabel(value: string, max = 32) {
-  const clean = value.trim();
-  if (clean.length <= max) return clean;
-  return `${clean.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
 }
 
 function confidenceFromLegacyScore(value: number | null | undefined): ConfidenceLabel {
@@ -582,13 +576,16 @@ export default function MasteryMapTab({
     }
   }, [groups, selectedGroupId, subject]);
 
-  const previewGroupId =
+  // Selection controls the centre disc and outer skill orbit.
+  // Hover is visual-only: it illuminates another sector without changing
+  // the currently selected family's/topic's skills.
+  const visualActiveGroupId =
     hoveredGroupId && groups.some((group) => group.id === hoveredGroupId)
       ? hoveredGroupId
       : selectedGroupId;
 
   const selectedGroup =
-    groups.find((group) => group.id === previewGroupId) ?? groups[0] ?? null;
+    groups.find((group) => group.id === selectedGroupId) ?? groups[0] ?? null;
 
   const allNodes = useMemo(() => {
     if (!selectedGroup) return [];
@@ -763,7 +760,7 @@ export default function MasteryMapTab({
             >
               {groups.map((group, index) => {
                 const geometry = segmentGeometry(index, groups.length);
-                const active = group.id === selectedGroup?.id;
+                const active = group.id === visualActiveGroupId;
 
                 return (
                   <path
@@ -781,24 +778,20 @@ export default function MasteryMapTab({
                     aria-pressed={group.id === selectedGroupId}
                     onMouseEnter={() => {
                       setHoveredGroupId(group.id);
-                      setSelectedNode(null);
-                      setOrbitPage(0);
                     }}
                     onFocus={() => {
                       setHoveredGroupId(group.id);
-                      setSelectedNode(null);
-                      setOrbitPage(0);
                     }}
                     onClick={() => {
                       setSelectedGroupId(group.id);
-                      setHoveredGroupId(group.id);
+                      setHoveredGroupId(null);
                       setSelectedNode(null);
                       setOrbitPage(0);
                     }}
                     onKeyDown={(event) =>
                       handleSegmentKey(event, () => {
                         setSelectedGroupId(group.id);
-                        setHoveredGroupId(group.id);
+                        setHoveredGroupId(null);
                         setSelectedNode(null);
                         setOrbitPage(0);
                       })
@@ -815,7 +808,7 @@ export default function MasteryMapTab({
             >
               {groups.map((group, index) => {
                 const geometry = segmentGeometry(index, groups.length);
-                const active = group.id === selectedGroup?.id;
+                const active = group.id === visualActiveGroupId;
 
                 return (
                   <button
@@ -831,17 +824,13 @@ export default function MasteryMapTab({
                     }}
                     onMouseEnter={() => {
                       setHoveredGroupId(group.id);
-                      setSelectedNode(null);
-                      setOrbitPage(0);
                     }}
                     onFocus={() => {
                       setHoveredGroupId(group.id);
-                      setSelectedNode(null);
-                      setOrbitPage(0);
                     }}
                     onClick={() => {
                       setSelectedGroupId(group.id);
-                      setHoveredGroupId(group.id);
+                      setHoveredGroupId(null);
                       setSelectedNode(null);
                       setOrbitPage(0);
                     }}
@@ -902,7 +891,7 @@ export default function MasteryMapTab({
                     onClick={() => {
                       if (selectedGroup) {
                         setSelectedGroupId(selectedGroup.id);
-                        setHoveredGroupId(selectedGroup.id);
+                        setHoveredGroupId(null);
                       }
                       setSelectedNode(node);
                     }}
@@ -921,7 +910,7 @@ export default function MasteryMapTab({
                               : styles.nodeLabelBottom
                       }
                     >
-                      {clampLabel(node.label)}
+                      {node.label}
                     </span>
                   </button>
                 );
