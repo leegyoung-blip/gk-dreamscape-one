@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/founding-50/communications",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
