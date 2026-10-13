@@ -1,5 +1,5 @@
 'use strict';
-const test=require('node:test'),a=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const test=require('node:test'),a=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const {buildReview,outputFiles,escapeCsv}=require('../lib/math/teaching/strategy-selection/qa/buildPhase4C4CB3Review.cjs');
 const root=path.resolve(__dirname,'..');
 const artifact=name=>JSON.parse(fs.readFileSync(path.join(root,'qa-artifacts/phase4c4c-b3',name),'utf8'));
@@ -53,4 +53,4 @@ test('reject fraudulent signed approval flag in mathematical analyses',()=>{cons
 test('bank answer conflicts are reported, not silently trusted',()=>{const x=create();x.fixedExport.sample.items.find(q=>q.question_code==='MATH-P1-PROB-050-Q02').question.answer_data.display_answer='999';const z=buildReview(x);a.equal(z.stats.conflictingSourceAnswers,1);a.equal(z.rows.find(r=>r.questionCode==='MATH-P1-PROB-050-Q02').mathVerificationStatus,'PROMPT_CALCULATION_CONFLICT')});
 test('reject B1 anchor absent from original prompt',()=>{const x=create();x.proposals.cases[0].anchors[0].text='not present in prompt';a.throws(()=>buildReview(x),/B3_ANCHOR_NOT_IN_PROMPT/)});
 test('CSV formula strings are escaped for spreadsheet reviewers',()=>{for(const s of ['=1+1','+A1','-2','@SUM(1)',' \t=HYPERLINK'])a.ok(escapeCsv(s).startsWith("'"));});
-test('generated review template contains blank reviewer and approval cells',()=>{const x=create(),z=buildReview(x);const tmp=fs.mkdtempSync('/tmp/dreamscape-b3-test-');try{const files=outputFiles(z,tmp);a.equal(files.length,4);const lines=fs.readFileSync(path.join(tmp,'phase-4c4c-b3-teacher-review-template.csv'),'utf8').trim().split('\r\n');a.equal(lines.length,25);a.ok(lines[0].includes('approval_reference'));a.ok(lines[1].endsWith(',,,,,,,')||lines[1].includes(',,,'));}finally{fs.rmSync(tmp,{recursive:true,force:true});}});
+test('generated review template contains blank reviewer and approval cells',()=>{const x=create(),z=buildReview(x);const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'dreamscape-b3-test-'));try{const files=outputFiles(z,tmp);a.equal(files.length,4);const lines=fs.readFileSync(path.join(tmp,'phase-4c4c-b3-teacher-review-template.csv'),'utf8').trim().split('\r\n');a.equal(lines.length,25);a.ok(lines[0].includes('approval_reference'));a.ok(lines[1].endsWith(',,,,,,,')||lines[1].includes(',,,'));}finally{fs.rmSync(tmp,{recursive:true,force:true});}});

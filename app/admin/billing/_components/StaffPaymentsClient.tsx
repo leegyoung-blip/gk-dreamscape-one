@@ -117,25 +117,32 @@ type CommissionDashboardRow = {
   job_title: string;
   employment_status: EmploymentStatus;
   currency: string;
-  commission_start_date: string | null;
   plan_status: string | null;
   months_1_3_rate: number | string | null;
   months_4_6_rate: number | string | null;
   month_7_plus_rate: number | string | null;
-  commission_month: number | null;
-  applicable_rate: number | string | null;
+  live_finalized_invoice_count: number | null;
+  live_draft_review_invoice_count: number | null;
+  live_student_count: number | null;
+  live_gross_invoice_total: number | string | null;
+  live_excluded_deposit_total: number | string | null;
+  live_commissionable_total: number | string | null;
+  live_commission_total: number | string | null;
+  live_unresolved_item_count: number | null;
+  live_unresolved_amount: number | string | null;
   calculation_id: string | null;
   calculation_version: number | null;
   calculation_status: string | null;
-  calculation_start_date: string | null;
-  calculation_commission_month: number | null;
-  calculation_rate_percent: number | string | null;
+  calculation_basis: string | null;
+  calculation_student_count: number | null;
   finalized_invoice_count: number | null;
   draft_review_invoice_count: number | null;
   gross_invoice_total: number | string | null;
   excluded_deposit_total: number | string | null;
   commissionable_total: number | string | null;
   commission_total: number | string | null;
+  unresolved_item_count: number | null;
+  unresolved_amount: number | string | null;
   staff_payment_id: string | null;
   payment_status: PaymentStatus | null;
   payment_total: number | string | null;
@@ -149,23 +156,44 @@ type CommissionDashboardRow = {
   payment_notes: string | null;
 };
 
-type CommissionInvoiceLine = {
+type CommissionStudentLine = {
   invoice_id: string | null;
   invoice_number: string;
   payer_name: string | null;
   invoice_status: string;
   invoice_total: number | string;
-  excluded_deposit_total: number | string;
-  commissionable_amount: number | string;
+  student_id: string | null;
+  student_name: string;
+  student_start_date: string;
+  student_month: number;
   rate_percent: number | string;
+  invoice_item_count: number;
+  commissionable_amount: number | string;
   commission_amount: number | string;
+};
+
+type CommissionCandidateStudent = {
+  student_id: string;
+  student_name: string;
+  student_start_date: string | null;
+};
+
+type CommissionUnresolvedItem = {
+  invoice_item_id: string;
+  invoice_id: string;
+  invoice_number: string;
+  payer_name: string | null;
+  item_type: string;
+  item_description: string;
+  item_amount: number | string;
+  unresolved_reason: string;
+  candidate_students: CommissionCandidateStudent[] | null;
 };
 
 type CommissionPlanForm = {
   employment_id: string;
   full_name: string;
   job_title: string;
-  commission_start_date: string;
   months_1_3_rate: string;
   months_4_6_rate: string;
   month_7_plus_rate: string;
@@ -332,7 +360,7 @@ function unitLabel(value: PayBasis) {
   if (value === "per_class") return "Classes";
   if (value === "per_session") return "Sessions";
   if (value === "monthly_salary") return "Months";
-  if (value === "invoice_commission") return "Invoices";
+  if (value === "invoice_commission") return "Students";
   return "Units";
 }
 
@@ -432,15 +460,19 @@ export default function StaffPaymentsClient({
     employment_id: "",
     full_name: "",
     job_title: "",
-    commission_start_date: singaporeToday(),
     months_1_3_rate: "50",
     months_4_6_rate: "30",
     month_7_plus_rate: "25",
   });
   const [commissionBreakdownModalOpen, setCommissionBreakdownModalOpen] = useState(false);
   const [commissionBreakdownRow, setCommissionBreakdownRow] = useState<CommissionDashboardRow | null>(null);
-  const [commissionLines, setCommissionLines] = useState<CommissionInvoiceLine[]>([]);
+  const [commissionLines, setCommissionLines] = useState<CommissionStudentLine[]>([]);
   const [commissionLinesLoading, setCommissionLinesLoading] = useState(false);
+  const [commissionUnresolvedModalOpen, setCommissionUnresolvedModalOpen] = useState(false);
+  const [commissionUnresolvedRow, setCommissionUnresolvedRow] = useState<CommissionDashboardRow | null>(null);
+  const [commissionUnresolvedItems, setCommissionUnresolvedItems] = useState<CommissionUnresolvedItem[]>([]);
+  const [commissionUnresolvedLoading, setCommissionUnresolvedLoading] = useState(false);
+  const [commissionAssignmentValues, setCommissionAssignmentValues] = useState<Record<string, string>>({});
   const [commissionPaymentModalOpen, setCommissionPaymentModalOpen] = useState(false);
   const [commissionPaymentRow, setCommissionPaymentRow] = useState<CommissionDashboardRow | null>(null);
   const [commissionPaymentForm, setCommissionPaymentForm] = useState<CommissionPaymentForm>({
@@ -535,7 +567,7 @@ export default function StaffPaymentsClient({
 
     if (companyCode === "gkp") {
       const commissionResult = await supabase.rpc(
-        "billing_staff_commission_dashboard",
+        "billing_staff_commission_dashboard_v2",
         {
           p_billing_period: period.start,
         },
@@ -710,20 +742,22 @@ export default function StaffPaymentsClient({
 
     if (companyCode === "gkp" && commissionRows.length > 0) {
       rows.push([]);
-      rows.push(["INVOICE COMMISSION SUMMARY"]);
+      rows.push(["STUDENT-BASED INVOICE COMMISSION SUMMARY"]);
       rows.push([
         "Name",
         "Job title",
-        "Commission start",
-        "Commission month",
-        "Current tier %",
-        "Calculated tier %",
+        "Months 1-3 %",
+        "Months 4-6 %",
+        "Month 7+ %",
         "Finalized invoices",
         "Draft/review invoices",
+        "Students",
         "Gross invoices",
         "Refundable deposits excluded",
         "Commissionable total",
         "Commission",
+        "Unresolved items",
+        "Unresolved amount",
         "Payroll status",
         "Payroll total",
       ]);
@@ -732,65 +766,71 @@ export default function StaffPaymentsClient({
         rows.push([
           row.full_name,
           row.job_title,
-          row.commission_start_date || "",
-          row.commission_month || "",
-          row.applicable_rate == null ? "" : numberValue(row.applicable_rate),
-          row.calculation_rate_percent == null ? "" : numberValue(row.calculation_rate_percent),
-          Number(row.finalized_invoice_count || 0),
-          Number(row.draft_review_invoice_count || 0),
-          numberValue(row.gross_invoice_total),
-          numberValue(row.excluded_deposit_total),
-          numberValue(row.commissionable_total),
-          numberValue(row.commission_total),
+          row.months_1_3_rate == null ? "" : numberValue(row.months_1_3_rate),
+          row.months_4_6_rate == null ? "" : numberValue(row.months_4_6_rate),
+          row.month_7_plus_rate == null ? "" : numberValue(row.month_7_plus_rate),
+          Number(row.calculation_id ? row.finalized_invoice_count || 0 : row.live_finalized_invoice_count || 0),
+          Number(row.calculation_id ? row.draft_review_invoice_count || 0 : row.live_draft_review_invoice_count || 0),
+          Number(row.calculation_id ? row.calculation_student_count || 0 : row.live_student_count || 0),
+          numberValue(row.calculation_id ? row.gross_invoice_total : row.live_gross_invoice_total),
+          numberValue(row.calculation_id ? row.excluded_deposit_total : row.live_excluded_deposit_total),
+          numberValue(row.calculation_id ? row.commissionable_total : row.live_commissionable_total),
+          numberValue(row.calculation_id ? row.commission_total : row.live_commission_total),
+          Number(row.live_unresolved_item_count || 0),
+          numberValue(row.live_unresolved_amount),
           row.payment_status || "",
           numberValue(row.payment_total),
         ]);
       }
 
       rows.push([]);
-      rows.push(["INVOICE COMMISSION BREAKDOWN"]);
+      rows.push(["STUDENT COMMISSION BREAKDOWN"]);
       rows.push([
         "Staff",
         "Billing month",
         "Invoice",
         "Payer",
         "Invoice status",
+        "Student",
+        "Student start date",
+        "Student month",
         "Invoice total",
-        "Deposit excluded",
         "Commission base",
         "Rate %",
         "Commission",
+        "Attributed invoice items",
       ]);
 
       for (const commissionRow of commissionRows) {
         if (!commissionRow.calculation_id) continue;
 
         const lineResult = await supabase.rpc(
-          "billing_staff_commission_calculation_lines",
-          {
-            p_calculation_id: commissionRow.calculation_id,
-          },
+          "billing_staff_commission_calculation_student_lines",
+          { p_calculation_id: commissionRow.calculation_id },
         );
 
         if (lineResult.error) {
           setError(
-            `The payroll CSV could not load the commission breakdown for ${commissionRow.full_name}: ${lineResult.error.message}`,
+            `The payroll CSV could not load the student commission breakdown for ${commissionRow.full_name}: ${lineResult.error.message}`,
           );
           return;
         }
 
-        for (const line of (lineResult.data || []) as CommissionInvoiceLine[]) {
+        for (const line of (lineResult.data || []) as CommissionStudentLine[]) {
           rows.push([
             commissionRow.full_name,
             month,
             line.invoice_number,
             line.payer_name || "",
             line.invoice_status,
+            line.student_name,
+            line.student_start_date,
+            line.student_month,
             numberValue(line.invoice_total),
-            numberValue(line.excluded_deposit_total),
             numberValue(line.commissionable_amount),
             numberValue(line.rate_percent),
             numberValue(line.commission_amount),
+            line.invoice_item_count,
           ]);
         }
       }
@@ -811,7 +851,7 @@ export default function StaffPaymentsClient({
         row.end_date || "",
         payBasisLabel(row.pay_basis),
         row.pay_basis === "invoice_commission"
-          ? "Tiered invoice %"
+          ? "Student-tiered invoice %"
           : numberValue(row.default_rate),
         row.currency,
         numberValue(row.ytd_paid_amount),
@@ -830,7 +870,7 @@ export default function StaffPaymentsClient({
         payBasisLabel(row.pay_basis_snapshot),
         numberValue(row.units),
         row.pay_basis_snapshot === "invoice_commission"
-          ? `${numberValue(row.unit_rate)}%`
+          ? "Mixed student tiers"
           : numberValue(row.unit_rate),
         numberValue(row.base_pay),
         numberValue(row.bonus),
@@ -851,18 +891,10 @@ export default function StaffPaymentsClient({
 
 
   function openCommissionPlan(row: CommissionDashboardRow) {
-    const fallbackStaff = staff.find(
-      (item) => item.employment_id === row.employment_id,
-    );
-
     setCommissionPlanForm({
       employment_id: row.employment_id,
       full_name: row.full_name,
       job_title: row.job_title,
-      commission_start_date:
-        row.commission_start_date ||
-        fallbackStaff?.start_date ||
-        singaporeToday(),
       months_1_3_rate:
         row.months_1_3_rate == null
           ? "50"
@@ -891,11 +923,6 @@ export default function StaffPaymentsClient({
       Number(commissionPlanForm.month_7_plus_rate),
     ];
 
-    if (!commissionPlanForm.commission_start_date) {
-      setError("Choose the commission start date.");
-      return;
-    }
-
     if (
       rates.some(
         (value) =>
@@ -911,11 +938,9 @@ export default function StaffPaymentsClient({
     setWorking(true);
 
     const { error: saveError } = await supabase.rpc(
-      "billing_staff_commission_plan_save",
+      "billing_staff_commission_plan_save_student_based",
       {
         p_employment_id: commissionPlanForm.employment_id,
-        p_commission_start_date:
-          commissionPlanForm.commission_start_date,
         p_months_1_3_rate: rates[0],
         p_months_4_6_rate: rates[1],
         p_month_7_plus_rate: rates[2],
@@ -927,7 +952,7 @@ export default function StaffPaymentsClient({
     } else {
       setCommissionPlanModalOpen(false);
       setNotice(
-        `${commissionPlanForm.full_name}'s commission terms were updated. Recalculate any pending commission cycle before finalising payroll.`,
+        `${commissionPlanForm.full_name}'s student-based commission tiers were updated. Any unpaid stored calculation was retired so it can be recalculated safely.`,
       );
       await load();
     }
@@ -935,16 +960,90 @@ export default function StaffPaymentsClient({
     setWorking(false);
   }
 
+  async function loadUnresolvedCommissionItems(row: CommissionDashboardRow) {
+    setCommissionUnresolvedLoading(true);
+    const { data, error: unresolvedError } = await supabase.rpc(
+      "billing_staff_commission_unresolved_items",
+      {
+        p_employment_id: row.employment_id,
+        p_billing_period: period.start,
+      },
+    );
+
+    if (unresolvedError) {
+      setError(unresolvedError.message);
+      setCommissionUnresolvedItems([]);
+      setCommissionUnresolvedLoading(false);
+      return false;
+    }
+
+    const items = (data || []) as CommissionUnresolvedItem[];
+    setCommissionUnresolvedItems(items);
+    setCommissionAssignmentValues(
+      Object.fromEntries(items.map((item) => [item.invoice_item_id, ""])),
+    );
+    setCommissionUnresolvedLoading(false);
+    return true;
+  }
+
+  async function openCommissionUnresolved(row: CommissionDashboardRow) {
+    setCommissionUnresolvedRow(row);
+    setCommissionUnresolvedModalOpen(true);
+    setError("");
+    await loadUnresolvedCommissionItems(row);
+  }
+
+  async function saveCommissionAssignment(item: CommissionUnresolvedItem) {
+    const studentId = commissionAssignmentValues[item.invoice_item_id] || "";
+    if (!studentId) {
+      setError("Choose the student for this invoice item first.");
+      return;
+    }
+
+    setWorking(true);
+    setError("");
+    const { error: assignmentError } = await supabase.rpc(
+      "billing_staff_commission_item_assignment_save",
+      {
+        p_invoice_item_id: item.invoice_item_id,
+        p_student_id: studentId,
+        p_notes: `Assigned from Staff Payments for ${monthLabel(month)}`,
+      },
+    );
+
+    if (assignmentError) {
+      setError(assignmentError.message);
+    } else if (commissionUnresolvedRow) {
+      setNotice("Invoice item assigned to the selected student.");
+      await loadUnresolvedCommissionItems(commissionUnresolvedRow);
+      await load();
+    }
+    setWorking(false);
+  }
+
   async function calculateCommission(row: CommissionDashboardRow) {
-    if (!row.commission_start_date || row.applicable_rate == null) {
+    const planConfigured =
+      row.months_1_3_rate != null &&
+      row.months_4_6_rate != null &&
+      row.month_7_plus_rate != null;
+
+    if (!planConfigured) {
       setError(
-        "Configure the commission start date and percentage tiers before calculating this billing month.",
+        "Configure all three student commission percentage tiers before calculating this billing month.",
       );
       return;
     }
 
     if (row.payment_status === "paid" || row.calculation_status === "locked") {
       setError("This commission payroll has already been paid and is locked.");
+      return;
+    }
+
+    if (Number(row.live_unresolved_item_count || 0) > 0) {
+      setError(
+        "Some invoice items cannot yet be linked safely to a student. Assign those items first so the correct student start-date percentage can be used.",
+      );
+      await openCommissionUnresolved(row);
       return;
     }
 
@@ -969,13 +1068,11 @@ export default function StaffPaymentsClient({
             },
           );
 
-    const calculationError = calculationResult.error;
-
-    if (calculationError) {
-      setError(calculationError.message);
+    if (calculationResult.error) {
+      setError(calculationResult.error.message);
     } else {
       setNotice(
-        `${row.full_name}'s ${monthLabel(month)} invoice commission was ${row.calculation_id ? "recalculated" : "calculated"}.`,
+        `${row.full_name}'s ${monthLabel(month)} student-based invoice commission was ${row.calculation_id ? "recalculated" : "calculated"}.`,
       );
       await load();
     }
@@ -985,7 +1082,7 @@ export default function StaffPaymentsClient({
 
   async function openCommissionBreakdown(row: CommissionDashboardRow) {
     if (!row.calculation_id) {
-      setError("Calculate this commission cycle before opening the invoice breakdown.");
+      setError("Calculate this commission cycle before opening the student breakdown.");
       return;
     }
 
@@ -996,7 +1093,7 @@ export default function StaffPaymentsClient({
     setError("");
 
     const { data, error: lineError } = await supabase.rpc(
-      "billing_staff_commission_calculation_lines",
+      "billing_staff_commission_calculation_student_lines",
       {
         p_calculation_id: row.calculation_id,
       },
@@ -1006,7 +1103,7 @@ export default function StaffPaymentsClient({
       setError(lineError.message);
       setCommissionBreakdownModalOpen(false);
     } else {
-      setCommissionLines((data || []) as CommissionInvoiceLine[]);
+      setCommissionLines((data || []) as CommissionStudentLine[]);
     }
 
     setCommissionLinesLoading(false);
@@ -1079,7 +1176,7 @@ export default function StaffPaymentsClient({
     if (
       commissionPaymentForm.status === "paid" &&
       !window.confirm(
-        `Mark ${commissionPaymentForm.full_name}'s ${monthLabel(month)} commission as Paid? This locks the invoice calculation and percentages used for this cycle.`,
+        `Mark ${commissionPaymentForm.full_name}'s ${monthLabel(month)} commission as Paid? This locks the student-by-student invoice calculation and percentages used for this cycle.`,
       )
     ) {
       return;
@@ -1655,13 +1752,13 @@ export default function StaffPaymentsClient({
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#9a7029]">
-                GKP invoice commission
+                GKP student-based invoice commission
               </p>
               <h2 className="mt-2 text-xl font-semibold">
-                Management commission from finalized invoices
+                Management commission based on each student&apos;s start date
               </h2>
               <p className="mt-2 max-w-4xl text-xs leading-5 text-[#81796d]">
-                Commission is calculated invoice by invoice for the selected billing month. Draft, review and void invoices are excluded. Refundable Class-Slot Deposits are removed from each invoice before the percentage is applied.
+                Each non-deposit invoice amount is linked to a student first. That student&apos;s GKP start month determines whether the 1–3 month, 4–6 month or 7+ month percentage applies. Refundable Class-Slot Deposits never earn commission.
               </p>
             </div>
             <div className="rounded-2xl border border-[#d7c9ae] bg-white px-4 py-3 text-right">
@@ -1682,29 +1779,47 @@ export default function StaffPaymentsClient({
             <div className="mt-5 grid gap-4">
               {commissionRows.map((row) => {
                 const planConfigured =
-                  Boolean(row.commission_start_date) &&
                   row.months_1_3_rate != null &&
                   row.months_4_6_rate != null &&
                   row.month_7_plus_rate != null;
-
-                const beforeStart =
-                  planConfigured && row.commission_month == null;
 
                 const locked =
                   row.payment_status === "paid" ||
                   row.calculation_status === "locked";
 
-                const termsChanged =
+                const liveUnresolved = Number(
+                  row.live_unresolved_item_count || 0,
+                );
+
+                const liveDraftReview = Number(
+                  row.live_draft_review_invoice_count || 0,
+                );
+
+                const calculationStale =
                   Boolean(row.calculation_id) &&
                   !locked &&
                   (
-                    row.calculation_start_date !== row.commission_start_date ||
-                    Number(row.calculation_commission_month || 0) !==
-                      Number(row.commission_month || 0) ||
+                    Number(row.finalized_invoice_count || 0) !==
+                      Number(row.live_finalized_invoice_count || 0) ||
+                    Number(row.calculation_student_count || 0) !==
+                      Number(row.live_student_count || 0) ||
                     Math.abs(
-                      numberValue(row.calculation_rate_percent) -
-                        numberValue(row.applicable_rate),
-                    ) > 0.0001
+                      numberValue(row.gross_invoice_total) -
+                        numberValue(row.live_gross_invoice_total),
+                    ) > 0.009 ||
+                    Math.abs(
+                      numberValue(row.excluded_deposit_total) -
+                        numberValue(row.live_excluded_deposit_total),
+                    ) > 0.009 ||
+                    Math.abs(
+                      numberValue(row.commissionable_total) -
+                        numberValue(row.live_commissionable_total),
+                    ) > 0.009 ||
+                    Math.abs(
+                      numberValue(row.commission_total) -
+                        numberValue(row.live_commission_total),
+                    ) > 0.009 ||
+                    liveUnresolved > 0
                   );
 
                 return (
@@ -1728,32 +1843,17 @@ export default function StaffPaymentsClient({
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-[#6f675a]">
                           <span className="rounded-full border border-[#e1d7c6] bg-[#fbfaf7] px-3 py-1.5">
-                            Months 1–3: {row.months_1_3_rate == null ? "Not set" : `${numberValue(row.months_1_3_rate)}%`}
+                            Student months 1–3: {row.months_1_3_rate == null ? "Not set" : `${numberValue(row.months_1_3_rate)}%`}
                           </span>
                           <span className="rounded-full border border-[#e1d7c6] bg-[#fbfaf7] px-3 py-1.5">
-                            Months 4–6: {row.months_4_6_rate == null ? "Not set" : `${numberValue(row.months_4_6_rate)}%`}
+                            Student months 4–6: {row.months_4_6_rate == null ? "Not set" : `${numberValue(row.months_4_6_rate)}%`}
                           </span>
                           <span className="rounded-full border border-[#e1d7c6] bg-[#fbfaf7] px-3 py-1.5">
-                            Month 7+: {row.month_7_plus_rate == null ? "Not set" : `${numberValue(row.month_7_plus_rate)}%`}
+                            Student month 7+: {row.month_7_plus_rate == null ? "Not set" : `${numberValue(row.month_7_plus_rate)}%`}
                           </span>
                         </div>
-                        <p className="mt-3 text-xs text-[#81796d]">
-                          Commission start:{" "}
-                          <strong className="text-[#15233b]">
-                            {date(row.commission_start_date)}
-                          </strong>
-                          {row.commission_month != null && (
-                            <>
-                              {" · "}Selected cycle is commission month{" "}
-                              <strong className="text-[#15233b]">
-                                {row.commission_month}
-                              </strong>
-                              {" · "}Current tier{" "}
-                              <strong className="text-[#9a7029]">
-                                {numberValue(row.applicable_rate)}%
-                              </strong>
-                            </>
-                          )}
+                        <p className="mt-3 text-xs leading-5 text-[#81796d]">
+                          The student&apos;s <strong className="text-[#15233b]">GKP start date</strong> from Billing Accounts is the clock for the percentage tier. Different students on the same family invoice can therefore use different percentages.
                         </p>
                       </div>
 
@@ -1763,19 +1863,23 @@ export default function StaffPaymentsClient({
                           onClick={() => openCommissionPlan(row)}
                           disabled={working}
                           className="rounded-full border border-[#d7c9ae] bg-white px-4 py-2 text-[11px] font-bold disabled:opacity-45"
-                          title="Changes apply to future calculations and pending cycles you recalculate. Paid history keeps its original snapshot."
                         >
-                          Edit commission terms
+                          Edit percentage tiers
                         </button>
+                        {liveUnresolved > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => void openCommissionUnresolved(row)}
+                            disabled={working}
+                            className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-[11px] font-bold text-amber-900 disabled:opacity-45"
+                          >
+                            Resolve {liveUnresolved} item{liveUnresolved === 1 ? "" : "s"}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => void calculateCommission(row)}
-                          disabled={
-                            working ||
-                            !planConfigured ||
-                            beforeStart ||
-                            locked
-                          }
+                          disabled={working || !planConfigured || locked}
                           className="rounded-full bg-[#15233b] px-4 py-2 text-[11px] font-black text-white disabled:opacity-45"
                         >
                           {row.calculation_id ? "Recalculate" : "Calculate from invoices"}
@@ -1786,7 +1890,7 @@ export default function StaffPaymentsClient({
                           disabled={working || !row.calculation_id}
                           className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-[11px] font-bold text-sky-700 disabled:opacity-45"
                         >
-                          Invoice breakdown
+                          Student breakdown
                         </button>
                         <button
                           type="button"
@@ -1805,101 +1909,82 @@ export default function StaffPaymentsClient({
 
                     {!planConfigured && (
                       <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
-                        Configure the commission start date and all three percentage tiers before calculating this staff member.
+                        Configure all three student-age percentage tiers before calculating commission.
                       </div>
                     )}
 
-                    {beforeStart && !row.calculation_id && (
-                      <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs leading-5 text-sky-800">
-                        {monthLabel(month)} is before this staff member&apos;s commission start month, so no commission is due for this cycle.
-                      </div>
-                    )}
-
-                    {termsChanged && (
-                      <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs font-bold leading-5 text-amber-900">
-                        Commission terms have changed since this calculation was created. Recalculate before finalising the pending payroll.
-                      </div>
-                    )}
-
-                    {Number(row.draft_review_invoice_count || 0) > 0 && (
+                    {liveUnresolved > 0 && (
                       <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
-                        <strong>
-                          {Number(row.draft_review_invoice_count || 0)} invoice(s)
-                        </strong>{" "}
-                        are still Draft or Review for this billing month. They are not included in the commission calculation. Finalise the invoices and recalculate before marking payroll Paid.
+                        <strong>{liveUnresolved} invoice item{liveUnresolved === 1 ? "" : "s"}</strong> totalling {money(row.live_unresolved_amount, row.currency)} cannot yet be linked safely to a student. The system will not calculate payroll until these are assigned, because it cannot choose the correct student start-date percentage without that link.
                       </div>
                     )}
+
+                    {liveDraftReview > 0 && (
+                      <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
+                        <strong>{liveDraftReview} invoice(s)</strong> are still Draft or Review for this billing month. They are not included. Finalise them and recalculate before marking payroll Paid.
+                      </div>
+                    )}
+
+                    {calculationStale && (
+                      <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-bold leading-5 text-red-800">
+                        Billing data, student attribution or the live commission total has changed since this stored calculation was created. Recalculate before finalising payroll.
+                      </div>
+                    )}
+
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                      <Metric
+                        label={row.calculation_id ? "Finalized invoices" : "Live finalized invoices"}
+                        value={String(Number(row.calculation_id ? row.finalized_invoice_count || 0 : row.live_finalized_invoice_count || 0))}
+                        detail={row.calculation_id ? `v${Number(row.calculation_version || 1)}` : "Preview"}
+                      />
+                      <Metric
+                        label="Students"
+                        value={String(Number(row.calculation_id ? row.calculation_student_count || 0 : row.live_student_count || 0))}
+                      />
+                      <Metric
+                        label="Gross invoice total"
+                        value={money(row.calculation_id ? row.gross_invoice_total : row.live_gross_invoice_total, row.currency)}
+                      />
+                      <Metric
+                        label="Deposits excluded"
+                        value={money(row.calculation_id ? row.excluded_deposit_total : row.live_excluded_deposit_total, row.currency)}
+                      />
+                      <Metric
+                        label="Commissionable"
+                        value={money(row.calculation_id ? row.commissionable_total : row.live_commissionable_total, row.currency)}
+                      />
+                      <Metric
+                        label={row.calculation_id ? "Commission earned" : "Live commission preview"}
+                        value={money(row.calculation_id ? row.commission_total : row.live_commission_total, row.currency)}
+                      />
+                    </div>
 
                     {row.calculation_id ? (
-                      <>
-                        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-                          <Metric
-                            label="Finalized invoices"
-                            value={String(Number(row.finalized_invoice_count || 0))}
-                            detail={`v${Number(row.calculation_version || 1)}`}
-                          />
-                          <Metric
-                            label="Gross invoice total"
-                            value={money(row.gross_invoice_total, row.currency)}
-                          />
-                          <Metric
-                            label="Deposits excluded"
-                            value={money(row.excluded_deposit_total, row.currency)}
-                          />
-                          <Metric
-                            label="Commissionable"
-                            value={money(row.commissionable_total, row.currency)}
-                          />
-                          <Metric
-                            label="Applied rate"
-                            value={`${numberValue(row.calculation_rate_percent)}%`}
-                            detail={`Commission month ${Number(row.calculation_commission_month || 0)}`}
-                          />
-                          <Metric
-                            label="Commission earned"
-                            value={money(row.commission_total, row.currency)}
-                          />
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                        <Metric label="Bonus" value={money(row.bonus, row.currency)} />
+                        <Metric label="Allowances" value={money(row.allowances, row.currency)} />
+                        <Metric label="Deductions" value={money(row.deductions, row.currency)} />
+                        <Metric label="Other adjustment" value={money(row.other_adjustment, row.currency)} />
+                        <div className="rounded-2xl border border-[#15233b] bg-[#15233b] p-4 text-white">
+                          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/55">
+                            Total payable
+                          </p>
+                          <strong className="mt-2 block text-xl text-[#f0cf87]">
+                            {row.staff_payment_id
+                              ? money(row.payment_total, row.currency)
+                              : money(row.commission_total, row.currency)}
+                          </strong>
+                          <span className="mt-1 block text-[11px] text-white/55">
+                            {row.staff_payment_id
+                              ? row.payment_status || "pending"
+                              : "Payroll not created yet"}
+                          </span>
                         </div>
-
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                          <Metric
-                            label="Bonus"
-                            value={money(row.bonus, row.currency)}
-                          />
-                          <Metric
-                            label="Allowances"
-                            value={money(row.allowances, row.currency)}
-                          />
-                          <Metric
-                            label="Deductions"
-                            value={money(row.deductions, row.currency)}
-                          />
-                          <Metric
-                            label="Other adjustment"
-                            value={money(row.other_adjustment, row.currency)}
-                          />
-                          <div className="rounded-2xl border border-[#15233b] bg-[#15233b] p-4 text-white">
-                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/55">
-                              Total payable
-                            </p>
-                            <strong className="mt-2 block text-xl text-[#f0cf87]">
-                              {row.staff_payment_id
-                                ? money(row.payment_total, row.currency)
-                                : money(row.commission_total, row.currency)}
-                            </strong>
-                            <span className="mt-1 block text-[11px] text-white/55">
-                              {row.staff_payment_id
-                                ? row.payment_status || "pending"
-                                : "Payroll not created yet"}
-                            </span>
-                          </div>
-                        </div>
-                      </>
+                      </div>
                     ) : (
-                      planConfigured &&
-                      !beforeStart && (
+                      planConfigured && liveUnresolved === 0 && (
                         <div className="mt-5 rounded-2xl border border-dashed border-[#d7c9ae] bg-[#fbfaf7] p-5 text-sm text-[#81796d]">
-                          No stored calculation yet for {monthLabel(month)}. Use <strong>Calculate from invoices</strong> after the billing cycle invoices are ready.
+                          The figures above are a live preview. Use <strong>Calculate from invoices</strong> to store the audited student-by-student snapshot before creating payroll.
                         </div>
                       )
                     )}
@@ -2086,7 +2171,7 @@ export default function StaffPaymentsClient({
                       {payBasisLabel(row.pay_basis_snapshot)}
                       <span className="mt-1 block text-[#81796d]">
                         {row.pay_basis_snapshot === "invoice_commission"
-                          ? `${numberValue(row.units)} invoice(s) · ${numberValue(row.unit_rate)}%`
+                          ? `${numberValue(row.units)} student(s) · mixed tiers`
                           : `${numberValue(row.units)} × ${money(row.unit_rate, row.currency)}`}
                       </span>
                     </td>
@@ -2131,7 +2216,7 @@ export default function StaffPaymentsClient({
         open={commissionPlanModalOpen}
         onClose={() => !working && setCommissionPlanModalOpen(false)}
         title="Edit invoice commission terms"
-        description="These percentages control future calculations and any pending cycle you choose to recalculate. Paid commission history keeps the percentage snapshot that was used when it was finalised."
+        description="These percentages are applied separately to each student according to that student's GKP start date. Paid commission history keeps the student and percentage snapshots used when it was finalised."
       >
         <form onSubmit={saveCommissionPlan} className="grid gap-4">
           <div className="rounded-2xl border border-[#e6dfd3] bg-[#fbfaf7] p-4 text-sm">
@@ -2142,19 +2227,6 @@ export default function StaffPaymentsClient({
               {commissionPlanForm.job_title}
             </span>
           </div>
-
-          <TextField
-            label="Commission start date"
-            type="date"
-            value={commissionPlanForm.commission_start_date}
-            onChange={(value) =>
-              setCommissionPlanForm((current) => ({
-                ...current,
-                commission_start_date: value,
-              }))
-            }
-            required
-          />
 
           <div className="grid gap-4 sm:grid-cols-3">
             <TextField
@@ -2202,7 +2274,7 @@ export default function StaffPaymentsClient({
           </div>
 
           <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs leading-5 text-sky-900">
-            Month 1 is the calendar month containing the commission start date. For example, a June start means June–August use the first tier, September–November use the second tier, and December onward uses the third tier.
+            The clock is different for every student. Month 1 is the calendar month containing that student&apos;s GKP start date in Billing Accounts. For example, a student who starts in June uses the first tier for June–August, the second tier for September–November, and the ongoing tier from December onward.
           </div>
 
           <ModalActions
@@ -2218,77 +2290,64 @@ export default function StaffPaymentsClient({
         onClose={() =>
           !commissionLinesLoading && setCommissionBreakdownModalOpen(false)
         }
-        title={`${commissionBreakdownRow?.full_name || "Staff"} · invoice commission`}
-        description={`${monthLabel(month)} invoice-by-invoice audit. Refundable Class-Slot Deposits are excluded before the percentage is applied.`}
+        title={`${commissionBreakdownRow?.full_name || "Staff"} · student commission`}
+        description={`${monthLabel(month)} audit by invoice and student. Each row uses that student's own GKP start date to determine the percentage tier.`}
         wide
       >
         {commissionLinesLoading ? (
-          <MessageCard>Loading commission invoice breakdown…</MessageCard>
+          <MessageCard>Loading student commission breakdown…</MessageCard>
         ) : commissionLines.length === 0 ? (
           <MessageCard>
-            This calculation contains no finalized monthly invoices.
+            This calculation contains no attributed student commission rows.
           </MessageCard>
         ) : (
           <>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <Metric
                 label="Invoices"
-                value={String(commissionLines.length)}
+                value={String(
+                  new Set(commissionLines.map((line) => line.invoice_id || line.invoice_number)).size,
+                )}
               />
               <Metric
-                label="Gross total"
-                value={money(
-                  commissionLines.reduce(
-                    (sum, line) => sum + numberValue(line.invoice_total),
-                    0,
-                  ),
-                  commissionBreakdownRow?.currency || "SGD",
+                label="Students"
+                value={String(
+                  new Set(commissionLines.map((line) => line.student_id || line.student_name)).size,
                 )}
               />
               <Metric
                 label="Deposits excluded"
                 value={money(
-                  commissionLines.reduce(
-                    (sum, line) =>
-                      sum + numberValue(line.excluded_deposit_total),
-                    0,
-                  ),
+                  commissionBreakdownRow?.excluded_deposit_total,
                   commissionBreakdownRow?.currency || "SGD",
                 )}
               />
               <Metric
                 label="Commissionable"
                 value={money(
-                  commissionLines.reduce(
-                    (sum, line) =>
-                      sum + numberValue(line.commissionable_amount),
-                    0,
-                  ),
+                  commissionBreakdownRow?.commissionable_total,
                   commissionBreakdownRow?.currency || "SGD",
                 )}
               />
               <Metric
                 label="Commission"
                 value={money(
-                  commissionLines.reduce(
-                    (sum, line) =>
-                      sum + numberValue(line.commission_amount),
-                    0,
-                  ),
+                  commissionBreakdownRow?.commission_total,
                   commissionBreakdownRow?.currency || "SGD",
                 )}
               />
             </div>
 
             <div className="mt-5 overflow-x-auto rounded-2xl border border-[#e6dfd3]">
-              <table className="w-full min-w-[980px] border-collapse text-left">
+              <table className="w-full min-w-[1180px] border-collapse text-left">
                 <thead>
                   <tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
                     <th className="px-4 py-3">Invoice</th>
                     <th className="px-4 py-3">Payer</th>
-                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Student</th>
+                    <th className="px-4 py-3">Student start</th>
+                    <th className="px-4 py-3 text-right">Student month</th>
                     <th className="px-4 py-3 text-right">Invoice total</th>
-                    <th className="px-4 py-3 text-right">Deposit excluded</th>
                     <th className="px-4 py-3 text-right">Commission base</th>
                     <th className="px-4 py-3 text-right">Rate</th>
                     <th className="px-4 py-3 text-right">Commission</th>
@@ -2297,27 +2356,33 @@ export default function StaffPaymentsClient({
                 <tbody>
                   {commissionLines.map((line) => (
                     <tr
-                      key={`${line.invoice_id || line.invoice_number}`}
+                      key={`${line.invoice_id || line.invoice_number}-${line.student_id || line.student_name}`}
                       className="border-b border-[#f0ece4] last:border-0"
                     >
                       <td className="px-4 py-4 text-sm font-bold text-[#15233b]">
                         {line.invoice_number}
+                        <span className="mt-1 block text-[10px] font-medium uppercase text-[#8a8378]">
+                          {line.invoice_status.replaceAll("_", " ")}
+                        </span>
                       </td>
                       <td className="px-4 py-4 text-sm">
                         {line.payer_name || "—"}
                       </td>
-                      <td className="px-4 py-4">
-                        <StatusPill status={line.invoice_status} />
+                      <td className="px-4 py-4 text-sm font-bold">
+                        {line.student_name}
+                        <span className="mt-1 block text-[10px] font-medium text-[#8a8378]">
+                          {line.invoice_item_count} item{line.invoice_item_count === 1 ? "" : "s"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-sm">
+                        {date(line.student_start_date)}
+                      </td>
+                      <td className="px-4 py-4 text-right text-sm font-bold">
+                        {line.student_month}
                       </td>
                       <td className="px-4 py-4 text-right text-sm">
                         {money(
                           line.invoice_total,
-                          commissionBreakdownRow?.currency || "SGD",
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-right text-sm">
-                        {money(
-                          line.excluded_deposit_total,
                           commissionBreakdownRow?.currency || "SGD",
                         )}
                       </td>
@@ -2353,6 +2418,97 @@ export default function StaffPaymentsClient({
             </div>
           </>
         )}
+      </Modal>
+
+      <Modal
+        open={commissionUnresolvedModalOpen}
+        onClose={() => !working && !commissionUnresolvedLoading && setCommissionUnresolvedModalOpen(false)}
+        title={`${commissionUnresolvedRow?.full_name || "Staff"} · resolve invoice items`}
+        description={`These non-deposit items cannot be linked safely to one student yet. Assign each item to the correct student so the system can use that student's start-date percentage.`}
+        wide
+      >
+        {commissionUnresolvedLoading ? (
+          <MessageCard>Loading unresolved invoice items…</MessageCard>
+        ) : commissionUnresolvedItems.length === 0 ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm font-bold text-emerald-800">
+            All finalized non-deposit invoice items for {monthLabel(month)} are now linked to students. You can calculate commission.
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {commissionUnresolvedItems.map((item) => {
+              const candidates = Array.isArray(item.candidate_students)
+                ? item.candidate_students
+                : [];
+              return (
+                <div
+                  key={item.invoice_item_id}
+                  className="rounded-2xl border border-[#e3d9c8] bg-[#fbfaf7] p-4"
+                >
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <strong className="text-sm text-[#15233b]">
+                          {item.invoice_number}
+                        </strong>
+                        <span className="rounded-full border border-[#ded5c4] bg-white px-2.5 py-1 text-[10px] font-bold uppercase text-[#81796d]">
+                          {item.item_type.replaceAll("_", " ")}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm font-bold text-[#554d40]">
+                        {item.item_description}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[#81796d]">
+                        {item.payer_name || "Family invoice"} · {money(item.item_amount, commissionUnresolvedRow?.currency || "SGD")}
+                      </p>
+                      <p className="mt-1 text-[11px] text-amber-800">
+                        {item.unresolved_reason}
+                      </p>
+                    </div>
+                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row lg:w-[520px]">
+                      <select
+                        value={commissionAssignmentValues[item.invoice_item_id] || ""}
+                        onChange={(event) =>
+                          setCommissionAssignmentValues((current) => ({
+                            ...current,
+                            [item.invoice_item_id]: event.target.value,
+                          }))
+                        }
+                        className={inputClass}
+                        disabled={working}
+                      >
+                        <option value="">Choose student…</option>
+                        {candidates.map((candidate) => (
+                          <option key={candidate.student_id} value={candidate.student_id}>
+                            {candidate.student_name}{candidate.student_start_date ? ` · starts ${candidate.student_start_date}` : " · start date missing"}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => void saveCommissionAssignment(item)}
+                        disabled={working || !commissionAssignmentValues[item.invoice_item_id]}
+                        className="min-h-11 shrink-0 rounded-full bg-[#15233b] px-4 text-xs font-bold text-white disabled:opacity-45"
+                      >
+                        Assign
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="mt-5 flex justify-end border-t border-[#e4dbcd] pt-5">
+          <button
+            type="button"
+            onClick={() => setCommissionUnresolvedModalOpen(false)}
+            disabled={working || commissionUnresolvedLoading}
+            className="min-h-11 rounded-full border border-[#d7c9ae] bg-white px-5 text-xs font-bold disabled:opacity-45"
+          >
+            Close
+          </button>
+        </div>
       </Modal>
 
       <Modal
@@ -2393,7 +2549,7 @@ export default function StaffPaymentsClient({
 
           {commissionPaymentLocked && (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold leading-5 text-emerald-800">
-              This payroll has been paid. The invoice list, commission month and percentage snapshot are locked as historical payroll.
+              This payroll has been paid. The student attribution, student start dates, invoice amounts and percentage snapshots are locked as historical payroll.
             </div>
           )}
 
@@ -2412,13 +2568,11 @@ export default function StaffPaymentsClient({
               )}
             />
             <Metric
-              label="Applied rate"
-              value={`${numberValue(
-                commissionPaymentRow?.calculation_rate_percent,
-              )}%`}
-              detail={`Commission month ${Number(
-                commissionPaymentRow?.calculation_commission_month || 0,
-              )}`}
+              label="Students"
+              value={String(
+                Number(commissionPaymentRow?.calculation_student_count || 0),
+              )}
+              detail="Each student has their own tier"
             />
             <Metric
               label="Calculated commission"

@@ -1,0 +1,4989 @@
+{
+  "schemaVersion": "4C-4D-1.INTEGRATION-AUDIT.1",
+  "scan": {
+    "rootLabel": "gk-design-world",
+    "sourceReadOnly": true,
+    "scannedMatches": 319,
+    "unreadableFiles": [],
+    "scanLimitReached": false,
+    "excludedPrivateFiles": true
+  },
+  "summary": {
+    "apiRoutes": 93,
+    "selectorOrGatewayReferences": 0,
+    "gatewayReferencesOutsideDefinition": 0,
+    "filesWithRawReviewedEvidence": 0,
+    "attentionFlags": 0,
+    "gatewayDefinitionPresent": true,
+    "b2SelectorDefinitionPresent": true,
+    "liveWiringProven": false,
+    "authorizationVerified": false
+  },
+  "files": [
+    {
+      "path": "app/admin/affiliates/[id]/page.tsx",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            3,
+            29
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/affiliates/actions.ts",
+      "kind": "server-action",
+      "markers": {
+        "role": {
+          "count": 7,
+          "lineNumbers": [
+            5,
+            24,
+            46,
+            102,
+            181,
+            283,
+            373
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/affiliates/finance/actions.ts",
+      "kind": "server-action",
+      "markers": {
+        "role": {
+          "count": 8,
+          "lineNumbers": [
+            5,
+            31,
+            100,
+            152,
+            188,
+            231,
+            275,
+            340
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/affiliates/finance/page.tsx",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            2,
+            75
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/affiliates/invite/actions.ts",
+      "kind": "server-action",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            5,
+            68
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/affiliates/invite/page.tsx",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            2,
+            11
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/affiliates/page.tsx",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            2,
+            27
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/agents/brain-preview/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            265
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/agents/execution-qa/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            42
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/agents/full-runtime/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            82
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/agents/observation-qa/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            102
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/agents/orchestrator-qa/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            53
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/agents/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            363
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/agents/pilot-runtime/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            151
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/billing/_components/BillingAdminShell.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            457
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/billing/_components/BillingSessionButton.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            17
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/billing/accounts/BillingAccountsClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            486
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/billing/dreamscape/DreamscapeBillingClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 4,
+          "lineNumbers": [
+            427,
+            909,
+            1093,
+            1207
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/billing/invoices/[invoiceId]/preview/InvoiceAdminPreviewClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            30
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/billing/invoices/BillingInvoicesClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            609
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/billing/payments/BillingPaymentsClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 3,
+          "lineNumbers": [
+            132,
+            174,
+            213
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/billing/reconciliation/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            70
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/billing/settings/BillingSettingsClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            72
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/billing/system-health/BillingSystemHealthClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            86
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/builders/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            141
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/admin/dream-tokens/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            365
+          ]
+        },
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            1692
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/affiliate/apply/actions.ts",
+      "kind": "server-action",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/affiliate/onboarding/actions.ts",
+      "kind": "server-action",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/activity-lab/credits/checkout/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            42
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            53
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/activity-lab/credits/confirm/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            122
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            137
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/activity-lab/credits/webhook/[environment]/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/brain-preview/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            64
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/execution-qa/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            43
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/full-runtime/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            150,
+            197
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            217
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/memory/refresh/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            57
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            75
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/observation-qa/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            122
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/observe/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            49
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            67
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/orchestrator-qa/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            29
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/overview/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            33,
+            342
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            347
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/pilot-runtime/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            192,
+            239
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/population-preview/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            137
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/provision-initial/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            82
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            100
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/provision/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            51
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            67
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/report/csv/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            51
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/report/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            137,
+            239
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/runtime/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            42
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            47
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/agents/validate-action/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            57
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            75
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/builders/[id]/cv/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            2,
+            11
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/builders/[id]/notes/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            2,
+            11
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            21
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/builders/[id]/retry-notification/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            2,
+            70
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/builders/[id]/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            2,
+            20
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            30
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/builders/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            2,
+            42
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/dream-tokens/credit/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            33
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            62
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/dream-tokens/users/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            33
+          ]
+        },
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            51,
+            85
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/founding-50/[id]/emails/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            23
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/founding-50/[id]/invite/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/founding-50/[id]/rewards/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/founding-50/[id]/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            11
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/founding-50/feedback/remind/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            10
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/founding-50/feedback/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/founding-50/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/admin/schoolwork-ai/settings/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            53
+          ]
+        },
+        "role": {
+          "count": 3,
+          "lineNumbers": [
+            15,
+            91,
+            124
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            126
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/dreamscape/gkp-addon/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            111
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            193
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/dreamscape/plans/sync/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            56
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/dreamscape/subscriptions/action/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            85
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            835
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/dreamscape/subscriptions/email/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            50
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            66
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/email/invoice/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            53
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            73
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/hitpay/admin/payment-requests/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            79
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            263
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/hitpay/payment-request/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            35
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/hitpay/reconcile-pending/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            140
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            220
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/hitpay/reconcile/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            153
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            197
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/hitpay/status/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/hitpay/system-status/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            59
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/stripe/system-status/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            53
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/system-health/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            54
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/billing/system-status/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            59
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/builders/apply/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/creator-packs/checkout/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            63
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            76
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/creator-packs/stripe/webhook/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/cron/agents/daily-report/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/cron/agents/tick/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/curriculum-developer/assets/mappings/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            1282
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/curriculum-developer/assets/upload/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/curriculum-developer/math-intelligence/batch/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "mathTeaching": {
+          "count": 2,
+          "lineNumbers": [
+            11,
+            18
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            67
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/curriculum-developer/math-intelligence/generate/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "mathTeaching": {
+          "count": 5,
+          "lineNumbers": [
+            10,
+            11,
+            17,
+            18,
+            19
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            113
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/dreamscape-access/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            5
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/dreamscape/subscriptions/manage/[token]/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            247
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/dreamscape/subscriptions/start/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            105
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/founding-50/access/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/founding-50/activate/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            26
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/founding-50/apply/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            17
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/founding-50/communications/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/founding-50/discount/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/founding-50/feedback/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            53
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/founding-50/me/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/founding-50/reminders/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/gkp-student-activation/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            20
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/nova-plus/schoolwork/analyse/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            199
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            1054
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/nova-plus/schoolwork/commit/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            66
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            119
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/nova-plus/schoolwork/config/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            53
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/nova-plus/schoolwork/health/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            53
+          ]
+        },
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            15,
+            78
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/nova-plus/schoolwork/history/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            57
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            435
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/og/route.tsx",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/parental-controls/grant-extra-time/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            11
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/parental-controls/policy/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            42
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/parental-controls/request-reset/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            39
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/parental-controls/reset-password/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            13
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/parental-controls/status/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/parental-controls/verify-password/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            11
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/profile/account-deletion/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            92
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            241
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/profile/cancellation-feedback/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            106
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            155
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/profile/membership/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            129
+          ]
+        },
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            902
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/shopify/order-paid/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/shopify/webhooks/disputes/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/shopify/webhooks/orders-cancelled/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/shopify/webhooks/orders-paid/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/shopify/webhooks/refunds-create/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/webhooks/hitpay/[environment]/route.ts",
+      "kind": "api-route",
+      "markers": {
+        "requestBody": {
+          "count": 1,
+          "lineNumbers": [
+            115
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/api/webhooks/hitpay/dreamscape/[environment]/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/api/webhooks/stripe/dreamscape/[environment]/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/auth/callback/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            62,
+            94
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/collections/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            108
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/complete-profile/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            136,
+            261
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/components/MarketingConsentModal.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            30,
+            97
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/components/topnav.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            13
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/components/AssetDeploymentView.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            171
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/components/CurriculumOperationsView.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 10,
+          "lineNumbers": [
+            92,
+            267,
+            319,
+            373,
+            422,
+            507,
+            646,
+            696,
+            863,
+            949
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/components/math-intelligence/MathIntelligenceProposalPreview.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 1,
+          "lineNumbers": [
+            13
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/components/math-intelligence/mathQAClient.ts",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 3,
+          "lineNumbers": [
+            13,
+            25,
+            27
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/components/math-intelligence/requestMathAuthoringProposal.ts",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 2,
+          "lineNumbers": [
+            7,
+            47
+          ]
+        },
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            34
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/components/math-intelligence/requestMathBatchProposals.ts",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 2,
+          "lineNumbers": [
+            8,
+            38
+          ]
+        },
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            13
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/components/MathIntelligenceBatchView.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 3,
+          "lineNumbers": [
+            10,
+            11,
+            324
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/components/MathIntelligenceQAView.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 17,
+          "lineNumbers": [
+            11,
+            23,
+            35,
+            37,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            50
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/components/MathVisualAuthoringPanel.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 5,
+          "lineNumbers": [
+            19,
+            20,
+            25,
+            26,
+            30
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/components/QuizImportView.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 2,
+          "lineNumbers": [
+            9,
+            14
+          ]
+        },
+        "role": {
+          "count": 6,
+          "lineNumbers": [
+            258,
+            505,
+            564,
+            873,
+            908,
+            1021
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/components/ReviewQueueView.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            128,
+            181
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/components/ScienceQuizImportView.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 3,
+          "lineNumbers": [
+            253,
+            448,
+            469
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/CurriculumDeveloperClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            256
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/learning-skills/LearningSkillsClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 11,
+          "lineNumbers": [
+            194,
+            195,
+            517,
+            669,
+            677,
+            704,
+            1012,
+            1023,
+            1041,
+            1466,
+            1469
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/learning-skills/operations/NovaOperationsClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 5,
+          "lineNumbers": [
+            119,
+            171,
+            188,
+            237,
+            457
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/learning-skills/question-mapping/QuestionMappingClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 8,
+          "lineNumbers": [
+            111,
+            112,
+            588,
+            596,
+            627,
+            828,
+            990,
+            1077
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/learning-skills/rollout/CurriculumRolloutClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 16,
+          "lineNumbers": [
+            172,
+            173,
+            253,
+            387,
+            401,
+            475,
+            654,
+            664,
+            695,
+            728,
+            895,
+            916,
+            1015,
+            1077,
+            1158
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/curriculum-developer/types.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/founding-50/activate/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            39,
+            52
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/founding-50/benefits/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            8
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/founding-50/feedback/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            61,
+            100
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/inventor/hub/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            1060,
+            1687
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/inventor/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            406
+          ]
+        },
+        "role": {
+          "count": 15,
+          "lineNumbers": [
+            386,
+            760,
+            808,
+            818,
+            833,
+            848,
+            960,
+            976,
+            1214,
+            1269,
+            1325,
+            2996,
+            3003,
+            3008,
+            3192
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/join-us/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 1,
+          "lineNumbers": [
+            67
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/join/[token]/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            98
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/core/[subject]/[level]/[topic]/CoreTopicClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 7,
+          "lineNumbers": [
+            116,
+            326,
+            379,
+            393,
+            642,
+            699,
+            816
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/core/[subject]/[level]/CoreLevelClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 10,
+          "lineNumbers": [
+            81,
+            145,
+            203,
+            219,
+            431,
+            488,
+            524,
+            568,
+            629,
+            647
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/core/[subject]/[level]/quiz/[quizId]/AddCoreQuestionEditor.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 2,
+          "lineNumbers": [
+            17,
+            40
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/core/[subject]/[level]/quiz/[quizId]/CoreQuizPlayer.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            241,
+            466
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/core/[subject]/[level]/quiz/[quizId]/InlineCoreQuestionEditor.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 2,
+          "lineNumbers": [
+            11,
+            28
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/core/rover-challenge/RoverChallengeClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            164
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/core/rover/RoverChallengeProgressDock.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            40
+          ]
+        },
+        "role": {
+          "count": 3,
+          "lineNumbers": [
+            108,
+            208,
+            313
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/core/rover/RoverGarageClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            517
+          ]
+        },
+        "role": {
+          "count": 35,
+          "lineNumbers": [
+            411,
+            493,
+            495,
+            900,
+            936,
+            940,
+            955,
+            971,
+            1051,
+            1283,
+            1347,
+            1392,
+            1581,
+            1698,
+            1704
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/knowledge-arena/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            1073
+          ]
+        },
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            669
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            462
+          ]
+        },
+        "role": {
+          "count": 16,
+          "lineNumbers": [
+            29,
+            442,
+            471,
+            537,
+            556,
+            821,
+            833,
+            868,
+            911,
+            928,
+            1260,
+            1473,
+            1556,
+            3260,
+            3268
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/progress-rewards/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            461
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/science/[level]/[topic]/[quiz]/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            171
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/science/[level]/[topic]/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            60
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/science/[level]/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            57
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/science/manage/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            76
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/science/manage/ScienceCsvImportPanel.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            161
+          ]
+        },
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            173,
+            187
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/think/gear/ThinkGearClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            220,
+            265
+          ]
+        },
+        "role": {
+          "count": 3,
+          "lineNumbers": [
+            192,
+            466,
+            639
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/think/maze-challenge/MazeChallengeClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            299,
+            419
+          ]
+        },
+        "role": {
+          "count": 8,
+          "lineNumbers": [
+            232,
+            368,
+            371,
+            387,
+            411,
+            571,
+            638,
+            640
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/learning-missions/think/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            218,
+            253
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/login/reset-password/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            120
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/activity-lab/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            519
+          ]
+        },
+        "role": {
+          "count": 9,
+          "lineNumbers": [
+            413,
+            424,
+            425,
+            437,
+            444,
+            548,
+            1078,
+            1088,
+            1140
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/bank/hooks/useBankAccount.ts",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            44
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/bank/hooks/useBankAchievements.ts",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            37
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/bank/hooks/useBankBonds.ts",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            60
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/bank/hooks/useBankShopper.ts",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            19
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/bank/hooks/useFinancialProgress.ts",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            60
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/bank/hooks/useMyMoneyTrend.ts",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            92
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/bank/lib/financial-advisor-api.ts",
+      "kind": "module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            20
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/categories/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            1110
+          ]
+        },
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            3610
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/club/negotiation/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            1297
+          ]
+        },
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            1369,
+            1370
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/club/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            2797
+          ]
+        },
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            2870,
+            2882
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/exchange/components/CityPulseHomeCard.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 3,
+          "lineNumbers": [
+            12,
+            49,
+            192
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/exchange/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            245
+          ]
+        },
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            991
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/exchange/property/PropertyExchangeClient.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            486
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/exchange/stocks/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            885
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            2583
+          ]
+        },
+        "role": {
+          "count": 30,
+          "lineNumbers": [
+            397,
+            404,
+            411,
+            669,
+            678,
+            686,
+            827,
+            834,
+            841,
+            1012,
+            1017,
+            1021,
+            1211,
+            1218,
+            2563
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/quiz-hall/clubs/[slug]/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            400
+          ]
+        },
+        "role": {
+          "count": 3,
+          "lineNumbers": [
+            563,
+            1131,
+            1279
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/quiz-hall/clubs/[slug]/play-rooms/[code]/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            233
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/quiz-hall/clubs/[slug]/play-rooms/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            92
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/quiz-hall/clubs/[slug]/quiz/[quizSlug]/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            152
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/quiz-hall/communities/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            347,
+            471
+          ]
+        },
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            1054
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/quiz-hall/creator-studio/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            535
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/quiz-hall/creators/[slug]/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            117
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/milo-world/quiz-hall/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 5,
+          "lineNumbers": [
+            14,
+            83,
+            102,
+            114,
+            331
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/nova/thinking-skills-lab/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            652
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/organisation/class-matching/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            216
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/organisation/manage/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            130
+          ]
+        },
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            522
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            383
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/pricing/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            296
+          ]
+        },
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            12
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/profile/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 7,
+          "lineNumbers": [
+            834,
+            1352,
+            1567,
+            1697,
+            1798,
+            1849,
+            1942
+          ]
+        },
+        "role": {
+          "count": 5,
+          "lineNumbers": [
+            523,
+            588,
+            2280,
+            2288,
+            2498
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "app/r/[code]/route.ts",
+      "kind": "api-route",
+      "markers": {},
+      "attention": []
+    },
+    {
+      "path": "app/teacher-dashboard/page.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            622
+          ]
+        },
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            684
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/access/LearningAccessGate.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            78
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/admin/agents/AgentEconomyReportPanel.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            325
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/admin/agents/InitialPopulationProvisioner.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            97
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/admin/Founding50AdminPanel.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            41
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/admin/Founding50FeedbackTab.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            67
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/admin/RoleManagementPanel.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 24,
+          "lineNumbers": [
+            10,
+            57,
+            75,
+            76,
+            77,
+            78,
+            90,
+            147,
+            164,
+            175,
+            233,
+            286,
+            332,
+            362,
+            363
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/admin/SchoolworkAiAdminPanel.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            134
+          ]
+        },
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            380
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/AdminOnlyInventorHubGate.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            23
+          ]
+        },
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            50
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/core-math/visual-engine/primitives/Text.tsx",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            41
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/core-missions/CoreMissionTopBar.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            161
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/DailyActivityReferralPrompt.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            58
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/dashboard/DashboardTopControls.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            153
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/math-intelligence/qa/Phase4A2TeachingQA.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 2,
+          "lineNumbers": [
+            14,
+            22
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/math-intelligence/qa/Phase4A3TeachingContractQA.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 3,
+          "lineNumbers": [
+            8,
+            11,
+            14
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/math-intelligence/qa/Phase4A4TeachingDiagnostics.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 2,
+          "lineNumbers": [
+            10,
+            11
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/math-intelligence/qa/Phase4B1MethodCoverageAudit.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 2,
+          "lineNumbers": [
+            10,
+            11
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/math-intelligence/qa/Phase4B2MethodSchemaGovernance.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 1,
+          "lineNumbers": [
+            8
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/math-intelligence/qa/Phase4B3NumberArithmeticLibraryQA.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 1,
+          "lineNumbers": [
+            9
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/math-intelligence/qa/Phase4B4WordProblemHeuristicsQA.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 1,
+          "lineNumbers": [
+            8
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/math-intelligence/qa/Phase4B5RationalNumberQA.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 1,
+          "lineNumbers": [
+            8
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/math-intelligence/qa/Phase4B6MeasurementGeometryDataQA.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 1,
+          "lineNumbers": [
+            8
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/math-intelligence/qa/Phase4B7LibraryClosureQA.tsx",
+      "kind": "client-module",
+      "markers": {
+        "mathTeaching": {
+          "count": 2,
+          "lineNumbers": [
+            9,
+            10
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/milo/creator-engine/CreatorClubSettingsPanel.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            83
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/milo/creator-engine/CreatorClubUpgradeStore.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            172,
+            646
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/nova-home/RugRushGame.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            1030
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/nova-plus/NovaPlusDashboard.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            48
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/nova-plus/NovaSchoolworkHistory.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            217
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/nova-plus/NovaSchoolworkUploader.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 4,
+          "lineNumbers": [
+            410,
+            491,
+            730,
+            879
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/parental-controls/ScreenTimeController.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            95
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/PostLoginWelcome.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            162,
+            185
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/PublicPreviewBanner.tsx",
+      "kind": "client-module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            32
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "components/teacher/ClassManagerModal.tsx",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            340,
+            341
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/activity-lab/credits.ts",
+      "kind": "module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            59
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/affiliate/attribution.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/affiliate/auth.ts",
+      "kind": "module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            11
+          ]
+        },
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            20,
+            34
+          ]
+        },
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/affiliate/email.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/affiliate/security.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/actions/types.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/actions/validate.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/execution/answerBuilder.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/execution/gateway.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/execution/novaLearningSupport.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/execution/registry.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/execution/syntheticPerformance.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/execution/types.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/initialPopulation.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/memory/derive.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/memory/recall.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/memory/store.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/memory/types.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/observation/capture.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/observation/types.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/orchestrator/orchestrator.ts",
+      "kind": "module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            148,
+            361
+          ]
+        },
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/orchestrator/runtimePolicy.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/orchestrator/schedule.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/orchestrator/types.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/policy/preview.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/policy/ruleBasedV1.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/policy/types.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/provision.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/reporting/economyReport.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/runtime/failureEmail.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/runtime/failures.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/world/milo/businessBuilder.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/world/milo/categories.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/world/milo/exchange.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/world/nova/home.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/world/nova/knowledgeArena.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/world/nova/learning.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/world/nova/rover.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/world/nova/think.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/world/registry.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/agents/world/utils.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/buildersAdminAuth.ts",
+      "kind": "module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            43
+          ]
+        },
+        "role": {
+          "count": 3,
+          "lineNumbers": [
+            26,
+            50,
+            51
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/checkAdmin.ts",
+      "kind": "module",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            16,
+            91
+          ]
+        },
+        "role": {
+          "count": 14,
+          "lineNumbers": [
+            8,
+            20,
+            35,
+            42,
+            64,
+            72,
+            84,
+            96,
+            121,
+            129,
+            131,
+            135,
+            136,
+            139
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/core-missions/catalogue.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            158
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/curriculum-developer/server/CurriculumDeveloperApiAuth.ts",
+      "kind": "module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            95
+          ]
+        },
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            5,
+            120
+          ]
+        },
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/dreamscape-subscriptions.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            346
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/email-delivery-log.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/founding-50/resend-config.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            4
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/founding-50/server.ts",
+      "kind": "module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            19
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/hitpay.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            55
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/ai/OpenAILunaProvider.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            234
+          ]
+        },
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/MathBatchGeneration.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/MathIntelligencePipeline.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/MathTeachingVisualPipeline.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/MathVisualSemanticValidator.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 12,
+          "lineNumbers": [
+            118,
+            132,
+            387,
+            392,
+            394,
+            462,
+            652,
+            654,
+            692,
+            693,
+            714,
+            730
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/MathVisualSpecGenerator.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 14,
+          "lineNumbers": [
+            68,
+            403,
+            409,
+            416,
+            660,
+            836,
+            919,
+            1162,
+            1164,
+            1293,
+            1294,
+            1336,
+            1381,
+            1526
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/MathVisualStrategyResolver.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 2,
+          "lineNumbers": [
+            138,
+            139
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/MathVisualTeachingRoleResolver.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 3,
+          "lineNumbers": [
+            215,
+            216,
+            217
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/teaching/contract/buildTeachingContract.ts",
+      "kind": "module",
+      "markers": {
+        "mathTeaching": {
+          "count": 2,
+          "lineNumbers": [
+            14,
+            380
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/teaching/contract/consumer/boundary.ts",
+      "kind": "module",
+      "markers": {
+        "mathTeaching": {
+          "count": 3,
+          "lineNumbers": [
+            2,
+            172,
+            264
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/teaching/contract/consumer/types.ts",
+      "kind": "module",
+      "markers": {
+        "mathTeaching": {
+          "count": 2,
+          "lineNumbers": [
+            1,
+            30
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/teaching/contract/types.ts",
+      "kind": "module",
+      "markers": {
+        "mathTeaching": {
+          "count": 3,
+          "lineNumbers": [
+            167,
+            170,
+            211
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/teaching/contract/validateTeachingContract.ts",
+      "kind": "module",
+      "markers": {
+        "mathTeaching": {
+          "count": 4,
+          "lineNumbers": [
+            1,
+            116,
+            162,
+            175
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/teaching/qa/runPhase4A2QaFromExport.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            218
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/teaching/understanding/rules/visualRules.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            151
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/teaching/understanding/types.ts",
+      "kind": "module",
+      "markers": {
+        "mathTeaching": {
+          "count": 1,
+          "lineNumbers": [
+            275
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math-intelligence/teaching/understanding/understandTeachingQuestion.ts",
+      "kind": "module",
+      "markers": {
+        "mathTeaching": {
+          "count": 3,
+          "lineNumbers": [
+            386,
+            1161,
+            1179
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math/teaching/strategy-selection/approval/b4ApprovalGateway.server.cjs",
+      "kind": "b4-gateway-definition",
+      "markers": {
+        "directSelector": {
+          "count": 7,
+          "lineNumbers": [
+            96,
+            101,
+            102,
+            108,
+            110,
+            114,
+            115
+          ]
+        },
+        "b4Gateway": {
+          "count": 2,
+          "lineNumbers": [
+            101,
+            131
+          ]
+        },
+        "rawReviewedEvidence": {
+          "count": 4,
+          "lineNumbers": [
+            95,
+            103,
+            107,
+            115
+          ]
+        },
+        "reviewPackage": {
+          "count": 4,
+          "lineNumbers": [
+            98,
+            101,
+            110,
+            112
+          ]
+        },
+        "trustConfig": {
+          "count": 4,
+          "lineNumbers": [
+            4,
+            55,
+            87,
+            89
+          ]
+        },
+        "mathTeaching": {
+          "count": 4,
+          "lineNumbers": [
+            47,
+            48,
+            49,
+            82
+          ]
+        },
+        "role": {
+          "count": 3,
+          "lineNumbers": [
+            12,
+            58,
+            68
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math/teaching/strategy-selection/composition.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            73
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math/teaching/strategy-selection/phase4C4Adapter.ts",
+      "kind": "b2-selector-definition",
+      "markers": {
+        "directSelector": {
+          "count": 1,
+          "lineNumbers": [
+            114
+          ]
+        },
+        "rawReviewedEvidence": {
+          "count": 3,
+          "lineNumbers": [
+            41,
+            143,
+            144
+          ]
+        },
+        "mathTeaching": {
+          "count": 11,
+          "lineNumbers": [
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            33,
+            35,
+            115,
+            125
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math/teaching/strategy-selection/qa/diagnosePhase4C4Selection.ts",
+      "kind": "module",
+      "markers": {
+        "mathTeaching": {
+          "count": 1,
+          "lineNumbers": [
+            9
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math/teaching/strategy-selection/qa/runPhase4C4BCohort.ts",
+      "kind": "module",
+      "markers": {
+        "directSelector": {
+          "count": 2,
+          "lineNumbers": [
+            6,
+            81
+          ]
+        },
+        "mathTeaching": {
+          "count": 5,
+          "lineNumbers": [
+            2,
+            3,
+            4,
+            5,
+            79
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math/teaching/strategy-selection/qa/runPhase4C4CB2Evaluation.ts",
+      "kind": "module",
+      "markers": {
+        "directSelector": {
+          "count": 4,
+          "lineNumbers": [
+            6,
+            56,
+            57,
+            60
+          ]
+        },
+        "rawReviewedEvidence": {
+          "count": 2,
+          "lineNumbers": [
+            57,
+            60
+          ]
+        },
+        "mathTeaching": {
+          "count": 5,
+          "lineNumbers": [
+            2,
+            3,
+            4,
+            5,
+            55
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/math/teaching/strategy-selection/reviewedStructureEvidence.ts",
+      "kind": "module",
+      "markers": {
+        "mathTeaching": {
+          "count": 1,
+          "lineNumbers": [
+            6
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/milo-quiz-hall-access.ts",
+      "kind": "client-module",
+      "markers": {
+        "role": {
+          "count": 5,
+          "lineNumbers": [
+            7,
+            23,
+            32,
+            37,
+            38
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/parentalControlsEmail.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/parentalControlsServer.ts",
+      "kind": "module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            63
+          ]
+        },
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/roles.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 7,
+          "lineNumbers": [
+            6,
+            30,
+            36,
+            37,
+            38,
+            39,
+            45
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/science/helpers.ts",
+      "kind": "module",
+      "markers": {
+        "role": {
+          "count": 1,
+          "lineNumbers": [
+            90
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/shopify-access-revocation.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/shopify-webhook.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/supabase-admin.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/supabase/admin.ts",
+      "kind": "module",
+      "markers": {
+        "serverOnly": {
+          "count": 1,
+          "lineNumbers": [
+            1
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "lib/supabase/server.ts",
+      "kind": "module",
+      "markers": {
+        "auth": {
+          "count": 1,
+          "lineNumbers": [
+            16
+          ]
+        }
+      },
+      "attention": []
+    },
+    {
+      "path": "middleware.ts",
+      "kind": "middleware",
+      "markers": {
+        "auth": {
+          "count": 2,
+          "lineNumbers": [
+            16,
+            55
+          ]
+        }
+      },
+      "attention": []
+    }
+  ],
+  "filesToShare": [
+    {
+      "path": "app/api/admin/dream-tokens/users/route.ts",
+      "kind": "api-route",
+      "reason": "authorization helper"
+    },
+    {
+      "path": "app/api/admin/schoolwork-ai/settings/route.ts",
+      "kind": "api-route",
+      "reason": "authorization helper"
+    },
+    {
+      "path": "app/api/nova-plus/schoolwork/health/route.ts",
+      "kind": "api-route",
+      "reason": "authorization helper"
+    },
+    {
+      "path": "app/api/curriculum-developer/math-intelligence/batch/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/curriculum-developer/math-intelligence/generate/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/dream-tokens/credit/route.ts",
+      "kind": "api-route",
+      "reason": "authorization helper"
+    },
+    {
+      "path": "app/api/billing/hitpay/admin/payment-requests/route.ts",
+      "kind": "api-route",
+      "reason": "authorization helper"
+    },
+    {
+      "path": "app/api/nova-plus/schoolwork/analyse/route.ts",
+      "kind": "api-route",
+      "reason": "authorization helper"
+    },
+    {
+      "path": "app/api/nova-plus/schoolwork/commit/route.ts",
+      "kind": "api-route",
+      "reason": "authorization helper"
+    },
+    {
+      "path": "app/api/nova-plus/schoolwork/config/route.ts",
+      "kind": "api-route",
+      "reason": "authorization helper"
+    },
+    {
+      "path": "app/api/nova-plus/schoolwork/history/route.ts",
+      "kind": "api-route",
+      "reason": "authorization helper"
+    },
+    {
+      "path": "app/api/admin/agents/brain-preview/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/execution-qa/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/full-runtime/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/memory/refresh/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/observation-qa/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/observe/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/orchestrator-qa/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/overview/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/pilot-runtime/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/population-preview/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/provision-initial/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/provision/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/report/csv/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/report/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/runtime/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/agents/validate-action/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/builders/[id]/cv/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/builders/[id]/notes/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    },
+    {
+      "path": "app/api/admin/builders/[id]/retry-notification/route.ts",
+      "kind": "api-route",
+      "reason": "potential server entry point"
+    }
+  ],
+  "notes": [
+    "Static references are discovery hints, NOT proof of authorization, safety, or runtime wiring.",
+    "Only file paths, marker names and line numbers were exported; never upload environment files or signing keys.",
+    "B4 approval is disabled by default; do not enable until live route and trust boundary reviewed.",
+    "If no selector callsite appears, identify the existing math teaching API manually rather than invent a route."
+  ]
+}
