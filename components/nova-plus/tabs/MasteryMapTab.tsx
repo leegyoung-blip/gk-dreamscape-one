@@ -438,8 +438,8 @@ function polarPoint(radius: number, degrees: number) {
 function donutSegmentPath(
   startDegrees: number,
   endDegrees: number,
-  outerRadius = 27.6,
-  innerRadius = 16.6,
+  outerRadius = 30.2,
+  innerRadius = 19.0,
 ) {
   const startOuter = polarPoint(outerRadius, endDegrees);
   const endOuter = polarPoint(outerRadius, startDegrees);
@@ -462,7 +462,7 @@ function segmentGeometry(index: number, count: number) {
   const start = -90 + index * width + gap;
   const end = -90 + (index + 1) * width - gap;
   const mid = (start + end) / 2;
-  const labelPoint = polarPoint(22.2, mid);
+  const labelPoint = polarPoint(24.6, mid);
   return { start, end, mid, labelPoint };
 }
 
@@ -478,8 +478,15 @@ function handleSegmentKey(
 
 function nodePosition(index: number, count: number) {
   const angle = -90 + (360 / Math.max(1, count)) * index;
-  const point = polarPoint(43.3, angle);
+  const point = polarPoint(43.8, angle);
   return { angle, point };
+}
+
+function nodeLabelPlacement(point: { x: number; y: number }) {
+  if (point.x >= 58) return "right" as const;
+  if (point.x <= 42) return "left" as const;
+  if (point.y < 50) return "top" as const;
+  return "bottom" as const;
 }
 
 function englishStageExplanation(item: EnglishMasteryItem) {
@@ -533,6 +540,7 @@ export default function MasteryMapTab({
   const [selectedGroupId, setSelectedGroupId] = useState<string>(
     "Reading Comprehension",
   );
+  const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<OrbitNode | null>(null);
   const [orbitPage, setOrbitPage] = useState(0);
 
@@ -540,6 +548,7 @@ export default function MasteryMapTab({
     setSubject("english");
     setLevel(currentEnglishLevel);
     setSelectedGroupId("Reading Comprehension");
+    setHoveredGroupId(null);
     setSelectedNode(null);
     setOrbitPage(0);
   }, [profile.student_user_id, currentEnglishLevel]);
@@ -567,13 +576,19 @@ export default function MasteryMapTab({
           : null;
 
       setSelectedGroupId(preferred?.id ?? groups[0].id);
+      setHoveredGroupId(null);
       setSelectedNode(null);
       setOrbitPage(0);
     }
   }, [groups, selectedGroupId, subject]);
 
+  const previewGroupId =
+    hoveredGroupId && groups.some((group) => group.id === hoveredGroupId)
+      ? hoveredGroupId
+      : selectedGroupId;
+
   const selectedGroup =
-    groups.find((group) => group.id === selectedGroupId) ?? groups[0] ?? null;
+    groups.find((group) => group.id === previewGroupId) ?? groups[0] ?? null;
 
   const allNodes = useMemo(() => {
     if (!selectedGroup) return [];
@@ -622,6 +637,7 @@ export default function MasteryMapTab({
     setSelectedGroupId(
       next === "english" ? "Reading Comprehension" : "",
     );
+    setHoveredGroupId(null);
     setSelectedNode(null);
     setOrbitPage(0);
   }
@@ -671,6 +687,7 @@ export default function MasteryMapTab({
               setSelectedGroupId(
                 subject === "english" ? "Reading Comprehension" : "",
               );
+              setHoveredGroupId(null);
               setSelectedNode(null);
               setOrbitPage(0);
             }}
@@ -726,7 +743,10 @@ export default function MasteryMapTab({
             No mastery-map data is available for this subject and level yet.
           </div>
         ) : (
-          <div className={styles.orbitStage}>
+          <div
+            className={styles.orbitStage}
+            onMouseLeave={() => setHoveredGroupId(null)}
+          >
             <div className={styles.radarGrid} aria-hidden="true">
               <i />
               <i />
@@ -758,14 +778,27 @@ export default function MasteryMapTab({
                     role="button"
                     tabIndex={0}
                     aria-label={`${group.label}. ${group.assessed} of ${group.total} assessed.`}
+                    aria-pressed={group.id === selectedGroupId}
+                    onMouseEnter={() => {
+                      setHoveredGroupId(group.id);
+                      setSelectedNode(null);
+                      setOrbitPage(0);
+                    }}
+                    onFocus={() => {
+                      setHoveredGroupId(group.id);
+                      setSelectedNode(null);
+                      setOrbitPage(0);
+                    }}
                     onClick={() => {
                       setSelectedGroupId(group.id);
+                      setHoveredGroupId(group.id);
                       setSelectedNode(null);
                       setOrbitPage(0);
                     }}
                     onKeyDown={(event) =>
                       handleSegmentKey(event, () => {
                         setSelectedGroupId(group.id);
+                        setHoveredGroupId(group.id);
                         setSelectedNode(null);
                         setOrbitPage(0);
                       })
@@ -775,7 +808,11 @@ export default function MasteryMapTab({
               })}
             </svg>
 
-            <div className={styles.segmentLabels}>
+            <div
+              className={`${styles.segmentLabels} ${
+                groups.length > 6 ? styles.segmentLabelsDense : ""
+              }`}
+            >
               {groups.map((group, index) => {
                 const geometry = segmentGeometry(index, groups.length);
                 const active = group.id === selectedGroup?.id;
@@ -792,8 +829,19 @@ export default function MasteryMapTab({
                       top: `${geometry.labelPoint.y}%`,
                       borderColor: active ? group.accent : undefined,
                     }}
+                    onMouseEnter={() => {
+                      setHoveredGroupId(group.id);
+                      setSelectedNode(null);
+                      setOrbitPage(0);
+                    }}
+                    onFocus={() => {
+                      setHoveredGroupId(group.id);
+                      setSelectedNode(null);
+                      setOrbitPage(0);
+                    }}
                     onClick={() => {
                       setSelectedGroupId(group.id);
+                      setHoveredGroupId(group.id);
                       setSelectedNode(null);
                       setOrbitPage(0);
                     }}
@@ -835,7 +883,7 @@ export default function MasteryMapTab({
             <div className={styles.nodeLayer}>
               {pageNodes.map((node, index) => {
                 const { point } = nodePosition(index, pageNodes.length);
-                const labelSide = point.x >= 50 ? "right" : "left";
+                const labelPlacement = nodeLabelPlacement(point);
                 const nodeStyle = {
                   left: `${point.x}%`,
                   top: `${point.y}%`,
@@ -851,16 +899,26 @@ export default function MasteryMapTab({
                       selectedNode?.id === node.id ? styles.orbitNodeActive : ""
                     }`}
                     style={nodeStyle}
-                    onClick={() => setSelectedNode(node)}
+                    onClick={() => {
+                      if (selectedGroup) {
+                        setSelectedGroupId(selectedGroup.id);
+                        setHoveredGroupId(selectedGroup.id);
+                      }
+                      setSelectedNode(node);
+                    }}
                     aria-label={`${node.label}. ${node.statusLabel}`}
                     title={`${node.label} — ${node.statusLabel}`}
                   >
                     <span className={styles.nodeDot} />
                     <span
                       className={
-                        labelSide === "right"
+                        labelPlacement === "right"
                           ? styles.nodeLabelRight
-                          : styles.nodeLabelLeft
+                          : labelPlacement === "left"
+                            ? styles.nodeLabelLeft
+                            : labelPlacement === "top"
+                              ? styles.nodeLabelTop
+                              : styles.nodeLabelBottom
                       }
                     >
                       {clampLabel(node.label)}
