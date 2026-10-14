@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "4C-4D-5A.METADATA-AUDIT.1",
+  "source": "uploaded Supabase metadata CSV exports; not a source-code or authorization audit",
+  "summary": {
+    "expectedRoutines": 3,
+    "foundExpectedRoutines": 3,
+    "securityDefinerRoutines": 3,
+    "expectedTables": 5,
+    "foundExpectedTables": 5,
+    "rlsEnabledTables": 5,
+    "unexpectedRows": 0,
+    "metadataShapeMatchesBaseline": true,
+    "functionBodyReviewed": false,
+    "policyExpressionsReviewed": false,
+    "liveIntegrationAuthorized": false,
+    "routeDeploymentAllowed": false
+  },
+  "issues": [],
+  "functions": [
+    {
+      "name": "get_math_quiz_payload",
+      "present": true,
+      "identityArguments": "p_quiz_id uuid",
+      "returnType": "jsonb",
+      "securityDefiner": true,
+      "anonCanExecute": false,
+      "authenticatedCanExecute": true,
+      "serviceRoleCanExecute": true,
+      "searchPathSet": true
+    },
+    {
+      "name": "save_math_quiz_answer",
+      "present": true,
+      "identityArguments": "p_attempt_id uuid, p_question_id uuid, p_response_data jsonb, p_time_spent_seconds integer",
+      "returnType": "jsonb",
+      "securityDefiner": true,
+      "anonCanExecute": false,
+      "authenticatedCanExecute": true,
+      "serviceRoleCanExecute": true,
+      "searchPathSet": true
+    },
+    {
+      "name": "submit_math_quiz_attempt",
+      "present": true,
+      "identityArguments": "p_attempt_id uuid, p_answers jsonb, p_duration_seconds integer",
+      "returnType": "jsonb",
+      "securityDefiner": true,
+      "anonCanExecute": false,
+      "authenticatedCanExecute": true,
+      "serviceRoleCanExecute": true,
+      "searchPathSet": true
+    }
+  ],
+  "tables": [
+    {
+      "name": "math_attempt_answers",
+      "present": true,
+      "relationKind": "r",
+      "rlsEnabled": true,
+      "rlsForced": false
+    },
+    {
+      "name": "math_quiz_attempts",
+      "present": true,
+      "relationKind": "r",
+      "rlsEnabled": true,
+      "rlsForced": false
+    },
+    {
+      "name": "math_quiz_questions",
+      "present": true,
+      "relationKind": "r",
+      "rlsEnabled": true,
+      "rlsForced": false
+    },
+    {
+      "name": "math_quiz_reward_claims",
+      "present": true,
+      "relationKind": "r",
+      "rlsEnabled": true,
+      "rlsForced": false
+    },
+    {
+      "name": "math_quizzes",
+      "present": true,
+      "relationKind": "r",
+      "rlsEnabled": true,
+      "rlsForced": false
+    }
+  ],
+  "requiredNextChecks": [
+    "Inspect each exact function definition for auth.uid() and explicit attempt/quiz/question owner binding.",
+    "Inspect get_math_quiz_payload JSON projection for early answer/teaching content exposure.",
+    "Inspect actual pg_policies predicates, role grants, table owners and owner RLS bypass.",
+    "Confirm per-question feedback release is persisted in trusted server data.",
+    "Build trusted resolver only after these checks; retain B4 mode disabled."
+  ]
+}

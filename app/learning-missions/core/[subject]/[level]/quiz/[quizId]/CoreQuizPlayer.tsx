@@ -1878,6 +1878,310 @@ function CoreQuizResponsiveStyles() {
   );
 }
 
+function isGroupedWordBankResultPayload(payload: QuizPayload) {
+  if (payload.quiz.subject !== "english" || payload.questions.length === 0) {
+    return false;
+  }
+
+  const firstPassage = String(
+    payload.questions[0]?.content?.cloze_passage ?? "",
+  );
+
+  if (!firstPassage.trim()) return false;
+
+  return payload.questions.every((question) => {
+    const content = question.content ?? {};
+    return (
+      question.question_type === "word_bank" &&
+      content.layout === "drag_drop_grouped" &&
+      String(content.cloze_passage ?? "") === firstPassage &&
+      String(content.blank_id ?? "").trim().length > 0
+    );
+  });
+}
+
+function groupedClozeResponseValue(value: unknown, blankId: string) {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return "";
+  }
+
+  const record = value as Record<string, unknown>;
+  const values = record.values;
+
+  if (values && typeof values === "object" && !Array.isArray(values)) {
+    const nested = (values as Record<string, unknown>)[blankId];
+    if (nested != null) return String(nested);
+  }
+
+  for (const key of ["display_answer", "text", "answer", "value"]) {
+    if (record[key] != null) return String(record[key]);
+  }
+
+  return "";
+}
+
+function GroupedClozeResultsReview({
+  payload,
+  result,
+  isMobile,
+}: {
+  payload: QuizPayload;
+  result: SubmitResult;
+  isMobile: boolean;
+}) {
+  const orderedQuestions = [...payload.questions].sort(
+    (a, b) => a.question_order - b.question_order,
+  );
+
+  const firstQuestion = orderedQuestions[0];
+  const passage = String(
+    firstQuestion?.content?.cloze_passage ?? firstQuestion?.prompt ?? "",
+  );
+
+  const resultByQuestionId = new Map(
+    result.question_results.map((item) => [item.question_id, item]),
+  );
+
+  const questionByBlankId = new Map(
+    orderedQuestions
+      .map((question) => [
+        String(question.content?.blank_id ?? "").trim(),
+        question,
+      ] as const)
+      .filter(([blankId]) => blankId.length > 0),
+  );
+
+  const reviewItems = orderedQuestions
+    .map((question) => {
+      const blankId = String(question.content?.blank_id ?? "").trim();
+      const item = resultByQuestionId.get(question.id);
+
+      if (!blankId || !item) return null;
+
+      const correctAnswer = groupedClozeResponseValue(
+        item.correct_response,
+        blankId,
+      );
+      const learnerAnswer = groupedClozeResponseValue(
+        item.response_data,
+        blankId,
+      );
+
+      return {
+        blankId,
+        question,
+        item,
+        correctAnswer,
+        learnerAnswer,
+      };
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        blankId: string;
+        question: QuizPayload["questions"][number];
+        item: SubmitResult["question_results"][number];
+        correctAnswer: string;
+        learnerAnswer: string;
+      } => Boolean(item),
+    );
+
+  const reviewByBlankId = new Map(
+    reviewItems.map((item) => [item.blankId, item]),
+  );
+
+  const passageParts = passage.split(/(\{\{[^}]+\}\})/g);
+  const needsAttention = reviewItems.filter(
+    ({ item }) => item.pending_manual_review || item.is_correct === false,
+  );
+
+  return (
+    <div style={scienceReviewPanel(isMobile)}>
+      <p style={scienceQuestionEyebrow}>Answer review</p>
+      <h2 style={scienceReviewTitle}>Completed passage</h2>
+      <p style={{ ...mutedText, margin: "8px 0 0" }}>
+        The passage is shown once with the correct answer in every blank.
+        Corrections are highlighted where your answer needs attention.
+      </p>
+
+      <div
+        style={{
+          marginTop: "18px",
+          borderRadius: "22px",
+          border: "1px solid rgba(125,211,252,0.18)",
+          background: "rgba(2,10,24,0.48)",
+          padding: isMobile ? "16px" : "22px",
+          fontSize: isMobile ? "15px" : "16px",
+          lineHeight: 1.9,
+          color: "rgba(255,255,255,0.88)",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {passageParts.map((part, index) => {
+          const marker = part.match(/^\{\{([^}]+)\}\}$/);
+          if (!marker) return <span key={`text-${index}`}>{part}</span>;
+
+          const blankId = marker[1].trim();
+          const review = reviewByBlankId.get(blankId);
+
+          if (!review) {
+            return (
+              <span
+                key={`missing-${blankId}-${index}`}
+                style={{
+                  display: "inline-block",
+                  margin: "2px 4px",
+                  padding: "2px 8px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(251,191,36,0.45)",
+                  background: "rgba(251,191,36,0.10)",
+                  color: "#fde68a",
+                  fontWeight: 900,
+                }}
+              >
+                Blank {blankId}
+              </span>
+            );
+          }
+
+          const wrong = review.item.is_correct === false;
+          const pending = review.item.pending_manual_review;
+          const answer = review.correctAnswer || "Correct answer";
+
+          return (
+            <span
+              key={`blank-${blankId}-${index}`}
+              style={{
+                display: "inline-flex",
+                verticalAlign: "middle",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "2px",
+                margin: "3px 4px",
+                padding: wrong || pending ? "4px 9px" : "2px 8px",
+                borderRadius: "10px",
+                border: pending
+                  ? "1px solid rgba(251,191,36,0.55)"
+                  : wrong
+                    ? "1px solid rgba(248,113,113,0.62)"
+                    : "1px solid rgba(52,211,153,0.45)",
+                background: pending
+                  ? "rgba(251,191,36,0.11)"
+                  : wrong
+                    ? "rgba(248,113,113,0.12)"
+                    : "rgba(52,211,153,0.10)",
+                color: pending ? "#fde68a" : wrong ? "#fecaca" : "#a7f3d0",
+                fontWeight: 900,
+                lineHeight: 1.25,
+              }}
+            >
+              <span>{answer}</span>
+              {wrong && review.learnerAnswer && (
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 800,
+                    color: "#fca5a5",
+                    textDecoration: "line-through",
+                    opacity: 0.95,
+                  }}
+                >
+                  Your answer: {review.learnerAnswer}
+                </span>
+              )}
+              {pending && (
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 800,
+                    color: "#fde68a",
+                  }}
+                >
+                  Pending review
+                </span>
+              )}
+            </span>
+          );
+        })}
+      </div>
+
+      {needsAttention.length > 0 ? (
+        <div style={{ marginTop: "18px", display: "grid", gap: "10px" }}>
+          <p
+            style={{
+              ...scienceQuestionEyebrow,
+              margin: "0 0 2px",
+            }}
+          >
+            Corrections to review
+          </p>
+
+          {needsAttention.map(
+            ({ blankId, item, learnerAnswer, correctAnswer }) => (
+              <div
+                key={`correction-${item.question_id}`}
+                style={{
+                  borderRadius: "16px",
+                  border: item.pending_manual_review
+                    ? "1px solid rgba(251,191,36,0.30)"
+                    : "1px solid rgba(248,113,113,0.28)",
+                  background: item.pending_manual_review
+                    ? "rgba(251,191,36,0.07)"
+                    : "rgba(248,113,113,0.065)",
+                  padding: "14px 16px",
+                }}
+              >
+                <p style={{ margin: 0, fontWeight: 900 }}>
+                  Blank {blankId}
+                  {item.pending_manual_review ? " · Pending review" : " · Review"}
+                </p>
+
+                {learnerAnswer && (
+                  <p style={{ ...reviewLine, marginTop: "8px" }}>
+                    <strong>Your answer:</strong> {learnerAnswer}
+                  </p>
+                )}
+
+                {!item.pending_manual_review && correctAnswer && (
+                  <p style={{ ...reviewLine, marginTop: "5px" }}>
+                    <strong>Correct answer:</strong> {correctAnswer}
+                  </p>
+                )}
+
+                {item.explanation && (
+                  <p style={{ ...reviewLine, marginTop: "5px" }}>
+                    <strong>Why:</strong>{" "}
+                    <FractionText text={item.explanation} />
+                  </p>
+                )}
+              </div>
+            ),
+          )}
+        </div>
+      ) : (
+        <div
+          style={{
+            marginTop: "18px",
+            borderRadius: "16px",
+            border: "1px solid rgba(52,211,153,0.26)",
+            background: "rgba(52,211,153,0.07)",
+            padding: "13px 15px",
+            color: "#a7f3d0",
+            fontWeight: 800,
+          }}
+        >
+          All Cloze blanks were correct. Nice work.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ResultsScreen({
   isMobile,
   payload,
@@ -1897,6 +2201,8 @@ function ResultsScreen({
   onReplay: () => void;
   onRover: () => void;
 }) {
+  const groupedClozeReview = isGroupedWordBankResultPayload(payload);
+
   return (
     <main style={scienceQuizPage}>
       <header style={scienceQuizHeader(isMobile)}>
@@ -1971,7 +2277,14 @@ function ResultsScreen({
           </article>
 
           {payload.quiz.feedback_mode !== "none" &&
-            result.question_results.length > 0 && (
+            result.question_results.length > 0 &&
+            (groupedClozeReview ? (
+              <GroupedClozeResultsReview
+                payload={payload}
+                result={result}
+                isMobile={isMobile}
+              />
+            ) : (
               <div style={scienceReviewPanel(isMobile)}>
                 <p style={scienceQuestionEyebrow}>Answer review</p>
                 <h2 style={scienceReviewTitle}>Review every question</h2>
@@ -2007,7 +2320,9 @@ function ResultsScreen({
                           </span>
                           <span style={{ flex: 1, textAlign: "left" }}>
                             <strong>Question {item.question_order}</strong>
-                            <span style={reviewPrompt}><FractionText text={item.prompt} /></span>
+                            <span style={reviewPrompt}>
+                              <FractionText text={item.prompt} />
+                            </span>
                           </span>
                           <span>{expanded ? "−" : "+"}</span>
                         </button>
@@ -2016,18 +2331,27 @@ function ResultsScreen({
                           <div style={reviewDetails}>
                             <p style={reviewLine}>
                               <strong>Your response:</strong>{" "}
-                              <FractionText text={friendlyCorrectResponse(item.response_data)} />
+                              <FractionText
+                                text={friendlyCorrectResponse(
+                                  item.response_data,
+                                )}
+                              />
                             </p>
                             {!item.pending_manual_review &&
                               item.correct_response && (
                                 <p style={reviewLine}>
                                   <strong>Correct response:</strong>{" "}
-                                  <FractionText text={friendlyCorrectResponse(item.correct_response)} />
+                                  <FractionText
+                                    text={friendlyCorrectResponse(
+                                      item.correct_response,
+                                    )}
+                                  />
                                 </p>
                               )}
                             {item.explanation && (
                               <p style={reviewLine}>
-                                <strong>Explanation:</strong> <FractionText text={item.explanation} />
+                                <strong>Explanation:</strong>{" "}
+                                <FractionText text={item.explanation} />
                               </p>
                             )}
                             <p style={reviewLine}>
@@ -2044,7 +2368,7 @@ function ResultsScreen({
                   })}
                 </div>
               </div>
-            )}
+            ))}
         </div>
       </section>
     </main>
