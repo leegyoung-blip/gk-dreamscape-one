@@ -1,0 +1,35 @@
+{
+  "schema_version": "4C-4D-5B-3.FINDINGS.1",
+  "reviewed_exports": {
+    "result_helpers_rows": 4,
+    "published_questions": 2349,
+    "content_teaching_count": 0,
+    "content_solution_key_count": 0
+  },
+  "finding": {
+    "immediate_new_manual_save": "explanation returned even if pending_manual_review=true",
+    "immediate_locked_manual_resave": "re-marks and may return answer even while saved verdict is NULL",
+    "immediate_resume_manual": "explanation returned even if answer.is_correct NULL",
+    "post_submission_result_builder": "suppresses explanation and correct response when answer.is_correct NULL"
+  },
+  "risk": "Potential premature teaching/answer disclosure for manual marking; no exploit attempt was performed.",
+  "mode": "MANUAL_REVIEW_ONLY",
+  "snapshot_checks": {
+    "surgical_patch_snapshots_matched": true,
+    "payload_pending_manual_explanation_suppressed": true,
+    "locked_resave_reads_stored_mark_not_unguarded_remark": true,
+    "first_save_manual_explanation_suppressed": true,
+    "original_save_marking_logic_retained": true,
+    "original_payload_quiz_loading_retained": true,
+    "original_save_requires_auth": true,
+    "no_result_builder_change": true,
+    "still_requires_live_integration_review": true
+  },
+  "does_not_address": [
+    "contents of audit_facts or asset metadata",
+    "browser-present authored solutions",
+    "runtime role/quiz behavior",
+    "student resolver deployment",
+    "B4 activation"
+  ]
+}

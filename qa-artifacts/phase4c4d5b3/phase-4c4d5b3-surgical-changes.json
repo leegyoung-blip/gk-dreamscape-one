@@ -1,0 +1,24 @@
+{
+  "schema_version": "4C-4D-5B-3.SURGICAL.1",
+  "changes": [
+    {
+      "label": "payload",
+      "old": "when v_quiz.feedback_mode = 'immediate'\n              then question.explanation ->> 'student'",
+      "new": "when v_quiz.feedback_mode = 'immediate'\n               and answer.is_correct is not null\n              then question.explanation ->> 'student'"
+    },
+    {
+      "label": "duplicate",
+      "old": "    v_mark := public.core_mark_response(\n      v_question.question_type,\n      v_question.answer_data,\n      v_existing.response_data,\n      v_maximum_marks\n    );\n\n    return jsonb_build_object(\n      'saved', true,\n      'locked', true,\n      'pending_manual_review', (v_mark -> 'is_correct') = 'null'::jsonb,\n      'is_correct', v_mark -> 'is_correct',\n      'marks_awarded', v_mark -> 'marks_awarded',\n      'maximum_marks', v_maximum_marks,\n      'explanation', v_question.explanation ->> 'student',\n      'correct_response', v_mark -> 'correct_response'\n    );",
+      "new": "    return jsonb_build_object(\n      'saved', true,\n      'locked', true,\n      'pending_manual_review', v_existing.is_correct is null,\n      'is_correct', v_existing.is_correct,\n      'marks_awarded', v_existing.marks_awarded,\n      'maximum_marks', v_maximum_marks,\n      'explanation',\n        case\n          when v_existing.is_correct is null then null\n          else v_question.explanation ->> 'student'\n        end,\n      'correct_response',\n        case\n          when v_existing.is_correct is null then null\n          when v_question.requires_manual_marking\n            then v_question.answer_data -> 'display_answer'\n          else coalesce(v_question.answer_data -> 'display_answer', v_question.answer_data)\n        end\n    );"
+    },
+    {
+      "label": "first",
+      "old": "v_explanation := v_question.explanation ->> 'student';",
+      "new": "v_explanation := case\n      when v_is_manual then null\n      else v_question.explanation ->> 'student'\n    end;"
+    }
+  ],
+  "source_function_signatures": [
+    "public.get_math_quiz_payload_unlocked(uuid)",
+    "public.save_math_quiz_answer_unlocked(uuid,uuid,jsonb,integer)"
+  ]
+}

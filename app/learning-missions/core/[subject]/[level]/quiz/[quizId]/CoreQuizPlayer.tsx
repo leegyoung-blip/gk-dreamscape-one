@@ -662,18 +662,12 @@ export default function CoreQuizPlayer({
       return false;
     }
 
-    const firstPassage = String(
-      payload.questions[0]?.content?.comprehension_passage ?? "",
-    ).trim();
-
-    if (!firstPassage) return false;
-
     return payload.questions.every((question) => {
       const content = question.content ?? {};
       return (
         question.question_type === "multiple_choice" &&
         content.layout === "split_comprehension" &&
-        String(content.comprehension_passage ?? "").trim() === firstPassage &&
+        String(content.comprehension_passage ?? "").trim().length > 0 &&
         Array.isArray(content.options) &&
         content.options.length >= 2
       );
