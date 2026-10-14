@@ -652,9 +652,7 @@ export default function PricingPage() {
             <strong style={{ color: "#8ee8ff" }}>
               Public Preview:
             </strong>{" "}
-            Pricing is visible now. Authorised staff can test
-            Stripe checkout while public subscriptions remain
-            controlled by the Dreamscape checkout switch.
+            Our membership options are being prepared for enrollment. Explore the plans below and check back for availability.
           </div>
         )}
         <div
@@ -1511,7 +1509,7 @@ export default function PricingPage() {
                 lineHeight: 1.08,
               }}
             >
-              Subscriptions are still in preview
+              Subscriptions are not open yet
             </h2>
             <p
               style={{
@@ -1527,9 +1525,7 @@ export default function PricingPage() {
                 lineHeight: 1.7,
               }}
             >
-              Pricing is visible now, while public checkout remains
-              controlled during preview. Authorised staff accounts
-              can continue testing the Stripe subscription flow.
+              Thanks for your interest! Subscription enrollment is not available just yet. Please check back soon.
             </p>
             <button
               type="button"

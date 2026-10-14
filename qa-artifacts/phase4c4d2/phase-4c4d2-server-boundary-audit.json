@@ -1,0 +1,236 @@
+{
+  "schemaVersion": "4C-4D-2.SOURCE-BOUNDARY-AUDIT.1",
+  "scan": {
+    "rootLabel": "phase4d2work",
+    "sourceReadOnly": true,
+    "containsSourceExcerpts": false,
+    "requiredFiles": 6,
+    "readableFiles": 6,
+    "missingFiles": []
+  },
+  "summary": {
+    "authoringRoutesIdentified": true,
+    "bothAuthoringRoutesCallAccessHelper": true,
+    "authoringAuthPrecedesGeneration": true,
+    "authHelperChecksBearerUserAndRole": true,
+    "learnerUsesDirectSupabaseRpc": true,
+    "b2B4SelectorReferencesInSixFiles": 0,
+    "studentTeachingServiceIdentified": false,
+    "liveAuthorizationVerified": false,
+    "readyToPatchStudentRoute": false,
+    "gatewayModeRequired": "disabled"
+  },
+  "files": [
+    {
+      "kind": "generateRoute",
+      "path": "app/api/curriculum-developer/math-intelligence/generate/route.ts",
+      "exists": true,
+      "sourceSha256": "d4ef073f1ae4fea1e50330c2e57c1ac4e2fce25f6eae6535d153f0957c279454",
+      "markers": {
+        "routePost": {
+          "found": true,
+          "line": 98
+        },
+        "serverAuth": {
+          "found": true,
+          "line": 100
+        },
+        "authoringCall": {
+          "found": true,
+          "line": 150
+        },
+        "noStore": {
+          "found": true,
+          "line": 31
+        }
+      }
+    },
+    {
+      "kind": "batchRoute",
+      "path": "app/api/curriculum-developer/math-intelligence/batch/route.ts",
+      "exists": true,
+      "sourceSha256": "24f8e6285140c1e32324b07a490083a23c9176bc06fb42dfaa21bc35d7dd7c1c",
+      "markers": {
+        "routePost": {
+          "found": true,
+          "line": 52
+        },
+        "serverAuth": {
+          "found": true,
+          "line": 54
+        },
+        "authoringCall": {
+          "found": true,
+          "line": 96
+        },
+        "noStore": {
+          "found": true,
+          "line": 30
+        }
+      }
+    },
+    {
+      "kind": "curriculumAuth",
+      "path": "lib/curriculum-developer/server/CurriculumDeveloperApiAuth.ts",
+      "exists": true,
+      "sourceSha256": "a4bbcc16e20b843e83c644122cb41f7d340810a23fbf88db2c47566991da2de6",
+      "markers": {
+        "serverOnly": {
+          "found": true,
+          "line": 1
+        },
+        "bearerHeader": {
+          "found": true,
+          "line": 42
+        },
+        "verifyUser": {
+          "found": true,
+          "line": 95
+        },
+        "profileRoleLookup": {
+          "found": true,
+          "line": 106
+        },
+        "authoringRoles": {
+          "found": true,
+          "line": 120
+        }
+      }
+    },
+    {
+      "kind": "authoringPipeline",
+      "path": "lib/math-intelligence/MathIntelligencePipeline.ts",
+      "exists": true,
+      "sourceSha256": "194b58b7cc80719da72a90469745424bbfcc6e3f2af75f0dbc49a28f90e2e216",
+      "markers": {
+        "serverOnly": {
+          "found": true,
+          "line": 1
+        },
+        "authoringOrchestration": {
+          "found": true,
+          "line": 307
+        },
+        "analysisRules": {
+          "found": true,
+          "line": 158
+        }
+      }
+    },
+    {
+      "kind": "visualTeachingPipeline",
+      "path": "lib/math-intelligence/MathTeachingVisualPipeline.ts",
+      "exists": true,
+      "sourceSha256": "92a55b4a9f0ab32e0c32890d4c80d6ef78036a92416ea6c0af0865bbe57be9b5",
+      "markers": {
+        "visualTeaching": {
+          "found": true,
+          "line": 122
+        },
+        "validation": {
+          "found": true,
+          "line": 140
+        }
+      }
+    },
+    {
+      "kind": "learnerPlayer",
+      "path": "app/learning-missions/core/[subject]/[level]/quiz/[quizId]/CoreQuizPlayer.tsx",
+      "exists": true,
+      "sourceSha256": "7e3f36fca8a2b13644b431c3de43b80293a013c1708ca47a44d80d9087754a21",
+      "markers": {
+        "clientComponent": {
+          "found": true,
+          "line": 1
+        },
+        "supabaseRpc": {
+          "found": true,
+          "line": 277
+        },
+        "mathPayloadRpc": {
+          "found": true,
+          "line": 43
+        },
+        "mathSaveRpc": {
+          "found": true,
+          "line": 44
+        },
+        "mathSubmitRpc": {
+          "found": true,
+          "line": 45
+        },
+        "feedbackTiming": {
+          "found": true,
+          "line": 747
+        },
+        "resultStage": {
+          "found": true,
+          "line": 892
+        }
+      }
+    }
+  ],
+  "selectorReferences": [],
+  "rpcMarkers": [
+    {
+      "name": "get_math_quiz_payload",
+      "found": true,
+      "line": 43
+    },
+    {
+      "name": "save_math_quiz_answer",
+      "found": true,
+      "line": 44
+    },
+    {
+      "name": "submit_math_quiz_attempt",
+      "found": true,
+      "line": 45
+    }
+  ],
+  "followupSourceFiles": [
+    {
+      "path": "hooks/useCoreMissionAccess.ts",
+      "presentInLocalRepository": false
+    },
+    {
+      "path": "app/learning-missions/core/[subject]/[level]/quiz/[quizId]/CoreQuizTypes.ts",
+      "presentInLocalRepository": false
+    },
+    {
+      "path": "app/learning-missions/core/[subject]/[level]/quiz/[quizId]/CoreQuizUtils.ts",
+      "presentInLocalRepository": false
+    },
+    {
+      "path": "app/learning-missions/core/[subject]/[level]/quiz/[quizId]/presentation/CoreMissionStage.tsx",
+      "presentInLocalRepository": false
+    },
+    {
+      "path": "lib/supabase/server.ts",
+      "presentInLocalRepository": false
+    },
+    {
+      "path": "lib/math-intelligence/teaching/contract/buildTeachingContract.ts",
+      "presentInLocalRepository": false
+    },
+    {
+      "path": "lib/math-intelligence/teaching/contract/consumer/boundary.ts",
+      "presentInLocalRepository": false
+    }
+  ],
+  "blockingUnknowns": [
+    "Server-side student/attempt entitlement and ownership contract not examined",
+    "Supabase get/save/submit RPC definitions, RLS and solution-release rules not examined",
+    "Actual client result/feedback presentation contracts not examined",
+    "4A contract construction from a trusted persisted question not yet wired",
+    "No authenticated image-content verification or signed teaching approvals",
+    "A genuinely unseen question cohort is still required before activating reviewed evidence"
+  ],
+  "recommendations": [
+    "Leave authoring generate/batch endpoints unchanged; neither is the learner teaching route",
+    "Do not infer student authorization from useCoreMissionAccess browser state",
+    "Do not expose answer keys or explanations before the currently configured feedback-release event",
+    "Build a separate server-owned student teaching handler only after reviewing ownership, RLS and feedback contracts",
+    "Keep B4 approval in disabled mode; never accept review data, trusted keys or rollout mode from client payloads"
+  ]
+}

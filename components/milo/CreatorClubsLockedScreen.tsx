@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 export default function CreatorClubsLockedScreen({
-  detail = "Creator Clubs are currently in admin preview while the new creator system is being prepared.",
+  detail = "Creator Clubs are not available just yet. More creative adventures are on the way!",
 }: {
   detail?: string;
 }) {
@@ -35,8 +35,7 @@ export default function CreatorClubsLockedScreen({
           </p>
 
           <p className="mt-3 text-xs leading-5 text-white/34">
-            Dreamscape administrators can still enter for testing. Public
-            access can be opened from the admin control inside Quiz Hall.
+            Stay tuned for updates as new Creator Clubs activities become available.
           </p>
 
           <Link

@@ -337,7 +337,7 @@ export default function CartPage() {
       .join(", ");
 
     setCheckoutError(
-      `Some products are not connected to Shopify yet: ${itemNames}. Add their Shopify variant IDs first.`
+      `We cannot complete checkout for these items right now: ${itemNames}. Please try again later or contact support.`
     );
 
     return;
@@ -345,7 +345,7 @@ export default function CartPage() {
 
   if (validCartItems.length === 0) {
     setCheckoutError(
-      "No valid Shopify products were found in this cart. Check your Shopify variant IDs."
+      "We could not prepare checkout for your cart. Please try again later or contact support."
     );
     return;
   }
@@ -458,8 +458,8 @@ export default function CartPage() {
                           }`}
                         >
                           {isConnectedToShopify
-                            ? "Shopify Connected"
-                            : "Needs Variant ID"}
+                            ? "Ready for checkout"
+                            : "Currently unavailable"}
                         </div>
                       </div>
 
@@ -528,8 +528,8 @@ export default function CartPage() {
               </div>
 
               <p className="mt-4 text-sm leading-6 text-white/58">
-                Final checkout, shipping, discounts and payment will be handled
-                on GuruKidsPro Shopify.
+                Shipping, discounts and payment details will be confirmed
+                at secure checkout.
               </p>
             </section>
 
