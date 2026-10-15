@@ -617,6 +617,9 @@ function getMathResponseKind(question: QuizQuestion): MathResponseKind {
 
     case "open_cloze":
     case "fraction":
+    case "numeric":
+    case "numeric_unit":
+    case "money":
       return "text";
 
     default:

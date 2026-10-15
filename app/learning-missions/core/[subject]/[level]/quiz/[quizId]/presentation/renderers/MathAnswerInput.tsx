@@ -152,10 +152,15 @@ function getAnswerInputConfig(question: QuizQuestion): AnswerInputConfig {
     content.input_mode,
   ).toLowerCase();
 
+  const defaultMode: AnswerInputMode =
+    question.question_type === "numeric" || question.question_type === "money"
+      ? "decimal"
+      : "text";
+
   const inputMode: AnswerInputMode =
     requestedMode === "numeric" || requestedMode === "decimal"
       ? requestedMode
-      : "text";
+      : defaultMode;
 
   return {
     label,

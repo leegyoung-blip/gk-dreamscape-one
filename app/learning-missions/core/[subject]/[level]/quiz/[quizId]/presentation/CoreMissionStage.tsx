@@ -83,7 +83,14 @@ export default function CoreMissionStage({
     );
   }
 
-  if (presentationMode === "math_standard") {
+  if (
+    presentationMode === "math_standard" ||
+    (subject === "math" &&
+      (question.question_type === "fraction" ||
+        question.question_type === "numeric" ||
+        question.question_type === "numeric_unit" ||
+        question.question_type === "money"))
+  ) {
     return (
       <>
         <MathQuestionRenderer
