@@ -47,6 +47,7 @@ export function responseIsComplete(
       return Boolean(response.option_id);
     case "multiple_select":
       return Array.isArray(response.option_ids) && response.option_ids.length > 0;
+    case "fraction":
     case "short_text":
     case "open_cloze":
     case "editing":
@@ -229,6 +230,7 @@ export function formatCoreQuestionType(type: QuestionType) {
     multiple_select: "Multiple Select",
     true_false: "True or False",
     short_text: "Short Answer",
+    fraction: "Fraction",
     long_text: "Extended Response",
     sentence_reordering: "Put in Order",
     matching: "Matching",

@@ -13,6 +13,7 @@ export type QuestionType =
   | "multiple_select"
   | "true_false"
   | "short_text"
+  | "fraction"
   | "long_text"
   | "sentence_reordering"
   | "matching"

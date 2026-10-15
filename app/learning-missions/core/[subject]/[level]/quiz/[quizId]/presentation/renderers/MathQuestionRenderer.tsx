@@ -303,7 +303,7 @@ export default function MathQuestionRenderer({
 
       <MathAnswerInput
 
-        question={question}
+        question={question.question_type === "fraction" ? { ...question, question_type: "short_text" } : question}
 
         response={response}
 
@@ -616,7 +616,7 @@ function getMathResponseKind(question: QuizQuestion): MathResponseKind {
     case "short_text":
 
     case "open_cloze":
-
+    case "fraction":
       return "text";
 
     default:
