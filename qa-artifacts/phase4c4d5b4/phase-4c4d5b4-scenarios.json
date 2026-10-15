@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "4C-4D-5B-4.SMOKE.1",
+  "basedOn": "Phase 4D-5B-3 postflight; browser quiz source 2026-10",
+  "runtimeVerified": false,
+  "cases": [
+    {
+      "id": "IM-01",
+      "scenario": "Immediate: before a response is saved",
+      "expected": "no answer/correctness/explanation appears before permitted save",
+      "requiredChannel": "ui+network"
+    },
+    {
+      "id": "IM-02",
+      "scenario": "Immediate: automatic first save",
+      "expected": "ordinary auto-marked feedback, locked answer and display working still behave as before",
+      "requiredChannel": "ui+network"
+    },
+    {
+      "id": "IM-03",
+      "scenario": "Immediate: manual pending first save",
+      "expected": "pending_manual_review=true; no correct_response, explanation or adjudicated score in returned save feedback",
+      "requiredChannel": "network"
+    },
+    {
+      "id": "IM-04",
+      "scenario": "Immediate: manual pending locked resave",
+      "expected": "locked resave stays pending and returns no correct_response, explanation or scored/correctness outcome",
+      "requiredChannel": "network"
+    },
+    {
+      "id": "IM-05",
+      "scenario": "Immediate: manual pending resume",
+      "expected": "reload/resume payload saved_answers still shows pending, withholds correct_response and explanation",
+      "requiredChannel": "network"
+    },
+    {
+      "id": "IM-06",
+      "scenario": "Immediate: manual pending submitted result",
+      "expected": "after quiz submission the pending item has no correct_response or explanation; no final rewards prematurely",
+      "requiredChannel": "ui+network"
+    },
+    {
+      "id": "END-01",
+      "scenario": "End-of-quiz: before submission",
+      "expected": "no explanation/correct answer while completing quiz",
+      "requiredChannel": "ui+network"
+    },
+    {
+      "id": "END-02",
+      "scenario": "End-of-quiz: completed result",
+      "expected": "authorized submitted result returns normal answer review; no premature review",
+      "requiredChannel": "ui+network"
+    },
+    {
+      "id": "NONE-01",
+      "scenario": "Feedback mode none",
+      "expected": "no answer-revealing feedback during quiz or results",
+      "requiredChannel": "ui+network"
+    },
+    {
+      "id": "AUTH-01",
+      "scenario": "Ownership isolation",
+      "expected": "test user B cannot modify test user A attempt; request fails server-side",
+      "requiredChannel": "network"
+    },
+    {
+      "id": "AUTH-02",
+      "scenario": "Question membership isolation",
+      "expected": "attempt A cannot save answer for question from an unrelated test quiz",
+      "requiredChannel": "network"
+    },
+    {
+      "id": "REWARD-01",
+      "scenario": "Rewards and replay",
+      "expected": "first eligible completion rewards unchanged; replay does not duplicate rewards",
+      "requiredChannel": "ui+network"
+    },
+    {
+      "id": "CONTENT-01",
+      "scenario": "Raw quiz payload content",
+      "expected": "network payload content inspected for embedded answers, teaching solutions or spoiler fields; no premature disclosure",
+      "requiredChannel": "network"
+    },
+    {
+      "id": "QUIZ-01",
+      "scenario": "Automatic marking and submit",
+      "expected": "regular quiz saves, submits, scores, and produces correct result UI without regression",
+      "requiredChannel": "ui+network"
+    }
+  ]
+}

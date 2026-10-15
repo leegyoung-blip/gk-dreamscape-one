@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "4C-4D-5B-4.RESULTS.1",
+  "environment": "staging-or-disposable-test",
+  "notes": "No account identifiers, tokens, question text, or answer keys. Use only anonymized observations.",
+  "cases": [
+    {
+      "id": "IM-01",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "IM-02",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "IM-03",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "IM-04",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "IM-05",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "IM-06",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "END-01",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "END-02",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "NONE-01",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "AUTH-01",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "AUTH-02",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "REWARD-01",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "CONTENT-01",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    },
+    {
+      "id": "QUIZ-01",
+      "status": "NOT_RUN",
+      "channel": null,
+      "observation": ""
+    }
+  ]
+}
