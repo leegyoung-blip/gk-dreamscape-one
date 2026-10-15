@@ -1355,6 +1355,7 @@ export default function CoreQuizPlayer({
           topicTitle={payload.quiz.topic_title}
           level={level}
           questions={payload.questions}
+          shuffleSeed={`${payload.quiz.id}:${payload.attempt_id}`}
           answers={answers}
           tokenBalance={tokenBalance}
           gemBalance={dreamGemBalance}
