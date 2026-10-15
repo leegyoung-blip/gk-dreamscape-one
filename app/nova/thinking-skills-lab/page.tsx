@@ -16,7 +16,7 @@ const DAILY_LIMIT = 3;
 const CLUE_COST = 5;
 const COLOUR_MAX_ATTEMPTS = 15;
 const TOWER_MAX_ATTEMPTS = 5;
-const WALKTHROUGH_STORAGE_KEY = "thinking-skills-lab-walkthrough-v3";
+const WALKTHROUGH_STORAGE_KEY = "thinking-skills-lab-walkthrough-v4";
 
 type GameId = "colour-code" | "set-finder" | "tower-memory";
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -37,6 +37,7 @@ type GameDefinition = {
   icon: string;
   accent: string;
   rewardText: string;
+  machineName: string;
 };
 
 type DailyLevelStatus = {
@@ -172,6 +173,7 @@ const GAME_DEFINITIONS: GameDefinition[] = [
     icon: "●",
     accent: "#66D9FF",
     rewardText: "5 / 10 / 15 DT",
+    machineName: "Code Decoder",
   },
   {
     id: "set-finder",
@@ -183,6 +185,7 @@ const GAME_DEFINITIONS: GameDefinition[] = [
     icon: "◇",
     accent: "#A98BFF",
     rewardText: "20 DT each",
+    machineName: "Pattern Scanner",
   },
   {
     id: "tower-memory",
@@ -194,6 +197,7 @@ const GAME_DEFINITIONS: GameDefinition[] = [
     icon: "▦",
     accent: "#6FE7B1",
     rewardText: "5 / 10 / 15 DT",
+    machineName: "Memory Forge",
   },
 ];
 
@@ -235,29 +239,29 @@ const GAME_INSTRUCTIONS: Record<
 
 const WALKTHROUGH_STEPS = [
   {
-    eyebrow: "Welcome",
-    title: "Welcome to the Think Lab.",
-    text: "I’m Nova. I’ll show you how to choose a game, find the rules, and earn Dream Tokens.",
+    eyebrow: "Welcome to my workshop",
+    title: "This is the Think Lab!",
+    text: "I'm Nova! These thinking machines turn clever ideas into Dream Tokens. The tokens you earn help power your adventures across DREAMSCAPE.",
   },
   {
     eyebrow: "Step 1 of 4",
-    title: "Choose a game from the left.",
-    text: "The game tabs stay on the left of the screen. Your daily progress is shown on each tab.",
+    title: "Choose a thinking machine.",
+    text: "Try the Code Decoder, Pattern Scanner, or Memory Forge. Each one trains a different thinking skill. Your progress appears on each machine.",
   },
   {
     eyebrow: "Step 2 of 4",
-    title: "Tap the question mark for the rules.",
-    text: "Every game has a short instruction popup, so the play area stays clear and easy to use.",
+    title: "Learn how each machine works.",
+    text: "Tap the question mark for quick game instructions. Once you're ready, activate the machine and take on its puzzles!",
   },
   {
     eyebrow: "Step 3 of 4",
-    title: "Hints work differently for guests.",
-    text: "Signed-in players use 5 DT for clues and tower reviews. Guests can use one free Guest Hint in each challenge.",
+    title: "Need some help?",
+    text: "Signed-in players can spend 5 DT on clues or tower reviews. Guests get one free hint per challenge, but can't collect Dream Tokens.",
   },
   {
-    eyebrow: "You’re ready",
-    title: "Complete three challenges in each game.",
-    text: "Colour Code and Tower Memory let you choose their three levels in any order. Sign in to collect Dream Tokens and save daily progress.",
+    eyebrow: "Power up!",
+    title: "Let's generate Dream Tokens!",
+    text: "Finish daily challenges to earn DT when signed in. Watch the reactor tally your rewards, then take your tokens into the rest of DREAMSCAPE!",
   },
 ] as const;
 
@@ -613,6 +617,20 @@ export default function ThinkingSkillsLabPage() {
     GAME_DEFINITIONS.find((game) => game.id === selectedGame) ??
     GAME_DEFINITIONS[0];
   const activeStatus = status.games[selectedGame];
+  // Display only confirmed, already-earned rewards; clues are not deducted here.
+  // Guest practice stores zero earned DT and must not imply tokens were credited.
+  const todayCompleted = (Object.values(status.games) as DailyGameStatus[]).reduce(
+    (total, game) => total + game.completed,
+    0
+  );
+  const todayGeneratedDT = (Object.values(status.games) as DailyGameStatus[]).reduce(
+    (total, game) =>
+      total + ([1, 2, 3] as DailyLevelNumber[]).reduce(
+        (earned, level) => earned + (game.levels[level].completed ? game.levels[level].reward : 0),
+        0
+      ),
+    0
+  );
   const selectedFreeLevel =
     selectedGame === "colour-code"
       ? selectedColourLevel
@@ -1448,6 +1466,31 @@ export default function ThinkingSkillsLabPage() {
         </div>
       </header>
 
+      <section className="lab-overlook" aria-label="Nova's Think Lab reactor room">
+        <div className="overlook-intro">
+          <span className="overlook-eyebrow">NOVA'S WORKSHOP · THINK LAB</span>
+          <h1>Power the journey.</h1>
+          <p>Play the thinking machines. Generate Dream Tokens. Explore DREAMSCAPE.</p>
+        </div>
+        <div className="overlook-status" aria-live="polite">
+          <span className="overlook-kicker">✦ DREAM TOKEN REACTOR</span>
+          <strong>
+            {loading
+              ? "Preparing reactor…"
+              : !userId
+              ? "Practice mode"
+              : `+${todayGeneratedDT.toLocaleString()} DT today`}
+          </strong>
+          <small>
+            {loading
+              ? "Connecting to the lab"
+              : !userId
+              ? "Sign in to collect Dream Tokens"
+              : `${todayCompleted} of 9 daily challenges complete`}
+          </small>
+        </div>
+      </section>
+
       <div className="lab-layout">
         <aside
           id="thinking-game-menu"
@@ -1459,8 +1502,8 @@ export default function ThinkingSkillsLabPage() {
         >
           <div className="sidebar-heading">
             <div>
-              <p className="sidebar-eyebrow">Think Lab · Choose a game</p>
-              <h2>Daily Games</h2>
+              <p className="sidebar-eyebrow">Think Lab · Choose a machine</p>
+              <h2>Thinking Machines</h2>
               <span className="sidebar-reset">Reset {countdown}</span>
             </div>
           </div>
@@ -1491,6 +1534,7 @@ export default function ThinkingSkillsLabPage() {
 
                   <span className="game-menu-copy">
                     <strong>{game.shortTitle}</strong>
+                    <span className="machine-subtitle">{game.machineName}</span>
                     <small>{game.rewardText}</small>
                     <span className="mini-progress">
                       <i
@@ -1515,7 +1559,7 @@ export default function ThinkingSkillsLabPage() {
               <div
                 key={`coming-soon-${slot}`}
                 className="game-menu-card coming-soon-card"
-                aria-label="New game coming soon"
+                aria-label="New thinking machine coming soon"
               >
                 <span
                   className="game-menu-icon coming-soon-icon"
@@ -1525,7 +1569,7 @@ export default function ThinkingSkillsLabPage() {
                 </span>
 
                 <span className="game-menu-copy">
-                  <strong>NEW GAME</strong>
+                  <strong>NEW MACHINE</strong>
                   <small>COMING SOON</small>
                   <span className="mini-progress coming-soon-progress" />
                 </span>
@@ -1538,8 +1582,8 @@ export default function ThinkingSkillsLabPage() {
           <div className="sidebar-note">
             <span aria-hidden="true">✦</span>
             <p>
-              Colour Code and Tower levels can be played in any order.
-              Signed in: hints cost 5 DT. Guest: one free hint per challenge.
+              Every completed puzzle brings Nova closer to her next adventure.
+              Sign in to earn DT. Clues cost 5 DT; guests receive a free hint.
             </p>
           </div>
         </aside>
@@ -1559,7 +1603,7 @@ export default function ThinkingSkillsLabPage() {
               </span>
 
               <div>
-                <p className="game-skill">{activeGame.skill}</p>
+                <p className="game-skill">{activeGame.machineName} · {activeGame.skill}</p>
                 <h2>{activeGame.title}</h2>
               </div>
             </div>
@@ -2047,6 +2091,151 @@ export default function ThinkingSkillsLabPage() {
           .game-sidebar { padding: 4px; }
           .game-menu-icon { width: 39px; height: 39px; }
           .stage-progress { width: 54px; }
+        }
+        /* NOVA Think Lab: immersive reactor scene + machine consoles.
+           These are presentation styles only: game/reward RPC logic is untouched. */
+        .lab-background {
+          background-image:
+            linear-gradient(180deg, rgba(1,5,20,.14), rgba(2,7,21,.36) 42%, rgba(2,7,21,.55)),
+            url("/nova/thinking-skills/think-lab-landscape.webp");
+          background-position: center center;
+          background-size: cover;
+          background-repeat: no-repeat;
+        }
+        .lab-glow { opacity: .12; }
+        .lab-grid { opacity: .025; }
+
+        .lab-overlook {
+          position: relative;
+          z-index: 2;
+          display: grid;
+          grid-template-columns: minmax(0,1fr) minmax(0,.85fr) minmax(0,1fr);
+          align-items: center;
+          height: clamp(104px, 14vh, 142px);
+          margin: 10px 10px 0;
+          padding: 12px 18px;
+          overflow: hidden;
+          border: 1px solid rgba(123,221,255,.37);
+          border-radius: 20px;
+          background-image:
+            linear-gradient(90deg, rgba(2,10,29,.82) 0%, rgba(2,10,29,.1) 39%, rgba(2,10,29,.12) 65%, rgba(2,10,29,.75) 100%),
+            url("/nova/thinking-skills/think-lab-landscape.webp");
+          background-size: cover;
+          background-position: center 22%;
+          box-shadow: 0 0 24px rgba(59,169,255,.12), inset 0 0 18px rgba(102,217,255,.12);
+        }
+        .lab-overlook::after {
+          position: absolute; inset: 0; content: ""; pointer-events: none;
+          border-radius: inherit;
+          background: linear-gradient(180deg, rgba(4,13,33,.03), rgba(4,13,33,.25));
+        }
+        .overlook-intro, .overlook-status { position: relative; z-index: 1; }
+        .overlook-intro { min-width: 0; max-width: 340px; }
+        .overlook-eyebrow, .overlook-kicker {
+          color: #87e9ff; font-size: 9px; letter-spacing: .16em; font-weight: 900;
+          text-transform: uppercase;
+        }
+        .overlook-intro h1 {
+          margin: 3px 0 5px; color: white; font-size: clamp(21px,2.2vw,31px);
+          line-height: 1.08; letter-spacing: -.035em; text-shadow: 0 2px 13px #000;
+        }
+        .overlook-intro p {
+          max-width: 330px; margin: 0; color: rgba(226,244,255,.86);
+          font-size: 11px; line-height: 1.5; text-shadow: 0 1px 8px #000;
+        }
+        .overlook-status {
+          grid-column: 3; justify-self: end; display: grid; gap: 5px;
+          min-width: 220px; max-width: 270px; padding: 12px 14px;
+          border: 1px solid rgba(119,218,255,.32); border-radius: 14px;
+          background: rgba(3,14,35,.72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+          box-shadow: inset 0 0 18px rgba(92,208,255,.08), 0 8px 25px rgba(0,0,0,.18);
+        }
+        .overlook-status strong { font-size: 18px; font-weight: 900; color: #fff; }
+        .overlook-status small { color: rgba(227,242,255,.78); font-size: 10px; }
+        .lab-layout { height: calc(100dvh - 66px - clamp(104px, 14vh, 142px) - 10px); }
+
+        .game-sidebar, .game-stage {
+          border-color: rgba(131,222,255,.30);
+          background: linear-gradient(145deg, rgba(4,15,35,.9), rgba(3,9,26,.87));
+          box-shadow: 0 22px 65px rgba(0,0,0,.40), inset 0 1px 0 rgba(196,238,255,.07);
+        }
+        .game-menu-card {
+          border-color: color-mix(in srgb, var(--game-accent) 28%, rgba(122,185,241,.16));
+          background: linear-gradient(145deg, rgba(21,39,70,.72), rgba(7,16,35,.75));
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
+        }
+        .game-menu-card:hover {
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.13), 0 0 22px color-mix(in srgb, var(--game-accent) 20%, transparent);
+        }
+        .game-menu-card.is-selected {
+          box-shadow: inset 3px 0 0 var(--game-accent), 0 0 23px color-mix(in srgb, var(--game-accent) 21%, transparent);
+        }
+        .game-menu-icon {
+          box-shadow: 0 0 14px color-mix(in srgb, var(--game-accent) 23%, transparent);
+        }
+        .machine-subtitle {
+          color: var(--game-accent); font-size: 9px; font-weight: 850;
+          text-transform: uppercase; letter-spacing: .04em;
+        }
+        .game-stage-heading {
+          background: linear-gradient(100deg, color-mix(in srgb, var(--active-accent) 14%, rgba(13,35,65,.8)), rgba(3,11,29,.85));
+        }
+        .coming-soon-card { opacity: .60; box-shadow: none; }
+        .sidebar-note {
+          border: 1px solid rgba(114,213,255,.15);
+          background: rgba(21,67,107,.25);
+        }
+
+        @media (orientation: portrait) {
+          .lab-background {
+            background-image:
+              linear-gradient(180deg, rgba(1,5,20,.16), rgba(2,7,21,.42) 43%, rgba(2,7,21,.60)),
+              url("/nova/thinking-skills/think-lab-portrait.webp");
+            background-position: center top;
+          }
+          .lab-overlook {
+            background-image:
+              linear-gradient(90deg, rgba(2,10,29,.75), rgba(2,10,29,.04) 65%, rgba(2,10,29,.22)),
+              url("/nova/thinking-skills/think-lab-portrait.webp");
+            background-position: center 25%;
+          }
+        }
+        @media (max-height: 740px) and (min-width: 721px) {
+          .lab-overlook { height: 78px; }
+          .lab-layout { height: calc(100dvh - 66px - 78px - 10px); }
+          .overlook-intro p { display: none; }
+          .overlook-status { padding: 6px 10px; }
+        }
+        @media (max-width: 720px) {
+          .lab-overlook {
+            height: 104px;
+            margin: 5px 5px 0;
+            padding: 10px 12px;
+            grid-template-columns: minmax(0,1fr) minmax(0,.55fr);
+            border-radius: 15px;
+          }
+          .overlook-intro { max-width: 215px; }
+          .overlook-eyebrow { font-size: 8px; letter-spacing: .09em; }
+          .overlook-intro h1 { margin: 3px 0; font-size: 19px; }
+          .overlook-intro p { max-width: 205px; font-size: 10px; line-height: 1.35; }
+          .overlook-status { display: none; }
+          .lab-layout { height: calc(100dvh - 58px - 104px - 5px); }
+          .machine-subtitle { display: none; }
+        }
+        @media (max-width: 720px) and (orientation: landscape) {
+          .lab-overlook { height: 58px; }
+          .overlook-intro h1 { font-size: 16px; }
+          .overlook-intro p { display: none; }
+          .lab-layout { height: calc(100dvh - 58px - 58px - 5px); }
+        }
+        @media (max-width: 720px) and (max-height: 660px) and (orientation: portrait) {
+          .lab-overlook { height: 72px; }
+          .overlook-intro h1 { font-size: 16px; }
+          .overlook-intro p { display: none; }
+          .lab-layout { height: calc(100dvh - 58px - 72px - 5px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .game-menu-card { transition: none; }
         }
       `}</style>
     </main>

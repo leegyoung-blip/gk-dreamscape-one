@@ -100,6 +100,11 @@ function normalizeQuestionType(value: unknown): CanonicalQuestionType {
     case "free_response":
     case "free-response":
     case "numeric":
+    // Phase 4E-2A-1: live Mathematics open-answer aliases (canonical open_ended).
+    case "fraction":
+    case "numeric_unit":
+    case "money":
+    case "short_text":
     case "fill_blank":
     case "fill-blank":
     case "fill_in_blank":
