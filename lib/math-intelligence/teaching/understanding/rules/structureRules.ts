@@ -11,6 +11,8 @@ import {
   unique,
 } from "./text";
 
+import { identifyRingArrivalIncrementPattern } from "./constantIncrementPattern";
+
 export type StructureAnalysis = {
   problemStructure: ProblemStructure;
   requiredReasoning: RequiredReasoning[];
@@ -3251,6 +3253,20 @@ export function analyzeProblemStructure(args: {
     symbolMappingAnalysis(text);
 
   if (symbolMapping) return symbolMapping;
+
+  const ringSequence = identifyRingArrivalIncrementPattern(text);
+  if (ringSequence) {
+    // The target has TWO values (a named term and the total). Do not assert a
+    // single scalar computed answer or falsely mark a valid MCQ as mismatched.
+    return {
+      problemStructure: "pattern_rule",
+      requiredReasoning: ["pattern_application", "addition", "multiplication"],
+      relationships: [relationship("sequence_rule", text, 0.96)],
+      computedAnswer: null,
+      confidence: 0.96,
+      reasonCode: "STRUCTURE_RING_ARRIVAL_CONSTANT_INCREMENT",
+    };
+  }
 
   const transferDifference =
     transferDifferenceAnalysis(text);

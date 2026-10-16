@@ -158,7 +158,7 @@ function candidateFromText(
       code: "CURRICULUM_ALGEBRA",
     },
     {
-      test: /\bpattern\b|\bsequence\b|\brules?\b/,
+      test: /\bpatterns?\b|\bsequences?\b|\brules?\b/,
       domain: "patterns",
       confidence: 0.9,
       code: "CURRICULUM_PATTERNS",

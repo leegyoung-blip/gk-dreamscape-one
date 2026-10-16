@@ -23,6 +23,8 @@ import {
   buildCurriculumContext,
 } from "./rules/curriculumContext";
 
+import { identifyRingArrivalIncrementPattern } from "./rules/constantIncrementPattern";
+
 import {
   normalizeMathDomain,
 } from "./rules/normalizeDomain";
@@ -75,6 +77,17 @@ function inferPromptDomain(
   code: string;
 } {
   const t = lower(text);
+
+  // Specific textual evidence for a repeated additive sequence precedes the
+  // generic 'how many / altogether' whole-number fallback. The detector checks
+  // the first two terms against the stated step before accepting the domain.
+  if (identifyRingArrivalIncrementPattern(text)) {
+    return {
+      domain: "patterns",
+      confidence: 0.96,
+      code: "PROMPT_DOMAIN_RING_ARRIVAL_SEQUENCE",
+    };
+  }
 
   if (
     /\baverage\b|\bmean\b/.test(t)

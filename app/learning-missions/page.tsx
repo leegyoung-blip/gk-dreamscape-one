@@ -107,11 +107,9 @@ type WalkthroughStep = {
 };
 
 type WalkthroughZoneState = {
+  // Used for the final step’s destination buttons, never as Nova dialogue.
   released: boolean;
   unlocked: boolean;
-  adminPreview: boolean;
-  lockedMessage: string;
-  href: string | null;
 };
 
 function useResponsiveMode() {
@@ -326,61 +324,61 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     id: "welcome",
     eyebrow: "Nova Guide",
     title: "Here’s how the Mission Centre works.",
-    text: "Mission Centre has three parts: learn the curriculum, challenge what you know, and review your progress. I’ll show you the route first, then you can choose where to go.",
+    text: "Welcome to the Mission Centre! There are three parts to explore: Learn, Challenge, and Review. I’ll show you what each area is for, then you can choose where to go.",
   },
   {
     id: "path",
     eyebrow: "Mission Path",
     title: "Learn → Challenge → Review",
-    text: "Start with structured learning, then strengthen your skills through challenges, and use the Teaching Dashboard to review how learning is progressing.",
+    text: "Start by building your knowledge, then try challenges to practise what you’ve learned. The Teaching Dashboard helps you see your progress along the way.",
     showPath: true,
   },
   {
     id: "rewards",
     eyebrow: "Your Rewards",
-    title: "Learning can unlock rewards too.",
-    text: "Dream Tokens are used across Dreamscape. Eligible learning missions can also award Dream Gems as you progress.",
+    title: "Your learning journey comes with rewards.",
+    text: "Dream Tokens help you explore and build across Dreamscape. Some eligible learning activities can also reward you with Dream Gems as you progress.",
   },
   {
     id: "core",
     eyebrow: "Learn · Core Missions",
     title: "Start with your main learning path.",
-    text: "Core Missions builds English and Mathematics through structured curriculum missions. This is the main starting point for most learners.",
+    text: "Core Missions helps you strengthen your English and Mathematics, one step at a time. Practise important skills, build confidence, and keep moving forward.",
     zoneId: "core-missions",
   },
   {
     id: "science",
     eyebrow: "Learn · Science Missions",
     title: "Explore Science through structured missions.",
-    text: "Science Missions covers Primary 1 to Primary 6 concepts through concept, practice, investigation and mastery missions.",
+    text: "Science Missions is a place to explore big questions about how the world works. Discover concepts, investigate ideas, and grow your understanding through learning activities.",
     zoneId: "science-missions",
   },
   {
     id: "knowledge",
     eyebrow: "Challenge · Knowledge Arena",
     title: "Now test what you know.",
-    text: "Knowledge Arena turns curriculum practice into fast-paced quiz battles that help you apply what you have learned.",
+    text: "Ready to put your knowledge to the test? Knowledge Arena brings your learning to life through lively quiz challenges.",
     zoneId: "knowledge-arena",
   },
   {
     id: "think",
     eyebrow: "Challenge · Think Missions",
     title: "Stretch how you think.",
-    text: "Think Missions develops reasoning, logic, pattern spotting and HAP-style problem-solving through deeper challenges.",
+    text: "Think Missions helps you spot patterns, make connections, and solve tricky problems. Every challenge is a chance to try a new way of thinking.",
     zoneId: "think-missions",
   },
   {
     id: "review",
     eyebrow: "Review · Teaching Dashboard",
     title: "See how learning is progressing.",
-    text: "The Teaching Dashboard brings together completed missions, scores and progress so learners, parents and teachers can understand what is happening.",
+    text: "The Teaching Dashboard helps you look back at completed missions, scores, and progress. It’s a great place to see how far you’ve come.",
     zoneId: "progress-rewards",
   },
   {
     id: "ready",
     eyebrow: "Tour Complete",
     title: "Where do you want to start?",
-    text: "That’s the full route: learn, challenge yourself, then review your progress. Choose a destination below, or close the guide and explore on your own.",
+    text: "You’ve seen the route: Learn, Challenge, and Review! Choose a place to start or explore at your own pace. You can come back to this guide whenever you like.",
     showPath: true,
   },
 ];
@@ -870,30 +868,30 @@ export default function LearningMissionsPage() {
       !zoneReleaseSettings[zone.accessKey] &&
       !userMissionAccess.isAdmin
     ) {
-      return `${zone.title} is not currently open to learners.`;
+      return `${zone.title} isn’t available just yet. Explore another location in the meantime.`;
     }
 
     if (!userMissionAccess.userId) {
-      return "Please log in to access this mission zone.";
+      return `Log in to continue to ${zone.title}.`;
     }
 
     if (zone.accessKey === "core") {
-      return "This account does not currently have active Core Missions access.";
+      return "Core Missions is included with eligible learning plans. Explore plans to continue.";
     }
 
     if (zone.accessKey === "think") {
-      return "This account does not currently have active Core/Think Missions access.";
+      return "Think Missions is included with eligible learning plans. Explore plans to continue.";
     }
 
     if (zone.accessKey === "science") {
-      return "This account does not currently have active Science Missions access.";
+      return "Science Missions is included with eligible learning plans. Explore plans to continue.";
     }
 
     if (zone.staffOnly) {
-      return `${zone.title} is only available to staff accounts.`;
+      return `${zone.title} is reserved for staff members.`;
     }
 
-    return `${zone.title} requires an active Dreamscape learning plan.`;
+    return `${zone.title} is included with eligible Dreamscape learning plans.`;
   }
 
   // Like Nova's World: the first click selects a location, never navigates.
@@ -998,9 +996,6 @@ export default function LearningMissionsPage() {
     states[zone.id] = {
       released: isZoneReleased(zone),
       unlocked: isZoneUnlocked(zone),
-      adminPreview: isAdminPreview(zone),
-      lockedMessage: getLockedMessage(zone),
-      href: getZoneHref(zone.id),
     };
     return states;
   }, {});
@@ -1020,7 +1015,8 @@ export default function LearningMissionsPage() {
     const href = getZoneHref(zone.id);
     if (!href) return;
 
-    if (!isZoneUnlocked(zone)) {
+    // Nova’s tour never enters a destination not yet released to learners.
+    if (!isZoneReleased(zone) || !isZoneUnlocked(zone)) {
       setLockedZoneMessage(getLockedMessage(zone));
       return;
     }
@@ -1268,11 +1264,11 @@ export default function LearningMissionsPage() {
             <MissionHotspot
               key={zone.id}
               zone={zone}
-              isLocked={isZoneLocked(zone)}
+              isLocked={!walkthroughOpen && isZoneLocked(zone)}
               isActive={displayedDesktopZone?.id === zone.id}
               isWalkthroughActive={activeWalkthroughZoneIds.length > 0}
               isHighlighted={activeWalkthroughZoneIds.includes(zone.id)}
-              isAdminPreview={isAdminPreview(zone)}
+              isAdminPreview={!walkthroughOpen && isAdminPreview(zone)}
               onEnter={() => {
                 if (!walkthroughOpen && !selectedZone) setHoveredZone(zone);
               }}
@@ -1292,7 +1288,7 @@ export default function LearningMissionsPage() {
             />
           )}
 
-          {displayedDesktopZone && (
+          {!walkthroughOpen && displayedDesktopZone && (
             <ZoneHoverPopup
               zone={displayedDesktopZone}
               isLocked={isZoneLocked(displayedDesktopZone)}
@@ -1496,16 +1492,16 @@ export default function LearningMissionsPage() {
                         <div key={zone.id}>
                           <MissionCard
                             zone={zone}
-                            isLocked={isZoneLocked(zone)}
+                            isLocked={!walkthroughOpen && isZoneLocked(zone)}
                             isWalkthroughActive={activeWalkthroughZoneIds.length > 0}
                             isHighlighted={activeWalkthroughZoneIds.includes(zone.id)}
-                            isAdminPreview={isAdminPreview(zone)}
-                            isReleased={isZoneReleased(zone)}
+                            isAdminPreview={!walkthroughOpen && isAdminPreview(zone)}
+                            isReleased={walkthroughOpen || isZoneReleased(zone)}
                             isSelected={selectedZone?.id === zone.id}
                             onClick={() => selectZone(zone)}
                           />
 
-                          {userMissionAccess.isAdmin && zone.accessKey && (
+                          {userMissionAccess.isAdmin && !walkthroughOpen && zone.accessKey && (
                             <AdminZoneReleaseControl
                               zoneTitle={zone.title}
                               enabled={zoneReleaseSettings[zone.accessKey]}
@@ -1601,7 +1597,6 @@ export default function LearningMissionsPage() {
         open={walkthroughOpen}
         stepIndex={walkthroughStep}
         zoneStates={walkthroughZoneStates}
-        isAdmin={userMissionAccess.isAdmin}
         onStepChange={setWalkthroughStep}
         onEnterZone={enterWalkthroughZone}
         onClose={closeWalkthrough}
@@ -3049,13 +3044,13 @@ function MissionCard({
         }}
       >
         {zone.comingSoon
-          ? "Locked · Coming Soon"
+          ? "Coming Soon"
           : isAdminPreview
-            ? "Admin Preview"
+            ? zone.categoryLabel
             : zone.accessKey && !isReleased
-              ? "Learner Access Closed"
+              ? "Coming Soon"
               : isLocked
-                ? "Locked Zone"
+                ? "Access Required"
                 : zone.categoryLabel}
       </p>
 
@@ -3116,13 +3111,13 @@ function MissionCard({
         }}
       >
         {zone.comingSoon
-          ? "LOCKED · Coming Soon"
+          ? "Coming Soon · View Details ›"
           : isAdminPreview
-            ? "Admin Preview · View Details ›"
+            ? "View Location ›"
             : zone.accessKey && !isReleased
-              ? "Not yet open · View Details ›"
+              ? "Coming Soon · View Details ›"
               : isLocked
-                ? "Locked · View Details ›"
+                ? "View Access Options ›"
                 : onClick
                   ? "View Location ›"
                   : "Coming Soon"}
@@ -3137,10 +3132,10 @@ function getMissionZoneStatusLabel(
   isAdminPreview: boolean,
   isReleased: boolean,
 ) {
-  if (zone.comingSoon) return "Locked · Coming Soon";
-  if (isAdminPreview) return "Admin Preview";
-  if (zone.accessKey && !isReleased) return "Learner Access Closed";
-  if (isLocked) return "Locked Zone";
+  if (zone.comingSoon) return "Coming Soon";
+  if (isAdminPreview) return `${zone.categoryLabel} · Location ${zone.number}`;
+  if (zone.accessKey && !isReleased) return "Coming Soon";
+  if (isLocked) return "Access Required";
   return `${zone.categoryLabel} · Location ${zone.number}`;
 }
 
@@ -3245,11 +3240,6 @@ function ZoneHoverPopup({
         fontSize: "13px", lineHeight: 1.55 }}>
         {zone.description}
       </p>
-      {isAdminPreview && (
-        <p style={{ margin: "12px 0 0", color: "#ddd6fe", fontSize: "12px", lineHeight: 1.5 }}>
-          Learner access is OFF. Admin preview remains available.
-        </p>
-      )}
       {isLocked && (
         <p style={{ margin: "12px 0 0", color: "#ffd76a", fontSize: "12px", lineHeight: 1.5 }}>
           {lockedMessage}
@@ -3386,11 +3376,6 @@ function CompactMissionZoneInfoCard({
           fontSize: "13px", lineHeight: 1.55 }}>
           {zone.description}
         </p>
-        {isAdminPreview && (
-          <p style={{ margin: "12px 0 0", color: "#ddd6fe", fontSize: "12px", lineHeight: 1.5 }}>
-            Learner access is OFF. Admin preview remains available.
-          </p>
-        )}
         {isLocked && (
           <p style={{ margin: "12px 0 0", color: "#ffd76a", fontSize: "12px", lineHeight: 1.5 }}>
             {lockedMessage}
@@ -3442,7 +3427,6 @@ function MissionGuidedWalkthrough({
   open,
   stepIndex,
   zoneStates,
-  isAdmin,
   onStepChange,
   onEnterZone,
   onClose,
@@ -3450,7 +3434,6 @@ function MissionGuidedWalkthrough({
   open: boolean;
   stepIndex: number;
   zoneStates: Record<string, WalkthroughZoneState>;
-  isAdmin: boolean;
   onStepChange: (nextStep: number) => void;
   onEnterZone: (zoneId: string) => void;
   onClose: () => void;
@@ -3460,7 +3443,6 @@ function MissionGuidedWalkthrough({
   const isTablet = screenMode === "tablet";
   const isMobile = screenMode === "mobile";
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
-  const zoneState = step.zoneId ? zoneStates[step.zoneId] : null;
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
   const isLocationStep = Boolean(step.zoneId);
@@ -3469,8 +3451,8 @@ function MissionGuidedWalkthrough({
   const guideRef = useRef<HTMLDivElement | null>(null);
   const [guideAnchor, setGuideAnchor] = useState<CSSProperties>({});
 
-  const dynamicText = getInteractiveGuideText(step, zoneState, isAdmin);
-  const zoneStatus = getInteractiveGuideZoneStatus(step, zoneState);
+  // The story never mentions entitlements, admin previews or release switches.
+  const dynamicText = step.text;
 
   useEffect(() => {
     if (!open) {
@@ -3905,27 +3887,6 @@ function MissionGuidedWalkthrough({
           >
             {step.eyebrow}
           </p>
-
-          {zoneStatus && (
-            <span
-              style={{
-                minHeight: "24px",
-                borderRadius: "999px",
-                border: `1px solid ${zoneStatus.border}`,
-                background: zoneStatus.background,
-                color: zoneStatus.color,
-                padding: "4px 8px",
-                display: "inline-flex",
-                alignItems: "center",
-                fontSize: "9px",
-                fontWeight: 900,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-              }}
-            >
-              {zoneStatus.label}
-            </span>
-          )}
         </div>
 
         <h2
@@ -4127,7 +4088,8 @@ function MissionGuidedWalkthrough({
                 .filter((zone): zone is MissionZone => Boolean(zone))
                 .filter((zone) => {
                   if (zone.id === "knowledge-arena") return true;
-                  return Boolean(zoneStates[zone.id]?.unlocked);
+                  const state = zoneStates[zone.id];
+                  return Boolean(state?.released && state.unlocked);
                 })
                 .map((zone, index) => (
                   <GuideActionButton
@@ -4257,69 +4219,6 @@ function GuideActionButton({
       {label}
     </button>
   );
-}
-
-function getInteractiveGuideText(
-  step: WalkthroughStep,
-  zoneState: WalkthroughZoneState | null,
-  _isAdmin: boolean,
-) {
-  if (!zoneState || !step.zoneId) return step.text;
-
-  if (zoneState.adminPreview) {
-    return `${step.text} Learner Access is currently OFF, but you can still preview this area as an admin.`;
-  }
-
-  if (!zoneState.released) {
-    return `${step.text} This area is not currently open to learners, so I’ll show you where it is without sending you into a locked page.`;
-  }
-
-  if (zoneState.unlocked) {
-    return `${step.text} This account can access it after the tour.`;
-  }
-
-  return `${step.text} This account does not currently have access, so I’ll explain it without sending you into a locked page.`;
-}
-
-function getInteractiveGuideZoneStatus(
-  step: WalkthroughStep,
-  zoneState: WalkthroughZoneState | null,
-) {
-  if (!step.zoneId || !zoneState) return null;
-
-  if (zoneState.adminPreview) {
-    return {
-      label: "Admin Preview",
-      color: "#ede9fe",
-      border: "rgba(196,181,253,0.44)",
-      background: "rgba(124,58,237,0.16)",
-    };
-  }
-
-  if (!zoneState.released) {
-    return {
-      label: "Learner Access Closed",
-      color: "#fde68a",
-      border: "rgba(253,230,138,0.36)",
-      background: "rgba(245,158,11,0.1)",
-    };
-  }
-
-  if (zoneState.unlocked) {
-    return {
-      label: "Available",
-      color: "#a7f3d0",
-      border: "rgba(110,231,183,0.34)",
-      background: "rgba(16,185,129,0.1)",
-    };
-  }
-
-  return {
-    label: "Access Required",
-    color: "#fde68a",
-    border: "rgba(253,230,138,0.34)",
-    background: "rgba(245,158,11,0.09)",
-  };
 }
 
 const controlButtonStyle: CSSProperties = {

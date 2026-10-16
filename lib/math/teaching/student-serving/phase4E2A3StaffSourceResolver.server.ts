@@ -110,7 +110,7 @@ export async function resolveStaffMathTeachingSource(
       return blocked('NOT_FOUND_OR_INCONSISTENT');
     }
     const topic = await fetchOne('math_topics',
-      'id,subject,primary_level', [['id',quiz.topic_id]]);
+      'id,subject,primary_level,title', [['id',quiz.topic_id]]);
     if (!topic || topic.id !== quiz.topic_id || topic.subject !== 'math' ||
         typeof topic.primary_level !== 'number' ||
         !Number.isInteger(topic.primary_level) ||
@@ -134,7 +134,7 @@ export async function resolveStaffMathTeachingSource(
     }
     // The 2A-2 adapter only prepares a server-side canonical source. It does
     // NOT certify answer semantics or Gold teaching approval.
-    const prepared = prepareMathTeachingSourceFromDbRows({quiz,link,question});
+    const prepared = prepareMathTeachingSourceFromDbRows({quiz,link,question,topic});
     if (prepared.status !== 'ready') return blocked('SOURCE_NOT_READY');
     return {
       status: 'ready', source: prepared.source,

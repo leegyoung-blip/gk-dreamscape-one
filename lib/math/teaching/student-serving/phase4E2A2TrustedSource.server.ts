@@ -44,6 +44,17 @@ export function prepareMathTeachingSourceFromDbRows(rows: unknown): Prepared | B
   if (quiz.id !== link.quiz_id || question.id !== link.question_id) {
     return blocked('QUESTION_NOT_LINKED');
   }
+  // New callers supply the linked topic row. Old callers without it are
+  // supported for compatibility; any supplied but inconsistent row fails shut.
+  if ('topic' in rows) {
+    if (!isObject(rows.topic) || !validUuid(rows.topic.id) ||
+        !validUuid(quiz.topic_id) || rows.topic.id !== quiz.topic_id ||
+        rows.topic.subject !== 'math' ||
+        rows.topic.primary_level !== question.primary_level ||
+        question.topic_id !== rows.topic.id) {
+      return blocked('INVALID_IDENTITIES');
+    }
+  }
   if (question.subject !== 'math') return blocked('WRONG_SUBJECT');
   const level = question.primary_level;
   if (typeof level !== 'number' || !Number.isInteger(level) || level < 1 || level > 6) {
@@ -63,6 +74,11 @@ export function prepareMathTeachingSourceFromDbRows(rows: unknown): Prepared | B
     subject: question.subject,
     primary_level: level,
     topic_id: question.topic_id,
+    // Curriculum title is server-side context for 4A; it never changes the
+    // stored question or allows a topic alone to determine a teaching method.
+    topic_title: isObject(rows.topic) && typeof rows.topic.title === 'string'
+      ? rows.topic.title.trim() || null
+      : null,
     skill: question.skill,
     skill_tags: question.skill_tags,
     difficulty: question.difficulty,
