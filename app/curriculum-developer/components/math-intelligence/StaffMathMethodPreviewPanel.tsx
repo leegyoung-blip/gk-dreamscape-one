@@ -7,9 +7,22 @@ import styles from './StaffMathMethodPreviewPanel.module.css';
 
 type QuizChoice = { id: string; title: string; status: string };
 type QuestionChoice = { id: string; label: string; type: string; order: number };
+type CandidateScore = {
+  methodId: string;
+  familyId: string;
+  eligible: boolean;
+  rank: number | null;
+  score: number | null;
+  exclusionCodes: string[];
+  dimensions: Array<{ dimension: string; points: number; maximum: number }>;
+};
+type ScoreComparison = {
+  candidates: CandidateScore[];
+  selectionIssueCodes: string[];
+};
 type Preview =
   | { status: 'selected'; methodId: string; familyId: string; confidence: string; candidateMethodCount: number; previewOnly: true; teachingApproved: false; studentReleased: false }
-  | { status: 'ambiguous'; stage: string; reasonCodes: string[]; candidateMethodCount: number; primaryFamilies: string[]; previewOnly: true; teachingApproved: false; studentReleased: false }
+  | { status: 'ambiguous'; stage: string; reasonCodes: string[]; candidateMethodCount: number; primaryFamilies: string[]; scoreComparison?: ScoreComparison; previewOnly: true; teachingApproved: false; studentReleased: false }
   | { status: 'blocked'; stage: string; reasonCodes: string[]; previewOnly: true; teachingApproved: false; studentReleased: false };
 
 type ListResponse =
@@ -228,6 +241,53 @@ export default function StaffMathMethodPreviewPanel() {
                       <span className={styles.term}>Diagnostic codes</span>
                       <p>{preview.reasonCodes.length ? preview.reasonCodes.join(' · ') : 'No further diagnostics provided.'}</p>
                     </div>
+                    {preview.status === 'ambiguous' && preview.scoreComparison && (
+                      <section className={styles.candidateSection} aria-label="Candidate method comparison">
+                        <h3>Candidate comparison</h3>
+                        <p className={styles.muted}>
+                          Staff-only diagnostic scores from the 4C selector. A high score or rank does not mean a method is approved.
+                          No missing evidence is inferred.
+                        </p>
+                        {preview.scoreComparison.selectionIssueCodes.length > 0 && (
+                          <p className={styles.codes}>
+                            <span className={styles.term}>Selector assessment</span>{' '}
+                            {preview.scoreComparison.selectionIssueCodes.join(' · ')}
+                          </p>
+                        )}
+                        {preview.scoreComparison.candidates.length === 0 ? (
+                          <p className={styles.muted}>No candidate score details were available.</p>
+                        ) : (
+                          <div className={styles.candidateTableWrapper}>
+                            <table className={styles.candidateTable}>
+                              <thead><tr><th>Rank</th><th>Candidate method</th><th>Score</th><th>Assessment</th></tr></thead>
+                              <tbody>
+                                {preview.scoreComparison.candidates.map((item, index) => (
+                                  <tr key={`${item.methodId}-${index}`}>
+                                    <td>{item.rank ?? '—'}</td>
+                                    <td><strong>{item.methodId}</strong><span className={styles.candidateFamily}>{item.familyId}</span></td>
+                                    <td>{item.score === null ? '—' : `${item.score}/100`}</td>
+                                    <td>
+                                      {item.eligible ? 'Eligible for ranking' : 'Not eligible'}
+                                      {item.exclusionCodes.length > 0 && (
+                                        <div className={styles.candidateCodes}>{item.exclusionCodes.join(' · ')}</div>
+                                      )}
+                                      {item.dimensions.length > 0 && (
+                                        <details className={styles.dimensionDetails}>
+                                          <summary>Score breakdown</summary>
+                                          <ul>{item.dimensions.map((dim) => (
+                                            <li key={dim.dimension}>{dim.dimension.replace(/_/g, ' ')}: {dim.points}/{dim.maximum}</li>
+                                          ))}</ul>
+                                        </details>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </section>
+                    )}
                   </>
                 )}
                 <div className={styles.footerNotice}>

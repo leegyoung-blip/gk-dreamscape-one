@@ -326,6 +326,11 @@ const topics: {
   },
 ];
 
+const ARENA_MODE_BACKGROUNDS = {
+  single: "/activities/learning-missions/knowledge-arena/modes/single-player.png",
+  multiplayer: "/activities/learning-missions/knowledge-arena/modes/multiplayer.png",
+} as const;
+
 const NOVA_ANALYTICS_HREF = "/learning-missions/progress-rewards";
 
 const challengeModeMeta: Record<
@@ -370,9 +375,9 @@ const NOVA_GUIDE_STEPS = [
     description:
       "Play a solo Knowledge Arena challenge or enter a shared multiplayer lobby.",
     detail:
-      "Single Player contains Nova's personalised challenge modes. Multiplayer uses a shared world and timer.",
+      "In Single Player, Nova battles monsters as you answer. In Multiplayer, team up for Co-op Battles or race friends in Versus.",
     stage: "mode" as PageStage,
-    target: "play-mode",
+    target: "single-player-mode",
   },
   {
     eyebrow: "Knowledge worlds",
@@ -448,7 +453,7 @@ const NOVA_GUIDE_STEPS = [
     eyebrow: "Play together",
     title: "Multiplayer",
     description:
-      "Create or join a lobby and answer the same 10 questions together.",
+      "Create or join a lobby, then team up in Co-op Battle or compete in Versus Race.",
     detail:
       "Multiplayer correctness still contributes to personal mastery evidence while remaining separate from solo improvement benchmarking.",
     stage: "mode" as PageStage,
@@ -3407,57 +3412,67 @@ export default function KnowledgeArenaPage() {
       <section className="ka-viewport">
         <div className="ka-stage-shell">
           {stage === "mode" && (
-            <div className="ka-stage ka-mode-stage">
-              <div className="ka-stage-heading">
+            <div className="ka-stage ka-mode-stage ka-cinematic-mode-stage">
+              <div className="ka-stage-heading ka-cinematic-heading">
                 <div>
                   <p className="ka-kicker">Choose Mode</p>
                   <h2>How do you want to play?</h2>
                 </div>
-                <p>Solo challenges use Nova mastery. Multiplayer shares one world and timer.</p>
+                <p>Enter the arena with Nova, or take on challenges with friends.</p>
               </div>
 
-              <div
-                className="ka-mode-grid"
-                data-nova-guide-target="play-mode"
-              >
+              <div className="ka-mode-grid ka-cinematic-grid">
                 <button
                   type="button"
-                  className="ka-mode-card is-single"
+                  className="ka-mode-card ka-cinematic-card is-single"
                   onClick={() => setStage("solo-mode")}
+                  data-nova-guide-target="single-player-mode"
                 >
-                  <span className="ka-mode-icon">⚡</span>
-                  <span className="ka-mode-copy">
-                    <small>Personal challenge</small>
-                    <strong>Single Player</strong>
-                    <span>
-                      Choose a world, timer and challenge type on one screen.
+                  <span
+                    className="ka-cinematic-art"
+                    aria-hidden="true"
+                    style={{ backgroundImage: `url('${ARENA_MODE_BACKGROUNDS.single}')` }}
+                  />
+                  <span className="ka-cinematic-vignette" aria-hidden="true" />
+                  <span className="ka-cinematic-copy">
+                    <small className="ka-cinematic-eyebrow">Solo Adventure</small>
+                    <strong className="ka-cinematic-title">Single Player</strong>
+                    <span className="ka-cinematic-description">
+                      Battle monsters with Nova, explore knowledge worlds and sharpen
+                      your skills through personalised challenges.
                     </span>
+                    <span className="ka-cinematic-action">Start Solo <span aria-hidden="true">→</span></span>
                   </span>
-                  <span className="ka-mode-action">Start Solo →</span>
                 </button>
 
                 <button
                   type="button"
-                  className="ka-mode-card is-multi"
+                  className="ka-mode-card ka-cinematic-card is-multi"
                   onClick={() => setStage("multiplayer-menu")}
                   data-nova-guide-target="multiplayer-mode"
                 >
-                  <span className="ka-mode-icon">◈</span>
-                  <span className="ka-mode-copy">
-                    <small>Shared arena</small>
-                    <strong>Multiplayer</strong>
-                    <span>
-                      Create or join a lobby and answer the same 10 questions.
+                  <span
+                    className="ka-cinematic-art"
+                    aria-hidden="true"
+                    style={{ backgroundImage: `url('${ARENA_MODE_BACKGROUNDS.multiplayer}')` }}
+                  />
+                  <span className="ka-cinematic-vignette" aria-hidden="true" />
+                  <span className="ka-cinematic-copy">
+                    <small className="ka-cinematic-eyebrow">Shared Arena</small>
+                    <strong className="ka-cinematic-title">Multiplayer</strong>
+                    <span className="ka-cinematic-description">
+                      Team up for Co-op Battles or challenge friends in an exciting
+                      Versus Race.
                     </span>
+                    <span className="ka-cinematic-action">Enter Multiplayer <span aria-hidden="true">→</span></span>
                   </span>
-                  <span className="ka-mode-action">Enter Multiplayer →</span>
                 </button>
               </div>
 
-              <div className="ka-mode-footer">
-                <span>20s default</span>
-                <span>10 questions</span>
-                <span>100-point maximum per correct answer</span>
+              <div className="ka-mode-footer ka-cinematic-rules" aria-label="Challenge basics">
+                <span><b>10</b> questions</span>
+                <span><b>20s</b> default timer</span>
+                <span><b>100</b> maximum points per correct answer</span>
               </div>
             </div>
           )}
@@ -9024,6 +9039,363 @@ export default function KnowledgeArenaPage() {
             font-size: 12px;
           }
         }
+
+        /* ================================================================
+           KNOWLEDGE ARENA PHASE 1B — CINEMATIC MODE SELECTION
+           Scoped to the initial mode screen. The Create/Join Lobby cards and
+           all battle / setup stages retain their existing styles.
+           ================================================================ */
+        .ka-cinematic-mode-stage {
+          gap: 0;
+          padding: clamp(10px, 1.5vh, 16px);
+          background: rgba(4, 12, 30, 0.52);
+        }
+
+        .ka-cinematic-mode-stage .ka-cinematic-heading {
+          align-items: end;
+          gap: 16px;
+        }
+
+        .ka-cinematic-mode-stage .ka-cinematic-heading h2 {
+          font-size: clamp(24px, 2.4vw, 34px);
+          line-height: 1.08;
+        }
+
+        .ka-cinematic-mode-stage .ka-cinematic-heading > p {
+          max-width: 380px;
+          color: rgba(255, 255, 255, 0.66);
+          font-size: clamp(11px, 0.9vw, 13px);
+        }
+
+        /* Removes the historical 190–240px card cap for this screen only. */
+        .ka-cinematic-mode-stage .ka-cinematic-grid {
+          display: grid;
+          width: 100%;
+          height: auto;
+          min-height: 0;
+          flex: 1 1 0;
+          align-self: stretch;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-rows: minmax(0, 1fr);
+          gap: clamp(9px, 1vw, 16px);
+          margin-top: clamp(10px, 1.5vh, 16px);
+        }
+
+        .ka-cinematic-mode-stage .ka-cinematic-card,
+        .ka-cinematic-mode-stage .ka-cinematic-card.is-multi {
+          position: relative;
+          isolation: isolate;
+          display: flex;
+          min-width: 0;
+          min-height: 0;
+          align-items: flex-end;
+          justify-content: flex-start;
+          overflow: hidden;
+          border: 1px solid rgba(126, 232, 255, 0.31);
+          border-radius: clamp(17px, 1.6vw, 26px);
+          background: #061326;
+          padding: 0;
+          box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18);
+          text-align: left;
+          cursor: pointer;
+          transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+        }
+
+        .ka-cinematic-mode-stage .ka-cinematic-card.is-multi {
+          border-color: rgba(194, 155, 255, 0.36);
+        }
+
+        .ka-cinematic-art,
+        .ka-cinematic-vignette {
+          position: absolute;
+          inset: 0;
+          display: block;
+          pointer-events: none;
+        }
+
+        .ka-cinematic-art {
+          z-index: 0;
+          background-color: #071326;
+          background-size: cover;
+          background-position: 58% center;
+          transform: scale(1);
+          transition: transform 350ms ease;
+        }
+
+        .ka-cinematic-card.is-multi .ka-cinematic-art {
+          background-position: 54% center;
+        }
+
+        .ka-cinematic-vignette {
+          z-index: 1;
+          background: linear-gradient(
+            180deg,
+            rgba(2, 7, 20, 0.05) 12%,
+            rgba(2, 7, 20, 0.17) 39%,
+            rgba(2, 7, 20, 0.80) 76%,
+            rgba(2, 7, 20, 0.95) 100%
+          );
+        }
+
+        .ka-cinematic-copy {
+          position: relative;
+          z-index: 2;
+          display: flex;
+          width: 100%;
+          max-width: 680px;
+          min-width: 0;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 7px;
+          padding: clamp(15px, 2.3vw, 30px);
+          color: white;
+          text-shadow: 0 2px 10px rgba(0, 0, 0, 0.68);
+        }
+
+        .ka-cinematic-eyebrow {
+          color: #96edff;
+          font-size: clamp(9px, 0.8vw, 12px);
+          font-weight: 900;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+        }
+
+        .ka-cinematic-card.is-multi .ka-cinematic-eyebrow {
+          color: #e1c5ff;
+        }
+
+        .ka-cinematic-title {
+          font-size: clamp(24px, 2.9vw, 43px);
+          font-weight: 900;
+          letter-spacing: -0.035em;
+          line-height: 1.06;
+        }
+
+        .ka-cinematic-description {
+          display: block;
+          max-width: 34rem;
+          color: rgba(255, 255, 255, 0.86);
+          font-size: clamp(11px, 1vw, 15px);
+          line-height: 1.5;
+        }
+
+        .ka-cinematic-action {
+          display: inline-flex;
+          min-height: 32px;
+          align-items: center;
+          gap: 11px;
+          margin-top: 5px;
+          border: 1px solid rgba(125, 230, 255, 0.36);
+          border-radius: 999px;
+          background: rgba(5, 25, 46, 0.67);
+          padding: 6px 13px;
+          color: #d7f7ff;
+          font-size: clamp(9px, 0.82vw, 12px);
+          font-weight: 900;
+          letter-spacing: 0.055em;
+          text-transform: uppercase;
+          text-shadow: none;
+          backdrop-filter: blur(9px);
+        }
+
+        .ka-cinematic-card.is-multi .ka-cinematic-action {
+          border-color: rgba(208, 170, 255, 0.43);
+          background: rgba(28, 13, 51, 0.66);
+          color: #f2e5ff;
+        }
+
+        .ka-cinematic-action > span {
+          font-size: 17px;
+          line-height: 1;
+          transition: transform 200ms ease;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+          .ka-cinematic-mode-stage .ka-cinematic-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(136, 235, 255, 0.82);
+            background: #061326;
+            box-shadow: 0 18px 46px rgba(0, 0, 0, 0.30), 0 0 0 1px rgba(126, 232, 255, 0.12);
+          }
+
+          .ka-cinematic-mode-stage .ka-cinematic-card.is-multi:hover {
+            border-color: rgba(212, 184, 255, 0.86);
+            background: #061326;
+          }
+
+          .ka-cinematic-card:hover .ka-cinematic-art {
+            transform: scale(1.035);
+          }
+
+          .ka-cinematic-card:hover .ka-cinematic-action > span {
+            transform: translateX(4px);
+          }
+        }
+
+        .ka-cinematic-card:focus-visible {
+          outline: 3px solid #94ecff;
+          outline-offset: 2px;
+        }
+
+        .ka-cinematic-mode-stage .ka-cinematic-rules {
+          display: flex;
+          width: 100%;
+          min-height: 42px;
+          flex: 0 0 auto;
+          align-items: center;
+          justify-content: center;
+          gap: clamp(10px, 2.5vw, 34px);
+          align-self: stretch;
+          margin-top: clamp(8px, 1.2vh, 12px);
+          border: 1px solid rgba(126, 232, 255, 0.15);
+          border-radius: 14px;
+          background: rgba(4, 14, 32, 0.67);
+          padding: 8px 12px;
+          color: rgba(255, 255, 255, 0.67);
+          font-size: clamp(9px, 0.82vw, 12px);
+          font-weight: 650;
+          letter-spacing: 0.015em;
+          line-height: 1.3;
+          text-align: center;
+          text-transform: none;
+        }
+
+        .ka-cinematic-rules b {
+          color: #a5efff;
+          font-weight: 900;
+        }
+
+        @media (max-width: 850px) and (orientation: portrait),
+          (hover: none) and (pointer: coarse) and (orientation: portrait) {
+          .ka-cinematic-mode-stage .ka-cinematic-grid {
+            grid-template-columns: minmax(0, 1fr);
+            grid-template-rows: repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 850px) and (orientation: landscape),
+          (hover: none) and (pointer: coarse) and (orientation: landscape) {
+          .ka-cinematic-mode-stage .ka-cinematic-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-rows: minmax(0, 1fr);
+          }
+        }
+
+        @media (max-width: 850px), (hover: none) and (pointer: coarse) {
+          .ka-cinematic-mode-stage {
+            padding: 9px;
+          }
+
+          .ka-cinematic-mode-stage .ka-cinematic-heading h2 {
+            font-size: clamp(20px, 4.2vw, 28px);
+          }
+
+          .ka-cinematic-mode-stage .ka-cinematic-grid {
+            width: 100%;
+            height: auto;
+            min-height: 0;
+            flex: 1 1 0;
+            align-self: stretch;
+            gap: 8px;
+            margin-top: 8px;
+          }
+
+          .ka-cinematic-mode-stage .ka-cinematic-card {
+            padding: 0;
+          }
+
+          .ka-cinematic-copy {
+            gap: 4px;
+            padding: clamp(10px, 2.5vw, 18px);
+          }
+
+          .ka-cinematic-title {
+            font-size: clamp(21px, 3.3vw, 30px);
+          }
+
+          .ka-cinematic-description {
+            font-size: clamp(10px, 1.65vw, 12px);
+            line-height: 1.35;
+          }
+
+          .ka-cinematic-action {
+            min-height: 28px;
+            margin-top: 3px;
+            padding: 5px 10px;
+          }
+
+          .ka-cinematic-mode-stage .ka-cinematic-rules {
+            min-height: 35px;
+            gap: 8px;
+            padding: 6px 9px;
+            font-size: 9px;
+          }
+        }
+
+        @media (max-width: 560px) and (orientation: portrait) {
+          .ka-cinematic-mode-stage .ka-cinematic-heading > p {
+            display: none;
+          }
+
+          .ka-cinematic-description {
+            max-width: 310px;
+          }
+
+          .ka-cinematic-mode-stage .ka-cinematic-rules {
+            gap: 6px;
+            font-size: 8px;
+          }
+
+          .ka-cinematic-mode-stage .ka-cinematic-rules > span {
+            flex: 1 1 0;
+          }
+        }
+
+        @media (max-height: 470px) and (orientation: landscape) {
+          .ka-cinematic-mode-stage .ka-cinematic-heading h2 {
+            font-size: 19px;
+          }
+
+          .ka-cinematic-mode-stage .ka-cinematic-heading > p {
+            display: none;
+          }
+
+          .ka-cinematic-copy {
+            gap: 3px;
+            padding: 10px;
+          }
+
+          .ka-cinematic-title {
+            font-size: 19px;
+          }
+
+          .ka-cinematic-description {
+            font-size: 9px;
+            line-height: 1.3;
+          }
+
+          .ka-cinematic-action {
+            min-height: 25px;
+            margin-top: 1px;
+            padding: 4px 9px;
+            font-size: 8px;
+          }
+
+          .ka-cinematic-mode-stage .ka-cinematic-rules {
+            min-height: 29px;
+            padding: 4px 6px;
+            font-size: 8px;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .ka-cinematic-card,
+          .ka-cinematic-art,
+          .ka-cinematic-action > span {
+            transition: none !important;
+          }
+        }
+
       `}</style>
     </main>
   );

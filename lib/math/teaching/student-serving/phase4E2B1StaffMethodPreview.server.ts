@@ -21,6 +21,23 @@ import { selectFromPhase4A4B } from '../strategy-selection/phase4C4Adapter';
 import { resolveStaffMathTeachingSource } from './phase4E2A3StaffSourceResolver.server';
 
 type Stage = 'access' | 'canonical' | 'understanding' | 'contract' | 'consumer' | 'selector';
+
+// Only score/ranking metadata produced by the deterministic 4C selector.
+// Do not return raw candidate evidence, answer checks, contract values,
+// source question text, grader details or pedagogical explanations.
+export type StaffMethodCandidateScore = Readonly<{
+  methodId: string;
+  familyId: string;
+  eligible: boolean;
+  rank: number | null;
+  score: number | null;
+  exclusionCodes: readonly string[];
+  dimensions: readonly Readonly<{ dimension: string; points: number; maximum: number }>[];
+}>;
+export type StaffMethodScoreComparison = Readonly<{
+  candidates: readonly StaffMethodCandidateScore[];
+  selectionIssueCodes: readonly string[];
+}>;
 type Metadata = Readonly<{
   phase: '4E-2B-1';
   previewOnly: true;
@@ -29,7 +46,7 @@ type Metadata = Readonly<{
 }>;
 export type StaffMathMethodPreview = Metadata & (
   | Readonly<{ status: 'blocked'; stage: Stage; reasonCodes: string[] }>
-  | Readonly<{ status: 'ambiguous'; stage: 'selector'; reasonCodes: string[]; candidateMethodCount: number; primaryFamilies: string[] }>
+  | Readonly<{ status: 'ambiguous'; stage: 'selector'; reasonCodes: string[]; candidateMethodCount: number; primaryFamilies: string[]; scoreComparison: StaffMethodScoreComparison }>
   | Readonly<{
       status: 'selected';
       stage: 'selector';
@@ -77,6 +94,63 @@ function understandingBlockerCodes(
       ? [entry.code]
       : [],
   ))].slice(0, 14);
+}
+
+// 4C scores and issue codes are staff-only metadata, not method approval.
+// Constrain strings and number ranges at this outbound boundary. Never forward
+// the selector's `detail`, `positiveEvidence`, `penalties` or `explanationCodes`.
+const validId = (text: unknown): text is string =>
+  typeof text === 'string' && /^[A-Za-z0-9_.:-]{1,120}$/.test(text);
+const safeCode = (text: unknown): text is string =>
+  typeof text === 'string' && /^[A-Z][A-Z0-9_]{1,80}$/.test(text);
+const safeScore = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100
+    ? Math.round(value * 100) / 100 : null;
+const allowedDimensions = new Set([
+  'problem_structure', 'required_reasoning', 'curriculum_skill',
+  'learner_level', 'math_domain', 'representation_fit', 'prerequisites',
+]);
+
+function publicScoreComparison(
+  output: ReturnType<typeof selectFromPhase4A4B>,
+): StaffMethodScoreComparison {
+  const candidates: StaffMethodCandidateScore[] = [];
+  const issueCodes: string[] = [];
+  for (const familySelection of output.familySelections ?? []) {
+    for (const issue of familySelection.issues ?? []) {
+      if (safeCode(issue.code)) issueCodes.push(issue.code);
+    }
+    for (const candidate of familySelection.candidates ?? []) {
+      if (candidates.length >= 12) break;
+      if (!validId(candidate.methodId) || !validId(candidate.familyId)) continue;
+      const eligible = candidate.eligible === true;
+      candidates.push({
+        methodId: candidate.methodId,
+        familyId: candidate.familyId,
+        eligible,
+        rank: eligible && Number.isInteger(candidate.rank) &&
+          candidate.rank! >= 1 && candidate.rank! <= 153 ? candidate.rank : null,
+        score: eligible ? safeScore(candidate.score) : null,
+        exclusionCodes: [...new Set((candidate.exclusions ?? [])
+          .map((item) => item.code).filter(safeCode))].slice(0, 8),
+        dimensions: eligible ? (candidate.dimensionScores ?? [])
+          .filter((dim) => allowedDimensions.has(dim.dimension) &&
+            typeof dim.points === 'number' && typeof dim.maximum === 'number' &&
+            Number.isFinite(dim.points) && Number.isFinite(dim.maximum) &&
+            dim.maximum >= 0 && dim.maximum <= 100 &&
+            dim.points >= 0 && dim.points <= dim.maximum)
+          .slice(0, 7)
+          .map((dim) => ({
+            dimension: dim.dimension, points: Math.round(dim.points * 100) / 100,
+            maximum: Math.round(dim.maximum * 100) / 100,
+          })) : [],
+      });
+    }
+  }
+  return {
+    candidates,
+    selectionIssueCodes: [...new Set(issueCodes)].slice(0, 12),
+  };
 }
 
 /**
@@ -147,6 +221,7 @@ export async function previewStaffMathMethod(
         reasonCodes: [...new Set(selection.reasonCodes)].slice(0, 16),
         candidateMethodCount: selection.candidateMethodCount,
         primaryFamilies: selection.primaryFamilies.slice(0, 16),
+        scoreComparison: publicScoreComparison(selection),
       };
     }
     const methodId = selection.selection?.primaryMethodId;

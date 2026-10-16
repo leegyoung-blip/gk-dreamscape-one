@@ -33,3 +33,18 @@
 .codes { margin-top: 20px; line-height: 1.7; overflow-wrap: anywhere; }
 .footerNotice { margin-top: 22px; border-top: 1px solid #29405d; padding-top: 16px; color: #b6d6dc; font-size: .9rem; }
 @media (max-width: 780px) { .fields { grid-template-columns: 1fr; } .resultGrid { grid-template-columns: 1fr; } .page { padding: 24px 14px 60px; } }
+
+/* 4E-2B-5: sanitized staff-only candidate diagnostics */
+.candidateSection { margin-top: 24px; border-top: 1px solid #29405d; padding-top: 22px; }
+.candidateSection h3 { margin: 0 0 6px; font-size: 1.1rem; }
+.candidateTableWrapper { overflow-x: auto; margin-top: 14px; }
+.candidateTable { width: 100%; border-collapse: collapse; min-width: 600px; text-align: left; }
+.candidateTable th, .candidateTable td { border-bottom: 1px solid #29405d; padding: 12px 10px; vertical-align: top; }
+.candidateTable th { color: #a3cbd7; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }
+.candidateTable td { color: #e1f4ff; font-size: .9rem; }
+.candidateTable td strong { overflow-wrap: anywhere; }
+.candidateFamily { display: block; color: #a7c4d7; font-size: .8rem; margin-top: 4px; overflow-wrap: anywhere; }
+.candidateCodes { color: #f0c8a7; font-size: .78rem; margin-top: 6px; overflow-wrap: anywhere; }
+.dimensionDetails { margin-top: 8px; }
+.dimensionDetails summary { cursor: pointer; color: #a3e7e9; }
+.dimensionDetails ul { margin: 8px 0 0; padding-left: 18px; color: #c1dae3; }
