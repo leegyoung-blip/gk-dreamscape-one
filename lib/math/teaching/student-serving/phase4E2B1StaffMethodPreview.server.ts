@@ -47,6 +47,38 @@ const denied = (stage: Stage, codes: string[]): StaffMathMethodPreview => ({
   ...marker, status: 'blocked', stage, reasonCodes: [...new Set(codes)].slice(0, 16),
 });
 
+// These identifiers are defined by the server-side 4A readiness gate.
+// Return ONLY the static code identifiers — never diagnostic messages,
+// question data, source evidence, answer validation details or student data.
+const safeUnderstandingGateCodes = new Set<string>([
+  'GATE_CANONICAL_NOT_READY',
+  'GATE_DOMAIN_UNRESOLVED',
+  'GATE_DOMAIN_GENERIC_FALLBACK',
+  'GATE_DOMAIN_LOW_CONFIDENCE',
+  'GATE_STRUCTURE_UNRESOLVED',
+  'GATE_STRUCTURE_GENERIC_FALLBACK',
+  'GATE_STRUCTURE_LOW_CONFIDENCE',
+  'GATE_TARGET_UNRESOLVED',
+  'GATE_REASONING_UNRESOLVED',
+  'GATE_REASONING_GENERIC_FALLBACK',
+  'GATE_ANSWER_MISMATCH',
+  'GATE_BLOCKING_CONFLICT',
+  'GATE_BLOCKING_ISSUE',
+  'GATE_OVERALL_LOW_CONFIDENCE',
+]);
+
+function understandingBlockerCodes(
+  value: ReturnType<typeof understandTeachingQuestion>,
+): string[] {
+  const blockers = value.gateDiagnostics?.blockers;
+  if (!Array.isArray(blockers)) return [];
+  return [...new Set(blockers.flatMap((entry) =>
+    typeof entry?.code === 'string' && safeUnderstandingGateCodes.has(entry.code)
+      ? [entry.code]
+      : [],
+  ))].slice(0, 14);
+}
+
 /**
  * Perform ONE read-only preview for an explicitly selected quiz/question pair.
  * Never include `source`, `canonical`, `understanding`, `contract`, or raw 4C
@@ -79,8 +111,13 @@ export async function previewStaffMathMethod(
 
     const understanding = understandTeachingQuestion({ question: canonical });
     if (!understanding.readyForMethodSelection) {
-      // Diagnostic codes only; never return raw explanations or answer evidence.
-      return denied('understanding', ['UNDERSTANDING_NOT_READY']);
+      // Fail closed exactly as before, but expose the 4A gate's static,
+      // allow-listed blocker codes to authenticated staff for diagnosis.
+      // Never return blocker messages, paths, answers or other source details.
+      return denied('understanding', [
+        'UNDERSTANDING_NOT_READY',
+        ...understandingBlockerCodes(understanding),
+      ]);
     }
 
     const built = buildTeachingContract(understanding);
