@@ -331,6 +331,11 @@ const ARENA_MODE_BACKGROUNDS = {
   multiplayer: "/activities/learning-missions/knowledge-arena/modes/multiplayer.png",
 } as const;
 
+const ARENA_LOBBY_BACKGROUNDS = {
+  create: "/activities/learning-missions/knowledge-arena/modes/create-lobby.png",
+  join: "/activities/learning-missions/knowledge-arena/modes/join-lobby.png",
+} as const;
+
 const NOVA_ANALYTICS_HREF = "/learning-missions/progress-rewards";
 
 const challengeModeMeta: Record<
@@ -458,6 +463,16 @@ const NOVA_GUIDE_STEPS = [
       "Multiplayer correctness still contributes to personal mastery evidence while remaining separate from solo improvement benchmarking.",
     stage: "mode" as PageStage,
     target: "multiplayer-mode",
+  },
+  {
+    eyebrow: "Play with friends",
+    title: "Create or join a lobby",
+    description:
+      "Create Lobby to host a shared arena, or Join Lobby using your friend's six-character code.",
+    detail:
+      "The host chooses the knowledge world, timer and Co-op Battle or Versus Race. Everyone plays the same 10 questions.",
+    stage: "multiplayer-menu" as PageStage,
+    target: "lobby-choice",
   },
 ] as const;
 
@@ -3662,8 +3677,8 @@ export default function KnowledgeArenaPage() {
           )}
 
           {stage === "multiplayer-menu" && (
-            <div className="ka-stage ka-mode-stage">
-              <div className="ka-stage-toolbar">
+            <div className="ka-stage ka-mode-stage ka-cinematic-mode-stage ka-cinematic-lobby-stage">
+              <div className="ka-stage-toolbar ka-cinematic-lobby-toolbar">
                 <button
                   type="button"
                   className="ka-inline-back"
@@ -3677,41 +3692,66 @@ export default function KnowledgeArenaPage() {
                 </div>
               </div>
 
-              <div className="ka-mode-grid">
+              <div className="ka-mode-grid ka-cinematic-grid ka-cinematic-lobby-grid">
                 <button
                   type="button"
-                  className="ka-mode-card is-single"
+                  className="ka-mode-card ka-cinematic-card ka-lobby-cinematic-card is-single"
+                  data-nova-guide-target="lobby-choice"
                   onClick={() => setStage("create-lobby")}
                 >
-                  <span className="ka-mode-icon">⌁</span>
-                  <span className="ka-mode-copy">
-                    <small>Host</small>
-                    <strong>Create Lobby</strong>
-                    <span>Create the room first, then choose the topic inside the lobby.</span>
+                  <span
+                    className="ka-cinematic-art"
+                    aria-hidden="true"
+                    style={{ backgroundImage: `url('${ARENA_LOBBY_BACKGROUNDS.create}')` }}
+                  />
+                  <span className="ka-cinematic-vignette" aria-hidden="true" />
+                  <span className="ka-cinematic-copy">
+                    <small className="ka-cinematic-eyebrow">Host an Arena</small>
+                    <strong className="ka-cinematic-title">Create Lobby</strong>
+                    <span className="ka-cinematic-description">
+                      Start a shared arena, choose a knowledge world and invite
+                      friends to play together.
+                    </span>
+                    <span className="ka-cinematic-action">
+                      Create Lobby <span aria-hidden="true">→</span>
+                    </span>
                   </span>
-                  <span className="ka-mode-action">Create →</span>
                 </button>
 
                 <button
                   type="button"
-                  className="ka-mode-card is-multi"
+                  className="ka-mode-card ka-cinematic-card ka-lobby-cinematic-card is-multi"
                   onClick={() => setStage("join-lobby")}
                 >
-                  <span className="ka-mode-icon">⌘</span>
-                  <span className="ka-mode-copy">
-                    <small>Player</small>
-                    <strong>Join Lobby</strong>
-                    <span>Enter the six-character code from your host.</span>
+                  <span
+                    className="ka-cinematic-art"
+                    aria-hidden="true"
+                    style={{ backgroundImage: `url('${ARENA_LOBBY_BACKGROUNDS.join}')` }}
+                  />
+                  <span className="ka-cinematic-vignette" aria-hidden="true" />
+                  <span className="ka-cinematic-copy">
+                    <small className="ka-cinematic-eyebrow">Enter an Arena</small>
+                    <strong className="ka-cinematic-title">Join Lobby</strong>
+                    <span className="ka-cinematic-description">
+                      Have an invite code? Enter the six characters from your
+                      host and join the same challenge.
+                    </span>
+                    <span className="ka-cinematic-action">
+                      Join Lobby <span aria-hidden="true">→</span>
+                    </span>
                   </span>
-                  <span className="ka-mode-action">Join →</span>
                 </button>
               </div>
 
-              {!userId && (
-                <p className="ka-error-banner">
-                  Log in before creating or joining a multiplayer lobby.
-                </p>
-              )}
+              <div className="ka-mode-footer ka-cinematic-rules ka-lobby-cinematic-rules">
+                <span><b>Game modes</b> · Co-op Battle or Versus Race</span>
+                <span><b>10 questions</b> · Shared world and timer</span>
+                <span>
+                  {userId
+                    ? "The host sets up the next match"
+                    : "Log in to create or join a lobby"}
+                </span>
+              </div>
             </div>
           )}
 
@@ -9393,6 +9433,112 @@ export default function KnowledgeArenaPage() {
           .ka-cinematic-art,
           .ka-cinematic-action > span {
             transition: none !important;
+          }
+        }
+
+
+
+        /* ================================================================
+           KNOWLEDGE ARENA PHASE 2 — CINEMATIC MULTIPLAYER ENTRY
+           Uses Phase 1B artwork card styles, scoped only to the Create / Join
+           landing screen. Does not touch the actual lobby / battle stages.
+           ================================================================ */
+        .ka-cinematic-lobby-stage .ka-cinematic-lobby-toolbar {
+          min-height: 48px;
+          flex: 0 0 auto;
+          align-items: center;
+        }
+
+        .ka-cinematic-lobby-toolbar > div {
+          text-align: right;
+        }
+
+        .ka-cinematic-lobby-toolbar > div > strong {
+          margin-top: 5px;
+          font-size: clamp(16px, 1.45vw, 22px);
+          line-height: 1.2;
+          white-space: normal;
+        }
+
+        .ka-cinematic-lobby-stage .ka-cinematic-lobby-grid {
+          margin-top: clamp(10px, 1.5vh, 16px);
+        }
+
+        .ka-cinematic-lobby-stage .ka-lobby-cinematic-card .ka-cinematic-art {
+          background-position: center 36%;
+        }
+
+        .ka-cinematic-lobby-stage .ka-lobby-cinematic-card.is-multi .ka-cinematic-art {
+          background-position: center 36%;
+        }
+
+        .ka-cinematic-lobby-stage .ka-lobby-cinematic-card .ka-cinematic-vignette {
+          background: linear-gradient(
+            180deg,
+            rgba(2, 7, 20, 0.01) 3%,
+            rgba(2, 7, 20, 0.03) 38%,
+            rgba(2, 7, 20, 0.25) 61%,
+            rgba(2, 7, 20, 0.86) 85%,
+            rgba(2, 7, 20, 0.97) 100%
+          );
+        }
+
+        .ka-cinematic-lobby-stage .ka-lobby-cinematic-card.is-multi {
+          border-color: rgba(201, 150, 255, 0.42);
+        }
+
+        .ka-cinematic-lobby-stage .ka-lobby-cinematic-card .ka-cinematic-copy {
+          max-width: 670px;
+        }
+
+        .ka-cinematic-lobby-stage .ka-lobby-cinematic-rules {
+          display: flex;
+          min-height: 46px;
+          flex-wrap: wrap;
+          gap: 5px clamp(12px, 2.2vw, 28px);
+          margin-top: clamp(8px, 1.15vh, 12px);
+        }
+
+        .ka-cinematic-lobby-stage .ka-lobby-cinematic-rules > span {
+          white-space: normal;
+        }
+
+        @media (max-width: 850px), (hover: none) and (pointer: coarse) {
+          .ka-cinematic-lobby-stage .ka-cinematic-lobby-toolbar {
+            min-height: 42px;
+          }
+
+          .ka-cinematic-lobby-toolbar > div > strong {
+            font-size: clamp(13px, 2.5vw, 18px);
+          }
+
+          .ka-cinematic-lobby-stage .ka-lobby-cinematic-rules {
+            min-height: 36px;
+            gap: 5px 10px;
+            font-size: 9px;
+          }
+        }
+
+        @media (max-width: 560px) and (orientation: portrait) {
+          .ka-cinematic-lobby-toolbar > div > strong {
+            font-size: 13px;
+          }
+
+          .ka-cinematic-lobby-stage .ka-lobby-cinematic-rules > span:last-child {
+            flex-basis: 100%;
+          }
+        }
+
+        @media (max-height: 470px) and (orientation: landscape) {
+          .ka-cinematic-lobby-stage .ka-cinematic-lobby-toolbar {
+            min-height: 34px;
+          }
+
+          .ka-cinematic-lobby-stage .ka-lobby-cinematic-rules {
+            min-height: 27px;
+            margin-top: 6px;
+            padding: 4px 6px;
+            font-size: 8px;
           }
         }
 

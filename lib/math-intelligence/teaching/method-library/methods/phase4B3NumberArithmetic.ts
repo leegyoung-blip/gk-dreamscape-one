@@ -1270,6 +1270,52 @@ const METHODS: Readonly<TeachingMethod>[] = [
     officialClaimTag: "curriculum_scope",
     dreamscapeClaim: "Dreamscape requires the learner to state and verify the rule before extending.",
   }),
+  // 4E-2B-6: P6 two-target constant-increment reasoning. This method is
+  // never discovered from a generic pattern family alone; 4B candidate queries
+  // must carry the independently verified term-and-total prompt evidence.
+  makeMethod({
+    methodId: "patterns.sequence_rule.constant_increment_term_and_total",
+    familyId: "patterns.sequence_rule",
+    variantId: "constant_increment_term_and_total",
+    title: "Find a term and the total of a constant-increment sequence",
+    summary: "Uses a verified constant difference to find a named term, then sums the full sequence without confusing a term with the total.",
+    status: "active",
+    applicability: {
+      levels: [6],
+      domains: ["patterns"],
+      structures: ["pattern_rule"],
+      reasoning: ["pattern_application", "addition", "multiplication"],
+      // Exact legacy question-bank skill label; NOT a fuzzy curriculum inference.
+      curriculumSkills: ["Number patterns and sequences"],
+      exclusions: ["No confirmed constant difference", "No explicit term-and-total target", "Repeating or alternating sequence"],
+    },
+    pedagogy: {
+      learningObjectivePattern: "Use a verified constant increment to determine a named term and the sum of every term in a finite sequence.",
+      conceptualFocus: ["constant first difference", "term position", "finite sequence total", "pairing first and last terms"],
+      prerequisiteConcepts: ["addition", "multiplication", "number patterns"],
+      cpaPolicy: "optional",
+      teachingSequence: [
+        stage("verify_constant_increment", "notice_relationship", "Check the increase from the first term to the second and against the stated term-to-term rule.", "A constant increment must be justified before extending the sequence.", ["table"]),
+        stage("find_requested_term", "calculate", "Count the changes before the requested position and apply the same increase to the first term.", "Position is not the number of increments from the first term.", ["table", "symbolic_working"]),
+        stage("find_last_term", "calculate", "Use the full number of terms to find the last value in the finite sequence.", "The final term and the total are different quantities.", ["table", "symbolic_working"]),
+        stage("sum_all_terms", "reason", "Pair the first and last terms, and use the number of terms to calculate the entire total.", "Each paired sum is equal; the number of terms controls the total.", ["table", "symbolic_working"]),
+        stage("verify_both_targets", "check", "Check the requested term and the total separately against the stated increase and term count.", "Both requested results must be supported by the original sequence.", ["symbolic_working"]),
+      ],
+      representations: reps(["table", "symbolic_working"], ["number_line", "verbal_reasoning"]),
+    },
+    workedPattern: {
+      notationGuidance: ["Label the first term, common difference, requested position, and total number of terms separately.", "Do not treat the last term as the total."],
+      generalisationPattern: "For a finite arithmetic sequence, verify the constant step, find the required term and last term, then sum equally paired first and last terms.",
+      checkPattern: "Reconstruct early terms from the increase and check the named term and total independently.",
+    },
+    misconceptions: [
+      misconception("multiply_last_by_count", "Treating the last term as though every term had that size.", ["A computed total equals term count times the last value"], "Use symmetric pairs or check a short partial sum."),
+      misconception("off_by_one", "Using the term position instead of the number of changes from term one.", ["Term is one increment too large"], "Count transitions between the first and required positions."),
+    ],
+    visualGuidance: visual("usually", ["table"]),
+    officialClaimTag: "curriculum_scope",
+    dreamscapeClaim: "Dreamscape combines named-term calculation with explicit finite-series total checking for this evidence-gated pattern method.",
+  }),
   makeMethod({
     methodId: "patterns.sequence_rule.repeating_cycle",
     familyId: "patterns.sequence_rule",
@@ -1390,6 +1436,7 @@ export const PHASE4B3_METHOD_THEME_COVERAGE: readonly Phase4B3MethodThemeCoverag
   { methodId: "algebra.symbol_rule.infer_apply_rule", familyId: "algebra.symbol_rule", themes: ["rule inference"] },
 
   { methodId: "patterns.sequence_rule.growing_difference", familyId: "patterns.sequence_rule", themes: ["observe differences", "identify rule", "extend"] },
+  { methodId: "patterns.sequence_rule.constant_increment_term_and_total", familyId: "patterns.sequence_rule", themes: [] },
   { methodId: "patterns.sequence_rule.recursive_rule", familyId: "patterns.sequence_rule", themes: ["recursive rule"] },
   { methodId: "patterns.sequence_rule.repeating_cycle", familyId: "patterns.sequence_rule", themes: [] },
 ]);
@@ -1404,12 +1451,18 @@ export type Phase4B3CandidateQuery = {
   problemStructure: TeachingMethod["applicability"]["structures"][number];
   requiredReasoning: TeachingMethod["applicability"]["reasoning"];
   candidateFamilies: Phase4BMethodFamilyId[];
+  /** 4E-2B-6: provided only after trusted two-target prompt validation. */
+  verifiedConstantIncrementTermAndTotal?: boolean;
 };
 
 export function listPhase4B3CandidateMethods(query: Phase4B3CandidateQuery): Readonly<TeachingMethod>[] {
   const familySet = new Set(query.candidateFamilies);
   const reasoningSet = new Set(query.requiredReasoning);
   return PHASE4B3_NUMBER_ARITHMETIC_METHODS.filter((method) => {
+    if (method.methodId === "patterns.sequence_rule.constant_increment_term_and_total" &&
+        query.verifiedConstantIncrementTermAndTotal !== true) return false;
+    if (method.methodId === "patterns.sequence_rule.repeating_cycle" &&
+        query.verifiedConstantIncrementTermAndTotal === true) return false;
     if (!familySet.has(method.familyId)) return false;
     if (!method.applicability.levels.includes(query.learnerLevel)) return false;
     if (!method.applicability.domains.includes(query.domain)) return false;

@@ -20,6 +20,8 @@ export type Phase4BProductionCandidateQuery = {
   problemStructure: TeachingMethod["applicability"]["structures"][number];
   requiredReasoning: TeachingMethod["applicability"]["reasoning"];
   candidateFamilies: Phase4BMethodFamilyId[];
+  /** Trusted 4A two-target evidence, not inferred from a topic label. */
+  verifiedConstantIncrementTermAndTotal?: boolean;
 };
 
 export function getPhase4BProductionMethodsByFamily(
@@ -37,6 +39,13 @@ export function listPhase4BProductionCandidateMethods(
   const reasoningSet = new Set(query.requiredReasoning);
 
   return PHASE4B_ALL_PRODUCTION_METHODS.filter((method) => {
+    // Narrow specialist requires positive evidence. A generic P6 pattern does
+    // not satisfy this gate, even when it shares the same family and skill tag.
+    if (method.methodId === "patterns.sequence_rule.constant_increment_term_and_total" &&
+        query.verifiedConstantIncrementTermAndTotal !== true) return false;
+    // A strictly increasing finite arithmetic sequence is not a repeating cycle.
+    if (method.methodId === "patterns.sequence_rule.repeating_cycle" &&
+        query.verifiedConstantIncrementTermAndTotal === true) return false;
     if (method.status !== "active") return false;
     if (!familySet.has(method.familyId)) return false;
     if (!method.applicability.levels.includes(query.learnerLevel)) return false;

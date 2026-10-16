@@ -5,6 +5,7 @@ import { validateTeachingContractConsumerEnvelope } from '../../../math-intellig
 import { buildPhase4BQuestionCoverageRequirement } from '../../../math-intelligence/teaching/method-library/taxonomy/buildCoverageRequirement';
 import { listPhase4BProductionCandidateMethods } from '../../../math-intelligence/teaching/method-library/methods/phase4BProductionLibrary';
 import type { TeachingMethod } from '../../../math-intelligence/teaching/method-library/schema/types';
+import { identifyRingArrivalIncrementPattern } from '../../../math-intelligence/teaching/understanding/rules/constantIncrementPattern';
 import type { Phase4BMethodFamilyId } from '../../../math-intelligence/teaching/method-library/taxonomy/types';
 import { selectTeachingStrategy, type MethodCandidateEvidence } from './selector';
 import { composeTeachingMethods, type MethodComposition } from './composition';
@@ -61,7 +62,9 @@ function makeEvidence(
 ): MethodCandidateEvidence {
   const matchingReasoning=method.applicability.reasoning.filter(r=>contract.mathematics.requiredReasoning.includes(r));
   const skillKeys=[contract.curriculum.primarySkill?.code, contract.curriculum.primarySkill?.id,
-    ...contract.curriculum.secondarySkills.flatMap(s=>[s.code,s.id]),...contract.curriculum.skillTags].filter((x):x is string=>!!x);
+    ...contract.curriculum.secondarySkills.flatMap(s=>[s.code,s.id]),...contract.curriculum.skillTags,
+    // Exact authored skill label; never guessed from question text or topic name.
+    contract.curriculum.legacySkillLabel].filter((x):x is string=>!!x);
   const declarativeSkillMatch=method.applicability.curriculumSkills.some(s=>skillKeys.includes(s));
   const mastery: MethodPrerequisiteMasteryState = method.pedagogy.prerequisiteConcepts.length === 0
     ? 'not_required'
@@ -134,8 +137,19 @@ export function selectFromPhase4A4B(input:Phase4C4AdapterInput):Phase4C4AdapterR
   const requirement=coverage.requirement;
   const families=[...requirement.primaryFamilies].sort();
   if (!families.length) return fail('NO_PRIMARY_FAMILIES');
+  // 4E-2B-6: only the narrowly validated two-target constant-increment story
+  // can admit the specialist. A skill label alone is not proof of the maths.
+  const verifiedConstantIncrementTermAndTotal =
+    requirement.learnerLevel === 6 &&
+    requirement.domain === 'patterns' &&
+    requirement.problemStructure === 'pattern_rule' &&
+    ['pattern_application', 'addition', 'multiplication'].every(r =>
+      requirement.requiredReasoning.includes(r as typeof requirement.requiredReasoning[number])) &&
+    c.contract.curriculum.legacySkillLabel === 'Number patterns and sequences' &&
+    identifyRingArrivalIncrementPattern(c.contract.content.prompt) !== null;
   const candidates=listPhase4BProductionCandidateMethods({learnerLevel:requirement.learnerLevel as 1|2|3|4|5|6,domain:requirement.domain,
-    problemStructure:requirement.problemStructure,requiredReasoning:[...requirement.requiredReasoning],candidateFamilies:[...requirement.allCandidateFamilies]});
+    problemStructure:requirement.problemStructure,requiredReasoning:[...requirement.requiredReasoning],candidateFamilies:[...requirement.allCandidateFamilies],
+    verifiedConstantIncrementTermAndTotal});
   const primary=candidates.filter(m=>families.includes(m.familyId));
   if (!primary.length) return fail('NO_4B_PRIMARY_CANDIDATES',families,candidates.length);
   // Only validated, reviewer-attested question structure can affect B2 scoring.

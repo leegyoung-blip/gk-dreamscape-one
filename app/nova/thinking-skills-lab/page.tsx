@@ -164,13 +164,13 @@ const WALKTHROUGH_STEPS = [
   },
   {
     eyebrow: "Step 1 of 4",
-    title: "Activate a thinking machine.",
-    text: "Start at the machine bay and pick Colour Code, SET Finder or Tower Memory. Each machine generates Dream Tokens when you finish its challenges while signed in.",
+    title: "Choose a thinking machine.",
+    text: "Tap Colour Code, SET Finder or Tower Memory to highlight a machine and read about its challenge. Then press Enter Machine to open its puzzle console.",
   },
   {
     eyebrow: "Step 2 of 4",
     title: "Step inside the machine.",
-    text: "Once you activate a machine, its puzzle console opens. Tap the question mark for the rules, or use the Lab button to choose another machine.",
+    text: "Press Enter Machine to begin. Inside, tap the question mark for the rules or use Return to Lab when you want to choose another machine.",
   },
   {
     eyebrow: "Step 3 of 4",
@@ -1340,31 +1340,6 @@ export default function ThinkingSkillsLabPage() {
         </div>
       </header>
 
-      <section className="lab-overlook" aria-label="Nova's Think Lab reactor room">
-        <div className="overlook-intro">
-          <span className="overlook-eyebrow">NOVA'S WORKSHOP · THINK LAB</span>
-          <h1>Power the journey.</h1>
-          <p>Play the thinking machines. Generate Dream Tokens. Explore DREAMSCAPE.</p>
-        </div>
-        <div className={`overlook-status${reactorAward ? " is-charging" : ""}`} aria-live="polite">
-          <span className="overlook-kicker">✦ DREAM TOKEN REACTOR</span>
-          <strong>
-            {loading
-              ? "Preparing reactor…"
-              : !userId
-              ? "Practice mode"
-              : `+${todayGeneratedDT.toLocaleString()} DT today`}
-          </strong>
-          <small>
-            {loading
-              ? "Connecting to the lab"
-              : !userId
-              ? "Sign in to collect Dream Tokens"
-              : `${todayCompleted} of 9 daily challenges complete`}
-          </small>
-        </div>
-      </section>
-
       {showHub ? (
         <ThinkLabHub
           games={GAME_DEFINITIONS}
@@ -2048,63 +2023,6 @@ export default function ThinkingSkillsLabPage() {
         .lab-glow { opacity: .12; }
         .lab-grid { opacity: .025; }
 
-        .lab-overlook {
-          position: relative;
-          z-index: 2;
-          display: grid;
-          grid-template-columns: minmax(0,1fr) minmax(0,.85fr) minmax(0,1fr);
-          align-items: center;
-          height: clamp(104px, 14vh, 142px);
-          margin: 10px 10px 0;
-          padding: 12px 18px;
-          overflow: hidden;
-          border: 1px solid rgba(123,221,255,.37);
-          border-radius: 20px;
-          background-image:
-            linear-gradient(90deg, rgba(2,10,29,.82) 0%, rgba(2,10,29,.1) 39%, rgba(2,10,29,.12) 65%, rgba(2,10,29,.75) 100%),
-            url("/nova/thinking-skills/think-lab-landscape.webp");
-          background-size: cover;
-          background-position: center 22%;
-          box-shadow: 0 0 24px rgba(59,169,255,.12), inset 0 0 18px rgba(102,217,255,.12);
-        }
-        .lab-overlook::after {
-          position: absolute; inset: 0; content: ""; pointer-events: none;
-          border-radius: inherit;
-          background: linear-gradient(180deg, rgba(4,13,33,.03), rgba(4,13,33,.25));
-        }
-        .overlook-intro, .overlook-status { position: relative; z-index: 1; }
-        .overlook-intro { min-width: 0; max-width: 340px; }
-        .overlook-eyebrow, .overlook-kicker {
-          color: #87e9ff; font-size: 9px; letter-spacing: .16em; font-weight: 900;
-          text-transform: uppercase;
-        }
-        .overlook-intro h1 {
-          margin: 3px 0 5px; color: white; font-size: clamp(21px,2.2vw,31px);
-          line-height: 1.08; letter-spacing: -.035em; text-shadow: 0 2px 13px #000;
-        }
-        .overlook-intro p {
-          max-width: 330px; margin: 0; color: rgba(226,244,255,.86);
-          font-size: 11px; line-height: 1.5; text-shadow: 0 1px 8px #000;
-        }
-        .overlook-status {
-          grid-column: 3; justify-self: end; display: grid; gap: 5px;
-          min-width: 220px; max-width: 270px; padding: 12px 14px;
-          border: 1px solid rgba(119,218,255,.32); border-radius: 14px;
-          background: rgba(3,14,35,.72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-          box-shadow: inset 0 0 18px rgba(92,208,255,.08), 0 8px 25px rgba(0,0,0,.18);
-        }
-        .overlook-status.is-charging {
-          border-color: rgba(155, 249, 255, .82);
-          animation: reactorReceive 1.5s ease-in-out 2;
-        }
-        @keyframes reactorReceive {
-          0%, 100% { box-shadow: inset 0 0 18px rgba(92,208,255,.08), 0 8px 25px rgba(0,0,0,.18); }
-          45% { box-shadow: 0 0 32px rgba(123, 219, 255, .42), inset 0 0 35px rgba(151, 120, 255, .23); }
-        }
-        .overlook-status strong { font-size: 18px; font-weight: 900; color: #fff; }
-        .overlook-status small { color: rgba(227,242,255,.78); font-size: 10px; }
-        .lab-layout { height: calc(100dvh - 66px - clamp(104px, 14vh, 142px) - 10px); }
-
         .game-sidebar, .game-stage {
           border-color: rgba(131,222,255,.30);
           background: linear-gradient(145deg, rgba(4,15,35,.9), rgba(3,9,26,.87));
@@ -2144,50 +2062,12 @@ export default function ThinkingSkillsLabPage() {
               url("/nova/thinking-skills/think-lab-portrait.webp");
             background-position: center top;
           }
-          .lab-overlook {
-            background-image:
-              linear-gradient(90deg, rgba(2,10,29,.75), rgba(2,10,29,.04) 65%, rgba(2,10,29,.22)),
-              url("/nova/thinking-skills/think-lab-portrait.webp");
-            background-position: center 25%;
-          }
-        }
-        @media (max-height: 740px) and (min-width: 721px) {
-          .lab-overlook { height: 78px; }
-          .lab-layout { height: calc(100dvh - 66px - 78px - 10px); }
-          .overlook-intro p { display: none; }
-          .overlook-status { padding: 6px 10px; }
         }
         @media (max-width: 720px) {
-          .lab-overlook {
-            height: 104px;
-            margin: 5px 5px 0;
-            padding: 10px 12px;
-            grid-template-columns: minmax(0,1fr) minmax(0,.55fr);
-            border-radius: 15px;
-          }
-          .overlook-intro { max-width: 215px; }
-          .overlook-eyebrow { font-size: 8px; letter-spacing: .09em; }
-          .overlook-intro h1 { margin: 3px 0; font-size: 19px; }
-          .overlook-intro p { max-width: 205px; font-size: 10px; line-height: 1.35; }
-          .overlook-status { display: none; }
-          .lab-layout { height: calc(100dvh - 58px - 104px - 5px); }
           .machine-subtitle { display: none; }
-        }
-        @media (max-width: 720px) and (orientation: landscape) {
-          .lab-overlook { height: 58px; }
-          .overlook-intro h1 { font-size: 16px; }
-          .overlook-intro p { display: none; }
-          .lab-layout { height: calc(100dvh - 58px - 58px - 5px); }
-        }
-        @media (max-width: 720px) and (max-height: 660px) and (orientation: portrait) {
-          .lab-overlook { height: 72px; }
-          .overlook-intro h1 { font-size: 16px; }
-          .overlook-intro p { display: none; }
-          .lab-layout { height: calc(100dvh - 58px - 72px - 5px); }
         }
         @media (prefers-reduced-motion: reduce) {
           .game-menu-card { transition: none; }
-          .overlook-status.is-charging { animation: none; }
         }
       `}</style>
     </main>
