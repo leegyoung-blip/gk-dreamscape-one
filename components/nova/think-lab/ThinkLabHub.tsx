@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import type { DailyGameStatus, GameDefinition, GameId } from "./shared";
+import { DreamTokenReactor } from "./ThinkLabReactor";
 
 type ThinkLabHubProps = {
   games: readonly GameDefinition[];
@@ -12,6 +13,7 @@ type ThinkLabHubProps = {
   isGuest: boolean;
   loading: boolean;
   guideHighlight?: boolean;
+  reactorPulseKey?: number;
   onActivate: (game: GameId) => void;
 };
 
@@ -42,6 +44,7 @@ export default function ThinkLabHub({
   isGuest,
   loading,
   guideHighlight = false,
+  reactorPulseKey = 0,
   onActivate,
 }: ThinkLabHubProps) {
   return (
@@ -55,30 +58,28 @@ export default function ThinkLabHub({
         </p>
       </div>
 
-      <div className="reactor-status" aria-label="Dream Token reactor status">
-        <div className="reactor-status-head">
-          <span className="reactor-light" aria-hidden="true" />
-          <strong>Dream Token Reactor</strong>
-        </div>
-        <div className="reactor-count">
-          <span className="reactor-bolt" aria-hidden="true">✦</span>
-          <strong>{loading ? "—" : todayGeneratedDT.toLocaleString("en-US")}</strong>
-          <span>DT earned today</span>
-        </div>
-        <div
-          className="reactor-meter"
-          role="progressbar"
-          aria-label="Daily Think Lab challenges completed"
-          aria-valuemin={0}
-          aria-valuemax={9}
-          aria-valuenow={todayCompleted}
-        >
-          <span style={{ width: `${Math.min(100, (todayCompleted / 9) * 100)}%` }} />
-        </div>
-        <div className="reactor-foot">
-          <span>{loading ? "Loading" : `${todayCompleted}/9 challenges`}</span>
-          <span>{isGuest ? "Guest practice" : "Earned rewards"}</span>
-        </div>
+      <div className="hub-reactor">
+        <DreamTokenReactor
+          machines={games.map((game) => ({
+            id: game.id,
+            title: game.title,
+            completed: progress[game.id].completed,
+            accent: game.accent,
+            earned: ([1, 2, 3] as const).reduce(
+              (total, level) =>
+                total +
+                (progress[game.id].levels[level].completed
+                  ? progress[game.id].levels[level].reward
+                  : 0),
+              0
+            ),
+          }))}
+          todayCompleted={todayCompleted}
+          todayGeneratedDT={todayGeneratedDT}
+          isGuest={isGuest}
+          loading={loading}
+          pulseKey={reactorPulseKey}
+        />
       </div>
 
       <div className="hub-selection">
@@ -150,7 +151,7 @@ export default function ThinkLabHub({
           justify-content: space-between;
           gap: 16px;
           width: 100%;
-          height: calc(100dvh - 66px);
+          height: calc(100dvh - 66px - clamp(104px, 14vh, 142px) - 10px);
           padding: clamp(12px, 2vw, 26px);
           overflow: auto;
           color: #f6fbff;
@@ -186,64 +187,18 @@ export default function ThinkLabHub({
           font-size: 12px;
           line-height: 1.58;
         }
-        .reactor-status {
+        .hub-reactor {
           position: absolute;
           top: clamp(12px, 2vw, 26px);
           right: clamp(12px, 2vw, 26px);
-          width: min(270px, 28vw);
-          padding: 14px 16px;
-          border: 1px solid rgba(136, 113, 251, .5);
-          border-radius: 18px;
-          background: linear-gradient(135deg, rgba(21, 11, 55, .88), rgba(4, 17, 43, .8));
-          backdrop-filter: blur(15px);
-          box-shadow: 0 14px 40px rgba(0,0,0,.3), inset 0 0 20px rgba(98,88,238,.09);
+          z-index: 2;
+          width: min(304px, 30vw);
         }
-        .reactor-status-head {
-          display: flex;
-          gap: 8px;
-          align-items: center;
-          color: #ded7ff;
-          font-size: 11px;
-          letter-spacing: .04em;
-        }
-        .reactor-light {
-          display: block;
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: #a89bff;
-          box-shadow: 0 0 14px #a89bff;
-        }
-        .reactor-count {
-          display: flex;
-          gap: 7px;
-          align-items: baseline;
-          margin-top: 9px;
-        }
-        .reactor-bolt { color: #bd8aff; font-size: 22px; }
-        .reactor-count strong { font-size: 29px; letter-spacing: -.04em; }
-        .reactor-count > span:last-child { color: #bcb5e9; font-size: 10px; }
-        .reactor-meter, .machine-progress-track {
+        .machine-progress-track {
           overflow: hidden;
           height: 5px;
           border-radius: 99px;
           background: rgba(255,255,255,.14);
-        }
-        .reactor-meter { margin-top: 11px; }
-        .reactor-meter span {
-          display: block;
-          height: 100%;
-          border-radius: inherit;
-          background: linear-gradient(90deg, #67dfff, #bba0ff);
-          box-shadow: 0 0 14px rgba(143, 168, 255, .8);
-        }
-        .reactor-foot {
-          display: flex;
-          justify-content: space-between;
-          gap: 6px;
-          margin-top: 7px;
-          color: #a9bcd8;
-          font-size: 9px;
         }
         .hub-selection {
           width: 100%;
@@ -386,23 +341,19 @@ export default function ThinkLabHub({
         }
         @media (max-width: 720px) {
           .think-hub {
-            height: calc(100dvh - 58px);
+            height: calc(100dvh - 58px - 104px - 5px);
             padding: 10px 9px 18px;
             gap: 10px;
           }
           .hub-intro { width: 100%; min-width: 0; padding: 12px 13px; }
           .hub-intro h1 { font-size: 23px; }
           .hub-intro p { font-size: 11px; }
-          .reactor-status {
+          .hub-reactor {
             position: static;
-            width: min(100%, 380px);
+            width: min(100%, 440px);
             align-self: center;
-            padding: 10px 13px;
-            margin-top: 3px;
+            margin-top: 2px;
           }
-          .reactor-count { margin-top: 4px; }
-          .reactor-count strong { font-size: 24px; }
-          .reactor-meter { margin-top: 7px; }
           .hub-selection { padding: 10px; margin-top: auto; border-radius: 17px; }
           .hub-selection-heading { padding: 0 2px 8px; }
           .hub-selection-heading h2 { font-size: 16px; }
@@ -424,13 +375,20 @@ export default function ThinkLabHub({
         @media (max-width: 720px) and (orientation: landscape) {
           .hub-intro { width: 260px; }
           .hub-intro p { display: none; }
-          .reactor-status { position: absolute; top: 10px; right: 10px; width: 220px; }
+          .hub-reactor { position: absolute; top: 10px; right: 10px; width: 220px; }
+          .think-hub { height: calc(100dvh - 58px - 58px - 5px); }
           .hub-machines { grid-template-columns: repeat(3, minmax(0, 1fr)); }
           .machine-card { padding: 8px; }
           .machine-symbol { display: none; }
           .machine-purpose { display: none; }
           .hub-selection { margin-top: 90px; }
           .machine-earn { flex-wrap: wrap; }
+        }
+        @media (max-height: 740px) and (min-width: 721px) {
+          .think-hub { height: calc(100dvh - 66px - 78px - 10px); }
+        }
+        @media (max-width: 720px) and (max-height: 660px) and (orientation: portrait) {
+          .think-hub { height: calc(100dvh - 58px - 72px - 5px); }
         }
         @media (prefers-reduced-motion: reduce) {
           .machine-card { transition: none; }

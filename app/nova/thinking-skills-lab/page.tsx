@@ -11,6 +11,8 @@ import {
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 import ThinkLabHub from "@/components/nova/think-lab/ThinkLabHub";
+import { ReactorTransferCelebration } from "@/components/nova/think-lab/ThinkLabReactor";
+import type { ConfirmedReactorAward } from "@/components/nova/think-lab/ThinkLabReactor";
 import { ColourCodeGame } from "@/components/nova/think-lab/ColourCodeGame";
 import { SetFinderGame } from "@/components/nova/think-lab/SetFinderGame";
 import { TowerMemoryGame } from "@/components/nova/think-lab/TowerMemoryGame";
@@ -441,6 +443,9 @@ export default function ThinkingSkillsLabPage() {
   const [dreamGemsLoading, setDreamGemsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
+  const [reactorAward, setReactorAward] = useState<ConfirmedReactorAward | null>(null);
+  const [reactorPulse, setReactorPulse] = useState(0);
+  const reactorAwardSequence = useRef(0);
   const [gameVersion, setGameVersion] = useState(0);
   const [selectedColourLevel, setSelectedColourLevel] =
     useState<DailyLevelNumber>(1);
@@ -823,6 +828,22 @@ export default function ThinkingSkillsLabPage() {
   }, [notice]);
 
   useEffect(() => {
+    if (!reactorAward) return;
+
+    const awardId = reactorAward.id;
+    const timer = window.setTimeout(() => {
+      setReactorAward((current) => current?.id === awardId ? null : current);
+    }, 4400);
+
+    return () => window.clearTimeout(timer);
+  }, [reactorAward]);
+
+  // A previous learner's celebratory event must never remain after account changes.
+  useEffect(() => {
+    setReactorAward(null);
+  }, [userId, status.activityDate]);
+
+  useEffect(() => {
     try {
       if (!window.localStorage.getItem(WALKTHROUGH_STORAGE_KEY)) {
         setWalkthroughStep(0);
@@ -1079,10 +1100,25 @@ export default function ThinkingSkillsLabPage() {
         cash: result.tokenBalance,
       }));
 
+      // Celebrate only a positive reward confirmed by thinking_lab_complete_question.
+      // Guest completions and zero/duplicate rewards never trigger a token animation.
+      if (Number.isFinite(result.reward) && result.reward > 0) {
+        reactorAwardSequence.current += 1;
+        const machine = GAME_DEFINITIONS.find((item) => item.id === gameId);
+        setReactorAward({
+          id: reactorAwardSequence.current,
+          machine: machine?.machineName ?? "Thinking machine",
+          amount: result.reward,
+          tokenBalance: result.tokenBalance,
+        });
+        setReactorPulse((current) => current + 1);
+        setNotice("");
+      } else {
+        setNotice("Challenge complete. No additional Dream Tokens were awarded.");
+      }
+
       await refreshCashAndTransactions(userId);
       window.dispatchEvent(new Event("dream-tokens-updated"));
-
-      setNotice(`Challenge complete. You earned ${result.reward} DT.`);
       return result;
     },
     [refreshCashAndTransactions, status.games, userId]
@@ -1310,7 +1346,7 @@ export default function ThinkingSkillsLabPage() {
           <h1>Power the journey.</h1>
           <p>Play the thinking machines. Generate Dream Tokens. Explore DREAMSCAPE.</p>
         </div>
-        <div className="overlook-status" aria-live="polite">
+        <div className={`overlook-status${reactorAward ? " is-charging" : ""}`} aria-live="polite">
           <span className="overlook-kicker">✦ DREAM TOKEN REACTOR</span>
           <strong>
             {loading
@@ -1339,6 +1375,7 @@ export default function ThinkingSkillsLabPage() {
           isGuest={!userId}
           loading={loading}
           guideHighlight={walkthroughOpen && walkthroughStep === 1}
+          reactorPulseKey={reactorPulse}
           onActivate={(gameId) => {
             setSelectedGame(gameId);
             setShowHub(false);
@@ -1608,6 +1645,10 @@ export default function ThinkingSkillsLabPage() {
 
         </section>
       </div>
+      )}
+
+      {reactorAward && (
+        <ReactorTransferCelebration key={reactorAward.id} award={reactorAward} />
       )}
 
       {notice && (
@@ -2052,6 +2093,14 @@ export default function ThinkingSkillsLabPage() {
           background: rgba(3,14,35,.72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
           box-shadow: inset 0 0 18px rgba(92,208,255,.08), 0 8px 25px rgba(0,0,0,.18);
         }
+        .overlook-status.is-charging {
+          border-color: rgba(155, 249, 255, .82);
+          animation: reactorReceive 1.5s ease-in-out 2;
+        }
+        @keyframes reactorReceive {
+          0%, 100% { box-shadow: inset 0 0 18px rgba(92,208,255,.08), 0 8px 25px rgba(0,0,0,.18); }
+          45% { box-shadow: 0 0 32px rgba(123, 219, 255, .42), inset 0 0 35px rgba(151, 120, 255, .23); }
+        }
         .overlook-status strong { font-size: 18px; font-weight: 900; color: #fff; }
         .overlook-status small { color: rgba(227,242,255,.78); font-size: 10px; }
         .lab-layout { height: calc(100dvh - 66px - clamp(104px, 14vh, 142px) - 10px); }
@@ -2138,6 +2187,7 @@ export default function ThinkingSkillsLabPage() {
         }
         @media (prefers-reduced-motion: reduce) {
           .game-menu-card { transition: none; }
+          .overlook-status.is-charging { animation: none; }
         }
       `}</style>
     </main>
