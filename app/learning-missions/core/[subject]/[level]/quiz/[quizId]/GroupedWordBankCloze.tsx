@@ -478,7 +478,9 @@ export default function GroupedWordBankCloze({
 
       <section style={outerWrap(isMobile)}>
 
-        <div style={topCard}>
+        <div style={topStack(isMobile)}>
+
+          <div style={topCard}>
 
           <div style={{ minWidth: 0 }}>
 
@@ -494,11 +496,11 @@ export default function GroupedWordBankCloze({
 
           </div>
 
+          </div>
+
+          {error && <div style={errorCard}>{error}</div>}
+
         </div>
-
-
-
-        {error && <div style={errorCard}>{error}</div>}
 
 
 
@@ -716,6 +718,8 @@ const pageShell: CSSProperties = {
 
   padding: "12px clamp(10px, 2vw, 24px)",
 
+  paddingBottom: "max(12px, env(safe-area-inset-bottom))",
+
   boxSizing: "border-box",
 
   display: "flex",
@@ -828,9 +832,21 @@ const outerWrap = (isMobile: boolean): CSSProperties => ({
 
   display: "grid",
 
-  gridTemplateRows: "auto auto minmax(0,1fr) auto",
+  gridTemplateRows: "auto minmax(0,1fr) auto",
 
   gap: isMobile ? "8px" : "10px",
+
+});
+
+
+
+const topStack = (isMobile: boolean): CSSProperties => ({
+
+  display: "grid",
+
+  gap: isMobile ? "6px" : "8px",
+
+  minWidth: 0,
 
 });
 
@@ -955,6 +971,8 @@ const workspace = (isMobile: boolean): CSSProperties => ({
   gap: isMobile ? "8px" : "10px",
 
   alignItems: "stretch",
+
+  overflow: "hidden",
 
 });
 

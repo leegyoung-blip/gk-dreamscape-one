@@ -14,6 +14,8 @@ type ScreenMode = "desktop" | "tablet" | "mobile";
 
 type LearningZoneKey = "core" | "think" | "science";
 
+type MissionZoneAction = "enter" | "login" | "pricing" | "unavailable";
+
 type ZoneReleaseSettings = Record<LearningZoneKey, boolean>;
 
 const DEFAULT_ZONE_RELEASE_SETTINGS: ZoneReleaseSettings = {
@@ -411,6 +413,7 @@ export default function LearningMissionsPage() {
   const isMobile = screenMode === "mobile";
 
   const [hoveredZone, setHoveredZone] = useState<MissionZone | null>(null);
+  const [selectedZone, setSelectedZone] = useState<MissionZone | null>(null);
   const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
     cash: 0,
     property: 0,
@@ -893,35 +896,43 @@ export default function LearningMissionsPage() {
     return `${zone.title} requires an active Dreamscape learning plan.`;
   }
 
-  function getZoneClick(zone: MissionZone) {
-    const href = getZoneHref(zone.id);
+  // Like Nova's World: the first click selects a location, never navigates.
+  function selectZone(zone: MissionZone) {
+    if (walkthroughOpen) return;
+    setHoveredZone(null);
+    setSelectedZone(zone);
+    setLockedZoneMessage("");
+  }
 
-    if (zone.comingSoon) {
-      return () => {
-        setLockedZoneMessage(getLockedMessage(zone));
-      };
+  // Keep the existing release + entitlement restrictions at the moment of entry.
+  // A locked location can be inspected, but not entered through this UI.
+  function getZoneAction(zone: MissionZone): MissionZoneAction {
+    if (isZoneUnlocked(zone)) return "enter";
+    if (zone.comingSoon || !isZoneReleased(zone) || zone.staffOnly) {
+      return "unavailable";
     }
+    if (!userMissionAccess.userId) return "login";
+    if (zone.requiresRoleAccess) return "pricing";
+    return "unavailable";
+  }
 
-    if (!href) return undefined;
+  function enterZone(zone: MissionZone) {
+    if (walkthroughOpen) return;
 
-    return () => {
-      if (
-        zone.accessKey === "core" &&
-        isZoneReleased(zone) &&
-        !userMissionAccess.isAdmin &&
-        !userMissionAccess.canAccessCore
-      ) {
-        window.location.href = "/pricing";
-        return;
-      }
+    const href = getZoneHref(zone.id);
+    if (!href) return;
 
-      if (isZoneLocked(zone)) {
-        setLockedZoneMessage(getLockedMessage(zone));
-        return;
-      }
-
+    // Recheck at click time so a selection cannot bypass a changed release gate.
+    const action = getZoneAction(zone);
+    if (action === "enter") {
       window.location.href = href;
-    };
+    } else if (action === "login") {
+      window.location.href = "/login";
+    } else if (action === "pricing") {
+      window.location.href = "/pricing";
+    } else {
+      setLockedZoneMessage(getLockedMessage(zone));
+    }
   }
 
   async function toggleZoneRelease(zoneKey: LearningZoneKey) {
@@ -979,7 +990,7 @@ export default function LearningMissionsPage() {
     ? (missionZones.find((zone) => zone.id === activeWalkthroughZoneId) ?? null)
     : null;
 
-  const displayedDesktopZone = activeWalkthroughZone ?? hoveredZone;
+  const displayedDesktopZone = activeWalkthroughZone ?? selectedZone ?? hoveredZone;
 
   const walkthroughZoneStates = missionZones.reduce<
     Record<string, WalkthroughZoneState>
@@ -1017,6 +1028,7 @@ export default function LearningMissionsPage() {
     markWalkthroughComplete();
     setWalkthroughOpen(false);
     setHoveredZone(null);
+    setSelectedZone(null);
     window.location.href = href;
   }
 
@@ -1024,6 +1036,7 @@ export default function LearningMissionsPage() {
     walkthroughStartScrollY.current = window.scrollY;
     setLockedZoneMessage("");
     setHoveredZone(null);
+    setSelectedZone(null);
     setWalkthroughStep(0);
     setWalkthroughOpen(true);
   }
@@ -1034,6 +1047,7 @@ export default function LearningMissionsPage() {
     setWalkthroughOpen(false);
     setWalkthroughStep(0);
     setHoveredZone(null);
+    setSelectedZone(null);
 
     if (!isDesktop) {
       window.requestAnimationFrame(() => {
@@ -1044,6 +1058,18 @@ export default function LearningMissionsPage() {
       });
     }
   }
+
+  useEffect(() => {
+    if (!selectedZone) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedZone(null);
+        setHoveredZone(null);
+      }
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [selectedZone]);
 
   return (
     <main
@@ -1248,12 +1274,12 @@ export default function LearningMissionsPage() {
               isHighlighted={activeWalkthroughZoneIds.includes(zone.id)}
               isAdminPreview={isAdminPreview(zone)}
               onEnter={() => {
-                if (!walkthroughOpen) setHoveredZone(zone);
+                if (!walkthroughOpen && !selectedZone) setHoveredZone(zone);
               }}
               onLeave={() => {
-                if (!walkthroughOpen) setHoveredZone(null);
+                if (!walkthroughOpen && !selectedZone) setHoveredZone(null);
               }}
-              onClick={getZoneClick(zone)}
+              onClick={() => selectZone(zone)}
             />
           ))}
 
@@ -1276,30 +1302,38 @@ export default function LearningMissionsPage() {
               isAdminPreview={isAdminPreview(displayedDesktopZone)}
               isReleased={isZoneReleased(displayedDesktopZone)}
               lockedMessage={getLockedMessage(displayedDesktopZone)}
+              isSelected={
+                !walkthroughOpen && selectedZone?.id === displayedDesktopZone.id
+              }
+              action={getZoneAction(displayedDesktopZone)}
+              onClose={() => setSelectedZone(null)}
+              onEnterLocation={() => enterZone(displayedDesktopZone)}
             />
           )}
 
-          <div
-            style={{
-              position: "absolute",
-              left: "50%",
-              bottom: "28px",
-              transform: "translateX(-50%)",
-              zIndex: 30,
-              padding: "12px 18px",
-              borderRadius: "999px",
-              border: "1px solid rgba(141,252,255,0.26)",
-              background: "rgba(2,8,19,0.52)",
-              backdropFilter: "blur(14px)",
-              color: "rgba(255,255,255,0.72)",
-              fontSize: "13px",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
-            }}
-          >
-            Learn → Challenge → Review
-          </div>
+          {!walkthroughOpen && (
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                bottom: "28px",
+                transform: "translateX(-50%)",
+                zIndex: 30,
+                padding: "12px 18px",
+                borderRadius: "999px",
+                border: "1px solid rgba(141,252,255,0.26)",
+                background: "rgba(2,8,19,0.52)",
+                backdropFilter: "blur(14px)",
+                color: "rgba(255,255,255,0.72)",
+                fontSize: "13px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
+              }}
+            >
+              Select a location · then choose Enter
+            </div>
+          )}
         </section>
       ) : (
         <section
@@ -1467,7 +1501,8 @@ export default function LearningMissionsPage() {
                             isHighlighted={activeWalkthroughZoneIds.includes(zone.id)}
                             isAdminPreview={isAdminPreview(zone)}
                             isReleased={isZoneReleased(zone)}
-                            onClick={getZoneClick(zone)}
+                            isSelected={selectedZone?.id === zone.id}
+                            onClick={() => selectZone(zone)}
                           />
 
                           {userMissionAccess.isAdmin && zone.accessKey && (
@@ -1487,6 +1522,19 @@ export default function LearningMissionsPage() {
             </div>
           </div>
         </section>
+      )}
+
+      {!isDesktop && selectedZone && !walkthroughOpen && (
+        <CompactMissionZoneInfoCard
+          zone={selectedZone}
+          isLocked={isZoneLocked(selectedZone)}
+          isAdminPreview={isAdminPreview(selectedZone)}
+          isReleased={isZoneReleased(selectedZone)}
+          lockedMessage={getLockedMessage(selectedZone)}
+          action={getZoneAction(selectedZone)}
+          onClose={() => setSelectedZone(null)}
+          onEnter={() => enterZone(selectedZone)}
+        />
       )}
 
       {!walkthroughOpen && (
@@ -2906,12 +2954,8 @@ function MissionHotspot({
           "transform 420ms cubic-bezier(.2,.82,.24,1), opacity 360ms ease, filter 360ms ease, border-color 360ms ease, background 360ms ease, box-shadow 360ms ease",
         pointerEvents: isWalkthroughActive && !isHighlighted ? "none" : "auto",
       }}
-      aria-label={
-        isLocked
-          ? `${zone.title}, locked`
-          : zone.title
-      }
-      aria-disabled={isLocked}
+      aria-label={`View ${zone.title} details${isLocked ? ", access restricted" : ""}`}
+      aria-haspopup="dialog"
     >
       {zone.title}
     </button>
@@ -2942,6 +2986,7 @@ function MissionCard({
   isHighlighted,
   isAdminPreview,
   isReleased,
+  isSelected = false,
   onClick,
 }: {
   zone: MissionZone;
@@ -2950,6 +2995,7 @@ function MissionCard({
   isHighlighted: boolean;
   isAdminPreview: boolean;
   isReleased: boolean;
+  isSelected?: boolean;
   onClick?: () => void;
 }) {
   return (
@@ -2958,17 +3004,20 @@ function MissionCard({
       type="button"
       onClick={onClick}
       disabled={!onClick}
+      aria-expanded={isSelected}
+      aria-label={`View ${zone.title} details${isLocked ? ", access restricted" : ""}`}
+      aria-haspopup="dialog"
       style={{
         minHeight: "170px",
         borderRadius: "22px",
-        border: isHighlighted
+        border: isHighlighted || isSelected
           ? `2px solid ${zone.accent}`
           : `1px solid ${zone.accent}88`,
         background:
           "linear-gradient(145deg, rgba(8,35,70,0.10), rgba(3,13,34,0.10))",
         backdropFilter: "blur(15px)",
         WebkitBackdropFilter: "blur(15px)",
-        boxShadow: isHighlighted
+        boxShadow: isHighlighted || isSelected
           ? `0 0 0 7px ${zone.accent}18, 0 0 34px ${zone.accent}88, 0 18px 42px rgba(0,0,0,0.28)`
           : `0 0 24px ${zone.accent}2b, 0 18px 42px rgba(0,0,0,0.28)`,
         padding: "22px",
@@ -2984,7 +3033,7 @@ function MissionCard({
                 ? 1
                 : 0.66,
         filter: isLocked && !isHighlighted ? "saturate(0.45)" : "none",
-        transform: isHighlighted ? "translateY(-4px)" : "none",
+        transform: isHighlighted || isSelected ? "translateY(-4px)" : "none",
         transition:
           "opacity 360ms ease, border 360ms ease, box-shadow 360ms ease, transform 420ms cubic-bezier(.2,.82,.24,1)",
       }}
@@ -3069,175 +3118,311 @@ function MissionCard({
         {zone.comingSoon
           ? "LOCKED · Coming Soon"
           : isAdminPreview
-            ? "Admin Preview ›"
+            ? "Admin Preview · View Details ›"
             : zone.accessKey && !isReleased
-              ? "Not yet open to learners"
+              ? "Not yet open · View Details ›"
               : isLocked
-                ? "Locked"
+                ? "Locked · View Details ›"
                 : onClick
-                  ? "Enter Mission ›"
+                  ? "View Location ›"
                   : "Coming Soon"}
       </div>
     </button>
   );
 }
 
+function getMissionZoneStatusLabel(
+  zone: MissionZone,
+  isLocked: boolean,
+  isAdminPreview: boolean,
+  isReleased: boolean,
+) {
+  if (zone.comingSoon) return "Locked · Coming Soon";
+  if (isAdminPreview) return "Admin Preview";
+  if (zone.accessKey && !isReleased) return "Learner Access Closed";
+  if (isLocked) return "Locked Zone";
+  return `${zone.categoryLabel} · Location ${zone.number}`;
+}
+
+function getMissionZoneActionLabel(zone: MissionZone, action: MissionZoneAction) {
+  if (action === "login") return "Log In to Continue →";
+  if (action === "pricing") return "View Plans →";
+  if (action === "unavailable") return "Location Unavailable";
+  return `Enter ${zone.title} →`;
+}
+
 function ZoneHoverPopup({
   zone,
   isLocked,
   isHighlighted = false,
+  isSelected = false,
   isAdminPreview = false,
   isReleased = true,
   lockedMessage,
+  action,
+  onClose,
+  onEnterLocation,
 }: {
   zone: MissionZone;
   isLocked: boolean;
   isHighlighted?: boolean;
+  isSelected?: boolean;
   isAdminPreview?: boolean;
   isReleased?: boolean;
   lockedMessage: string;
+  action: MissionZoneAction;
+  onClose: () => void;
+  onEnterLocation: () => void;
 }) {
   const popupPosition = getPopupPosition(zone.id);
   const popupTransform =
     typeof popupPosition.transform === "string" ? popupPosition.transform : "";
-  const popupPositionWithoutTransform = {
-    ...popupPosition,
-    transform: undefined,
-  };
+  const popupPositionWithoutTransform = { ...popupPosition, transform: undefined };
+  const accent = isLocked ? "#ffd76a" : zone.accent;
 
   return (
     <div
+      role={isSelected ? "dialog" : undefined}
+      aria-label={isSelected ? `${zone.title} details` : undefined}
       style={{
         position: "absolute",
-        zIndex: 60,
+        zIndex: isSelected ? 72 : 60,
         ...popupPositionWithoutTransform,
         width: "330px",
+        maxWidth: "calc(100vw - 24px)",
         borderRadius: "20px",
-        border: `${isHighlighted ? 2 : 1}px solid ${
-          isLocked ? "#ffd76a" : zone.accent
-        }${isHighlighted ? "" : "aa"}`,
-        background:
-          "linear-gradient(145deg, rgba(8,35,70,0.94), rgba(3,13,34,0.96))",
+        border: `${isHighlighted || isSelected ? 2 : 1}px solid ${accent}${isHighlighted || isSelected ? "" : "aa"}`,
+        background: `linear-gradient(145deg, ${zone.accent}24, rgba(3,13,34,0.985) 46%)`,
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
-        boxShadow: isHighlighted
-          ? `0 0 0 8px ${zone.accent}18, 0 0 46px ${zone.accent}aa, 0 24px 60px rgba(0,0,0,0.52)`
-          : `0 0 28px ${
-              isLocked ? "#ffd76a55" : `${zone.accent}55`
-            }, 0 24px 60px rgba(0,0,0,0.45)`,
-        padding: "22px 24px",
-        pointerEvents: "none",
+        boxShadow: isHighlighted || isSelected
+          ? `0 0 0 6px ${accent}14, 0 0 40px ${accent}72, 0 24px 60px rgba(0,0,0,0.52)`
+          : `0 0 24px ${accent}42, 0 20px 48px rgba(0,0,0,0.42)`,
+        padding: isSelected ? "22px 24px 20px" : "20px 22px",
+        pointerEvents: isSelected ? "auto" : "none",
         color: "white",
-        transform:
-          `${popupTransform}${isHighlighted ? " scale(1.035)" : ""}`.trim() ||
-          undefined,
-        transition:
-          "border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease",
+        transform: `${popupTransform}${isHighlighted || isSelected ? " scale(1.025)" : ""}`.trim() || undefined,
+        transition: "border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease",
       }}
     >
-      <p
-        style={{
-          margin: 0,
-          color: isLocked ? "#ffd76a" : zone.accent,
-          fontSize: "12px",
-          letterSpacing: "0.18em",
-          textTransform: "uppercase",
-          fontWeight: 700,
-        }}
-      >
-        {zone.comingSoon
-          ? "Locked · Coming Soon"
-          : isAdminPreview
-            ? "Admin Preview"
-            : zone.accessKey && !isReleased
-              ? "Learner Access Closed"
-              : isLocked
-                ? "Locked Zone"
-                : zone.categoryLabel}
-      </p>
-
-      <h2
-        style={{
-          margin: "10px 0 0",
-          fontSize: "25px",
-          lineHeight: 1.18,
-          fontWeight: 700,
-        }}
-      >
-        {zone.title}
-      </h2>
-
-      {zone.priority === "primary" && (
-        <span
+      {isSelected && (
+        <button
+          type="button"
+          aria-label="Close location details"
+          onClick={onClose}
           style={{
-            marginTop: "10px",
-            display: "inline-flex",
-            minHeight: "24px",
-            padding: "0 9px",
-            alignItems: "center",
-            borderRadius: "999px",
-            border: `1px solid ${zone.accent}66`,
-            background: `${zone.accent}16`,
-            color: zone.accent,
-            fontSize: "9px",
-            fontWeight: 900,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
+            position: "absolute", top: "12px", right: "12px",
+            width: "30px", height: "30px", borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.16)",
+            background: "rgba(255,255,255,0.06)", color: "white",
+            cursor: "pointer", fontSize: "17px",
           }}
         >
+          ×
+        </button>
+      )}
+
+      <p style={{ margin: 0, paddingRight: isSelected ? "32px" : 0,
+        color: accent, fontSize: "10px", letterSpacing: "0.18em",
+        textTransform: "uppercase", fontWeight: 850 }}>
+        {getMissionZoneStatusLabel(zone, isLocked, isAdminPreview, isReleased)}
+      </p>
+      <h2 style={{ margin: "9px 32px 0 0",
+        fontFamily: 'Georgia, "Times New Roman", serif',
+        fontSize: "27px", lineHeight: 1.12, fontWeight: 500 }}>
+        {zone.title}
+      </h2>
+      {zone.priority === "primary" && (
+        <span style={{ marginTop: "10px", display: "inline-flex", minHeight: "24px",
+          alignItems: "center", padding: "0 9px", borderRadius: "999px",
+          border: `1px solid ${zone.accent}66`, background: `${zone.accent}16`,
+          color: zone.accent, fontSize: "9px", fontWeight: 900,
+          letterSpacing: "0.08em", textTransform: "uppercase" }}>
           Main Learning Path
         </span>
       )}
-
-      <p
-        style={{
-          margin: "12px 0 0",
-          fontSize: "14px",
-          lineHeight: 1.55,
-          color: "rgba(255,255,255,0.78)",
-        }}
-      >
+      <p style={{ margin: "11px 0 0", color: "rgba(255,255,255,0.76)",
+        fontSize: "13px", lineHeight: 1.55 }}>
         {zone.description}
       </p>
-
       {isAdminPreview && (
-        <p
-          style={{
-            margin: "14px 0 0",
-            color: "#ddd6fe",
-            fontSize: "13px",
-            lineHeight: 1.45,
-            fontWeight: 700,
-          }}
-        >
-          Learner Access is OFF. You can still enter this zone as an admin.
+        <p style={{ margin: "12px 0 0", color: "#ddd6fe", fontSize: "12px", lineHeight: 1.5 }}>
+          Learner access is OFF. Admin preview remains available.
         </p>
       )}
-
       {isLocked && (
-        <p
-          style={{
-            margin: "14px 0 0",
-            color: "#ffd76a",
-            fontSize: "13px",
-            lineHeight: 1.45,
-            fontWeight: 700,
-          }}
-        >
+        <p style={{ margin: "12px 0 0", color: "#ffd76a", fontSize: "12px", lineHeight: 1.5 }}>
           {lockedMessage}
         </p>
       )}
-
-      <div
-        style={{
-          marginTop: "18px",
-          height: "1px",
-          background: `linear-gradient(90deg, transparent, ${
-            isLocked ? "#ffd76a" : zone.accent
-          }, transparent)`,
-        }}
-      />
+      {isSelected ? (
+        action !== "unavailable" ? (
+          <button
+            type="button"
+            onClick={onEnterLocation}
+            style={{
+              marginTop: "17px", width: "100%", minHeight: "44px",
+              borderRadius: "13px", border: `1px solid ${accent}aa`,
+              background: `linear-gradient(135deg, ${zone.accent}42, rgba(15,58,100,0.9))`,
+              color: "white", cursor: "pointer", fontFamily: "inherit",
+              fontSize: "11px", fontWeight: 900, letterSpacing: "0.09em",
+              textTransform: "uppercase", boxShadow: `0 10px 24px ${accent}20`,
+            }}
+          >
+            {getMissionZoneActionLabel(zone, action)}
+          </button>
+        ) : (
+          <div style={{ marginTop: "16px", padding: "12px", textAlign: "center",
+            borderRadius: "12px", color: "#ffd76a",
+            border: "1px solid rgba(255,215,106,0.28)",
+            background: "rgba(255,215,106,0.06)",
+            fontSize: "11px", fontWeight: 900, letterSpacing: "0.09em",
+            textTransform: "uppercase" }}>
+            Location Unavailable
+          </div>
+        )
+      ) : (
+        <p style={{ margin: "15px 0 0", color: accent, fontSize: "10px",
+          fontWeight: 850, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          Select this location to continue
+        </p>
+      )}
     </div>
+  );
+}
+
+function CompactMissionZoneInfoCard({
+  zone,
+  isLocked,
+  isAdminPreview,
+  isReleased,
+  lockedMessage,
+  action,
+  onClose,
+  onEnter,
+}: {
+  zone: MissionZone;
+  isLocked: boolean;
+  isAdminPreview: boolean;
+  isReleased: boolean;
+  lockedMessage: string;
+  action: MissionZoneAction;
+  onClose: () => void;
+  onEnter: () => void;
+}) {
+  const accent = isLocked ? "#ffd76a" : zone.accent;
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Close location details"
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, zIndex: 94,
+          border: "none", background: "rgba(0,3,12,0.48)",
+          backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)",
+          cursor: "default" }}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${zone.title} details`}
+        style={{
+          position: "fixed", left: "50%", bottom: "14px", zIndex: 95,
+          width: "min(520px, calc(100% - 24px))",
+          maxHeight: "calc(100dvh - 28px)", overflowY: "auto",
+          transform: "translateX(-50%)", borderRadius: "22px",
+          border: `1px solid ${accent}aa`,
+          background: `linear-gradient(145deg, ${zone.accent}24, rgba(3,11,29,0.99) 48%)`,
+          boxShadow: `0 0 34px ${accent}32, 0 28px 72px rgba(0,0,0,0.58)`,
+          color: "white", padding: "20px",
+        }}
+      >
+        <button
+          type="button"
+          aria-label="Close location details"
+          onClick={onClose}
+          style={{
+            position: "absolute", top: "12px", right: "12px",
+            width: "32px", height: "32px", borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.17)",
+            background: "rgba(255,255,255,0.06)", color: "white",
+            fontSize: "18px", cursor: "pointer",
+          }}
+        >
+          ×
+        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingRight: "38px" }}>
+          <span style={{
+            width: "34px", height: "34px", borderRadius: "999px",
+            border: `1px solid ${accent}`, background: `${zone.accent}18`,
+            color: accent, display: "inline-flex", alignItems: "center",
+            justifyContent: "center", flexShrink: 0, fontSize: "12px", fontWeight: 950,
+            boxShadow: `0 0 14px ${accent}38`,
+          }}>
+            {zone.number}
+          </span>
+          <div>
+            <p style={{ margin: 0, color: accent, fontSize: "9px",
+              letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 850 }}>
+              {getMissionZoneStatusLabel(zone, isLocked, isAdminPreview, isReleased)}
+            </p>
+            <h2 style={{ margin: "4px 0 0", fontFamily: 'Georgia, "Times New Roman", serif',
+              fontSize: "24px", lineHeight: 1.08, fontWeight: 500 }}>
+              {zone.title}
+            </h2>
+          </div>
+        </div>
+        {zone.priority === "primary" && (
+          <span style={{ marginTop: "12px", display: "inline-flex", minHeight: "24px",
+            alignItems: "center", padding: "0 9px", borderRadius: "999px",
+            border: `1px solid ${zone.accent}66`, background: `${zone.accent}16`,
+            color: zone.accent, fontSize: "9px", fontWeight: 900,
+            letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            Main Learning Path
+          </span>
+        )}
+        <p style={{ margin: "14px 0 0", color: "rgba(255,255,255,0.76)",
+          fontSize: "13px", lineHeight: 1.55 }}>
+          {zone.description}
+        </p>
+        {isAdminPreview && (
+          <p style={{ margin: "12px 0 0", color: "#ddd6fe", fontSize: "12px", lineHeight: 1.5 }}>
+            Learner access is OFF. Admin preview remains available.
+          </p>
+        )}
+        {isLocked && (
+          <p style={{ margin: "12px 0 0", color: "#ffd76a", fontSize: "12px", lineHeight: 1.5 }}>
+            {lockedMessage}
+          </p>
+        )}
+        {action !== "unavailable" ? (
+          <button
+            type="button"
+            onClick={onEnter}
+            style={{
+              marginTop: "17px", width: "100%", minHeight: "46px",
+              borderRadius: "14px", border: `1px solid ${accent}aa`,
+              background: `linear-gradient(135deg, ${zone.accent}42, rgba(15,58,100,0.94))`,
+              color: "white", cursor: "pointer", fontFamily: "inherit",
+              fontSize: "11px", fontWeight: 900, letterSpacing: "0.09em",
+              textTransform: "uppercase",
+            }}
+          >
+            {getMissionZoneActionLabel(zone, action)}
+          </button>
+        ) : (
+          <div style={{ marginTop: "16px", padding: "12px", textAlign: "center",
+            borderRadius: "12px", color: "#ffd76a",
+            border: "1px solid rgba(255,215,106,0.28)",
+            background: "rgba(255,215,106,0.06)",
+            fontSize: "11px", fontWeight: 900, letterSpacing: "0.09em",
+            textTransform: "uppercase" }}>
+            Location Unavailable
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
