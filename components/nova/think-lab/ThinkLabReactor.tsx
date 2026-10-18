@@ -189,6 +189,41 @@ export function DreamTokenReactor({
           .output-value strong { font-size: 24px; }
           .machine-output-list { grid-template-columns: 1fr; gap: 4px; margin-top: 8px; }
         }
+        /* Phase 4A: compact reactor mode keeps the hub within a single viewport. */
+        @media (max-width:720px) {
+          .reactor-console { padding:7px 9px; border-radius:12px; }
+          .console-heading { gap:5px; }
+          .console-eyebrow { font-size:7px;letter-spacing:.04em; }
+          h2 { font-size:11px; }
+          .reactor-state { padding:2px 3px;font-size:6px; }
+          .power-indicator { width:5px;height:5px; }
+          .reactor-display { min-height:28px; grid-template-columns:1fr; gap:0; margin:3px 0; }
+          .reactor-chamber { display:none; }
+          .power-output { display:flex;align-items:baseline;gap:5px;flex-wrap:wrap; }
+          .output-label { font-size:8px; }
+          .output-value strong { font-size:18px; }
+          .output-value span { font-size:9px; }
+          .output-caption { display:none; }
+          .charge-heading { font-size:8px; }
+          .charge-meter { height:3px;margin-top:4px; }
+          .machine-output-list { display:none; }
+        }
+        @media (max-width:720px) and (orientation:landscape) {
+          .console-eyebrow, .reactor-state { display:none; }
+          .reactor-display { min-height:22px;margin:2px 0; }
+          .charge-meter { margin-top:2px; }
+        }
+        @media (max-height:900px) and (min-width:721px) {
+          .reactor-console { padding:8px 10px; }
+          .console-heading { gap:6px; }
+          .reactor-display { grid-template-columns:69px 1fr; min-height:66px;gap:6px; }
+          .reactor-chamber { width:66px;height:66px;transform:scale(.60);transform-origin:top left; }
+          .output-value strong { font-size:23px; }
+          .output-caption { display:none; }
+          .charge-heading { font-size:8px; }
+          .machine-output-list { margin-top:6px;gap:4px; }
+          .charge-meter { margin-top:4px;height:4px; }
+        }
         @media (prefers-reduced-motion: reduce) {
           .ring-outer, .ring-inner, .reactor-heart, .reactor-chamber.was-charged::after { animation: none; }
           .charge-meter span { transition: none; }

@@ -12,6 +12,7 @@ import {
 } from "./text";
 
 import { identifyRingArrivalIncrementPattern } from "./constantIncrementPattern";
+import { identifyRepresentativeWordProblemEvidence } from "./representativeWordProblemEvidence";
 
 export type StructureAnalysis = {
   problemStructure: ProblemStructure;
@@ -3249,6 +3250,9 @@ export function analyzeProblemStructure(args: {
   } = args;
 
   // Semantic special cases must run before generic equation/domain rules.
+  const representative = identifyRepresentativeWordProblemEvidence(text, domain);
+  if (representative) return representative;
+
   const symbolMapping =
     symbolMappingAnalysis(text);
 

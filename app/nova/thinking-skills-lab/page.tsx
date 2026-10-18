@@ -1152,7 +1152,7 @@ export default function ThinkingSkillsLabPage() {
   }
 
   return (
-    <main className="lab-page">
+    <main className={`lab-page ${showHub ? "is-hub" : "is-playing"}`}>
       <div className="lab-background" aria-hidden="true">
         <div className="lab-glow lab-glow-one" />
         <div className="lab-glow lab-glow-two" />
@@ -1170,18 +1170,22 @@ export default function ThinkingSkillsLabPage() {
 
       <header className="topbar">
         <div className="topbar-left">
-          <Link href={NOVA_WORLD_HREF} className="round-button">
+          <Link href={NOVA_WORLD_HREF} className="round-button nav-back-button" aria-label="Back to Nova’s World">
             <span aria-hidden="true">←</span>
-            <span className="round-button-label">Nova’s World</span>
+            <span className="round-button-label">Back</span>
           </Link>
 
           <button
             type="button"
             className="round-button guide-button"
             onClick={startWalkthrough}
+            aria-label="Nova Guide: How Think Lab works"
           >
-            <span aria-hidden="true">✦</span>
-            <span className="round-button-label">Nova Guide</span>
+            <span className="guide-mark" aria-hidden="true">✦</span>
+            <span className="guide-copy">
+              <strong>Nova Guide</strong>
+              <small>How Think Lab works</small>
+            </span>
           </button>
         </div>
 
@@ -1196,9 +1200,16 @@ export default function ThinkingSkillsLabPage() {
             >
               <span className="stat-label">Profile Assets</span>
               <strong>
-                {loading || profileAssetsLoading
-                  ? "—"
-                  : formatDreamTokenAmount(profileAssetsTotal)}
+                <span className="assets-value-full">
+                  {loading || profileAssetsLoading
+                    ? "—"
+                    : formatDreamTokenAmount(profileAssetsTotal)}
+                </span>
+                <span className="assets-value-compact">
+                  {loading || profileAssetsLoading
+                    ? "—"
+                    : `${new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(profileAssetsTotal)} DT`}
+                </span>
                 <span
                   className={`assets-chevron ${
                     profileAssetsOpen ? "is-open" : ""
@@ -2068,6 +2079,79 @@ export default function ThinkingSkillsLabPage() {
         }
         @media (prefers-reduced-motion: reduce) {
           .game-menu-card { transition: none; }
+        }
+        /* Phase 4A: Knowledge Arena-style navigation with full-screen hub sizing. */
+        .lab-page.is-hub { --lab-header-height: 66px; padding-top: var(--lab-header-height); }
+        .topbar { gap: 8px; }
+        .topbar-left { gap: 8px; flex: 0 0 auto; }
+        .nav-back-button { min-height: 41px; padding: 0 13px; gap: 7px; background: rgba(6,15,34,.88); }
+        .guide-button {
+          min-height: 44px; padding: 4px 12px 4px 6px; border-color:rgba(122,144,235,.33);
+          border-radius: 999px; background:linear-gradient(120deg,rgba(22,42,81,.94),rgba(19,26,65,.92));
+          display: inline-flex; align-items:center; gap:7px;
+        }
+        .guide-mark {
+          display:inline-grid;place-items:center; flex:0 0 auto;
+          width:32px;height:32px;border-radius:50%;
+          border:1px solid rgba(114,210,255,.46);
+          background:rgba(42,137,195,.29);color:#99eeff;font-size:16px;
+          box-shadow:inset 0 0 10px rgba(89,204,255,.17);
+        }
+        .guide-copy { display:grid;gap:1px;text-align:left;white-space:nowrap; }
+        .guide-copy strong { font-size:12px;line-height:1.2;color:#f1faff; }
+        .guide-copy small { font-size:9px;line-height:1.1;color:#afc5e2; }
+        .assets-value-compact { display:none; }
+        @media (max-width:1120px) {
+          .topbar { padding-inline:10px; }
+          .topbar-stats { gap:5px; }
+          .token-pill { min-width:0; }
+          .dream-gem-pill { min-width:0; }
+          .stat-pill { padding-inline:9px;gap:5px; }
+          .stat-label { font-size:8px; }
+          .stat-pill strong { font-size:12px; }
+        }
+        @media (max-width:720px) {
+          .lab-page.is-hub { --lab-header-height: 58px; }
+          .topbar { padding:5px 7px; }
+          .nav-back-button { width:auto;min-height:37px;padding:0 10px;font-size:12px; }
+          .nav-back-button .round-button-label { display:inline; }
+          .guide-button { width:auto;min-height:39px;padding:3px 7px 3px 4px;gap:5px; }
+          .guide-mark { width:28px;height:28px;font-size:13px; }
+          .guide-copy strong { font-size:10px; }
+          .guide-copy small { font-size:8px; }
+          .stat-pill { min-width:0;min-height:36px;padding:4px 7px; }
+          .stat-pill strong { font-size:10px; }
+          .token-pill { min-width:0; }
+          .dream-gem-pill { min-width:0; }
+          .today-pill { min-width:0; }
+          .assets-value-full { display:none; }
+          .assets-value-compact { display:inline; }
+          .assets-chevron { font-size:8px; }
+        }
+        @media (max-width:580px) and (orientation:portrait) {
+          .lab-page.is-hub { --lab-header-height: 88px; }
+          .lab-page.is-hub .topbar {
+            height:88px;
+            display:grid;
+            grid-template-columns:1fr;
+            grid-template-rows:38px 31px;
+            align-content:center;
+            gap:3px;
+            padding:5px 8px;
+          }
+          .lab-page.is-hub .topbar-left { justify-content:flex-start; }
+          .lab-page.is-hub .topbar-stats { justify-content:flex-end;gap:5px; }
+          .lab-page.is-hub .stat-pill { min-height:27px;padding:3px 9px;grid-template-columns:auto auto; }
+          .lab-page.is-hub .stat-pill strong { font-size:11px; }
+          .lab-page.is-hub .today-pill .stat-label { display:none; }
+          .lab-page.is-hub .assets-dropdown { top:32px;max-height:calc(100dvh - 96px); }
+          .lab-page.is-hub .assets-dropdown-scroll { max-height:calc(100dvh - 173px); }
+        }
+        @media (max-width:390px) {
+          .nav-back-button { padding:0 8px; }
+          .guide-button { padding-right:5px; }
+          .guide-copy small { font-size:7px; }
+          .topbar-stats { gap:3px; }
         }
       `}</style>
     </main>
