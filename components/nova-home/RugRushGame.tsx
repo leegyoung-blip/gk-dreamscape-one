@@ -89,7 +89,7 @@ type DirtAssetImages = Partial<Record<DirtAssetKey, HTMLImageElement>>;
 const CANVAS_WIDTH = 900;
 const CANVAS_HEIGHT = 560;
 const ROUND_DURATION_MS = 10_000;
-const BRUSH_RADIUS = 34;
+const BRUSH_RADIUS = 52;
 const SAMPLE_STEP = 2;
 const PERFECT_CLEAN_PERCENT = 99.5;
 const DEFAULT_RUG_IMAGE = "/activities/nova-home/rugs/nova-classic-rug.png";
@@ -645,7 +645,7 @@ function drawTexturedMess(
           dustLight,
           point.x,
           point.y,
-          112 + Math.random() * 82,
+          76 + Math.random() * 58,
           Math.random() * Math.PI * 2,
           { normalOpacity: 0.48 + Math.random() * 0.18 },
         );
@@ -663,7 +663,7 @@ function drawTexturedMess(
           dustHeavy,
           point.x,
           point.y,
-          126 + Math.random() * 92,
+          88 + Math.random() * 62,
           Math.random() * Math.PI * 2,
           {
             normalOpacity: 0.38,
@@ -692,7 +692,7 @@ function drawTexturedMess(
             dustCorner,
             corner.x,
             corner.y,
-            190 + Math.random() * 48,
+            138 + Math.random() * 30,
             corner.rotation,
             { normalOpacity: 0.58, toughOpacity: 0.34, toughScale: 0.78 },
           );
@@ -707,7 +707,7 @@ function drawTexturedMess(
         const step = 62 + Math.random() * 20;
         const nextX = clamp(point.x + Math.cos(direction) * step, 92, CANVAS_WIDTH - 92);
         const nextY = clamp(point.y + Math.sin(direction) * step, 82, CANVAS_HEIGHT - 82);
-        const width = 82 + Math.random() * 24;
+        const width = 58 + Math.random() * 16;
 
         drawLayeredTexture(
           normalContext,
@@ -745,7 +745,7 @@ function drawTexturedMess(
           mudSmear,
           point.x,
           point.y,
-          180 + Math.random() * 100,
+          126 + Math.random() * 56,
           Math.random() * Math.PI * 2,
           { normalOpacity: 0.64, toughOpacity: 0.48, toughScale: 0.72 },
         );
@@ -763,7 +763,7 @@ function drawTexturedMess(
           mudHeavy,
           point.x,
           point.y,
-          150 + Math.random() * 82,
+          108 + Math.random() * 52,
           Math.random() * Math.PI * 2,
           {
             normalOpacity: 0.50,
@@ -787,7 +787,7 @@ function drawTexturedMess(
           mudHeavy,
           point.x,
           point.y,
-          220 + Math.random() * 105,
+          156 + Math.random() * 68,
           Math.random() * Math.PI * 2,
           {
             normalOpacity: 0.58,
@@ -810,7 +810,7 @@ function drawTexturedMess(
           mudSmear,
           point.x,
           point.y,
-          240 + Math.random() * 90,
+          168 + Math.random() * 60,
           Math.random() * Math.PI * 2,
           { normalOpacity: 0.58, toughOpacity: 0.54, toughScale: 0.72 },
         );
@@ -828,7 +828,7 @@ function drawTexturedMess(
       dreamDust,
       point.x,
       point.y,
-      115 + Math.random() * 50,
+      82 + Math.random() * 34,
       Math.random() * Math.PI * 2,
       { normalOpacity: 0.62, toughOpacity: 0.20, toughScale: 0.70 },
     );
@@ -1919,7 +1919,7 @@ export default function RugRushGame({
                 top: `${(brushPoint.y / CANVAS_HEIGHT) * 100}%`,
               }}
             >
-              <div className={`relative ${compactLandscape ? "h-14 w-16" : "h-[74px] w-[88px] sm:h-[84px] sm:w-[100px]"}`}>
+              <div className={`relative ${compactLandscape ? "h-24 w-24" : "h-[110px] w-[110px] sm:h-[126px] sm:w-[126px]"}`}>
                 <div className="absolute inset-[12%] rounded-full bg-yellow-200/16 blur-md" />
                 <img
                   src={cleaningToolImage}

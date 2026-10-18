@@ -114,119 +114,208 @@ export function DreamTokenReactor({
         ))}
       </div>
       <style jsx>{`
+        /* Phase 4B: the reactor is a full-height right-side console on wide screens. */
         .reactor-console {
+          display: grid;
+          grid-template-rows: auto minmax(0,1fr) auto auto auto;
+          gap: clamp(7px,1.2vh,14px);
           width: 100%;
-          padding: 13px 14px 12px;
-          border: 1px solid rgba(152, 143, 255, .50);
-          border-radius: 20px;
+          height: 100%;
+          min-height: 0;
+          padding: clamp(12px,1.15vw,20px);
+          border: 1px solid rgba(152,143,255,.50);
+          border-radius: 21px;
           color: #f6f9ff;
-          background: linear-gradient(147deg, rgba(13, 21, 56, .96), rgba(4, 13, 37, .94));
-          box-shadow: 0 15px 44px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(210, 224, 255, .13), 0 0 40px rgba(120, 95, 245, .11);
+          background: linear-gradient(150deg,rgba(13,21,56,.96),rgba(4,13,37,.95));
+          box-shadow: 0 15px 44px rgba(0,0,0,.45),inset 0 1px 0 rgba(210,224,255,.13),0 0 40px rgba(120,95,245,.11);
           backdrop-filter: blur(15px);
           -webkit-backdrop-filter: blur(15px);
+          overflow: hidden;
         }
-        .console-heading { display: flex; align-items: center; gap: 9px; }
-        .power-indicator { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: #8be9ff; box-shadow: 0 0 12px #7ee7ff; }
-        .console-heading > div { flex: 1; min-width: 0; }
-        .console-eyebrow { display: block; font-size: 8px; letter-spacing: .14em; color: #86d2fa; font-weight: 900; }
-        h2 { margin: 2px 0 0; font-size: 14px; letter-spacing: -.02em; line-height: 1.2; }
-        .reactor-state { padding: 4px 6px; border-radius: 6px; background: rgba(119, 203, 248, .10); color: #9cdcff; font-size: 8px; letter-spacing: .05em; font-weight: 900; }
-        .reactor-display { display: grid; grid-template-columns: 108px 1fr; align-items: center; min-height: 117px; gap: 12px; }
-        .reactor-chamber { position: relative; width: 108px; height: 108px; isolation: isolate; }
+        .console-heading { display:flex; align-items:center; gap:9px; min-width:0; }
+        .power-indicator {
+          width:8px;height:8px;flex:0 0 auto;border-radius:50%;
+          background:#8be9ff;box-shadow:0 0 12px #7ee7ff;
+        }
+        .console-heading > div { flex:1; min-width:0; }
+        .console-eyebrow {
+          display:block;color:#86d2fa;font-size:clamp(8px,.7vw,10px);
+          letter-spacing:.12em;font-weight:900;
+        }
+        h2 { margin:3px 0 0;font-size:clamp(14px,1.22vw,19px);line-height:1.2;letter-spacing:-.02em; }
+        .reactor-state {
+          flex:0 0 auto;padding:4px 6px;border-radius:6px;
+          background:rgba(119,203,248,.1);color:#9cdcff;font-size:8px;font-weight:900;letter-spacing:.05em;
+        }
+        .reactor-display {
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          justify-content:center;
+          gap:clamp(9px,2.3vh,24px);
+          min-width:0;min-height:0;
+        }
+        .reactor-chamber {
+          position:relative;
+          width:clamp(96px,18dvh,164px);
+          height:clamp(96px,18dvh,164px);
+          flex:0 0 auto;
+          isolation:isolate;
+        }
         .reactor-chamber::before {
-          content: ""; position: absolute; inset: 11px; border-radius: 50%;
-          background: radial-gradient(circle, rgba(129, 104, 255, .23), rgba(45, 122, 224, .09) 53%, transparent 75%);
-          filter: blur(10px);
+          content:"";position:absolute;inset:9%;border-radius:50%;
+          background:radial-gradient(circle,rgba(129,104,255,.23),rgba(45,122,224,.09) 53%,transparent 75%);
+          filter:blur(10px);
         }
         .reactor-chamber.was-charged::after {
-          content: ""; position: absolute; inset: -4px; border: 2px solid rgba(131, 240, 255, .8);
-          border-radius: 50%; pointer-events: none;
-          animation: charge-flash 1.6s ease-out both;
+          content:"";position:absolute;inset:-4px;border:2px solid rgba(131,240,255,.8);
+          border-radius:50%;pointer-events:none;animation:charge-flash 1.6s ease-out both;
         }
-        .energy-ring { position: absolute; border-radius: 50%; pointer-events: none; }
-        .ring-outer { inset: 6px; border: 2px solid rgba(132, 196, 255, .32); border-left-color: #81e7ff; border-right-color: #c69cff; animation: ring-spin 11s linear infinite; }
-        .ring-inner { inset: 19px; border: 2px solid rgba(179, 136, 255, .58); border-top-color: #7df6ff; border-bottom-color: #7df6ff; animation: ring-spin 7s linear infinite reverse; }
-        .orbit-trace { position: absolute; inset: 3px 22px; border-radius: 50%; border: 1px solid rgba(128, 179, 255, .55); transform: rotate(55deg); }
+        .energy-ring { position:absolute;border-radius:50%;pointer-events:none; }
+        .ring-outer {
+          inset:6%;border:2px solid rgba(132,196,255,.32);
+          border-left-color:#81e7ff;border-right-color:#c69cff;animation:ring-spin 11s linear infinite;
+        }
+        .ring-inner {
+          inset:18%;border:2px solid rgba(179,136,255,.58);
+          border-top-color:#7df6ff;border-bottom-color:#7df6ff;animation:ring-spin 7s linear infinite reverse;
+        }
+        .orbit-trace {
+          position:absolute;inset:3% 20%;border-radius:50%;
+          border:1px solid rgba(128,179,255,.55);transform:rotate(55deg);
+        }
         .reactor-heart {
-          position: absolute; inset: 32px; display: grid; place-items: center; border-radius: 15px;
-          transform: rotate(45deg);
-          background: linear-gradient(145deg, #f3abff, #8369ff 48%, #4ad4ff);
-          box-shadow: 0 0 17px rgba(172, 105, 255, .8), inset 0 0 10px rgba(255,255,255,.45);
-          animation: core-beat 3.4s ease-in-out infinite;
+          position:absolute;inset:30%;display:grid;place-items:center;border-radius:25%;
+          transform:rotate(45deg);
+          background:linear-gradient(145deg,#f3abff,#8369ff 48%,#4ad4ff);
+          box-shadow:0 0 17px rgba(172,105,255,.8),inset 0 0 10px rgba(255,255,255,.45);
+          animation:core-beat 3.4s ease-in-out infinite;
         }
-        .reactor-heart span { transform: rotate(-45deg); color: #160c45; font-size: 14px; font-weight: 1000; letter-spacing: -.07em; }
-        .energy-beam { position: absolute; top: 51px; width: 22px; height: 3px; border-radius: 99px; background: linear-gradient(90deg, transparent, #68d9ff); box-shadow: 0 0 12px rgba(101, 214, 255, .65); }
-        .beam-left { left: -4px; }
-        .beam-right { right: -4px; transform: rotate(180deg); }
-        .spark { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #bdefff; box-shadow: 0 0 9px #a4e9ff; }
-        .spark-one { top: 13px; left: 35px; }
-        .spark-two { bottom: 17px; right: 22px; }
-        .spark-three { top: 37px; right: 7px; }
-        .spark-four { bottom: 33px; left: 8px; }
-        .power-output { display: grid; gap: 4px; min-width: 0; }
-        .output-label { color: #9cbcf6; font-size: 9px; font-weight: 900; letter-spacing: .10em; }
-        .output-value { display: flex; align-items: baseline; gap: 5px; }
-        .output-value strong { font-size: clamp(21px, 2.5vw, 31px); letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
-        .output-value span { color: #b09bff; font-size: 12px; font-weight: 900; }
-        .output-caption { font-size: 9px; color: #bacbe4; line-height: 1.45; }
-        .charge-heading { display: flex; justify-content: space-between; gap: 10px; margin-top: 1px; font-size: 9px; color: #c5d9ef; font-weight: 700; }
-        .charge-heading strong { color: white; }
-        .charge-meter { width: 100%; height: 6px; margin-top: 7px; overflow: hidden; border-radius: 99px; background: rgba(255, 255, 255, .13); }
-        .charge-meter span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #5ad9ef, #a290ff); box-shadow: 0 0 13px #8de4ff; transition: width .5s ease-out; }
-        .machine-output-list { display: grid; gap: 6px; margin-top: 10px; }
-        .machine-output { display: grid; grid-template-columns: 7px minmax(0, 1fr) 25px 46px; align-items: center; column-gap: 7px; font-size: 9px; color: #d0e0f1; }
-        .machine-led { width: 6px; height: 6px; border-radius: 50%; background: var(--output-accent); box-shadow: 0 0 9px var(--output-accent); }
-        .machine-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .machine-steps { color: #a8bddb; text-align: right; font-variant-numeric: tabular-nums; }
-        .machine-output strong { color: #fff; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-        @keyframes ring-spin { to { transform: rotate(360deg); } }
-        @keyframes charge-flash { from { opacity: 1; transform: scale(.7); } to { opacity: 0; transform: scale(1.35); } }
-        @keyframes core-beat { 50% { filter: brightness(1.35); box-shadow: 0 0 28px rgba(172, 105, 255, .95), inset 0 0 12px rgba(255,255,255,.6); } }
-        @media (max-width: 720px) {
-          .reactor-console { padding: 10px 12px; border-radius: 16px; }
-          .reactor-display { grid-template-columns: 78px 1fr; min-height: 80px; gap: 8px; }
-          .reactor-chamber { width: 78px; height: 78px; transform: scale(.73); transform-origin: top left; margin-bottom: -20px; }
-          .output-value strong { font-size: 24px; }
-          .machine-output-list { grid-template-columns: 1fr; gap: 4px; margin-top: 8px; }
+        .reactor-heart span {
+          transform:rotate(-45deg);color:#160c45;
+          font-size:clamp(13px,1.3vw,18px);font-weight:1000;letter-spacing:-.07em;
         }
-        /* Phase 4A: compact reactor mode keeps the hub within a single viewport. */
-        @media (max-width:720px) {
-          .reactor-console { padding:7px 9px; border-radius:12px; }
-          .console-heading { gap:5px; }
-          .console-eyebrow { font-size:7px;letter-spacing:.04em; }
-          h2 { font-size:11px; }
-          .reactor-state { padding:2px 3px;font-size:6px; }
-          .power-indicator { width:5px;height:5px; }
-          .reactor-display { min-height:28px; grid-template-columns:1fr; gap:0; margin:3px 0; }
-          .reactor-chamber { display:none; }
-          .power-output { display:flex;align-items:baseline;gap:5px;flex-wrap:wrap; }
+        .energy-beam {
+          position:absolute;top:50%;width:20%;height:3px;border-radius:99px;
+          background:linear-gradient(90deg,transparent,#68d9ff);box-shadow:0 0 12px rgba(101,214,255,.65);
+        }
+        .beam-left { left:0; }
+        .beam-right { right:0;transform:rotate(180deg); }
+        .spark {
+          position:absolute;width:4px;height:4px;border-radius:50%;
+          background:#bdefff;box-shadow:0 0 9px #a4e9ff;
+        }
+        .spark-one { top:12%;left:33%; }
+        .spark-two { bottom:15%;right:20%; }
+        .spark-three { top:34%;right:6%; }
+        .spark-four { bottom:30%;left:8%; }
+        .power-output { display:grid;justify-items:center;gap:4px;text-align:center;min-width:0; }
+        .output-label { color:#9cbcf6;font-size:clamp(9px,.78vw,11px);font-weight:900;letter-spacing:.1em; }
+        .output-value { display:flex;align-items:baseline;justify-content:center;gap:6px; }
+        .output-value strong {
+          font-size:clamp(29px,3.1vw,45px);
+          letter-spacing:-.045em;font-variant-numeric:tabular-nums;
+        }
+        .output-value span { color:#b09bff;font-size:13px;font-weight:900; }
+        .output-caption { font-size:10px;color:#bacbe4;line-height:1.35; }
+        .charge-heading {
+          display:flex;justify-content:space-between;gap:10px;
+          font-size:10px;color:#c5d9ef;font-weight:700;
+        }
+        .charge-heading strong { color:white; }
+        .charge-meter { width:100%;height:7px;overflow:hidden;border-radius:99px;background:rgba(255,255,255,.13); }
+        .charge-meter span {
+          display:block;height:100%;border-radius:inherit;
+          background:linear-gradient(90deg,#5ad9ef,#a290ff);
+          box-shadow:0 0 13px #8de4ff;transition:width .5s ease-out;
+        }
+        .machine-output-list {
+          display:grid;gap:clamp(5px,.85vh,12px);
+          min-width:0;padding-top:7px;border-top:1px solid rgba(150,191,237,.17);
+        }
+        .machine-output {
+          display:grid;
+          grid-template-columns:8px minmax(0,1fr) 28px 55px;
+          align-items:center;gap:5px;
+          color:#d0e0f1;font-size:clamp(9px,.76vw,11px);
+        }
+        .machine-led {
+          width:7px;height:7px;border-radius:50%;
+          background:var(--output-accent);box-shadow:0 0 9px var(--output-accent);
+        }
+        .machine-label { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+        .machine-steps { color:#a8bddb;text-align:right;font-variant-numeric:tabular-nums; }
+        .machine-output strong { color:white;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums; }
+        @keyframes ring-spin { to { transform:rotate(360deg); } }
+        @keyframes charge-flash { from { opacity:1;transform:scale(.7); } to { opacity:0;transform:scale(1.35); } }
+        @keyframes core-beat {
+          50% { filter:brightness(1.35);box-shadow:0 0 28px rgba(172,105,255,.95),inset 0 0 12px rgba(255,255,255,.6); }
+        }
+        @media (max-width:1100px) {
+          .reactor-console { padding:12px 11px;gap:8px; }
+          .reactor-chamber { width:clamp(88px,15dvh,136px);height:clamp(88px,15dvh,136px); }
+          .reactor-display { gap:8px; }
+          .machine-output { grid-template-columns:7px minmax(0,1fr) 24px 47px;font-size:9px;gap:4px; }
+        }
+        @media (max-width:820px), (max-width:950px) and (max-height:500px) {
+          .reactor-console {
+            padding:8px 11px;
+            gap:4px;
+            border-radius:14px;
+          }
+          .console-eyebrow { font-size:8px;letter-spacing:.04em; }
+          h2 { font-size:13px; }
+          .reactor-state { padding:3px 5px;font-size:7px; }
+          .reactor-display {
+            flex-direction:row;
+            justify-content:center;
+            align-items:center;
+            gap:12px;
+          }
+          .reactor-chamber { width:64px;height:64px; }
+          .reactor-heart span { font-size:10px; }
+          .power-output { justify-items:start;text-align:left;gap:1px; }
           .output-label { font-size:8px; }
-          .output-value strong { font-size:18px; }
-          .output-value span { font-size:9px; }
-          .output-caption { display:none; }
-          .charge-heading { font-size:8px; }
-          .charge-meter { height:3px;margin-top:4px; }
-          .machine-output-list { display:none; }
-        }
-        @media (max-width:720px) and (orientation:landscape) {
-          .console-eyebrow, .reactor-state { display:none; }
-          .reactor-display { min-height:22px;margin:2px 0; }
-          .charge-meter { margin-top:2px; }
-        }
-        @media (max-height:900px) and (min-width:721px) {
-          .reactor-console { padding:8px 10px; }
-          .console-heading { gap:6px; }
-          .reactor-display { grid-template-columns:69px 1fr; min-height:66px;gap:6px; }
-          .reactor-chamber { width:66px;height:66px;transform:scale(.60);transform-origin:top left; }
           .output-value strong { font-size:23px; }
+          .output-value span { font-size:10px; }
           .output-caption { display:none; }
-          .charge-heading { font-size:8px; }
-          .machine-output-list { margin-top:6px;gap:4px; }
-          .charge-meter { margin-top:4px;height:4px; }
+          .charge-heading { font-size:9px; }
+          .charge-meter { height:4px; }
+          .machine-output-list { gap:3px;padding-top:3px; }
+          .machine-output { grid-template-columns:6px minmax(0,1fr) 26px 47px;font-size:9px; }
+          .machine-led { width:6px;height:6px; }
         }
-        @media (prefers-reduced-motion: reduce) {
-          .ring-outer, .ring-inner, .reactor-heart, .reactor-chamber.was-charged::after { animation: none; }
-          .charge-meter span { transition: none; }
+        @media (max-width:820px) and (orientation:landscape), (max-width:950px) and (max-height:500px) and (orientation:landscape) {
+          .reactor-console { padding:7px 8px;gap:3px; }
+          .console-eyebrow { display:none; }
+          h2 { font-size:11px; }
+          .power-indicator { width:6px;height:6px; }
+          .reactor-state { font-size:6px;padding:2px; }
+          .reactor-display { gap:6px; }
+          .reactor-chamber { width:59px;height:59px; }
+          .output-value strong { font-size:21px; }
+          .output-label { font-size:7px; }
+          .charge-heading { font-size:8px; }
+          .machine-output-list { gap:4px; }
+          .machine-output { grid-template-columns:6px minmax(0,1fr) 22px 43px;font-size:8px;gap:2px; }
+        }
+        @media (max-height:700px) and (min-width:761px) {
+          .reactor-console { padding:9px 11px;gap:6px; }
+          .reactor-chamber { width:clamp(90px,17vh,118px);height:clamp(90px,17vh,118px); }
+          .output-value strong { font-size:26px; }
+          .output-caption { display:none; }
+          .machine-output-list { gap:4px; }
+        }
+        @media (max-width:760px) and (orientation:portrait) and (max-height:660px) {
+          .reactor-chamber { display:none; }
+          .reactor-display { gap:0; }
+          .power-output { display:flex;align-items:baseline;gap:10px; }
+          .output-value strong { font-size:20px; }
+          .reactor-console { gap:2px; }
+        }
+        @media (prefers-reduced-motion:reduce) {
+          .ring-outer,.ring-inner,.reactor-heart,.reactor-chamber.was-charged::after { animation:none; }
+          .charge-meter span { transition:none; }
         }
       `}</style>
     </section>

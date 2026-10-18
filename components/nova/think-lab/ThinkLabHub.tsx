@@ -65,52 +65,59 @@ export default function ThinkLabHub({
   const selectedProgress = progress[selected.id].completed;
   const completed = selectedProgress >= 3;
 
+
+  const currentIndex = Math.max(0, games.findIndex((game) => game.id === selected.id));
+  const chooseAdjacentMachine = (direction: -1 | 1) => {
+    if (games.length < 2) return;
+    const nextIndex = (currentIndex + direction + games.length) % games.length;
+    setSelectedMachine(games[nextIndex].id);
+  };
+
+  const machineOutputs = games.map((game) => ({
+    id: game.id,
+    title: game.title,
+    completed: progress[game.id].completed,
+    accent: game.accent,
+    earned: ([1, 2, 3] as const).reduce(
+      (total, level) =>
+        total +
+        (progress[game.id].levels[level].completed
+          ? progress[game.id].levels[level].reward
+          : 0),
+      0
+    ),
+  }));
+
   return (
     <section className="think-hub" aria-label="NOVA Think Lab machine selection">
-      <div className="hub-top">
-        <div className="hub-intro">
-          <span className="hub-eyebrow">NOVA&apos;S THINK LAB</span>
-          <h1>Power the journey.</h1>
-          <p>Choose a thinking machine, solve its puzzles and generate Dream Tokens for NOVA&apos;s journey through DREAMSCAPE.</p>
-        </div>
-        <div className="hub-reactor">
-          <DreamTokenReactor
-            machines={games.map((game) => ({
-              id: game.id,
-              title: game.title,
-              completed: progress[game.id].completed,
-              accent: game.accent,
-              earned: ([1, 2, 3] as const).reduce(
-                (total, level) =>
-                  total +
-                  (progress[game.id].levels[level].completed
-                    ? progress[game.id].levels[level].reward
-                    : 0),
-                0
-              ),
-            }))}
-            todayCompleted={todayCompleted}
-            todayGeneratedDT={todayGeneratedDT}
-            isGuest={isGuest}
-            loading={loading}
-            pulseKey={reactorPulseKey}
-          />
-        </div>
-      </div>
-
       <div className="hub-selection">
-        <div className="hub-selection-heading">
+        <div className="hub-heading">
           <div>
-            <span className="hub-eyebrow">THINKING MACHINE BAY</span>
-            <h2>Choose your machine</h2>
+            <span className="hub-eyebrow">NOVA&apos;S THINK LAB · MACHINE BAY</span>
+            <h1>Choose your machine</h1>
           </div>
-          <span className="hub-reset">Daily reset in {countdown}</span>
+          <div className="hub-heading-side">
+            <span className="hub-reset">Daily reset in {countdown}</span>
+            <span className="machine-index" aria-label={`Machine ${currentIndex + 1} of ${games.length}`}>
+              {String(currentIndex + 1).padStart(2, "0")} / {String(games.length).padStart(2, "0")}
+            </span>
+          </div>
         </div>
 
         <div className={`hub-machines${guideHighlight ? " guide-focus" : ""}`} role="group" aria-label="Thinking machines">
+          <button
+            type="button"
+            className="carousel-arrow carousel-previous"
+            onClick={() => chooseAdjacentMachine(-1)}
+            aria-label="Previous thinking machine"
+            disabled={games.length < 2}
+          >
+            <span aria-hidden="true">‹</span>
+          </button>
+
           {games.map((game) => {
             const details = MACHINES[game.id];
-            const isSelected = game.id === selectedMachine;
+            const isSelected = game.id === selected.id;
             const progressCount = progress[game.id].completed;
             return (
               <button
@@ -120,7 +127,7 @@ export default function ThinkLabHub({
                 style={{ "--machine-accent": game.accent } as CSSProperties}
                 onClick={() => setSelectedMachine(game.id)}
                 aria-pressed={isSelected}
-                aria-label={`Select ${game.title}, ${progressCount} of 3 daily challenges completed`}
+                aria-label={`Select ${game.title}; ${progressCount} of 3 daily challenges completed`}
                 aria-controls="think-lab-selected-machine"
               >
                 <span className="machine-image-stage">
@@ -130,7 +137,7 @@ export default function ThinkLabHub({
                     aria-hidden="true"
                     width={420}
                     height={525}
-                    sizes="(max-width: 720px) 40vw, (max-width: 1100px) 27vw, 25vw"
+                    sizes="(max-width: 760px) 64vw, (max-width: 1200px) 18vw, 22vw"
                     className="machine-image"
                   />
                   <span className="machine-spotlight" aria-hidden="true" />
@@ -145,6 +152,16 @@ export default function ThinkLabHub({
               </button>
             );
           })}
+
+          <button
+            type="button"
+            className="carousel-arrow carousel-next"
+            onClick={() => chooseAdjacentMachine(1)}
+            aria-label="Next thinking machine"
+            disabled={games.length < 2}
+          >
+            <span aria-hidden="true">›</span>
+          </button>
         </div>
 
         <div
@@ -155,12 +172,14 @@ export default function ThinkLabHub({
         >
           <div className="selected-machine-copy">
             <span className="selected-kicker">MACHINE {selectedInfo.number} · {selectedInfo.purpose}</span>
-            <h3>{selected.title}</h3>
+            <h2>{selected.title}</h2>
             <p>{selectedInfo.story}</p>
           </div>
           <div className="selected-machine-meta">
             <span className="reward-label">{selected.rewardText}</span>
-            <span className="daily-label">{loading ? "Loading progress…" : `${selectedProgress}/3 completed today`}</span>
+            <span className="daily-label">
+              {loading ? "Loading progress…" : `${selectedProgress}/3 completed today`}
+            </span>
           </div>
           <button
             type="button"
@@ -173,15 +192,20 @@ export default function ThinkLabHub({
             <span aria-hidden="true">→</span>
           </button>
         </div>
-        <p className="hub-guidance">
-          {isGuest
-            ? "Guest mode: practise any machine. Sign in to collect Dream Tokens and save progress."
-            : "Complete challenges to earn Dream Tokens. Your rewards stay in your existing balance."}
-        </p>
       </div>
 
+      <aside className="hub-reactor" aria-label="Think Lab energy reactor">
+        <DreamTokenReactor
+          machines={machineOutputs}
+          todayCompleted={todayCompleted}
+          todayGeneratedDT={todayGeneratedDT}
+          isGuest={isGuest}
+          loading={loading}
+          pulseKey={reactorPulseKey}
+        />
+      </aside>
+
       <style jsx>{`
-        /* Phase 4A: a single-viewport game hub with adaptive space allocation. */
         .think-hub {
           position: relative;
           z-index: 2;
@@ -189,259 +213,332 @@ export default function ThinkLabHub({
           height: calc(100dvh - var(--lab-header-height, 66px));
           min-height: 0;
           display: grid;
-          grid-template-rows: minmax(0, .40fr) minmax(0, 1fr);
-          gap: clamp(5px, 1vh, 12px);
-          padding: clamp(7px, 1.2vh, 14px) clamp(9px, 1.15vw, 18px);
+          grid-template-columns: minmax(0, 2fr) minmax(270px, 1fr);
+          gap: clamp(7px, 1.05vw, 17px);
+          padding: clamp(7px, 1.1vh, 14px) clamp(7px, 1vw, 16px);
           overflow: hidden;
           color: #f6fbff;
         }
-        .hub-top {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 14px;
+        .hub-selection, .hub-reactor {
+          min-width: 0;
           min-height: 0;
-          overflow: hidden;
+          height: 100%;
         }
-        .hub-eyebrow {
-          color: #8ee9ff;
-          font-size: clamp(8px, .69vw, 10px);
-          font-weight: 900;
-          letter-spacing: .15em;
-        }
-        .hub-intro {
-          width: min(350px, 34vw);
-          max-height: 100%;
-          flex: 0 1 auto;
-          padding: clamp(10px,1.2vw,19px);
-          border: 1px solid rgba(124,215,255,.29);
-          border-radius: 18px;
-          background: linear-gradient(140deg,rgba(3,13,32,.92),rgba(7,19,46,.81));
-          box-shadow: 0 12px 34px rgba(0,0,0,.28);
-          backdrop-filter: blur(9px);
-          overflow: hidden;
-        }
-        .hub-intro h1 {
-          margin: 7px 0 5px;
-          font-size: clamp(19px, 2.3vw, 34px);
-          letter-spacing: -.045em;
-          line-height: 1.13;
-        }
-        .hub-intro p {
-          margin: 0;
-          color: rgba(234,246,255,.82);
-          font-size: clamp(10px,.8vw,12px);
-          line-height: 1.48;
-        }
-        .hub-reactor { width: min(304px,31vw); min-width: 0; max-height: 100%; flex: 0 0 auto; }
         .hub-selection {
           display: grid;
-          grid-template-rows: auto minmax(0, 1fr) auto auto;
-          gap: clamp(4px,.7vh,9px);
-          width: 100%;
-          min-height: 0;
-          overflow: hidden;
-          padding: clamp(8px,1vw,14px) clamp(8px,1vw,16px);
-          border: 1px solid rgba(131,211,255,.28);
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          gap: clamp(6px, .9vh, 12px);
+          padding: clamp(9px, 1.05vw, 18px);
+          border: 1px solid rgba(131, 211, 255, .28);
           border-radius: 21px;
-          background: linear-gradient(180deg,rgba(4,12,30,.68),rgba(4,10,28,.93));
-          backdrop-filter: blur(8px);
-          box-shadow: 0 14px 36px rgba(0,0,0,.4);
+          background: linear-gradient(180deg, rgba(4,12,30,.73), rgba(4,10,28,.94));
+          backdrop-filter: blur(9px);
+          -webkit-backdrop-filter: blur(9px);
+          box-shadow: 0 14px 36px rgba(0,0,0,.38);
+          overflow: hidden;
         }
-        .hub-selection-heading { display:flex; align-items:end; justify-content:space-between; gap:8px; min-height:0; padding:0 3px; }
-        .hub-selection-heading h2 { margin:3px 0 0; font-size:clamp(16px,1.35vw,21px); line-height:1.15; }
-        .hub-reset { color:rgba(220,239,255,.7); font-size:clamp(8px,.68vw,10px); white-space:nowrap; }
+        .hub-reactor { display: flex; align-items: stretch; }
+        .hub-reactor :global(.reactor-console) { height: 100%; min-height: 0; }
+
+        .hub-heading {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 0 2px;
+        }
+        .hub-eyebrow {
+          color: #89dfff;
+          font-size: clamp(8px, .66vw, 10px);
+          font-weight: 900;
+          letter-spacing: .13em;
+        }
+        .hub-heading h1 {
+          font-size: clamp(18px, 1.75vw, 28px);
+          letter-spacing: -.035em;
+          line-height: 1.12;
+          margin: 4px 0 0;
+        }
+        .hub-heading-side { display: flex; align-items: center; gap: 8px; }
+        .hub-reset { color: rgba(220,239,255,.75); font-size: 10px; white-space: nowrap; }
+        .machine-index { display: none; }
+
         .hub-machines {
-          display:grid;
-          grid-template-columns:repeat(3,minmax(0,1fr));
-          align-items:stretch;
-          gap:clamp(4px,1.4vw,20px);
-          min-height:0;
-          overflow:hidden;
+          position: relative;
+          min-width: 0;
+          min-height: 0;
+          height: 100%;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          align-items: stretch;
+          gap: clamp(3px, 1.05vw, 17px);
+          overflow: hidden;
         }
         .machine-option {
-          position:relative;
-          min-width:0;
-          min-height:0;
-          padding:1px 4px 6px;
-          display:flex;
-          flex-direction:column;
-          align-items:center;
-          justify-content:flex-end;
-          gap:3px;
-          border:1px solid transparent;
-          border-radius:14px;
-          appearance:none;
-          background:transparent;
-          color:#effaff;
-          text-align:center;
-          cursor:pointer;
-          transition:background .18s ease,box-shadow .18s ease;
+          position: relative;
+          min-width: 0;
+          min-height: 0;
+          width: 100%;
+          height: 100%;
+          padding: 3px 3px 8px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 4px;
+          border: 1px solid transparent;
+          border-radius: 15px;
+          appearance: none;
+          background: transparent;
+          color: #effaff;
+          text-align: center;
+          cursor: pointer;
+          transition: filter .18s ease, background .18s ease;
         }
         .machine-image-stage {
-          position:relative;
-          display:flex;
-          align-items:end;
-          justify-content:center;
-          flex:1 1 auto;
-          min-height:0;
-          height:0;
-          width:100%;
+          position: relative;
+          flex: 1 1 auto;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          width: 100%;
+          height: 0;
+          min-height: 0;
+          overflow: hidden;
         }
         .machine-image-stage :global(.machine-image) {
-          position:relative;
-          z-index:1;
-          display:block;
-          width:auto;
-          height:100%;
-          max-width:100%;
-          object-fit:contain;
-          object-position:center bottom;
-          filter:drop-shadow(0 10px 14px rgba(0,0,0,.55));
-          transform-origin:center bottom;
-          transition:transform .22s ease,filter .22s ease;
+          position: relative;
+          z-index: 1;
+          display: block;
+          width: auto;
+          height: 100%;
+          max-width: 100%;
+          object-fit: contain;
+          object-position: center bottom;
+          filter: drop-shadow(0 8px 12px rgba(0,0,0,.47));
+          /* Do not enlarge the selected asset: this previously clipped its top. */
+          transition: filter .2s ease;
         }
         .machine-spotlight {
-          position:absolute;
-          bottom:2px;
-          left:17%;right:17%;
-          height:16px;
-          border-radius:50%;
-          background:color-mix(in srgb,var(--machine-accent) 33%,transparent);
-          filter:blur(15px);
-          opacity:.32;
-          transition:opacity .2s ease;
+          position: absolute;
+          left: 13%; right: 13%; bottom: 0;
+          height: 15px;
+          border-radius: 50%;
+          background: color-mix(in srgb, var(--machine-accent) 32%, transparent);
+          filter: blur(11px);
+          opacity: .20;
+          transition: opacity .2s ease;
         }
         .machine-option:hover .machine-image-stage :global(.machine-image),
-        .machine-option:focus-visible .machine-image-stage :global(.machine-image) { transform:translateY(-3px) scale(1.025); }
+        .machine-option:focus-visible .machine-image-stage :global(.machine-image) {
+          filter: brightness(1.12) drop-shadow(0 8px 14px rgba(0,0,0,.50));
+        }
         .machine-option.is-selected {
-          border-color:transparent;
-          background:radial-gradient(ellipse at 50% 92%,color-mix(in srgb,var(--machine-accent) 13%,transparent),transparent 61%);
-          box-shadow:none;
+          background: radial-gradient(ellipse at 50% 90%, color-mix(in srgb,var(--machine-accent) 10%,transparent), transparent 66%);
         }
         .machine-option.is-selected::after {
-          content:"";
-          position:absolute;left:30%;right:30%;bottom:0;height:2px;
-          border-radius:99px;
-          background:var(--machine-accent);
-          box-shadow:0 0 14px var(--machine-accent);
+          content: "";
+          position: absolute;
+          left: 25%; right: 25%; bottom: 0;
+          height: 2px;
+          border-radius: 99px;
+          background: var(--machine-accent);
+          box-shadow: 0 0 13px var(--machine-accent);
         }
         .machine-option.is-selected .machine-image-stage :global(.machine-image) {
-          transform:translateY(-2px) scale(1.035);
-          filter:brightness(1.17) drop-shadow(0 0 14px color-mix(in srgb,var(--machine-accent) 43%,transparent));
+          filter: brightness(1.18) drop-shadow(0 0 12px color-mix(in srgb,var(--machine-accent) 35%,transparent));
         }
-        .machine-option.is-selected .machine-spotlight { opacity:1; }
-        .machine-option:focus-visible { outline:2px solid #dcfbff; outline-offset:-2px; }
-        .machine-label { flex:0 0 auto; min-height:0; display:grid; gap:2px; }
-        .machine-label strong { font-size:clamp(12px,1.16vw,17px); font-weight:850; line-height:1.13; letter-spacing:-.028em; }
-        .machine-label > span { color:rgba(226,240,255,.7); font-size:clamp(8px,.65vw,10px); line-height:1.1; }
-        .machine-selected-indicator { flex:0 0 auto; font-size:clamp(7px,.61vw,9px); font-weight:900; letter-spacing:.1em; line-height:1.1; color:var(--machine-accent); }
+        .machine-option.is-selected .machine-spotlight { opacity: .90; }
+        .machine-option:focus-visible { outline: 2px solid #dcfbff; outline-offset: -2px; }
+        .machine-label { flex: 0 0 auto; display: grid; gap: 3px; }
+        .machine-label strong { font-size: clamp(12px, 1.05vw, 17px); font-weight: 850; line-height: 1.15; }
+        .machine-label > span { color: rgba(226,240,255,.72); font-size: clamp(9px,.68vw,11px); line-height: 1.1; }
+        .machine-selected-indicator {
+          flex: 0 0 auto;
+          color: var(--machine-accent);
+          font-size: clamp(8px,.63vw,10px);
+          font-weight: 900;
+          letter-spacing: .09em;
+          line-height: 1.1;
+        }
+
         .selected-machine-panel {
-          min-width:0;
-          display:grid;
-          grid-template-columns:minmax(0,1fr) auto auto;
-          align-items:center;
-          gap:clamp(6px,1vw,14px);
-          padding:clamp(7px,.8vw,12px) clamp(9px,1vw,15px);
-          border:1px solid color-mix(in srgb,var(--machine-accent) 38%,transparent);
-          border-radius:13px;
-          background:linear-gradient(90deg,color-mix(in srgb,var(--machine-accent) 11%,rgba(7,19,42,.94)),rgba(4,14,35,.97));
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto auto;
+          align-items: center;
+          gap: clamp(6px,1vw,16px);
+          min-width: 0;
+          padding: clamp(8px,.9vw,13px) clamp(9px,1vw,16px);
+          border: 1px solid color-mix(in srgb,var(--machine-accent) 38%,transparent);
+          border-radius: 14px;
+          background: linear-gradient(90deg,color-mix(in srgb,var(--machine-accent) 10%,rgba(7,19,42,.94)),rgba(4,14,35,.97));
         }
-        .selected-machine-copy { min-width:0; }
-        .selected-kicker { color:var(--machine-accent); font-size:clamp(8px,.65vw,9px); font-weight:900; letter-spacing:.055em; text-transform:uppercase; }
-        .selected-machine-copy h3 { margin:3px 0; font-size:clamp(15px,1.28vw,19px); line-height:1.1; letter-spacing:-.035em; }
-        .selected-machine-copy p { margin:0; color:rgba(230,244,255,.83); font-size:clamp(10px,.74vw,11px); line-height:1.4; }
-        .selected-machine-meta { display:grid; gap:4px; text-align:right; white-space:nowrap; }
-        .reward-label { color:#ffe49b; font-weight:900; font-size:clamp(10px,.85vw,12px); }
-        .daily-label { color:rgba(220,240,255,.75); font-size:clamp(9px,.7vw,10px); }
+        .selected-machine-copy { min-width: 0; }
+        .selected-kicker {
+          color: var(--machine-accent);
+          font-size: clamp(8px,.64vw,10px);
+          font-weight: 900;
+          letter-spacing: .04em;
+          text-transform: uppercase;
+        }
+        .selected-machine-copy h2 {
+          margin: 3px 0;
+          font-size: clamp(15px,1.18vw,20px);
+          letter-spacing: -.02em;
+          line-height: 1.12;
+        }
+        .selected-machine-copy p {
+          margin: 0;
+          color: rgba(230,244,255,.82);
+          font-size: clamp(10px,.74vw,12px);
+          line-height: 1.35;
+        }
+        .selected-machine-meta { display: grid; gap: 5px; text-align: right; white-space: nowrap; }
+        .reward-label { color: #ffe49b; font-weight: 900; font-size: clamp(10px,.85vw,12px); }
+        .daily-label { color: rgba(220,240,255,.75); font-size: clamp(9px,.70vw,11px); }
         .enter-machine {
-          min-height:42px;
-          display:flex;align-items:center;justify-content:center;gap:10px;
-          padding:8px 17px;
-          border:1px solid color-mix(in srgb,var(--machine-accent) 65%,white);
-          border-radius:11px;
-          background:linear-gradient(130deg,color-mix(in srgb,var(--machine-accent) 38%,#0c2549),#143154);
-          color:#fff;
-          font:inherit;font-size:12px;font-weight:900;
-          white-space:nowrap;cursor:pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          min-height: 43px;
+          padding: 8px 14px;
+          border: 1px solid color-mix(in srgb,var(--machine-accent) 65%,white);
+          border-radius: 11px;
+          background: linear-gradient(130deg,color-mix(in srgb,var(--machine-accent) 38%,#0c2549),#143154);
+          color: white;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 900;
+          white-space: nowrap;
+          cursor: pointer;
         }
-        .enter-machine:hover:not(:disabled),.enter-machine:focus-visible { filter:brightness(1.2); }
-        .enter-machine:disabled { opacity:.55;cursor:wait; }
-        .enter-machine:focus-visible { outline:2px solid white;outline-offset:2px; }
-        .enter-machine > span:last-child { font-size:18px; }
-        .hub-guidance { margin:0; color:rgba(212,231,251,.64); font-size:9px; line-height:1.2; text-align:center; }
-        .guide-focus { border-radius:12px; outline:2px solid #84e8ff; outline-offset:-2px; }
-        @media (max-width:1120px) {
-          .think-hub { grid-template-rows:minmax(0,.35fr) minmax(0,1fr); }
-          .hub-intro { width:min(300px,39vw); }
-          .hub-reactor { width:min(282px,36vw); }
-          .selected-machine-panel { gap:8px; }
-          .selected-machine-copy p { font-size:10px; }
+        .enter-machine:hover:not(:disabled),
+        .enter-machine:focus-visible { filter: brightness(1.18); }
+        .enter-machine:disabled { opacity: .55; cursor: wait; }
+        .enter-machine:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+        .enter-machine > span:last-child { font-size: 18px; }
+        .carousel-arrow { display: none; }
+        .guide-focus { border-radius: 12px; outline: 2px solid #84e8ff; outline-offset: -2px; }
+
+        @media (max-width: 1100px) {
+          .think-hub { grid-template-columns: minmax(0,1.8fr) minmax(245px,1fr); }
+          .selected-machine-copy p { font-size: 10px; }
         }
-        @media (max-width:720px) {
+        /* Mobile: show one machine at a time with real previous/next controls. */
+        @media (max-width: 820px), (max-width: 950px) and (max-height: 500px) {
           .think-hub {
-            grid-template-rows:minmax(0,auto) minmax(0,1fr);
-            padding:5px;
-            gap:5px;
+            grid-template-columns: minmax(0, 1fr);
+            grid-template-rows: minmax(0, 1.55fr) minmax(0, .80fr);
+            gap: 6px;
+            padding: 5px;
           }
-          .hub-top { height:clamp(91px,17dvh,126px);gap:5px; }
-          .hub-intro { width:50%; flex:1 1 0; padding:9px; border-radius:12px; }
-          .hub-eyebrow { font-size:8px;letter-spacing:.075em; }
-          .hub-intro h1 { margin:4px 0; font-size:clamp(15px,3.1vw,21px); }
-          .hub-intro p { font-size:9px;line-height:1.3; }
-          .hub-reactor { width:50%;flex:1 1 0; }
-          .hub-selection { gap:4px;padding:7px 6px;border-radius:14px; }
-          .hub-selection-heading h2 { font-size:clamp(14px,3.5vw,18px); }
-          .hub-reset { font-size:8px; }
-          .hub-machines { gap:2px; }
-          .machine-option { padding:0 1px 4px; gap:2px; border-radius:9px; }
-          .machine-label strong { font-size:clamp(10px,2.7vw,13px); }
-          .machine-label > span { font-size:8px; }
-          .machine-selected-indicator { font-size:7px;letter-spacing:.03em; }
-          .selected-machine-panel { grid-template-columns:minmax(0,1fr) auto;gap:5px 8px;padding:7px 8px;border-radius:11px; }
-          .selected-machine-copy { grid-column:1 / -1; }
-          .selected-kicker { font-size:8px; }
-          .selected-machine-copy h3 { font-size:15px;margin:2px 0; }
-          .selected-machine-copy p { font-size:9px;line-height:1.27; }
-          .selected-machine-meta { text-align:left;white-space:normal; }
-          .enter-machine { min-height:36px;padding:6px 11px;font-size:10px; }
-          .hub-guidance { display:none; }
+          .hub-selection { border-radius: 14px; padding: 8px 7px; gap: 6px; }
+          .hub-heading h1 { font-size: clamp(16px,3.8vw,22px); }
+          .hub-eyebrow { font-size: 8px; letter-spacing: .07em; }
+          .hub-reset { display: none; }
+          .machine-index {
+            display: inline;
+            font-size: 11px;
+            font-weight: 900;
+            color: #a8def8;
+            white-space: nowrap;
+          }
+          .hub-machines {
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+            gap: 0;
+          }
+          .machine-option { display: none; }
+          .machine-option.is-selected {
+            display: flex;
+            flex: 0 0 auto;
+            width: min(100%, 290px);
+            max-width: calc(100% - 76px);
+            padding: 1px 5px 4px;
+          }
+          .machine-label strong { font-size: 13px; }
+          .machine-label > span { font-size: 9px; }
+          .machine-selected-indicator { font-size: 8px; }
+          .carousel-arrow {
+            display: grid;
+            place-items: center;
+            position: absolute;
+            top: 44%;
+            transform: translateY(-50%);
+            z-index: 4;
+            width: 38px;
+            height: 48px;
+            border-radius: 13px;
+            border: 1px solid rgba(122,210,255,.38);
+            color: #e7fbff;
+            background: rgba(13,37,70,.92);
+            box-shadow: 0 6px 20px rgba(0,0,0,.26);
+            cursor: pointer;
+            touch-action: manipulation;
+          }
+          .carousel-arrow span { font-size: 31px; line-height: 1; margin-top: -3px; }
+          .carousel-previous { left: 1px; }
+          .carousel-next { right: 1px; }
+          .carousel-arrow:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+          .carousel-arrow:disabled { opacity: .38; }
+          .selected-machine-panel {
+            grid-template-columns: minmax(0,1fr) auto;
+            gap: 5px 8px;
+            padding: 7px 9px;
+            border-radius: 12px;
+          }
+          .selected-machine-copy { grid-column: 1 / -1; }
+          .selected-machine-copy h2 { font-size: 15px; margin: 2px 0; }
+          .selected-machine-copy p { font-size: 10px; line-height: 1.25; }
+          .selected-machine-meta { text-align: left; white-space: normal; }
+          .enter-machine { min-height: 36px; padding: 6px 10px; font-size: 10px; }
         }
-        @media (max-width:580px) and (orientation:portrait) {
-          .hub-top { height:clamp(86px,16dvh,109px); }
-          .hub-machines { align-self:center; height:min(100%,280px); }
-          .hub-intro p { display:none; }
-          .hub-intro h1 { font-size:clamp(16px,4vw,20px); }
+        @media (max-width:820px) and (orientation:landscape), (max-width:950px) and (max-height:500px) and (orientation:landscape) {
+          .think-hub {
+            grid-template-columns: minmax(0, 1.5fr) minmax(180px, 1fr);
+            grid-template-rows: minmax(0, 1fr);
+            gap: 5px;
+            padding: 4px;
+          }
+          .hub-selection { padding: 5px 6px; gap: 3px; border-radius: 11px; }
+          .hub-heading h1 { font-size: 14px; margin-top: 2px; }
+          .hub-heading .hub-eyebrow { display: none; }
+          .machine-option.is-selected { max-width: calc(100% - 74px); }
+          .machine-label strong { font-size: 11px; }
+          .machine-label > span, .machine-selected-indicator { display: none; }
+          .carousel-arrow { width: 31px; height: 39px; border-radius: 9px; }
+          .carousel-arrow span { font-size: 25px; }
+          .selected-machine-panel { grid-template-columns: minmax(0,1fr) auto; padding: 5px 7px; gap: 3px 5px; }
+          .selected-machine-copy { grid-column: auto; }
+          .selected-machine-copy h2, .selected-machine-copy p { display: none; }
+          .selected-kicker { font-size: 8px; }
+          .selected-machine-meta { display: none; }
+          .enter-machine { min-height: 31px; padding: 4px 8px; font-size: 9px; }
         }
-        @media (max-width:720px) and (orientation:landscape) {
-          .hub-top { height:clamp(66px,20dvh,92px); }
-          .hub-intro p { display:none; }
-          .hub-selection { grid-template-rows:auto minmax(0,1fr) auto; }
-          .selected-machine-panel { grid-template-columns:minmax(0,1fr) auto auto; padding:5px 9px; }
+        @media (max-width: 400px) and (orientation:portrait) and (max-height: 660px) {
+          .hub-selection { gap: 3px; padding: 6px; }
+          .hub-heading h1 { font-size: 15px; }
+          .selected-machine-panel { grid-template-columns:minmax(0,1fr) auto; padding:6px 8px; }
           .selected-machine-copy { grid-column:auto; }
-          .selected-machine-copy p { display:none; }
-          .hub-guidance { display:none; }
-          .machine-label strong { font-size:11px; }
+          .selected-kicker, .selected-machine-copy p, .selected-machine-meta { display:none; }
+          .selected-machine-copy h2 { margin:0; }
+          .machine-label > span { display:none; }
+          .machine-option.is-selected { gap:2px; }
         }
-        @media (max-height:700px) and (min-width:721px) {
-          .hub-intro p { display:none; }
-          .selected-machine-copy p { display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden; }
-          .hub-guidance { display:none; }
-          .hub-selection { grid-template-rows:auto minmax(0,1fr) auto; }
+        @media (max-height: 620px) and (min-width:761px) {
+          .hub-selection { padding: 8px; gap: 6px; }
+          .hub-heading h1 { font-size: 18px; }
+          .selected-machine-copy p { display: none; }
         }
-        @media (max-height:570px) {
-          .hub-intro { padding:7px; }
-          .hub-intro h1 { font-size:16px;margin:3px 0; }
-          .hub-intro p { display:none; }
-          .hub-selection { padding:5px;gap:3px; }
-          .hub-selection-heading .hub-eyebrow { display:none; }
-          .machine-label > span, .machine-selected-indicator { display:none; }
-          .selected-machine-copy p { display:none; }
-          .selected-machine-panel { padding:4px 7px; }
-          .enter-machine { min-height:31px; }
+        @media (max-height: 560px) {
+          .selected-machine-copy p { display: none; }
+          .selected-machine-panel { padding: 5px 7px; }
+          .enter-machine { min-height: 32px; }
         }
-        @media (prefers-reduced-motion:reduce) {
-          .machine-option,.machine-image-stage :global(.machine-image),.machine-spotlight { transition:none !important; }
+        @media (prefers-reduced-motion: reduce) {
+          .machine-option, .machine-image-stage :global(.machine-image), .machine-spotlight { transition: none !important; }
         }
       `}</style>
     </section>
