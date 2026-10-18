@@ -13,6 +13,8 @@ import SchoolworkAiAdminPanel from "@/components/admin/SchoolworkAiAdminPanel";
 import NovaPlusAccessAdminPanel from "@/components/admin/NovaPlusAccessAdminPanel";
 import MiloFinanceAccessAdminPanel from "@/components/admin/MiloFinanceAccessAdminPanel";
 import Founding50AdminPanel from "@/components/admin/Founding50AdminPanel";
+import SiteTrafficAdminPanel from "@/components/admin/SiteTrafficAdminPanel";
+import SiteTrafficOverviewCard from "@/components/admin/SiteTrafficOverviewCard";
 
 type AdminUser = {
   id: string;
@@ -28,6 +30,7 @@ type AdminUser = {
 
 type AdminSection =
   | "overview"
+  | "site-traffic"
   | "currency"
   | "organisations"
   | "teachers"
@@ -43,6 +46,7 @@ type AdminSection =
 
 type AdminGroup =
   | "overview"
+  | "traffic"
   | "economy"
   | "users-access"
   | "partners"
@@ -52,6 +56,7 @@ function adminGroupForSection(
   section: AdminSection
 ): AdminGroup {
   if (section === "overview") return "overview";
+  if (section === "site-traffic") return "traffic";
   if (section === "currency") return "economy";
 
   if (
@@ -80,6 +85,7 @@ function defaultSectionForGroup(
   group: AdminGroup
 ): AdminSection {
   if (group === "overview") return "overview";
+  if (group === "traffic") return "site-traffic";
   if (group === "economy") return "currency";
   if (group === "users-access") return "roles";
   if (group === "partners") return "organisations";
@@ -213,8 +219,9 @@ export default function DreamTokensAdminPage() {
     useState<AdminSection>("overview");
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("section") === "founding-50") {
-      setActiveSection("founding-50");
+    const requestedSection = new URLSearchParams(window.location.search).get("section");
+    if (requestedSection === "founding-50" || requestedSection === "site-traffic") {
+      setActiveSection(requestedSection);
     }
   }, []);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -627,8 +634,9 @@ export default function DreamTokensAdminPage() {
           </h1>
 
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/62">
-            Monitor Dreamscape at a glance, then manage the economy, users,
-            access, partners, learning systems, Schoolwork AI, NOVA+ and Milo Finance.
+            Monitor site traffic and Dreamscape at a glance, then manage the
+            economy, users, access, partners, learning systems, Schoolwork AI,
+            NOVA+ and Milo Finance.
           </p>
 
           {pageMessage && (
@@ -639,13 +647,18 @@ export default function DreamTokensAdminPage() {
         </section>
 
         <section className="mt-8 w-full max-w-none rounded-[28px] border border-cyan-200/16 bg-white/[0.04] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.2)] backdrop-blur-xl">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             {(
               [
                 {
                   id: "overview",
                   label: "Overview",
                   description: "Platform health",
+                },
+                {
+                  id: "traffic",
+                  label: "Site Traffic",
+                  description: "Visitors & page views",
                 },
                 {
                   id: "economy",
@@ -699,7 +712,7 @@ export default function DreamTokensAdminPage() {
             })}
           </div>
 
-          {activeGroup !== "overview" && (
+          {activeGroup !== "overview" && activeGroup !== "traffic" && (
             <div className="mt-3 flex flex-wrap gap-2 border-t border-white/8 pt-3">
               {activeGroup === "economy" && (
                 <AdminSubTab
@@ -812,6 +825,8 @@ export default function DreamTokensAdminPage() {
             agentDreamTokens={agentDreamTokens}
             onNavigate={setActiveSection}
           />
+        ) : activeSection === "site-traffic" ? (
+          <SiteTrafficAdminPanel />
         ) : activeSection === "currency" ? (
           <>
         <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -1333,6 +1348,8 @@ function AdminOverview({
           tone="pink"
         />
       </section>
+
+      <SiteTrafficOverviewCard onOpen={() => onNavigate("site-traffic")} />
 
       <section className="grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
         <div className="rounded-[32px] border border-yellow-200/14 bg-[linear-gradient(145deg,rgba(80,54,8,.16),rgba(4,20,48,.86))] p-6 shadow-[0_24px_70px_rgba(0,0,0,.24)] sm:p-7">
