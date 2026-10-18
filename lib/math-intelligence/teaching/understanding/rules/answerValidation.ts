@@ -230,6 +230,14 @@ function expectedComparable(
   }
 }
 
+/** Physical-unit disagreement must not be hidden by numeric-only parsing. */
+function explicitPhysicalUnit(value: string): string | null {
+  const match = value.trim().toLowerCase().match(
+    /^-?\d[\d,]*(?:\.\d+)?\s*(mm|cm|km|m|kg|g|ml|l)\s*$/,
+  );
+  return match?.[1] ?? null;
+}
+
 export function validateComputedAnswer(args: {
   answer: CanonicalAnswerContext;
   computedAnswer: string | null;
@@ -260,6 +268,19 @@ export function validateComputedAnswer(args: {
       computed: computedAnswer,
       reason:
         "The stored answer could not be normalized for validation.",
+    };
+  }
+
+  // Equal numbers with conflicting physical units are NOT equivalent.
+  // Keep the existing fail-closed mismatch gate for such answers.
+  const expectedUnit = explicitPhysicalUnit(expectedRaw);
+  const computedUnit = explicitPhysicalUnit(computedAnswer);
+  if (expectedUnit && computedUnit && expectedUnit !== computedUnit) {
+    return {
+      status: "mismatched",
+      expected: expectedRaw,
+      computed: computedAnswer,
+      reason: "Deterministic result has a physical unit that conflicts with the stored answer.",
     };
   }
 

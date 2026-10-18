@@ -57,6 +57,42 @@ export function identifyRepresentativeWordProblemEvidence(
     }
   }
 
+  // Two measured states of the SAME box plus equal-mass iron balls.
+  // Unlike the generic "removed" rule, the given masses must not be
+  // discarded merely because the unit suffix is attached (e.g. 2145g).
+  // The rule is supported by all four quantities, never by a stored answer.
+  if (domain === "whole_numbers" || domain === "arithmetic" || domain === "measurement") {
+    const boxMassStory = t.match(
+      /\b(?:a |the )?box containing (\d{1,6}) iron balls weighed (\d{1,9})\s*(g)\. when (\d{1,6}) of the iron balls were removed, the mass of the box and the remaining iron balls weighed (\d{1,9})\s*(g)\. what was the mass of the box\??$/,
+    );
+    if (boxMassStory && boxMassStory[3] === boxMassStory[6]) {
+      const totalBalls = Number(boxMassStory[1]);
+      const initialMass = Number(boxMassStory[2]);
+      const removedBalls = Number(boxMassStory[4]);
+      const remainingMass = Number(boxMassStory[5]);
+      const remainingBalls = totalBalls - removedBalls;
+      const massPerBall = (initialMass - remainingMass) / removedBalls;
+      const boxMass = remainingMass - remainingBalls * massPerBall;
+      if (
+        [totalBalls, initialMass, removedBalls, remainingMass, remainingBalls, massPerBall, boxMass]
+          .every(Number.isSafeInteger) &&
+        removedBalls > 0 && remainingBalls > 0 &&
+        initialMass > remainingMass && massPerBall > 0 && boxMass >= 0 &&
+        initialMass === boxMass + totalBalls * massPerBall &&
+        remainingMass === boxMass + remainingBalls * massPerBall
+      ) {
+        return {
+          problemStructure: "multi_step",
+          requiredReasoning: ["subtraction", "division", "multiplication", "working_backwards"],
+          relationships: [],
+          computedAnswer: `${boxMass} g`,
+          confidence: 0.97,
+          reasonCode: "STRUCTURE_TWO_MASS_STATES_EQUAL_BALLS",
+        };
+      }
+    }
+  }
+
   if (domain === "whole_numbers" || domain === "arithmetic" || domain === "money") {
     const marbleStory = t.match(
       /\b([a-z]+) has some marbles\. ([a-z]+) has thrice as many as \1\. ([a-z]+) has half as many as \2\. together they have (\d{1,7}) marbles\. how many marbles does \3 have\??/,

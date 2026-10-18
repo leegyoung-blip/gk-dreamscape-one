@@ -82,9 +82,10 @@ test('refuses inconsistent P5 multiplicative and system constraints', () => {
   assert.equal(identify(prompts.p5tables.replace('remaining numbers of tables and chairs were equal', 'remaining numbers of tables and chairs were different'), 'whole_numbers'), null);
 });
 
-test('does not change or bypass the P4 answer-mismatch gate', () => {
-  assert.equal(identify(prompts.p4,'whole_numbers'), null);
-  assert.equal(identify(prompts.p4,'measurement'), null);
+test('P4 mass evidence now resolves the verified 57 g relationship but preserves mismatch gating', () => {
+  const result = identify(prompts.p4, 'whole_numbers');
+  assert.equal(result.reasonCode, 'STRUCTURE_TWO_MASS_STATES_EQUAL_BALLS');
+  assert.equal(result.computedAnswer, '57 g');
   const source = fs.readFileSync(path.resolve(__dirname, '../lib/math-intelligence/teaching/understanding/rules/readinessGate.ts'),'utf8');
   assert.match(source,/GATE_ANSWER_MISMATCH/);
 });
