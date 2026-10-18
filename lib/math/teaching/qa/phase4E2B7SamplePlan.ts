@@ -103,3 +103,95 @@ export function summarizeSafeStaffPreview(value: unknown): SafeVerificationPrevi
   return { status: entry.status as 'ambiguous' | 'blocked', method: '', confidence: '',
     stage, reason };
 }
+
+
+/**
+ * Phase 4E-2B-8C — sanitize existing 4C candidate scoring metadata for a
+ * staff-only diagnostic CSV. Scores are diagnostics, never teaching approvals.
+ * The top-two displayed gap is not the selector's authoritative winner margin.
+ * Never copy raw selector results or answer-bearing question data into the UI.
+ */
+export type SafeCandidateDiagnostic = Readonly<{
+  topMethod: string;
+  topScore: string;
+  runnerUpMethod: string;
+  runnerUpScore: string;
+  topTwoGap: string;
+  weakestDimension: string;
+  missingPoints: string;
+  selectorIssues: string;
+  eligibleCandidates: number;
+}>;
+
+const emptyCandidateDiagnostic = (): SafeCandidateDiagnostic => ({
+  topMethod: '', topScore: '', runnerUpMethod: '', runnerUpScore: '',
+  topTwoGap: '', weakestDimension: '', missingPoints: '',
+  selectorIssues: '', eligibleCandidates: 0,
+});
+const safeMethodIdentifier = (value: unknown): value is string =>
+  typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,120}$/.test(value);
+const safeSelectorIssue = (value: unknown): value is string =>
+  typeof value === 'string' && /^[A-Z][A-Z0-9_]{1,80}$/.test(value);
+const safeNumericScore = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
+const validDimensions = new Set([
+  'problem_structure', 'required_reasoning', 'curriculum_skill',
+  'learner_level', 'math_domain', 'representation_fit', 'prerequisites',
+]);
+
+export function summarizeSafeCandidateDiagnostics(value: unknown): SafeCandidateDiagnostic {
+  const empty = emptyCandidateDiagnostic();
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return empty;
+  const entry = value as Record<string, unknown>;
+  if (entry.status !== 'ambiguous' || entry.stage !== 'selector' ||
+      entry.previewOnly !== true || entry.teachingApproved !== false ||
+      entry.studentReleased !== false) return empty;
+  const comparison = entry.scoreComparison;
+  if (!comparison || typeof comparison !== 'object' || Array.isArray(comparison)) return empty;
+  const data = comparison as Record<string, unknown>;
+  const issues = Array.isArray(data.selectionIssueCodes)
+    ? [...new Set(data.selectionIssueCodes.filter(safeSelectorIssue))]
+        .slice(0, 8).join(' · ')
+    : '';
+  if (!Array.isArray(data.candidates)) return { ...empty, selectorIssues: issues };
+  const scores: Array<{
+    methodId: string;
+    score: number;
+    dimensions: Array<{ dimension: string; missing: number }>;
+  }> = [];
+  for (const candidate of data.candidates.slice(0, 12)) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
+    const item = candidate as Record<string, unknown>;
+    if (item.eligible !== true || !safeMethodIdentifier(item.methodId) ||
+        !safeNumericScore(item.score)) continue;
+    const dimensions: Array<{ dimension: string; missing: number }> = [];
+    if (Array.isArray(item.dimensions)) {
+      for (const dimension of item.dimensions.slice(0, 7)) {
+        if (!dimension || typeof dimension !== 'object' || Array.isArray(dimension)) continue;
+        const d = dimension as Record<string, unknown>;
+        if (typeof d.dimension !== 'string' || !validDimensions.has(d.dimension) ||
+            !safeNumericScore(d.points) || !safeNumericScore(d.maximum) ||
+            d.points > d.maximum) continue;
+        dimensions.push({ dimension: d.dimension, missing: d.maximum - d.points });
+      }
+    }
+    scores.push({ methodId: item.methodId, score: item.score, dimensions });
+  }
+  scores.sort((a, b) => b.score - a.score || a.methodId.localeCompare(b.methodId, 'en'));
+  const top = scores[0];
+  const runner = scores[1];
+  const gap = top?.dimensions.length
+    ? [...top.dimensions].sort((a, b) => b.missing - a.missing ||
+        a.dimension.localeCompare(b.dimension, 'en'))[0] : null;
+  return {
+    topMethod: top?.methodId ?? '',
+    topScore: top ? top.score.toFixed(2) : '',
+    runnerUpMethod: runner?.methodId ?? '',
+    runnerUpScore: runner ? runner.score.toFixed(2) : '',
+    topTwoGap: top && runner ? (top.score - runner.score).toFixed(2) : '',
+    weakestDimension: gap?.missing && gap.missing > 0 ? gap.dimension : '',
+    missingPoints: gap?.missing && gap.missing > 0 ? gap.missing.toFixed(2) : '',
+    selectorIssues: issues,
+    eligibleCandidates: scores.length,
+  };
+}

@@ -7,6 +7,8 @@ import {
   chooseVerificationQuestion,
   chooseVerificationQuizzes,
   summarizeSafeStaffPreview,
+  summarizeSafeCandidateDiagnostics,
+  type SafeCandidateDiagnostic,
   type VerificationQuestion,
   type VerificationQuiz,
 } from '@/lib/math/teaching/qa/phase4E2B7SamplePlan';
@@ -17,7 +19,7 @@ const levels = [1, 2, 3, 4, 5, 6] as const;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type VerificationStatus = 'selected' | 'ambiguous' | 'blocked' | 'skipped' | 'error';
-type VerificationRow = {
+type VerificationRow = SafeCandidateDiagnostic & {
   level: number;
   quiz: string;
   question: string;
@@ -40,6 +42,7 @@ type PreviewResponse = { ok: true; preview: {
   stage?: string;
   reasonCodes?: string[];
   candidateMethodCount?: number;
+  scoreComparison?: unknown;
 } };
 
 const errorDescriptions: Record<string, string> = {
@@ -100,12 +103,14 @@ function previewRow(
     question: question.label.slice(0, 100),
     questionType: question.type.slice(0, 32),
     ...summary,
+    ...summarizeSafeCandidateDiagnostics(result),
   };
 }
 function fallbackRow(level: number, reason: string, status: 'skipped' | 'error',
   quiz = '', question = ''): VerificationRow {
   return { level, quiz, question, questionType: '', status, method: '',
-    confidence: '', stage: '', reason };
+    confidence: '', stage: '', reason,
+    ...summarizeSafeCandidateDiagnostics(null) };
 }
 function message(error: unknown): string {
   if (error instanceof VerificationRequestError) return error.message;
@@ -119,15 +124,21 @@ function safeCsvCell(value: string | number): string {
 }
 function exportCsv(rows: readonly VerificationRow[]) {
   const columns = ['Primary level', 'Quiz', 'Question code', 'Question type', 'Outcome',
-    'Method ID', 'Confidence', 'Blocked stage', 'Reason codes / error'];
+    'Method ID', 'Confidence', 'Blocked stage', 'Reason codes / error',
+    'Top candidate', 'Top score / 100', 'Second candidate', 'Second score / 100',
+    'Top-two score gap (not policy margin)', 'Largest missing-score dimension',
+    'Points missing in that dimension', '4C selector issue codes', 'Eligible scored candidates'];
   const data = [columns, ...rows.map((item) => [item.level, item.quiz, item.question,
-    item.questionType, item.status, item.method, item.confidence, item.stage, item.reason])];
+    item.questionType, item.status, item.method, item.confidence, item.stage, item.reason,
+    item.topMethod, item.topScore, item.runnerUpMethod, item.runnerUpScore,
+    item.topTwoGap, item.weakestDimension, item.missingPoints,
+    item.selectorIssues, item.eligibleCandidates])];
   const csv = data.map((record) => record.map(safeCsvCell).join(',')).join('\r\n') + '\r\n';
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'DREAMSCAPE_4E2B7_STAFF_METHOD_COVERAGE.csv';
+  link.download = 'DREAMSCAPE_4E2B8C_CANDIDATE_SCORE_COVERAGE.csv';
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -315,7 +326,18 @@ export default function StaffMathRepresentativeVerificationPanel() {
                       <td><span className={styles.outcome}>{row.status.toUpperCase()}</span></td>
                       <td className={styles.details}>
                         {row.status === 'selected' ? <>{row.method} <small>{row.confidence} confidence</small></>
-                          : <>{row.stage ? `${row.stage} · ` : ''}{row.reason || 'No details returned'}</>}
+                          : <>
+                            {row.stage ? `${row.stage} · ` : ''}{row.reason || 'No details returned'}
+                            {row.status === 'ambiguous' && row.topMethod && (
+                              <small>
+                                Top: {row.topMethod} ({row.topScore}/100)
+                                {row.runnerUpMethod && ` · Next: ${row.runnerUpMethod} (${row.runnerUpScore}/100)`}
+                                {row.selectorIssues && ` · Issues: ${row.selectorIssues}`}
+                                {row.weakestDimension && ` · Largest point shortfall: ${row.weakestDimension} (−${row.missingPoints})`}
+                              </small>
+                            )}
+                          </>}
+
                       </td>
                     </tr>
                   ))}
@@ -325,7 +347,9 @@ export default function StaffMathRepresentativeVerificationPanel() {
             <p className={styles.muted}>
               Ambiguous and Blocked are valid fail-closed selection outcomes, not automatically
               software failures. Review the reason codes before changing evidence rules.
-              The exported CSV contains only these staff-visible diagnostics.
+              The exported CSV includes sanitized candidate scores and dimension gaps already
+              available to staff. The top-two score gap is descriptive and may differ from
+              the selector's authoritative policy margin. No answers or teaching content are exported.
             </p>
           </section>
         )}
