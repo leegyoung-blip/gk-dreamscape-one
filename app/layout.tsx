@@ -1,5 +1,7 @@
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import PostLoginWelcome from "@/components/PostLoginWelcome";
 import MarketingConsentModal from "./components/MarketingConsentModal";
 import ScreenTimeController from "@/components/parental-controls/ScreenTimeController";
@@ -109,6 +111,7 @@ export default function RootLayout({
         <ScreenTimeController />
         <PostLoginWelcome />
         <MarketingConsentModal />
+        <Analytics />
       </body>
     </html>
   );
