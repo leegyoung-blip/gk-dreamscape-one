@@ -5,6 +5,7 @@ import { PHASE4B4_WORD_PROBLEM_HEURISTIC_METHODS } from "./phase4B4WordProblemHe
 import { PHASE4B5_RATIONAL_NUMBER_METHODS } from "./phase4B5RationalNumber";
 import { PHASE4B6_MEASUREMENT_GEOMETRY_DATA_METHODS } from "./phase4B6MeasurementGeometryData";
 import { PHASE4B7_COVERAGE_HARDENING_METHODS } from "./phase4B7CoverageHardening";
+import { PHASE4E2B8C2A_FACTOR_METHODS } from "./phase4E2B8C2AFactorMethods";
 
 export const PHASE4B_ALL_PRODUCTION_METHODS: readonly TeachingMethod[] = Object.freeze([
   ...PHASE4B3_NUMBER_ARITHMETIC_METHODS,
@@ -12,6 +13,7 @@ export const PHASE4B_ALL_PRODUCTION_METHODS: readonly TeachingMethod[] = Object.
   ...PHASE4B5_RATIONAL_NUMBER_METHODS,
   ...PHASE4B6_MEASUREMENT_GEOMETRY_DATA_METHODS,
   ...PHASE4B7_COVERAGE_HARDENING_METHODS,
+  ...PHASE4E2B8C2A_FACTOR_METHODS,
 ]);
 
 export type Phase4BProductionCandidateQuery = {
@@ -22,6 +24,8 @@ export type Phase4BProductionCandidateQuery = {
   candidateFamilies: Phase4BMethodFamilyId[];
   /** Trusted 4A two-target evidence, not inferred from a topic label. */
   verifiedConstantIncrementTermAndTotal?: boolean;
+  verifiedBoundedCommonMultiple?: boolean;
+  verifiedCommonFactorPartition?: boolean;
 };
 
 export function getPhase4BProductionMethodsByFamily(
@@ -44,6 +48,10 @@ export function listPhase4BProductionCandidateMethods(
     if (method.methodId === "patterns.sequence_rule.constant_increment_term_and_total" &&
         query.verifiedConstantIncrementTermAndTotal !== true) return false;
     // A strictly increasing finite arithmetic sequence is not a repeating cycle.
+    if (method.methodId === 'number.factors_multiples.bounded_common_multiple_maximum' &&
+        query.verifiedBoundedCommonMultiple !== true) return false;
+    if (method.methodId === 'number.factors_multiples.hcf_equal_cut_and_count' &&
+        query.verifiedCommonFactorPartition !== true) return false;
     if (method.methodId === "patterns.sequence_rule.repeating_cycle" &&
         query.verifiedConstantIncrementTermAndTotal === true) return false;
     if (method.status !== "active") return false;

@@ -84,6 +84,8 @@ export type ProblemStructure =
   | "digit_frequency"
   | "age_relationship"
   | "common_multiple_cycle"
+  | "bounded_common_multiple"
+  | "common_factor_partition"
   | "time_reading"
   | "time_interval"
   | "data_reading"

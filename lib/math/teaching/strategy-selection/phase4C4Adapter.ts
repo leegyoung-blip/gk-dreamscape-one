@@ -5,6 +5,7 @@ import { validateTeachingContractConsumerEnvelope } from '../../../math-intellig
 import { buildPhase4BQuestionCoverageRequirement } from '../../../math-intelligence/teaching/method-library/taxonomy/buildCoverageRequirement';
 import { listPhase4BProductionCandidateMethods } from '../../../math-intelligence/teaching/method-library/methods/phase4BProductionLibrary';
 import type { TeachingMethod } from '../../../math-intelligence/teaching/method-library/schema/types';
+import { identifyVerifiedFactorDigitEvidence } from '../../../math-intelligence/teaching/understanding/rules/factorDigitEvidence';
 import { identifyRingArrivalIncrementPattern } from '../../../math-intelligence/teaching/understanding/rules/constantIncrementPattern';
 import type { Phase4BMethodFamilyId } from '../../../math-intelligence/teaching/method-library/taxonomy/types';
 import { selectTeachingStrategy, type MethodCandidateEvidence } from './selector';
@@ -147,9 +148,16 @@ export function selectFromPhase4A4B(input:Phase4C4AdapterInput):Phase4C4AdapterR
       requirement.requiredReasoning.includes(r as typeof requirement.requiredReasoning[number])) &&
     c.contract.curriculum.legacySkillLabel === 'Number patterns and sequences' &&
     identifyRingArrivalIncrementPattern(c.contract.content.prompt) !== null;
+  // Only the strictly validated problem evidence may admit the new factor
+  // specialists. Curriculum tags alone cannot activate them.
+  const verifiedFactorDigit = identifyVerifiedFactorDigitEvidence(c.contract.content.prompt);
   const candidates=listPhase4BProductionCandidateMethods({learnerLevel:requirement.learnerLevel as 1|2|3|4|5|6,domain:requirement.domain,
     problemStructure:requirement.problemStructure,requiredReasoning:[...requirement.requiredReasoning],candidateFamilies:[...requirement.allCandidateFamilies],
-    verifiedConstantIncrementTermAndTotal});
+    verifiedConstantIncrementTermAndTotal,
+    verifiedBoundedCommonMultiple: verifiedFactorDigit?.kind === 'bounded_common_multiple' &&
+      requirement.problemStructure === 'bounded_common_multiple' && requirement.domain === 'whole_numbers',
+    verifiedCommonFactorPartition: verifiedFactorDigit?.kind === 'common_factor_partition' &&
+      requirement.problemStructure === 'common_factor_partition' && requirement.domain === 'whole_numbers'});
   const primary=candidates.filter(m=>families.includes(m.familyId));
   if (!primary.length) return fail('NO_4B_PRIMARY_CANDIDATES',families,candidates.length);
   // Only validated, reviewer-attested question structure can affect B2 scoring.

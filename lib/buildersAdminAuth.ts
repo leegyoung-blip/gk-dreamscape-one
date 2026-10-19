@@ -46,10 +46,11 @@ export async function requireAdmin(request: Request) {
     return { ok: false as const, status: 401, error: "Invalid session." };
   }
 
+  // Never trust user_metadata here: any signed-in user can edit it via
+  // supabase.auth.updateUser(). app_metadata is writable only with the
+  // service role, so it remains a trusted source alongside profiles.role.
   const metadataRole =
-    (typeof user.app_metadata?.role === "string" && user.app_metadata.role) ||
-    (typeof user.user_metadata?.role === "string" && user.user_metadata.role) ||
-    null;
+    typeof user.app_metadata?.role === "string" ? user.app_metadata.role : null;
 
   if (metadataRole && ALLOWED_ADMIN_ROLES.has(metadataRole)) {
     return { ok: true as const, user };

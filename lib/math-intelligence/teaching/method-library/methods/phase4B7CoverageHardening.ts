@@ -622,7 +622,7 @@ const METHODS: Readonly<TeachingMethod>[] = [
       domains: ["whole_numbers", "arithmetic", "logic"],
       structures: ["place_value"],
       reasoning: ["place_value_reasoning", "comparison", "counting", "systematic_enumeration", "logical_elimination"],
-      curriculumSkills: [],
+      curriculumSkills: ["Counting arrangements"],
       exclusions: [],
     },
     pedagogy: {

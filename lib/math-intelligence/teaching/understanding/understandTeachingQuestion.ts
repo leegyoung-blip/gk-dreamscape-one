@@ -24,6 +24,7 @@ import {
 } from "./rules/curriculumContext";
 
 import { identifyRingArrivalIncrementPattern } from "./rules/constantIncrementPattern";
+import { identifyVerifiedFactorDigitEvidence } from "./rules/factorDigitEvidence";
 
 import {
   normalizeMathDomain,
@@ -81,6 +82,10 @@ function inferPromptDomain(
   // Specific textual evidence for a repeated additive sequence precedes the
   // generic 'how many / altogether' whole-number fallback. The detector checks
   // the first two terms against the stated step before accepting the domain.
+  if (identifyVerifiedFactorDigitEvidence(text)) {
+    return { domain: "whole_numbers", confidence: 0.97, code: "PROMPT_DOMAIN_VERIFIED_FACTOR_DIGIT" };
+  }
+
   if (identifyRingArrivalIncrementPattern(text)) {
     return {
       domain: "patterns",

@@ -13,6 +13,7 @@ import {
 
 import { identifyRingArrivalIncrementPattern } from "./constantIncrementPattern";
 import { identifyRepresentativeWordProblemEvidence } from "./representativeWordProblemEvidence";
+import { identifyVerifiedFactorDigitEvidence } from "./factorDigitEvidence";
 
 export type StructureAnalysis = {
   problemStructure: ProblemStructure;
@@ -3248,6 +3249,29 @@ export function analyzeProblemStructure(args: {
     domain,
     curriculum,
   } = args;
+
+  // Verified factor and digit structures outrank generic change/part-whole rules.
+  const factorDigit = identifyVerifiedFactorDigitEvidence(text);
+  if (factorDigit && (domain === "whole_numbers" || domain === "arithmetic" || domain === "logic")) {
+    if (factorDigit.kind === "bounded_common_multiple") return {
+      problemStructure: "bounded_common_multiple",
+      requiredReasoning: ["common_multiple", "comparison", "division"],
+      relationships: [], computedAnswer: String(factorDigit.greatestRemaining), confidence: 0.97,
+      reasonCode: "STRUCTURE_BOUNDED_COMMON_MULTIPLE",
+    };
+    if (factorDigit.kind === "common_factor_partition") return {
+      problemStructure: "common_factor_partition",
+      requiredReasoning: ["division", "multiplication", "addition"],
+      relationships: [], computedAnswer: null, confidence: 0.97,
+      reasonCode: "STRUCTURE_HCF_EQUAL_LENGTH_NO_WASTE",
+    };
+    return {
+      problemStructure: "place_value",
+      requiredReasoning: ["place_value_reasoning", "counting", "systematic_enumeration"],
+      relationships: [], computedAnswer: null, confidence: 0.97,
+      reasonCode: "STRUCTURE_CONSTRAINED_EVEN_DIGIT_FORMATION",
+    };
+  }
 
   // Semantic special cases must run before generic equation/domain rules.
   const representative = identifyRepresentativeWordProblemEvidence(text, domain);

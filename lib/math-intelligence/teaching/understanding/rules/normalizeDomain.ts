@@ -144,6 +144,8 @@ export function normalizeProblemStructure(
     age_relationship: "age_relationship",
     age_problem: "age_relationship",
     common_multiple_cycle: "common_multiple_cycle",
+    bounded_common_multiple: "bounded_common_multiple",
+    common_factor_partition: "common_factor_partition",
     repeating_cycle: "common_multiple_cycle",
 
     time_reading: "time_reading",

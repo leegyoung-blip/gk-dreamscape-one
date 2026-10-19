@@ -474,6 +474,8 @@ export const PHASE4B_STRUCTURE_COVERAGE_RULES: readonly Phase4BStructureCoverage
   rule("digit_frequency", ["heuristic.systematic_enumeration"]),
   rule("age_relationship", ["heuristic.age_relationship"]),
   rule("common_multiple_cycle", ["number.factors_multiples"]),
+  rule("bounded_common_multiple", ["number.factors_multiples"]),
+  rule("common_factor_partition", ["number.factors_multiples"]),
   rule("time_reading", ["time.read_interval"]),
   rule("time_interval", ["time.read_interval"]),
   rule("data_reading", ["data.read_compare_classify"]),

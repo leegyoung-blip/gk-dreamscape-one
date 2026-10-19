@@ -1058,16 +1058,56 @@ export async function POST(request: Request) {
       trigger_source?: unknown;
     };
 
-    uploadId = cleanText(body.upload_id);
+    const requestedUploadId = cleanText(body.upload_id);
 
-    if (!uploadId) {
+    if (!requestedUploadId) {
       return json({ error: "upload_id is required." }, 400);
     }
+
+    // Authorise the caller before any privileged write or full-row read.
+    // Only the owner column is loaded until access is confirmed.
+    const { data: ownerData, error: ownerError } = await supabaseAdmin
+      .from("nova_schoolwork_uploads")
+      .select("id,student_user_id")
+      .eq("id", requestedUploadId)
+      .maybeSingle();
+
+    if (ownerError) throw ownerError;
+
+    if (!ownerData) {
+      return json({ error: "Schoolwork upload not found." }, 404);
+    }
+
+    const ownerStudentUserId = String(
+      (ownerData as { student_user_id: unknown }).student_user_id,
+    );
+
+    const { data: canView, error: accessError } = await userClient.rpc(
+      "nova_plus_can_view_student",
+      {
+        p_student_user_id: ownerStudentUserId,
+      },
+    );
+
+    if (accessError || !canView) {
+      return json(
+        {
+          error:
+            "You do not have access to this learner.",
+        },
+        403,
+      );
+    }
+
+    // Only set after authorisation: the catch handler uses uploadId to mark
+    // the upload as failed, so it must never point at an unauthorised row.
+    uploadId = requestedUploadId;
 
     const { data: uploadData, error: uploadError } = await supabaseAdmin
       .from("nova_schoolwork_uploads")
       .select("*")
       .eq("id", uploadId)
+      .eq("student_user_id", ownerStudentUserId)
       .maybeSingle();
 
     if (uploadError) throw uploadError;
@@ -1113,23 +1153,6 @@ export async function POST(request: Request) {
 
       if (hintError) throw hintError;
       upload = updatedUpload as SchoolworkUploadRow;
-    }
-
-    const { data: canView, error: accessError } = await userClient.rpc(
-      "nova_plus_can_view_student",
-      {
-        p_student_user_id: upload.student_user_id,
-      },
-    );
-
-    if (accessError || !canView) {
-      return json(
-        {
-          error:
-            "You do not have access to this learner.",
-        },
-        403,
-      );
     }
 
     if (!ALLOWED_MIME_TYPES.has(upload.mime_type)) {
