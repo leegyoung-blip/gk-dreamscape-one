@@ -1,0 +1,20 @@
+DREAMSCAPE ONE 4E-2B-8C-2B.2 — Top-two diagnostic alignment
+
+WHY: The candidate-score coverage report shows that P4 whole-number question
+MATH-P4-NUM-043-Q102 has top two methods identify_subgoals and dependency_order,
+but the existing diagnostic selected a different eligible pair dependency_order
+and final_synthesis. A third-ranked eligible method must never determine a
+reason code for the top-two score comparison.
+
+FILES: Apply the two TypeScript files and regression test to the repository
+using their existing relative paths. No SQL, new API, policy threshold, DB
+write, approval or student release is required.
+
+VERIFY:
+node --test tests/phase4e2b8c2b-method-differentiation.test.cjs
+npx tsc --noEmit
+rerun the same representative candidate-score export
+
+EXPECTED: All scoring outcomes unchanged. MATH-P4-NUM-043-Q102 diagnostic
+changes to METHOD_8C2B_MULTISTEP_SUBGOAL_DEPENDENCY_OVERLAP. The other six
+ambiguous cases retain their safe classifications.

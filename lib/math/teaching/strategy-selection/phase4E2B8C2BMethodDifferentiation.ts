@@ -1,5 +1,5 @@
 /**
- * DREAMSCAPE ONE / 4E-2B-8C-2B.1
+ * DREAMSCAPE ONE / 4E-2B-8C-2B.2
  * Conservative, question-agnostic comparison of closely related method IDs.
  * SHADOW DIAGNOSTIC ONLY: never alters candidate scores, method selection,
  * reviewer approvals, or learner-facing teaching.
@@ -8,7 +8,7 @@
  * method IDs. Never use question codes, stored answers, learner data or LLMs.
  * The output contains only allow-listed static codes and method IDs.
  */
-export const METHOD_DIFFERENTIATION_VERSION = '4E-2B-8C-2B.1' as const;
+export const METHOD_DIFFERENTIATION_VERSION = '4E-2B-8C-2B.2' as const;
 
 export type MethodDifferentiation = Readonly<{
   version: typeof METHOD_DIFFERENTIATION_VERSION;
@@ -49,6 +49,25 @@ function diagnostic(status: MethodDifferentiation['status'], ruleCode: string,
 function hasPair(ids: ReadonlySet<string>, a: string, b: string): boolean {
   return ids.has(a) && ids.has(b);
 }
+/**
+ * A differential explanation is only meaningful for the actual two leaders.
+ * The selector may have three or more eligible methods; comparing a different
+ * pair makes the review label misleading even when the numeric ranking is safe.
+ * Reject incomplete, duplicate, unranked and out-of-order candidate records.
+ */
+export function topTwoEligibleMethodIds(
+  candidates: readonly Readonly<{ methodId: string; rank: number | null; eligible: boolean }>[],
+): string[] {
+  if (!Array.isArray(candidates)) return [];
+  const top = candidates.filter(candidate =>
+    candidate && candidate.eligible === true &&
+    (candidate.rank === 1 || candidate.rank === 2) &&
+    typeof candidate.methodId === 'string' &&
+    /^[A-Za-z0-9_.:-]{1,120}$/.test(candidate.methodId));
+  if (top.length !== 2 || top[0].rank === top[1].rank ||
+      top[0].methodId === top[1].methodId) return [];
+  return [...top].sort((left,right) => left.rank! - right.rank!).map(item => item.methodId);
+}
 
 /**
  * Only an explicit, nonvisual, single-part question may produce a preferred
@@ -63,6 +82,10 @@ export function differentiateCloselyRelatedMethods(input: ComparisonContext): Me
     return diagnostic('not_applicable', '8C2B_INVALID_OR_MISSING_EVIDENCE');
   }
   const ids = new Set(input.eligibleMethodIds.filter(x => typeof x === 'string'));
+  // Guard against future callers accidentally comparing a third-ranked method.
+  if (input.eligibleMethodIds.length !== 2 || ids.size !== 2) {
+    return diagnostic('not_applicable', '8C2B_EXACT_TOP_PAIR_REQUIRED');
+  }
   const related = [
     [methods.forward, methods.findChange],
     [methods.unknownAngle, methods.knownAngles],

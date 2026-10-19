@@ -14,6 +14,7 @@ assert.deepEqual((built.diagnostics||[]).map(x=>x.messageText),[]);
 const moduleContext={exports:{}};
 vm.runInNewContext(built.outputText,{module:moduleContext,exports:moduleContext.exports});
 const inspect=moduleContext.exports.differentiateCloselyRelatedMethods;
+const topPair=moduleContext.exports.topTwoEligibleMethodIds;
 const C=(prompt,eligibleMethodIds,fields={})=>({prompt,eligibleMethodIds,learnerLevel:1,domain:'whole_numbers',problemStructure:'subtraction_change',hasVisual:false,hasParts:false,...fields});
 const change=['model.change.forward_change','model.change.find_change'];
 const angles=['geometry.angle.find_unknown','geometry.angle.known_relationships'];
@@ -51,6 +52,45 @@ test('a named ratio total-to-one-part relation is only a shadow suggestion',()=>
 test('multi-step sequence and synthesis remain potentially complementary',()=>{
  const x=inspect(C('Bok has 5 books and buys 6 more. How many books are there?',multi,{learnerLevel:5,problemStructure:'multi_step'}));
  assert.equal(x.status,'needs_review');assert.equal(x.ruleCode,'8C2B_MULTISTEP_DEPENDENCY_SYNTHESIS_OVERLAP');
+});
+test('strict top-two extraction ignores third-ranked methods even when input is unsorted',()=>{
+ const ranked=[
+  {methodId:'heuristic.multi_step.final_synthesis',eligible:true,rank:3},
+  {methodId:'heuristic.multi_step.dependency_order',eligible:true,rank:2},
+  {methodId:'heuristic.multi_step.identify_subgoals',eligible:true,rank:1},
+ ];
+ const ids=topPair(ranked);
+ assert.deepEqual(Array.from(ids),[
+  'heuristic.multi_step.identify_subgoals',
+  'heuristic.multi_step.dependency_order',
+ ]);
+ const x=inspect(C('A store has 14 boxes, each holding 12 items. How many items are sold?',ids,{learnerLevel:4,problemStructure:'multi_step'}));
+ assert.equal(x.ruleCode,'8C2B_MULTISTEP_SUBGOAL_DEPENDENCY_OVERLAP');
+ assert.equal(x.status,'needs_review');
+});
+test('diagnostic fails closed if given an entire three-method eligible pool',()=>{
+ const ids=[
+  'heuristic.multi_step.identify_subgoals',
+  'heuristic.multi_step.dependency_order',
+  'heuristic.multi_step.final_synthesis',
+ ];
+ const x=inspect(C('A shop has 12 books. How many remain after 3 are sold?',ids,{learnerLevel:4,problemStructure:'multi_step'}));
+ assert.equal(x.status,'not_applicable');
+ assert.equal(x.ruleCode,'8C2B_EXACT_TOP_PAIR_REQUIRED');
+});
+test('missing, duplicate, disqualified or invalid ranks cannot manufacture a top pair',()=>{
+ for(const example of [
+  [{methodId:'a.b',eligible:true,rank:1}],
+  [{methodId:'a.b',eligible:true,rank:1},{methodId:'a.b',eligible:true,rank:2}],
+  [{methodId:'a.b',eligible:true,rank:1},{methodId:'b.c',eligible:false,rank:2}],
+  [{methodId:'a.b',eligible:true,rank:1},{methodId:'b.c',eligible:true,rank:1}],
+  [{methodId:'a.b',eligible:true,rank:1},{methodId:'<script>',eligible:true,rank:2}],
+ ]) assert.equal(topPair(example).length,0);
+});
+test('adapter invokes differentiation against ranked top-two only',()=>{
+ const source=fs.readFileSync(path.join(root,'lib/math/teaching/strategy-selection/phase4C4Adapter.ts'),'utf8');
+ assert.match(source,/eligibleMethodIds:\s*topTwoEligibleMethodIds\(selected\.candidates\)/);
+ assert.doesNotMatch(source,/eligibleMethodIds:\s*selected\.candidates\.filter\(m\s*=>\s*m\.eligible\)/);
 });
 test('invalid, visual, multipart and unknown pairs must fail closed',()=>{
  assert.equal(inspect(C('How many?',change)).status,'not_applicable');

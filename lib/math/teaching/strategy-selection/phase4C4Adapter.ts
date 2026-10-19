@@ -9,7 +9,7 @@ import { identifyVerifiedFactorDigitEvidence } from '../../../math-intelligence/
 import { identifyRingArrivalIncrementPattern } from '../../../math-intelligence/teaching/understanding/rules/constantIncrementPattern';
 import type { Phase4BMethodFamilyId } from '../../../math-intelligence/teaching/method-library/taxonomy/types';
 import { selectTeachingStrategy, type MethodCandidateEvidence } from './selector';
-import { differentiateCloselyRelatedMethods, type MethodDifferentiation } from './phase4E2B8C2BMethodDifferentiation';
+import { differentiateCloselyRelatedMethods, topTwoEligibleMethodIds, type MethodDifferentiation } from './phase4E2B8C2BMethodDifferentiation';
 import { composeTeachingMethods, type MethodComposition } from './composition';
 import type { StrategySelection, SelectionInputBoundary, ScoreDimension } from './types';
 import {validateReviewedStructureEvidence, type ReviewedStructureEvidence, type B2EvidenceTrace} from './reviewedStructureEvidence';
@@ -197,7 +197,7 @@ export function selectFromPhase4A4B(input:Phase4C4AdapterInput):Phase4C4AdapterR
         prompt: c.contract.content.prompt,
         hasVisual: c.contract.visual.hasVisual,
         hasParts: c.contract.multipart.hasParts,
-        eligibleMethodIds: selected.candidates.filter(m => m.eligible).map(m => m.methodId),
+        eligibleMethodIds: topTwoEligibleMethodIds(selected.candidates),
       })
     : undefined;
   const diagnosticTrace = methodDifferentiation && methodDifferentiation.status !== 'not_applicable'
