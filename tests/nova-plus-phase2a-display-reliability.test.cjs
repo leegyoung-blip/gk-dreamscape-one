@@ -429,3 +429,119 @@ test('My Learning uses attentionSubject and has a calm all-strong state', () => 
  assert.match(src, /Nothing urgent right now/);
  assert.match(src, /Tracked subjects are currently strong/);
 });
+
+/* ---------- Phase 2A last corrections: rejected RPCs and exact identity ---------- */
+
+test('rejected refresh RPC ends refreshing, keeps same-learner profile, shows error; retry clears it', async () => {
+ const mock = makeSupabase({accounts:TWO});
+ const r = mountProfile(mock);
+ await flush();
+ mock.take('get_nova_plus_learning_profile', 'kid-a').resolve({data:profileOf('kid-a', 'v1'), error:null}); await flush();
+ void r.current.refresh();
+ assert.equal(r.current.refreshing, true);
+ mock.take('refresh_nova_plus_learning_profile', 'kid-a').reject(new Error('Failed to fetch')); await flush();
+ assert.equal(r.current.refreshing, false);
+ assert.equal(r.current.loading, false);
+ assert.equal(r.current.profile.tag, 'v1');
+ assert.match(r.current.error, /could not be reached/);
+ assert.doesNotMatch(r.current.error, /Failed to fetch/, 'raw transport detail not shown');
+ void r.current.refresh();
+ mock.take('refresh_nova_plus_learning_profile', 'kid-a').resolve({data:profileOf('kid-a', 'v2'), error:null}); await flush();
+ assert.equal(r.current.profile.tag, 'v2');
+ assert.equal(r.current.error, '');
+});
+
+test('rejected initial profile RPC ends loading with a visible error', async () => {
+ const mock = makeSupabase({accounts:TWO});
+ const r = mountProfile(mock);
+ await flush();
+ mock.take('get_nova_plus_learning_profile', 'kid-a').reject(new Error('offline')); await flush();
+ assert.equal(r.current.loading, false);
+ assert.equal(r.current.refreshing, false);
+ assert.equal(r.current.profile, null);
+ assert.ok(r.current.error);
+});
+
+test('stale rejected RPC for A after switching to B cannot affect B', async () => {
+ const mock = makeSupabase({accounts:TWO});
+ const r = mountProfile(mock);
+ await flush();
+ mock.take('get_nova_plus_learning_profile', 'kid-a').resolve({data:profileOf('kid-a'), error:null}); await flush();
+ void r.current.refresh();
+ const staleA = mock.take('refresh_nova_plus_learning_profile', 'kid-a');
+ void r.current.selectLearner('kid-b');
+ mock.take('get_nova_plus_learning_profile', 'kid-b').resolve({data:profileOf('kid-b'), error:null}); await flush();
+ staleA.reject(new Error('late network failure')); await flush();
+ assert.equal(r.current.profile.student_user_id, 'kid-b');
+ assert.equal(r.current.error, '');
+ assert.equal(r.current.loading, false);
+ assert.equal(r.current.refreshing, false);
+});
+
+test('rejected Founding 50 diagnostic RPC is handled and does not strand the UI', async () => {
+ const mock = makeSupabase({accounts:TWO});
+ const origRpc = mock.supabase.rpc;
+ mock.supabase.rpc = (name, args) => name === 'current_user_has_founding50_nova_plus'
+  ? Promise.reject(new Error('diagnostic offline'))
+  : origRpc(name, args);
+ const unhandled = [];
+ const onUnhandled = (e) => unhandled.push(e);
+ process.on('unhandledRejection', onUnhandled);
+ try {
+  const r = mountProfile(mock);
+  await flush();
+  mock.take('get_nova_plus_learning_profile', 'kid-a').resolve({data:null, error:{message:'NOVA_PLUS_ACCESS_REQUIRED'}}); await flush();
+  assert.equal(r.current.loading, false);
+  assert.equal(r.current.refreshing, false);
+  assert.equal(r.current.profile, null);
+  assert.equal(r.current.error, 'NOVA+ is not available for this account yet.');
+  assert.equal(unhandled.length, 0);
+ } finally {
+  process.off('unhandledRejection', onUnhandled);
+ }
+});
+
+test('profile payload with missing or blank student_user_id is rejected; exact match succeeds', async () => {
+ for (const bad of [undefined, '', '   ', null]) {
+  const mock = makeSupabase({accounts:TWO});
+  const r = mountProfile(mock);
+  await flush();
+  const payload = {...profileOf('kid-a'), student_user_id:bad};
+  if (bad === undefined) delete payload.student_user_id;
+  mock.take('get_nova_plus_learning_profile', 'kid-a').resolve({data:payload, error:null}); await flush();
+  assert.equal(r.current.profile, null, `rejected id ${JSON.stringify(bad)}`);
+  assert.ok(r.current.error);
+  assert.equal(r.current.loading, false);
+ }
+ const mock = makeSupabase({accounts:TWO});
+ const r = mountProfile(mock);
+ await flush();
+ mock.take('get_nova_plus_learning_profile', 'kid-a').resolve({data:profileOf('kid-a'), error:null}); await flush();
+ assert.equal(r.current.profile.student_user_id, 'kid-a');
+ // An invalid refresh payload keeps the same learner's last good profile, with an error.
+ void r.current.refresh();
+ mock.take('refresh_nova_plus_learning_profile', 'kid-a').resolve({data:{...profileOf('kid-a', 'bad'), student_user_id:''}, error:null}); await flush();
+ assert.equal(r.current.profile.student_user_id, 'kid-a');
+ assert.notEqual(r.current.profile.tag, 'bad');
+ assert.ok(r.current.error);
+});
+
+test('schoolwork payload with missing or blank student_user_id is rejected; exact match succeeds', async () => {
+ for (const bad of [undefined, '', '   ', null]) {
+  const mock = makeSupabase();
+  const r = mountSchoolwork(mock, 'kid-a');
+  await flush();
+  const payload = {...summary('kid-a', 6), student_user_id:bad};
+  if (bad === undefined) delete payload.student_user_id;
+  mock.take('get_nova_schoolwork_evidence_summary', 'kid-a').resolve({data:payload, error:null});
+  mock.take('uploads', 'kid-a').resolve({data:[], error:null}); await flush();
+  assert.equal(r.current.approved_uploads, 0, `rejected id ${JSON.stringify(bad)}`);
+  assert.ok(r.current.error);
+  assert.equal(r.current.loading, false);
+ }
+ const mock = makeSupabase();
+ const r = mountSchoolwork(mock, 'kid-a');
+ await answerSchoolwork(mock, 'kid-a', 6); await flush();
+ assert.equal(r.current.approved_uploads, 6);
+ assert.equal(r.current.error, '');
+});

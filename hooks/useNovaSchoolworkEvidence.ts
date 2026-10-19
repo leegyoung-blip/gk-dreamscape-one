@@ -114,9 +114,11 @@ export function useNovaSchoolworkEvidence(
           statusResult.error?.message ||
           "";
       } else if (
-        !payload ||
-        (payload.student_user_id &&
-          payload.student_user_id !== targetLearnerId)
+        // The RPC always emits student_user_id (normal and empty fallback).
+        // Require an exact, nonblank match; fail closed otherwise.
+        typeof payload?.student_user_id !== "string" ||
+        payload.student_user_id.trim() === "" ||
+        payload.student_user_id !== targetLearnerId
       ) {
         failed = true;
       } else {

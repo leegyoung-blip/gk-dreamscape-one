@@ -75,13 +75,42 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
         error: "",
       }));
 
+      // Ends loading/refreshing with an error. An ordinary refresh failure
+      // keeps this learner's last good profile; access denial and first-load
+      // failures never show a profile.
+      const fail = (message: string, clearProfile = false) => {
+        setState((current) => ({
+          ...current,
+          profile:
+            refresh &&
+            !clearProfile &&
+            current.profile?.student_user_id === learnerId
+              ? current.profile
+              : null,
+          loading: false,
+          refreshing: false,
+          error: message,
+        }));
+      };
+
       const rpcName = refresh
         ? "refresh_nova_plus_learning_profile"
         : "get_nova_plus_learning_profile";
 
-      const { data, error } = await supabase.rpc(rpcName, {
-        p_student_user_id: learnerId,
-      });
+      let data: unknown = null;
+      let error: { message: string } | null = null;
+
+      try {
+        const result = await supabase.rpc(rpcName, {
+          p_student_user_id: learnerId,
+        });
+        data = result.data;
+        error = result.error;
+      } catch {
+        if (!isCurrent()) return;
+        fail("NOVA+ could not be reached. Check your connection and try again.");
+        return;
+      }
 
       if (!isCurrent()) return;
 
@@ -94,53 +123,45 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
 
           // Diagnostics only. An active beta does not override a database
           // rejection or give access to an unrelated learner's records.
-          const { data: activeBeta, error: betaCheckError } = await supabase.rpc(
-            "current_user_has_founding50_nova_plus",
-          );
-
-          if (!isCurrent()) return;
-
-          if (!betaCheckError && activeBeta === true) {
-            message =
-              "Your Founding 50 beta is active, but this learner's NOVA+ " +
-              "profile could not be opened. Confirm that the learner is " +
-              "selected for the beta and linked to this account.";
-            console.warn(
-              "Founding 50 access integration: NOVA+ profile RPC rejected an active beta account.",
-              rpcName,
+          // A failed or rejected check keeps the generic message.
+          try {
+            const { data: activeBeta, error: betaCheckError } = await supabase.rpc(
+              "current_user_has_founding50_nova_plus",
             );
+
+            if (!isCurrent()) return;
+
+            if (!betaCheckError && activeBeta === true) {
+              message =
+                "Your Founding 50 beta is active, but this learner's NOVA+ " +
+                "profile could not be opened. Confirm that the learner is " +
+                "selected for the beta and linked to this account.";
+              console.warn(
+                "Founding 50 access integration: NOVA+ profile RPC rejected an active beta account.",
+                rpcName,
+              );
+            }
+          } catch {
+            if (!isCurrent()) return;
           }
         }
 
-        setState((current) => ({
-          ...current,
-          // A failed refresh keeps this learner's last good profile, unless
-          // the database denied access, which always clears it.
-          profile:
-            refresh &&
-            !accessDenied &&
-            current.profile?.student_user_id === learnerId
-              ? current.profile
-              : null,
-          loading: false,
-          refreshing: false,
-          error: message,
-        }));
+        fail(message, accessDenied);
         return;
       }
 
       const payload = (data ?? null) as NovaPlusProfilePayload | null;
 
-      // Never display a profile under the wrong learner's name.
-      if (payload?.student_user_id && payload.student_user_id !== learnerId) {
+      // The profile RPCs always emit student_user_id. Require an exact,
+      // nonblank match so a profile is never shown under the wrong learner.
+      const payloadLearnerId = payload?.student_user_id;
+      if (
+        typeof payloadLearnerId !== "string" ||
+        payloadLearnerId.trim() === "" ||
+        payloadLearnerId !== learnerId
+      ) {
         console.warn("NOVA+ profile response did not match the requested learner.");
-        setState((current) => ({
-          ...current,
-          profile: null,
-          loading: false,
-          refreshing: false,
-          error: "This learner's NOVA+ profile could not be loaded. Please try again.",
-        }));
+        fail("This learner's NOVA+ profile could not be loaded. Please try again.");
         return;
       }
 
