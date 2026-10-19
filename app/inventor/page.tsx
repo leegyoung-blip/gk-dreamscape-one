@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { preload } from "react-dom";
+import DeferredVideo from "@/components/media/DeferredVideo";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
 import ObjectivesPanel, {
@@ -220,6 +222,7 @@ const ROVER_ORIGIN_STORAGE_KEY = "dreamscape-rover-origin";
 const ROVER_NOVA_RETURN_PATH_STORAGE_KEY =
   "dreamscape-rover-nova-return-path";
 const ROVER_FROM_NOVA_HREF = "/learning-missions/core/rover?from=nova";
+const NOVA_WORLD_POSTER = "/nova/nova-world-bg.webp";
 
 function rememberNovaRoverOrigin() {
   if (typeof window === "undefined") return;
@@ -355,6 +358,9 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
 ];
 
 export default function NovaWorldPage() {
+  // Full-screen background poster: the first thing visitors see.
+  preload(NOVA_WORLD_POSTER, { as: "image", fetchPriority: "high" });
+
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
   const isTablet = screenMode === "tablet";
@@ -893,13 +899,9 @@ export default function NovaWorldPage() {
         paddingBottom: isDesktop ? "42px" : isMobile ? "170px" : "190px",
       }}
     >
-      <video
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        poster="/nova/nova-world-bg.png"
+      <DeferredVideo
+        src="/nova/nova-world-bg-loop.mp4"
+        poster={NOVA_WORLD_POSTER}
         style={{
           position: "fixed",
           inset: 0,
@@ -909,9 +911,7 @@ export default function NovaWorldPage() {
           zIndex: 0,
           pointerEvents: "none",
         }}
-      >
-        <source src="/nova/nova-world-bg-loop.mp4" type="video/mp4" />
-      </video>
+      />
 
       <div
         style={{
@@ -1367,8 +1367,9 @@ export default function NovaWorldPage() {
             }}
           >
             <img
-              src="/nova/nova-character.png"
+              src="/nova/nova-character-h640.webp"
               alt="Nova"
+              decoding="async"
               style={{
                 height: isDesktop ? "126px" : isMobile ? "72px" : "92px",
                 width: "auto",
@@ -4190,8 +4191,10 @@ function GuidedWalkthrough({
 
         {(
           <img
-            src="/nova/nova-character.png"
+            src="/nova/nova-character-h640.webp"
             alt="Nova"
+            loading="lazy"
+            decoding="async"
             style={{
               position: isDesktop ? "absolute" : "relative",
               left: isDesktop

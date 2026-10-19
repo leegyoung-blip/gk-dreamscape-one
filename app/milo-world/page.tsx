@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { preload } from "react-dom";
 import { supabase } from "@/lib/supabase";
+import DeferredVideo from "@/components/media/DeferredVideo";
 import ObjectivesPanel, {
   type CurrentObjectivesStatus,
 } from "@/components/objectives/ObjectivesPanel";
@@ -1718,8 +1720,10 @@ function GuidedWalkthrough({
 
         {!isCurrencyStep && (
           <img
-            src="/milo-world/milo-character.png"
+            src="/milo-world/milo-character-h640.webp"
             alt="Milo"
+            loading="lazy"
+            decoding="async"
             style={{
               position: isDesktop ? "absolute" : "relative",
               left: isDesktop ? "18px" : "auto",
@@ -2186,8 +2190,10 @@ function MembershipPlans() {
             }}
           >
             <img
-              src="/milo-world/membership/milos-club-cover.png"
+              src="/milo-world/membership/milos-club-cover.webp"
               alt="Milo Finance"
+              loading="lazy"
+              decoding="async"
               style={{
                 width: "100%",
                 height: "100%",
@@ -2537,7 +2543,12 @@ function MembershipPopup({
   );
 }
 
+const MILO_WORLD_POSTER = "/milo-world/milo-world-bg.webp";
+
 export default function MiloWorldPage() {
+  // Full-screen background poster: the first thing visitors see.
+  preload(MILO_WORLD_POSTER, { as: "image", fetchPriority: "high" });
+
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
   const isTablet = screenMode === "tablet";
@@ -3094,14 +3105,9 @@ export default function MiloWorldPage() {
     >
       <ResponsiveMiloStyles />
 
-      <video
+      <DeferredVideo
         src="/milo-world/milo-world-bg-loop.mp4"
-        poster="/milo-world/milo-world-bg.png"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
+        poster={MILO_WORLD_POSTER}
         style={{
           position: "fixed",
           inset: 0,
@@ -4094,8 +4100,9 @@ export default function MiloWorldPage() {
             }}
           >
             <img
-              src="/milo-world/milo-character.png"
+              src="/milo-world/milo-character-h640.webp"
               alt="Milo"
+              decoding="async"
               style={{
                 height: isDesktop ? "150px" : isMobile ? "82px" : "115px",
                 width: "auto",

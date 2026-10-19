@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
+import { preload } from "react-dom";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import PublicPreviewBanner from "@/components/PublicPreviewBanner";
+import DeferredVideo from "@/components/media/DeferredVideo";
 
 type Section = "home" | "about";
 
@@ -32,13 +34,13 @@ const worlds: World[] = [
   {
     key: "nova",
     href: "/inventor",
-    imageSrc: "/home/nova-world-cover.png",
+    imageSrc: "/home/nova-world-cover.webp",
     videoSrc: "/home/nova-world-preview.mp4",
   },
   {
     key: "milo",
     href: "/milo-world",
-    imageSrc: "/home/milo-world-cover.png",
+    imageSrc: "/home/milo-world-cover.webp",
     videoSrc: "/home/milo-world-preview.mp4",
   },
 ];
@@ -48,7 +50,7 @@ const productPreviews = [
     eyebrow: "Curriculum Missions",
     title: "Master the School Curriculum",
     text: "Build curriculum skills through progressive missions, topic challenges and meaningful practice designed to feel like part of the adventure.",
-    imageSrc: "/home/preview-learning-missions.png",
+    imageSrc: "/home/preview-learning-missions-w1600.webp",
     guideHref: "/explore/learning-missions",
     guideLabel: "How Learning Missions Work",
   },
@@ -56,7 +58,7 @@ const productPreviews = [
     eyebrow: "Explore & Upgrade",
     title: "Power Nova’s Rover",
     text: "Learning earns Dream Tokens and eligible Dream Gems that can unlock upgrades, strengthen Nova’s rover and open new experiences across Skyforge.",
-    imageSrc: "/home/preview-rover.png",
+    imageSrc: "/home/preview-rover-w1600.webp",
     guideHref: "/explore/dream-tokens-and-gems",
     guideLabel: "How DT & DG Work",
   },
@@ -64,7 +66,7 @@ const productPreviews = [
     eyebrow: "Build Your World",
     title: "Make Nova’s World Your Own",
     text: "Use what you earn beyond the quiz screen. Furnish Nova’s home, unlock zones, collect items and return to a world that keeps growing with your progress.",
-    imageSrc: "/home/preview-nova-home.png",
+    imageSrc: "/home/preview-nova-home-w1600.webp",
     guideHref: "/explore/novas-world",
     guideLabel: "Explore Nova’s World",
   },
@@ -74,19 +76,19 @@ const trustPoints = [
   {
     title: "AI-Assisted Development",
     text: "AI helps us develop, organise and improve learning content more efficiently.",
-    imageSrc: "/home/trust-ai-development.png",
+    imageSrc: "/home/trust-ai-development-w384.webp",
     placeholderLabel: "AI DEVELOPMENT",
   },
   {
     title: "Teacher Verification",
     text: "Qualified teachers review educational content before it reaches learners.",
-    imageSrc: "/home/trust-teacher-review.png",
+    imageSrc: "/home/trust-teacher-review-w384.webp",
     placeholderLabel: "TEACHER REVIEW",
   },
   {
     title: "Continuously Improved",
     text: "Content is refined using teacher feedback, learner performance and curriculum updates.",
-    imageSrc: "/home/trust-continuous-improvement.png",
+    imageSrc: "/home/trust-continuous-improvement-w384.webp",
     placeholderLabel: "CONTINUOUS IMPROVEMENT",
   },
 ];
@@ -101,6 +103,9 @@ function WorldPanel({
   onHowItWorks: () => void;
 }) {
   const isNova = world.key === "nova";
+
+  // The cover is both the panel background and the video poster: fetch it first.
+  preload(world.imageSrc, { as: "image", fetchPriority: "high" });
 
   return (
     <article
@@ -118,13 +123,8 @@ function WorldPanel({
       }}
     >
       {world.videoSrc && (
-        <video
+        <DeferredVideo
           src={world.videoSrc}
-          autoPlay
-          muted
-          playsInline
-          loop
-          preload="auto"
           poster={world.imageSrc}
           style={{
             position: "absolute",
@@ -598,7 +598,7 @@ export default function Home() {
           }}
         >
           <img
-            src="/home/dreamscape-logo.png"
+            src="/home/dreamscape-logo-w192.webp"
             alt="Dreamscape One logo"
             style={{
               width: isMobile ? "38px" : "54px",
@@ -768,7 +768,7 @@ export default function Home() {
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <img src="/home/dreamscape-logo.png" alt="" aria-hidden="true" style={{ width: "42px", height: "42px", objectFit: "contain", borderRadius: "999px" }} />
+                <img src="/home/dreamscape-logo-w192.webp" alt="" aria-hidden="true" loading="lazy" decoding="async" style={{ width: "42px", height: "42px", objectFit: "contain", borderRadius: "999px" }} />
                 <span style={{ fontSize: "12px", fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase" }}>
                   Explore Dreamscape
                 </span>
@@ -1402,7 +1402,7 @@ export default function Home() {
               >
                 <NovaPlusScreenshot
                   label="MY LEARNING"
-                  filename="/home/nova-plus-my-learning.png"
+                  filename="/home/nova-plus-my-learning-w1600.webp"
                   accent="#8ee8ff"
                 />
               </div>
@@ -1422,14 +1422,14 @@ export default function Home() {
                 eyebrow="Strengths & Gaps"
                 title="Find the gaps before they grow."
                 text="See performance at concept level rather than relying on one overall score, making it easier to understand exactly where extra practice may help."
-                filename="/home/nova-plus-strengths-gaps.png"
+                filename="/home/nova-plus-strengths-gaps.webp"
                 accent="#8ee8ff"
               />
               <NovaPlusFeatureCard
                 eyebrow="Mastery Map"
                 title="Watch mastery develop over time."
                 text="Connect evidence across the curriculum so parents can see which areas are developing, secure or still need attention."
-                filename="/home/nova-plus-mastery-map.png"
+                filename="/home/nova-plus-mastery-map-w1600.webp"
                 accent="#c58cff"
               />
             </div>
@@ -1508,7 +1508,7 @@ export default function Home() {
               >
                 <NovaPlusScreenshot
                   label="REPORT DOWNLOAD"
-                  filename="/home/nova-plus-report.png"
+                  filename="/home/nova-plus-report.webp"
                   accent="#ffbd73"
                 />
               </div>
@@ -2052,7 +2052,7 @@ export default function Home() {
                 </Link>
               </div>
               <div aria-hidden="true" style={{ height: isMobile ? "180px" : "250px", display: "flex", alignItems: "flex-end", justifyContent: "center", overflow: "hidden" }}>
-                <img src="/nova/nova-character.png" alt="" style={{ height: isMobile ? "178px" : "242px", width: "auto", objectFit: "contain", display: "block", filter: "drop-shadow(0 22px 46px rgba(0,0,0,0.42))" }} />
+                <img src="/nova/nova-character-h640.webp" alt="" loading="lazy" decoding="async" style={{ height: isMobile ? "178px" : "242px", width: "auto", objectFit: "contain", display: "block", filter: "drop-shadow(0 22px 46px rgba(0,0,0,0.42))" }} />
               </div>
             </div>
           </section>
@@ -2475,8 +2475,10 @@ export default function Home() {
               style={{ display: "flex", alignItems: "center", gap: "16px", color: "white", textDecoration: "none" }}
             >
               <img
-                src="/home/dreamscape-logo.png"
+                src="/home/dreamscape-logo-w192.webp"
                 alt="Dreamscape One logo"
+                loading="lazy"
+                decoding="async"
                 style={{
                   width: "48px",
                   height: "48px",
@@ -3083,6 +3085,8 @@ function ProductPreviewCard({
         <img
           src={imageSrc}
           alt={`${title} preview`}
+          loading="lazy"
+          decoding="async"
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
       </div>
@@ -3156,7 +3160,7 @@ function TrustCard({
         }}
       >
         {imageSrc ? (
-          <img src={imageSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          <img src={imageSrc} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         ) : (
           <span style={{ padding: "14px", color: "rgba(255,255,255,0.62)", fontSize: "10px", fontWeight: 900, letterSpacing: "0.13em", lineHeight: 1.5, textTransform: "uppercase" }}>
             {placeholderLabel}
@@ -3307,7 +3311,7 @@ function GrowthJourney({ isMobile }: { isMobile: boolean }) {
     >
       <JourneyWorld
         world="nova"
-        imageSrc="/nova/nova-character.png"
+        imageSrc="/nova/nova-character-h640.webp"
         audience="Ages 6–12"
         title="Nova’s World"
         skills={novaSkills}
@@ -3438,7 +3442,7 @@ function GrowthJourney({ isMobile }: { isMobile: boolean }) {
 
       <JourneyWorld
         world="milo"
-        imageSrc="/milo-world/milo-character.png"
+        imageSrc="/milo-world/milo-character-h640.webp"
         audience="Real-World Skills"
         title="Milo’s World"
         skills={miloSkills}
@@ -3507,6 +3511,8 @@ function JourneyWorld({
         <img
           src={imageSrc}
           alt={title}
+          loading="lazy"
+          decoding="async"
           style={{
             width: isMobile ? "128px" : "148px",
             height: isMobile ? "128px" : "148px",

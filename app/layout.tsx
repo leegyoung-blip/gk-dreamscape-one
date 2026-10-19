@@ -2,16 +2,20 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+
 import PostLoginWelcome from "@/components/PostLoginWelcome";
 import MarketingConsentModal from "./components/MarketingConsentModal";
 import ScreenTimeController from "@/components/parental-controls/ScreenTimeController";
 import SiteStructuredData from "@/components/seo/SiteStructuredData";
+
 import {
   DEFAULT_SITE_DESCRIPTION,
   SITE_NAME,
   SITE_URL,
   socialImageUrl,
 } from "@/lib/seo";
+
 import "./globals.css";
 
 const geistSans = Geist({
@@ -106,12 +110,22 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
+        {/* SEO structured data */}
         <SiteStructuredData />
+
+        {/* Application content */}
         {children}
+
+        {/* Existing global components */}
         <ScreenTimeController />
         <PostLoginWelcome />
         <MarketingConsentModal />
+
+        {/* Vercel traffic analytics */}
         <Analytics />
+
+        {/* Vercel real-user performance monitoring */}
+        <SpeedInsights />
       </body>
     </html>
   );

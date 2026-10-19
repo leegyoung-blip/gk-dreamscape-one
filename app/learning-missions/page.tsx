@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { preload } from "react-dom";
+import DeferredVideo from "@/components/media/DeferredVideo";
 import {
   getLearningEntitlements,
   roleHasStaffLearningAccess,
@@ -405,7 +407,13 @@ const MISSION_PATH = [
   },
 ];
 
+// Still of the background loop, shown until the video plays (or instead of it
+// for visitors who prefer reduced motion).
+const LEARNING_MISSIONS_POSTER = "/nova/learning-missions/learning-missions-bg.webp";
+
 export default function LearningMissionsPage() {
+  preload(LEARNING_MISSIONS_POSTER, { as: "image", fetchPriority: "high" });
+
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
@@ -1079,13 +1087,10 @@ export default function LearningMissionsPage() {
         overflowX: "hidden",
       }}
     >
-      <video
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        aria-hidden="true"
+      <DeferredVideo
+        src="/nova/learning-missions/learning-missions-bg-loop.mp4"
+        poster={LEARNING_MISSIONS_POSTER}
+        ariaHidden
         style={{
           position: "fixed",
           inset: 0,
@@ -1096,12 +1101,7 @@ export default function LearningMissionsPage() {
           objectPosition: "center",
           pointerEvents: "none",
         }}
-      >
-        <source
-          src="/nova/learning-missions/learning-missions-bg-loop.mp4"
-          type="video/mp4"
-        />
-      </video>
+      />
 
       <div
         aria-hidden="true"
@@ -1548,8 +1548,9 @@ export default function LearningMissionsPage() {
           }}
         >
           <img
-            src="/nova/nova-character.png"
+            src="/nova/nova-character-h640.webp"
             alt="Nova"
+            decoding="async"
             style={{
               height: isDesktop ? "235px" : isMobile ? "145px" : "195px",
               width: "auto",
@@ -3832,8 +3833,10 @@ function MissionGuidedWalkthrough({
             }}
           >
             <img
-              src="/nova/nova-character.png"
+              src="/nova/nova-character-h640.webp"
               alt="Nova"
+              loading="lazy"
+              decoding="async"
               style={{
                 position: "relative",
                 height: isDesktop
