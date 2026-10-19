@@ -138,7 +138,9 @@ test('UI shows candidate table and expandable scoring, not answer data',()=>{
 });
 test('service never serializes raw internal selector candidates or evidence',()=>{
   assert.ok(!serviceSource.includes('return selection;'));
-  assert.ok(!serviceSource.includes('...selection'));
+  // Forbid spreading the raw selector object (or any of its fields) into a response.
+  // Only the reason-code string array may be spread, e.g. [...selection.reasonCodes].
+  assert.doesNotMatch(serviceSource,/\.\.\.\s*\(?\s*selection\b(?!\.reasonCodes\b)/);
   assert.ok(!serviceSource.includes('positiveEvidence:'));
   assert.ok(!serviceSource.includes('answer_data'));
   assert.ok(!serviceSource.includes('export async function POST'));

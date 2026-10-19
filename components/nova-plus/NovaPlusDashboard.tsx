@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import MyLearningTab from "@/components/nova-plus/tabs/MyLearningTab";
 import StrengthsGapsTab from "@/components/nova-plus/tabs/StrengthsGapsTab";
@@ -83,12 +83,35 @@ export default function NovaPlusDashboard() {
   const schoolworkEvidence =
     useNovaSchoolworkEvidence(selectedLearnerId);
 
+  // Nova Recommends keeps its own feeds (recommendations, cycles, teaching and
+  // schoolwork evidence). Bumping this key after a completed dashboard refresh
+  // remounts the tab so every feed reloads through its existing hooks.
+  const [recommendationsRevision, setRecommendationsRevision] = useState(0);
+  const selectedLearnerRef = useRef(selectedLearnerId);
+
+  useEffect(() => {
+    selectedLearnerRef.current = selectedLearnerId;
+  }, [selectedLearnerId]);
+
   async function refreshNovaPlus() {
-    await Promise.all([
+    const learnerAtStart = selectedLearnerId;
+
+    await Promise.allSettled([
       refresh(),
       englishMastery.refresh(),
+      schoolworkEvidence.refresh(),
     ]);
+
+    // A learner switch already remounts the tab for the new learner.
+    if (learnerAtStart && selectedLearnerRef.current === learnerAtStart) {
+      setRecommendationsRevision((revision) => revision + 1);
+    }
   }
+
+  const refreshProblems = [
+    error && profile ? "the learning profile" : "",
+    schoolworkEvidence.error ? "the schoolwork summary" : "",
+  ].filter(Boolean);
 
   function closeNovaPlus() {
     router.push("/learning-missions/progress-rewards");
@@ -203,6 +226,25 @@ export default function NovaPlusDashboard() {
 
       <EnglishMasteryProvider value={englishMastery}>
         <section className={styles.content}>
+          {profile && selectedLearnerId && refreshProblems.length > 0 && (
+            <div className={styles.refreshNotice} role="status" aria-live="polite">
+              <p>
+                <strong>Nova couldn&apos;t update {refreshProblems.join(" or ")}.</strong>{" "}
+                The last available information is still shown, so some details
+                may be missing or out of date.
+              </p>
+              <button
+                type="button"
+                disabled={refreshing || englishMastery.refreshing || schoolworkEvidence.loading}
+                onClick={() => void refreshNovaPlus()}
+              >
+                {refreshing || englishMastery.refreshing || schoolworkEvidence.loading
+                  ? "Retrying…"
+                  : "Try again"}
+              </button>
+            </div>
+          )}
+
           {loading && !profile ? (
             <div className={styles.stateCard}>
               <span className={styles.spinner} />
@@ -243,6 +285,7 @@ export default function NovaPlusDashboard() {
             />
           ) : tab === "recommendations" ? (
             <NovaRecommendsTab
+              key={`${selectedLearnerId}:${recommendationsRevision}`}
               learnerId={selectedLearnerId}
               learnerLabel={learnerName}
               canLaunchPractice={Boolean(viewerId && viewerId === selectedLearnerId)}

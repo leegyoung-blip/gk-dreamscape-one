@@ -12,6 +12,7 @@ import type {
   ProfileSubjectSummary,
 } from "@/lib/nova-plus/types";
 import {
+  attentionSubject,
   safeNumber,
   SUBJECT_META,
   subjectState,
@@ -69,12 +70,6 @@ function strongestSubject(rows: Array<ProfileSubjectSummary | null>) {
     .sort((a, b) => safeNumber(b.mastery_score) - safeNumber(a.mastery_score))[0] ?? null;
 }
 
-function prioritySubject(rows: Array<ProfileSubjectSummary | null>) {
-  return [...rows]
-    .filter((row): row is ProfileSubjectSummary => Boolean(row && row.questions_attempted >= 5))
-    .sort((a, b) => safeNumber(a.mastery_score) - safeNumber(b.mastery_score))[0] ?? null;
-}
-
 export default function MyLearningTab({
   learnerId,
   learnerLabel,
@@ -87,23 +82,15 @@ export default function MyLearningTab({
     summaryFor(profile, subject),
   );
   const strongest = strongestSubject(curriculumRows);
-  const priority = prioritySubject(curriculumRows);
+  const priority = attentionSubject(curriculumRows);
+  const trackedSubjects = curriculumRows.filter(
+    (row) => subjectState(row) !== "unknown",
+  ).length;
   const knowledge = summaryFor(profile, "knowledge");
 
-  const prioritySkills = profile.skills
-    .filter(
-      (skill) =>
-        !skill.is_topic_level &&
-        ["needs_support", "emerging", "developing", "review_due"].includes(skill.status),
-    )
-    .sort((a, b) => safeNumber(a.mastery_score) - safeNumber(b.mastery_score));
-
-  const nextSkill = prioritySkills[0] ?? null;
-  const recommendationSubject = nextSkill?.subject
-    ? SUBJECT_META[nextSkill.subject as NovaSubjectKey]?.label ?? nextSkill.subject
-    : priority
-      ? SUBJECT_META[priority.subject as NovaSubjectKey]?.label ?? priority.subject
-      : "Keep exploring";
+  // The specific next concept is chosen only by Nova Recommends (canonical
+  // eligibility, evidence quality and mapped practice). My Learning does not
+  // name a skill from raw mastery scores, so the two views cannot disagree.
 
   const strongestMilestone = strongest
     ? milestoneForEvidence(
@@ -256,13 +243,15 @@ export default function MyLearningTab({
             <strong>
               {priority
                 ? SUBJECT_META[priority.subject as NovaSubjectKey]?.label ?? priority.subject
-                : "No clear priority yet"}
+                : trackedSubjects > 0
+                  ? "Nothing urgent right now"
+                  : "No clear priority yet"}
             </strong>
             <small>
-              {nextSkill?.skill_name
-                ? nextSkill.skill_name
-                : priority
-                  ? "Nova is narrowing down the next skill"
+              {priority
+                ? "See Nova Recommends for the next step"
+                : trackedSubjects > 0
+                  ? "Tracked subjects are currently strong"
                   : "More learning evidence needed"}
             </small>
           </div>
@@ -276,12 +265,8 @@ export default function MyLearningTab({
           <span className={styles.novaMark}>N+</span>
           <div>
             <span>NOVA RECOMMENDS</span>
-            <strong>{nextSkill?.skill_name || recommendationSubject}</strong>
-            <small>
-              {nextSkill
-                ? `${recommendationSubject} · Focus here next`
-                : "Open Nova Recommends for your next step"}
-            </small>
+            <strong>Your next step</strong>
+            <small>Open Nova Recommends to see your next step</small>
           </div>
           <b>→</b>
         </button>

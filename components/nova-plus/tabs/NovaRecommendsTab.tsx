@@ -263,10 +263,13 @@ function RecommendationCard({
   const meta = LANE_META[item.lane];
 
   const quizHref =
-    item.quiz?.quiz_href || "";
+    item.quiz?.quiz_href?.trim() || "";
+
+  const missionAvailable =
+    Boolean(quizHref);
 
   const mayOpen =
-    Boolean(quizHref) &&
+    missionAvailable &&
     (canLaunchPractice || isAdminPreview);
 
   const shouldStartCycle =
@@ -470,6 +473,21 @@ function RecommendationCard({
               <span>→</span>
             </a>
           )
+        ) : !missionAvailable ? (
+          <div
+            className={
+              styles.viewerNotice
+            }
+          >
+            <strong>
+              Practice mission unavailable
+            </strong>
+
+            <span>
+              Nova is waiting for a mapped
+              mission to become available.
+            </span>
+          </div>
         ) : (
           <div
             className={

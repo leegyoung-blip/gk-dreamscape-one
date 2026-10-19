@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type {
   NovaPlusLearner,
@@ -52,10 +52,22 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
     error: "",
   });
 
+  // Request ordering guard. Every profile request takes a new token; a
+  // response may only land while its token is still the latest AND its
+  // learner is still the selected one. Learner switches, effect cleanup and
+  // unmount all advance the token so late responses are discarded.
+  const requestIdRef = useRef(0);
+  const selectedLearnerRef = useRef<string | null>(null);
+
   const isAdminPreview = normaliseRole(state.viewerRole) === "admin";
 
   const loadProfile = useCallback(
     async (learnerId: string, refresh = false) => {
+      const requestId = ++requestIdRef.current;
+      const isCurrent = () =>
+        requestIdRef.current === requestId &&
+        selectedLearnerRef.current === learnerId;
+
       setState((current) => ({
         ...current,
         loading: refresh ? current.loading : true,
@@ -71,10 +83,13 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
         p_student_user_id: learnerId,
       });
 
+      if (!isCurrent()) return;
+
       if (error) {
         let message = error.message;
+        const accessDenied = error.message.includes("NOVA_PLUS_ACCESS_REQUIRED");
 
-        if (error.message.includes("NOVA_PLUS_ACCESS_REQUIRED")) {
+        if (accessDenied) {
           message = "NOVA+ is not available for this account yet.";
 
           // Diagnostics only. An active beta does not override a database
@@ -82,6 +97,8 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
           const { data: activeBeta, error: betaCheckError } = await supabase.rpc(
             "current_user_has_founding50_nova_plus",
           );
+
+          if (!isCurrent()) return;
 
           if (!betaCheckError && activeBeta === true) {
             message =
@@ -97,7 +114,14 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
 
         setState((current) => ({
           ...current,
-          profile: null,
+          // A failed refresh keeps this learner's last good profile, unless
+          // the database denied access, which always clears it.
+          profile:
+            refresh &&
+            !accessDenied &&
+            current.profile?.student_user_id === learnerId
+              ? current.profile
+              : null,
           loading: false,
           refreshing: false,
           error: message,
@@ -105,11 +129,27 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
         return;
       }
 
+      const payload = (data ?? null) as NovaPlusProfilePayload | null;
+
+      // Never display a profile under the wrong learner's name.
+      if (payload?.student_user_id && payload.student_user_id !== learnerId) {
+        console.warn("NOVA+ profile response did not match the requested learner.");
+        setState((current) => ({
+          ...current,
+          profile: null,
+          loading: false,
+          refreshing: false,
+          error: "This learner's NOVA+ profile could not be loaded. Please try again.",
+        }));
+        return;
+      }
+
       setState((current) => ({
         ...current,
-        profile: (data ?? null) as NovaPlusProfilePayload | null,
+        profile: payload,
         loading: false,
         refreshing: false,
+        error: "",
       }));
     },
     [],
@@ -119,7 +159,15 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
     let cancelled = false;
 
     async function initialise() {
-      setState((current) => ({ ...current, loading: true, error: "" }));
+      selectedLearnerRef.current = null;
+      setState((current) => ({
+        ...current,
+        selectedLearnerId: null,
+        profile: null,
+        loading: true,
+        refreshing: false,
+        error: "",
+      }));
 
       const {
         data: { user },
@@ -253,6 +301,7 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
         ? String(requestedLearnerId)
         : linkedAccount?.id || user.id;
 
+      selectedLearnerRef.current = selectedLearnerId;
       setState((current) => ({
         ...current,
         viewerId: user.id,
@@ -269,6 +318,8 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
 
     return () => {
       cancelled = true;
+      // Invalidate any profile request still in flight from this run.
+      requestIdRef.current += 1;
     };
   }, [loadProfile, requestedLearnerId]);
 
@@ -282,10 +333,14 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
   const selectLearner = useCallback(
     async (learnerId: string) => {
       if (!state.learners.some((account) => account.id === learnerId)) return;
+      selectedLearnerRef.current = learnerId;
       setState((current) => ({
         ...current,
         selectedLearnerId: learnerId,
         profile: null,
+        loading: true,
+        refreshing: false,
+        error: "",
       }));
       await loadProfile(learnerId, false);
     },
@@ -293,9 +348,10 @@ export function useNovaPlusProfile(requestedLearnerId?: string | null) {
   );
 
   const refresh = useCallback(async () => {
-    if (!state.selectedLearnerId) return;
-    await loadProfile(state.selectedLearnerId, true);
-  }, [loadProfile, state.selectedLearnerId]);
+    const learnerId = selectedLearnerRef.current;
+    if (!learnerId) return;
+    await loadProfile(learnerId, true);
+  }, [loadProfile]);
 
   return {
     ...state,

@@ -39,6 +39,7 @@ export type StaffMethodScoreComparison = Readonly<{
   selectionIssueCodes: readonly string[];
   methodDifferentiation?: Readonly<{ status: 'evidence_found' | 'needs_review'; ruleCode: string; preferredMethodId: string | null; lessSuitableMethodId: string | null; }>;
   curriculumSkillAudit?: Readonly<{ status: 'undeclared' | 'no_exact_match' | 'partially_declared' | 'exact_match_present'; ruleCode: string; auditedMethodCount: number; undeclaredMethodCount: number; exactMatchMethodCount: number }>;
+  rankingEvidenceReview?: Readonly<{ status: 'specialist_review' | 'complementary' | 'needs_review'; ruleCode: string }>;
 }>;
 type Metadata = Readonly<{
   phase: '4E-2B-1';
@@ -186,11 +187,31 @@ function publicScoreComparison(
           auditedMethodCount: skill.auditedMethodCount,
           undeclaredMethodCount: skill.undeclaredMethodCount,
           exactMatchMethodCount: skill.exactMatchMethodCount} : undefined;
+  // Staff-visible shadow finding: only known statuses and fixed-format codes;
+  // no prompt text, candidate evidence, numeric claims, or method approvals.
+  const allowedRankingCodes = new Set([
+    '8C2C2_VISUAL_REVIEW_REQUIRED',
+    '8C2C2_MULTIPART_REVIEW_REQUIRED',
+    '8C2C2_EQUAL_SPACING_INTERVAL_COUNT_REVIEW',
+    '8C2C2_MULTIPLICATIVE_CHAIN_REVIEW',
+    '8C2C2_CHANGING_RATIO_REVIEW',
+    '8C2C2_RATIO_EVIDENCE_UNRESOLVED',
+    '8C2C2_MULTISTEP_METHODS_COMPLEMENTARY',
+    '8C2C2_ANGLE_RELATIONSHIP_REVIEW',
+  ]);
+  const ranking = output.rankingEvidenceReview;
+  const rankingEvidenceReview = ranking &&
+    (ranking.status === 'specialist_review' ||
+     ranking.status === 'complementary' || ranking.status === 'needs_review') &&
+    allowedRankingCodes.has(ranking.ruleCode) &&
+    /^8C2C2_[A-Z0-9_]{3,75}$/.test(ranking.ruleCode)
+      ? {status: ranking.status, ruleCode: ranking.ruleCode} : undefined;
   return {
     candidates,
     selectionIssueCodes: [...new Set(issueCodes)].slice(0, 12),
     ...(methodDifferentiation ? {methodDifferentiation} : {}),
     ...(curriculumSkillAudit ? {curriculumSkillAudit} : {}),
+    ...(rankingEvidenceReview ? {rankingEvidenceReview} : {}),
   };
 }
 
@@ -262,11 +283,13 @@ export async function previewStaffMathMethod(
       // needed to make the 8C-2B shadow diagnostic visible to reviewers.
       const rule = scoreComparison.methodDifferentiation?.ruleCode;
       const skillRule = scoreComparison.curriculumSkillAudit?.ruleCode;
+      const rankingRule = scoreComparison.rankingEvidenceReview?.ruleCode;
       return {
         ...marker, status: 'ambiguous', stage: 'selector',
         reasonCodes: [...new Set([...selection.reasonCodes,
           ...(rule ? [`METHOD_${rule}`] : []),
-          ...(skillRule ? [`SKILL_${skillRule}`] : [])])].slice(0, 16),
+          ...(skillRule ? [`SKILL_${skillRule}`] : []),
+          ...(rankingRule ? [`RANK_${rankingRule}`] : [])])].slice(0, 16),
         candidateMethodCount: selection.candidateMethodCount,
         primaryFamilies: selection.primaryFamilies.slice(0, 16),
         scoreComparison,

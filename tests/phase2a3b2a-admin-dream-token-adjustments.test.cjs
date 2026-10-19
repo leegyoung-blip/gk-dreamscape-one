@@ -22,9 +22,11 @@ const ID = {
 const TITLES = {class_attendance:'Class Attendance Reward', manual_add:'Admin Manual Add', manual_deduct:'Admin Manual Deduct'};
 const uuid = (n) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(n).padStart(12, '0')}`;
 
-/* Mock Supabase service-role client. The RPC mirrors the SQL function contract and
-   the ledger insert mirrors the balance trigger (balance += amount). */
-function makeBackend({rpcMissing = false} = {}) {
+/* Mock Supabase service-role client. The RPC mirrors the SQL function contract
+   (admin re-check, target lock, idempotency before capacity, column-capacity checks,
+   balances returned as text) and the ledger insert mirrors the balance trigger. */
+const CAPACITY = {smallint:32767n, integer:2147483647n, bigint:9223372036854775807n, numeric:null};
+function makeBackend({rpcMissing = false, rpcData, amountType = 'integer', balanceType = 'bigint'} = {}) {
  const profiles = {
   [ID.admin]: {id:ID.admin, role:' Admin ', dream_token_balance:1000000},
   [ID.student]: {id:ID.student, role:'student', dream_token_balance:120},
@@ -46,19 +48,26 @@ function makeBackend({rpcMissing = false} = {}) {
    rpcCalls.push({name, a});
    if (name !== 'admin_adjust_dream_tokens') throw new Error(`unexpected rpc ${name}`);
    if (rpcMissing) return {data:null, error:{code:'PGRST202', message:'Could not find the function'}};
+   if (rpcData !== undefined) return {data:rpcData, error:null};
    if (TITLES[a.p_action] !== a.p_title) return {data:null, error:{code:'22023'}};
    if (String(profiles[a.p_admin_user_id]?.role || '').trim().toLowerCase() !== 'admin') return {data:null, error:{code:'42501'}};
-   if (!profiles[a.p_target_user_id]) return {data:null, error:{code:'P0002'}};
+   const target = profiles[a.p_target_user_id];
+   if (!target) return {data:null, error:{code:'P0002'}};
    const prior = audit.get(a.p_request_id);
    if (prior) {
     if (prior.amount !== a.p_amount || prior.target !== a.p_target_user_id || prior.action !== a.p_action) return {data:null, error:{code:'P0001', message:'IDEMPOTENCY_KEY_REUSED'}};
-    return {data:[{duplicate:true, ledger_transaction_id:prior.ledgerId, new_balance:profiles[a.p_target_user_id].dream_token_balance}], error:null};
+    return {data:[{duplicate:true, ledger_transaction_id:prior.ledgerId, new_balance:String(target.dream_token_balance)}], error:null};
    }
+   const amountCap = CAPACITY[amountType], balanceCap = CAPACITY[balanceType];
+   const amount = BigInt(a.p_amount), resulting = BigInt(target.dream_token_balance) + amount;
+   const abs = (v) => (v < 0n ? -v : v);
+   if (amountCap !== null && abs(amount) > amountCap) return {data:null, error:{code:'22003'}};
+   if (balanceCap !== null && abs(resulting) > balanceCap) return {data:null, error:{code:'22003'}};
    const row = {id:`tx-${ledger.length + 1}`, user_id:a.p_target_user_id, amount:a.p_amount, token_kind:'virtual', type:a.p_amount < 0 ? 'spend' : 'earn', title:a.p_title};
    ledger.push(row);
-   profiles[a.p_target_user_id].dream_token_balance += a.p_amount; // balance trigger
+   target.dream_token_balance = typeof target.dream_token_balance === 'bigint' || abs(resulting) > BigInt(Number.MAX_SAFE_INTEGER) ? resulting : Number(resulting); // balance trigger
    audit.set(a.p_request_id, {amount:a.p_amount, target:a.p_target_user_id, action:a.p_action, admin:a.p_admin_user_id, ledgerId:row.id});
-   return {data:[{duplicate:false, ledger_transaction_id:row.id, new_balance:profiles[a.p_target_user_id].dream_token_balance}], error:null};
+   return {data:[{duplicate:false, ledger_transaction_id:row.id, new_balance:String(target.dream_token_balance)}], error:null};
   },
  };
  return {client, profiles, ledger, audit, tableCalls, rpcCalls};
@@ -91,7 +100,7 @@ test('authorised admin credit writes one virtual earn row and updates the balanc
  const t = setup();
  const res = await t.call(body());
  assert.equal(res.status, 200);
- assert.deepEqual({...res.body}, {success:true, duplicate:false, amount:250, newBalance:370});
+ assert.deepEqual({...res.body}, {success:true, duplicate:false, amount:250, ledgerTransactionId:'tx-1', newBalance:370});
  assert.equal(t.ledger.length, 1);
  assert.deepEqual({...t.ledger[0], id:undefined}, {id:undefined, user_id:ID.student, amount:250, token_kind:'virtual', type:'earn', title:'Admin Manual Add'});
  assert.equal(t.audit.get(uuid(1)).admin, ID.admin, 'acting admin recorded');
@@ -142,7 +151,7 @@ test('missing or invalid session receives 401 before the body is read', async ()
 });
 test('invalid or zero amounts and actions are rejected before any write', async () => {
  const bad = [
-  {amount:0}, {amount:-5}, {amount:2.5}, {amount:'250'}, {amount:null}, {amount:2147483648},
+  {amount:0}, {amount:-5}, {amount:2.5}, {amount:'250'}, {amount:null}, {amount:1e20},
   {amount:Number.MAX_SAFE_INTEGER + 1}, {action:'manual_mint'}, {action:undefined},
  ];
  for (const over of bad) {
@@ -179,6 +188,74 @@ test('reusing a request id for a different adjustment is refused with 409', asyn
  const res = await t.call(body({amount:20}));
  assert.equal(res.status, 409);
  assert.equal(t.ledger.length, 1);
+});
+test('malformed or missing RPC results never report success', async () => {
+ const malformed = [
+  null, {}, [], [null], ['row'], [{}],
+  [{duplicate:'false', ledger_transaction_id:'tx-1', new_balance:'10'}],
+  [{duplicate:false, ledger_transaction_id:'', new_balance:'10'}],
+  [{duplicate:false, ledger_transaction_id:null, new_balance:'10'}],
+  [{duplicate:false, new_balance:'10'}],
+  [{duplicate:false, ledger_transaction_id:'tx-1'}, {duplicate:false, ledger_transaction_id:'tx-2'}],
+  {duplicate:false, ledger_transaction_id:'tx-1', new_balance:'10'},
+ ];
+ for (const rpcData of malformed) {
+  const t = setup({rpcData});
+  const res = await t.call(body());
+  assert.equal(res.status, 502, JSON.stringify(rpcData));
+  assert.notEqual(res.body.success, true);
+ }
+});
+test('balance values are parsed safely and Number(null) is never reported as 0', async () => {
+ const cases = [
+  [null, null], [undefined, null], ['', null], ['abc', null], ['12.5', null], [12.5, null],
+  ['9223372036854775807', null], [Number.MAX_SAFE_INTEGER + 2, null],
+  ['0', 0], [0, 0], ['370', 370], [' 370 ', 370], ['-40', -40], [370, 370],
+ ];
+ for (const [value, expected] of cases) {
+  const t = setup({rpcData:[{duplicate:false, ledger_transaction_id:'tx-1', new_balance:value}]});
+  const res = await t.call(body());
+  assert.equal(res.status, 200, JSON.stringify(value));
+  assert.equal(res.body.newBalance, expected, `new_balance ${JSON.stringify(value)}`);
+ }
+});
+test('credits up to the profile balance capacity succeed; one more DT is refused with no ledger row', async () => {
+ const t = setup({amountType:'integer', balanceType:'integer'});
+ const headroom = 2147483647 - 120;
+ const ok = await t.call(body({amount:headroom, requestId:uuid(30)}));
+ assert.equal(ok.status, 200);
+ assert.equal(ok.body.newBalance, 2147483647);
+ const over = await t.call(body({amount:1, requestId:uuid(31)}));
+ assert.equal(over.status, 400);
+ assert.match(over.body.error, /database capacity/);
+ assert.equal(t.ledger.length, 1);
+ assert.equal(t.profiles[ID.student].dream_token_balance, 2147483647);
+});
+test('a single amount larger than the ledger column capacity is refused; a wider column accepts it', async () => {
+ const narrow = setup({amountType:'integer'});
+ const refused = await narrow.call(body({amount:2147483648}));
+ assert.equal(refused.status, 400);
+ assert.equal(narrow.ledger.length, 0);
+ const wide = setup({amountType:'bigint', balanceType:'bigint'});
+ const accepted = await wide.call(body({amount:5000000000000}));
+ assert.equal(accepted.status, 200);
+ assert.equal(wide.ledger[0].amount, 5000000000000);
+});
+test('a confirmed request is still recognised as a duplicate after the balance reaches capacity', async () => {
+ const t = setup({balanceType:'integer'});
+ await t.call(body({amount:2147483647 - 120, requestId:uuid(40)}));
+ const retry = await t.call(body({amount:2147483647 - 120, requestId:uuid(40)}));
+ assert.equal(retry.status, 200);
+ assert.equal(retry.body.duplicate, true);
+ assert.equal(t.ledger.length, 1);
+});
+test('balances beyond the exact JavaScript range are reported as unknown, not rounded', async () => {
+ const t = setup({amountType:'bigint', balanceType:'bigint'});
+ t.profiles[ID.student].dream_token_balance = 9007199254740990n;
+ const res = await t.call(body({amount:5}));
+ assert.equal(res.status, 200);
+ assert.equal(res.body.newBalance, null);
+ assert.equal(t.profiles[ID.student].dream_token_balance, 9007199254740995n);
 });
 test('client-supplied titles are ignored', async () => {
  const t = setup();
@@ -217,6 +294,35 @@ test('migration is additive, uses the existing ledger and keeps the trigger and 
  assert.ok(!/ALTER TABLE public\.dream_token_transactions|DROP TRIGGER|UPDATE public\.dream_token_transactions|DELETE FROM public\.dream_token_transactions|UPDATE public\.profiles/i.test(sql));
  assert.ok(!/dream_gem/i.test(sql));
  assert.ok(!/\b(cap|limit)\b/i.test(sql.replace(/LIMIT 1/g, '')), 'no business caps');
+});
+test('migration validates column types and the exact enabled INSERT balance trigger before creating anything', () => {
+ const sql = read(MIGRATION).replace(/--.*$/gm, '');
+ const guard = sql.slice(sql.indexOf('$phase2a3b2a_guard$'), sql.lastIndexOf('$phase2a3b2a_guard$'));
+ assert.match(guard, /column_name = 'amount'[\s\S]+NOT IN \('smallint', 'integer', 'bigint', 'numeric'\)/);
+ assert.match(guard, /column_name = 'dream_token_balance'[\s\S]+NOT IN \('smallint', 'integer', 'bigint', 'numeric'\)/);
+ assert.match(guard, /tgenabled IN \('O', 'A'\)/);
+ assert.match(guard, /\(t\.tgtype & 4\) <> 0/);
+ assert.match(guard, /p\.proname = 'update_profile_dream_token_balance'/);
+ assert.match(guard, /v_trigger_count <> 1/);
+ assert.match(guard, /relforcerowsecurity[\s\S]+pg_has_role\(current_user, c\.relowner, 'USAGE'\)[\s\S]+rolbypassrls/);
+ assert.ok(sql.indexOf('$phase2a3b2a_guard$') < sql.indexOf('CREATE TABLE'), 'guard runs first');
+});
+test('function enforces capacity after idempotency, writes ledger and audit atomically, and returns text balances', () => {
+ const sql = read(MIGRATION).replace(/--.*$/gm, '');
+ const fn = sql.slice(sql.indexOf('CREATE FUNCTION public.admin_adjust_dream_tokens'), sql.indexOf('$fn$;'));
+ assert.match(fn, /RETURNS TABLE \(duplicate boolean, ledger_transaction_id text, new_balance text\)/);
+ assert.match(fn, /information_schema\.columns[\s\S]+'dream_token_transactions'[\s\S]+column_name = 'amount'/);
+ assert.match(fn, /information_schema\.columns[\s\S]+'profiles'[\s\S]+column_name = 'dream_token_balance'/);
+ assert.equal((fn.match(/ERRCODE = '22003'/g) || []).length, 2);
+ const lock = fn.indexOf('FOR UPDATE');
+ const duplicateCheck = fn.indexOf('WHERE a.request_id = p_request_id');
+ const capacity = fn.indexOf("ERRCODE = '22003'");
+ const ledgerInsert = fn.indexOf('INSERT INTO public.dream_token_transactions');
+ const auditInsert = fn.indexOf('INSERT INTO public.admin_dream_token_adjustments');
+ assert.ok(lock > 0 && lock < duplicateCheck && duplicateCheck < capacity && capacity < ledgerInsert && ledgerInsert < auditInsert);
+ assert.match(fn.slice(auditInsert), /ON CONFLICT \(request_id\) DO NOTHING[\s\S]+v_claimed = 0[\s\S]+IDEMPOTENCY_KEY_REUSED/);
+ assert.match(sql, /ledger_transaction_id text NOT NULL/);
+ assert.ok(!/\bCOMMIT\b|\bROLLBACK\b|EXCEPTION\s+WHEN/i.test(fn), 'no partial commit or swallowed errors inside the function');
 });
 test('preflight and postflight scripts are read only', () => {
  for (const f of ['sql/phase-2a3b2a-01-readonly-preflight.sql', 'sql/phase-2a3b2a-03-readonly-postflight.sql']) {

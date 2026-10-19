@@ -11,6 +11,7 @@ import type { Phase4BMethodFamilyId } from '../../../math-intelligence/teaching/
 import { selectTeachingStrategy, type MethodCandidateEvidence } from './selector';
 import { differentiateCloselyRelatedMethods, topTwoEligibleMethodIds, type MethodDifferentiation } from './phase4E2B8C2BMethodDifferentiation';
 import { auditTopTwoCurriculumSkillDeclarations, type Phase8C2CSkillAudit } from './phase4E2B8C2CSkillAudit';
+import { assessRankingEvidence, type RankingEvidenceReview } from './phase4E2B8C2C2RankingEvidence';
 import { composeTeachingMethods, type MethodComposition } from './composition';
 import type { StrategySelection, SelectionInputBoundary, ScoreDimension } from './types';
 import {validateReviewedStructureEvidence, type ReviewedStructureEvidence, type B2EvidenceTrace} from './reviewedStructureEvidence';
@@ -59,6 +60,8 @@ export type Phase4C4AdapterResult = {
   methodDifferentiation?: MethodDifferentiation;
   /** 8C-2C.1 shadow-only: identifies absent authored curriculum skill metadata. */
   curriculumSkillAudit?: Phase8C2CSkillAudit;
+  /** 8C-2C.2 staff-only structural evidence, not automatic ranking authority. */
+  rankingEvidenceReview?: RankingEvidenceReview;
 };
 const dims: readonly ScoreDimension[] = ['problem_structure','required_reasoning','curriculum_skill','learner_level','math_domain','representation_fit','prerequisites'];
 const zero = (method: TeachingMethod, domain: ScoreDimension, detail: string) => ({dimension:domain,code:'4B_METADATA_CHECK',detail:`${method.methodId}: ${detail}`});
@@ -217,13 +220,26 @@ export function selectFromPhase4A4B(input:Phase4C4AdapterInput):Phase4C4AdapterR
           c.contract.curriculum.legacySkillLabel],
       })
     : undefined;
+  const rankingEvidenceReview = selected.status === 'ambiguous' && !validatedReview
+    ? assessRankingEvidence({
+        learnerLevel: requirement.learnerLevel,
+        domain: c.contract.mathematics.domain,
+        problemStructure: c.contract.mathematics.problemStructure,
+        prompt: c.contract.content.prompt,
+        hasVisual: c.contract.visual.hasVisual,
+        hasParts: c.contract.multipart.hasParts,
+        topTwoMethodIds: topTwoEligibleMethodIds(selected.candidates),
+      })
+    : undefined;
+  const rankingTrace = rankingEvidenceReview && rankingEvidenceReview.status !== 'not_applicable'
+    ? {rankingEvidenceReview} : {};
   const skillAuditTrace = curriculumSkillAudit && curriculumSkillAudit.status !== 'not_applicable'
     ? {curriculumSkillAudit} : {};
   const diagnosticTrace = methodDifferentiation && methodDifferentiation.status !== 'not_applicable'
     ? {methodDifferentiation} : {};
   if (selected.status!=='selected') return {schemaVersion:PHASE4C4_ADAPTER_VERSION,status:'ambiguous',
     reasonCodes:['SINGLE_FAMILY_SELECTION_AMBIGUOUS'],primaryFamilies:families,candidateMethodCount:candidates.length,
-    familySelections:selections,selection:selected,composition:null,...reviewTrace,...diagnosticTrace,...skillAuditTrace};
+    familySelections:selections,selection:selected,composition:null,...reviewTrace,...diagnosticTrace,...skillAuditTrace,...rankingTrace};
   // No learner-specific support necessity evidence is provided by the 4B source. Empty support is intentional.
   const composition=composeTeachingMethods({selection:selected,supportCandidates:[]});
   if (composition.status!=='primary_only') return fail('COMPOSITION_NOT_VALID',families,candidates.length,selections);

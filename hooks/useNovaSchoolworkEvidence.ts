@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export type NovaSchoolworkSkillEvidence = {
@@ -51,44 +51,75 @@ const EMPTY: NovaSchoolworkEvidencePayload = {
   recent_uploads: [],
 };
 
+type SettledEvidence = {
+  learnerId: string | null;
+  payload: NovaSchoolworkEvidencePayload;
+  error: string;
+};
+
 export function useNovaSchoolworkEvidence(
   learnerId: string | null | undefined,
 ) {
-  const [data, setData] =
-    useState<NovaSchoolworkEvidencePayload>(EMPTY);
-  const [loading, setLoading] = useState(false);
+  const currentLearnerId = learnerId || null;
 
-  useEffect(() => {
-    let cancelled = false;
+  // Results are tagged with the learner they belong to, so a learner switch
+  // hides the previous learner's summary on the very next render.
+  const [settled, setSettled] = useState<SettledEvidence>({
+    learnerId: null,
+    payload: EMPTY,
+    error: "",
+  });
+  const [inFlightFor, setInFlightFor] = useState<string | null>(null);
 
-    if (!learnerId) {
-      setData(EMPTY);
-      return;
-    }
+  // Newest request wins; responses for another learner are discarded.
+  const requestIdRef = useRef(0);
+  const learnerRef = useRef<string | null>(currentLearnerId);
 
-    async function load() {
-      setLoading(true);
+  const load = useCallback(async (targetLearnerId: string) => {
+    const requestId = ++requestIdRef.current;
+    const isCurrent = () =>
+      requestIdRef.current === requestId &&
+      learnerRef.current === targetLearnerId;
 
+    let failed = false;
+    let failure = "";
+
+    try {
       const [summaryResult, statusResult] = await Promise.all([
         supabase.rpc(
           "get_nova_schoolwork_evidence_summary",
           {
-            p_student_user_id: learnerId,
+            p_student_user_id: targetLearnerId,
           },
         ),
 
         supabase
           .from("nova_schoolwork_uploads")
           .select("status")
-          .eq("student_user_id", learnerId),
+          .eq("student_user_id", targetLearnerId),
       ]);
 
-      if (cancelled) return;
+      if (!isCurrent()) return;
 
-      if (!summaryResult.error && summaryResult.data) {
-        const payload =
-          summaryResult.data as NovaSchoolworkEvidencePayload;
+      const payload = summaryResult.data as
+        | NovaSchoolworkEvidencePayload
+        | null;
 
+      // Either query failing is an overall failure: a failed status lookup
+      // must not be reported as a verified zero awaiting review.
+      if (summaryResult.error || statusResult.error) {
+        failed = true;
+        failure =
+          summaryResult.error?.message ||
+          statusResult.error?.message ||
+          "";
+      } else if (
+        !payload ||
+        (payload.student_user_id &&
+          payload.student_user_id !== targetLearnerId)
+      ) {
+        failed = true;
+      } else {
         const statuses =
           statusResult.data ?? [];
 
@@ -98,21 +129,72 @@ export function useNovaSchoolworkEvidence(
           ),
         ).length;
 
-        setData({
-          ...payload,
-          awaiting_review: actionable,
+        setSettled({
+          learnerId: targetLearnerId,
+          payload: {
+            ...payload,
+            awaiting_review: actionable,
+          },
+          error: "",
         });
       }
-
-      setLoading(false);
+    } catch (caught) {
+      if (!isCurrent()) return;
+      failed = true;
+      failure =
+        caught instanceof Error ? caught.message : "";
     }
 
-    void load();
+    if (failed) {
+      // Keep this learner's last good summary (if any) and report the failure.
+      setSettled((current) => ({
+        learnerId: targetLearnerId,
+        payload:
+          current.learnerId === targetLearnerId
+            ? current.payload
+            : EMPTY,
+        error:
+          failure ||
+          "Schoolwork evidence could not be loaded.",
+      }));
+    }
+
+    setInFlightFor(null);
+  }, []);
+
+  useEffect(() => {
+    learnerRef.current = currentLearnerId;
+
+    async function run() {
+      if (currentLearnerId) await load(currentLearnerId);
+    }
+
+    void run();
 
     return () => {
-      cancelled = true;
+      // Invalidate any request still in flight for the previous learner.
+      requestIdRef.current += 1;
     };
-  }, [learnerId]);
+  }, [currentLearnerId, load]);
+
+  // The first load for a learner reports loading via the learner tag below;
+  // an explicit refresh of an already-settled learner is tracked here.
+  const refresh = useCallback(async () => {
+    const target = learnerRef.current;
+    if (!target) return;
+    setInFlightFor(target);
+    await load(target);
+  }, [load]);
+
+  const isSettledForLearner =
+    Boolean(currentLearnerId) &&
+    settled.learnerId === currentLearnerId;
+
+  const data = isSettledForLearner ? settled.payload : EMPTY;
+  const error = isSettledForLearner ? settled.error : "";
+  const loading =
+    Boolean(currentLearnerId) &&
+    (inFlightFor === currentLearnerId || !isSettledForLearner);
 
   const bySkillId = useMemo(
     () =>
@@ -141,5 +223,7 @@ export function useNovaSchoolworkEvidence(
     bySkillId,
     bySkillCode,
     loading,
+    error,
+    refresh,
   };
 }

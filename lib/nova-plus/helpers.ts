@@ -31,6 +31,25 @@ export function subjectState(
   return "attention";
 }
 
+/**
+ * Display-only: the weakest tracked subject that is not already strong.
+ * Returns null when every subject with enough evidence is strong, so the UI
+ * never labels a strong subject as needing attention.
+ */
+export function attentionSubject(
+  rows: Array<ProfileSubjectSummary | null | undefined>,
+): ProfileSubjectSummary | null {
+  return (
+    rows
+      .filter(
+        (row): row is ProfileSubjectSummary =>
+          subjectState(row) === "developing" || subjectState(row) === "attention",
+      )
+      .sort((a, b) => safeNumber(a.mastery_score) - safeNumber(b.mastery_score))[0] ??
+    null
+  );
+}
+
 export function subjectStateLabel(state: SubjectState) {
   switch (state) {
     case "strong":
