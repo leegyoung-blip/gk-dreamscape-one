@@ -26,7 +26,7 @@ const uuid = (n) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(n).padStart(12, '0')}`;
    (admin re-check, target lock, idempotency before capacity, column-capacity checks,
    balances returned as text) and the ledger insert mirrors the balance trigger. */
 const CAPACITY = {smallint:32767n, integer:2147483647n, bigint:9223372036854775807n, numeric:null};
-function makeBackend({rpcMissing = false, rpcData, amountType = 'integer', balanceType = 'bigint'} = {}) {
+function makeBackend({rpcMissing = false, rpcData, rpcError, amountType = 'integer', balanceType = 'bigint'} = {}) {
  const profiles = {
   [ID.admin]: {id:ID.admin, role:' Admin ', dream_token_balance:1000000},
   [ID.student]: {id:ID.student, role:'student', dream_token_balance:120},
@@ -49,6 +49,7 @@ function makeBackend({rpcMissing = false, rpcData, amountType = 'integer', balan
    if (name !== 'admin_adjust_dream_tokens') throw new Error(`unexpected rpc ${name}`);
    if (rpcMissing) return {data:null, error:{code:'PGRST202', message:'Could not find the function'}};
    if (rpcData !== undefined) return {data:rpcData, error:null};
+   if (rpcError) return {data:null, error:rpcError};
    if (TITLES[a.p_action] !== a.p_title) return {data:null, error:{code:'22023'}};
    if (String(profiles[a.p_admin_user_id]?.role || '').trim().toLowerCase() !== 'admin') return {data:null, error:{code:'42501'}};
    const target = profiles[a.p_target_user_id];
@@ -329,4 +330,62 @@ test('preflight and postflight scripts are read only', () => {
   const sql = read(f).replace(/--.*$/gm, '').replace(/'[^']*'/g, "''");
   assert.ok(!/\b(create|alter|drop|insert|update|delete|grant|revoke|truncate)\b/i.test(sql), f);
  }
+});
+
+/* ---------------- Revision 3: lock order, Milo Bank guard, rehearsal ---------------- */
+
+const REHEARSAL = 'sql/phase-2a3b2a-05-rollback-only-rehearsal.sql';
+const migrationBody = (sql) => sql.slice(sql.indexOf('\nBEGIN;\n') + '\nBEGIN;\n'.length, sql.lastIndexOf('\nCOMMIT;') + 1);
+
+test('function takes the Milo Bank per-user advisory lock before the profile row lock, for every adjustment', () => {
+ const sql = read(MIGRATION).replace(/--.*$/gm, '');
+ const fn = sql.slice(sql.indexOf('CREATE FUNCTION public.admin_adjust_dream_tokens'), sql.indexOf('$fn$;'));
+ const lockCall = 'PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(p_target_user_id::text));';
+ assert.equal(fn.split(lockCall).length - 1, 1, 'exactly one advisory lock, same key expression as the guard trigger');
+ const advisory = fn.indexOf(lockCall);
+ const rowLock = fn.indexOf('FOR UPDATE');
+ const firstWrite = fn.indexOf('INSERT INTO public.dream_token_transactions');
+ assert.ok(advisory > 0 && advisory < rowLock && rowLock < firstWrite, 'advisory lock -> profile row lock -> ledger insert');
+ const beforeLock = fn.slice(0, advisory);
+ assert.equal((beforeLock.match(/\bIF\b/g) || []).length, (beforeLock.match(/\bEND IF\b/g) || []).length * 2, 'lock is not inside a conditional block');
+ assert.ok(!/pg_advisory_lock\(|pg_try_advisory/i.test(fn), 'transaction-scoped, blocking lock only');
+});
+test('migration never bypasses existing ledger triggers or Milo Bank reserved-balance protection', () => {
+ const sql = read(MIGRATION).replace(/--.*$/gm, '');
+ assert.ok(!/session_replication_role|DISABLE\s+TRIGGER|ALTER\s+TABLE\s+public\.dream_token_transactions|DROP\s+TRIGGER/i.test(sql));
+ assert.ok(!/milo_bank/i.test(sql), 'does not touch Milo Bank objects');
+ assert.ok(!/EXCEPTION\s+WHEN/i.test(sql.slice(sql.indexOf('CREATE FUNCTION'))), 'guard-trigger errors propagate and roll back');
+});
+test('transient lock conflicts are reported as retry-safe 503 with nothing applied', async () => {
+ for (const code of ['40P01', '40001', '55P03']) {
+  const t = setup({rpcError:{code, message:'deadlock detected'}});
+  const res = await t.call(body());
+  assert.equal(res.status, 503, code);
+  assert.notEqual(res.body.success, true);
+ }
+});
+test('rehearsal embeds the migration body byte-for-byte and can only roll back', () => {
+ const migration = read(MIGRATION);
+ const rehearsal = read(REHEARSAL);
+ const start = rehearsal.indexOf('-- >>> BEGIN EMBEDDED MIGRATION');
+ const end = rehearsal.indexOf('-- <<< END EMBEDDED MIGRATION');
+ const embedded = rehearsal.slice(rehearsal.indexOf('\n', start) + 1, end);
+ assert.equal(embedded, migrationBody(migration), 'embedded block must equal 02 between BEGIN; and COMMIT;');
+ const statements = rehearsal.replace(/--.*$/gm, '');
+ assert.equal((statements.match(/^BEGIN;$/gm) || []).length, 1);
+ assert.equal((statements.match(/^ROLLBACK;$/gm) || []).length, 1);
+ assert.ok(!/\bCOMMIT\b/i.test(statements.replace(/ON COMMIT DROP/g, '')), 'no COMMIT statement anywhere');
+ assert.ok(statements.indexOf('ROLLBACK;') > statements.indexOf('SELECT step, check_name, passed, detail FROM rehearsal_results'));
+ assert.ok(!/\bSAVEPOINT\b|\bRELEASE\b|dblink|pg_background/i.test(statements), 'no out-of-transaction side channels');
+});
+test('rehearsal covers the lock key, idempotency, debit through the guard, capacity and role refusal', () => {
+ const r = read(REHEARSAL);
+ for (const needle of [
+  "l.locktype = 'advisory'", "pg_catalog.hashtext(v_admin::text)", "'IDEMPOTENCY_KEY_REUSED'",
+  "'Admin Manual Deduct', 'manual_deduct'", "'%ledger amount capacity%'", "'%profile balance capacity%'",
+  "SET LOCAL ROLE authenticated", "'permission denied for function%'", "milo_bank_guard_locked_dt_spend",
+  "v_drift = v_drift0",
+ ]) assert.ok(r.includes(needle), needle);
+ const post = r.slice(r.lastIndexOf('ROLLBACK;')).replace(/--.*$/gm, '').replace(/'[^']*'/g, "''");
+ assert.ok(!/\b(create|alter|drop|insert|update|delete|grant|revoke|truncate|perform)\b/i.test(post), 'post-rollback checks are read only');
 });

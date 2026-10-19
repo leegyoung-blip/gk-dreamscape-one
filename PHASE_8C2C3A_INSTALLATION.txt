@@ -1,0 +1,49 @@
+DREAMSCAPE ONE — Phase 4E-2B-8C-2C.3A
+SPECIALIST METHOD DRAFTS — NO PRODUCTION SELECTION CHANGE
+
+INSTALLATION CONTENTS (relative to repository root):
+  NEW  lib/math-intelligence/teaching/method-library/methods/phase4E2B8C2C3ASpecialistDrafts.ts
+  NEW  tests/phase4e2b8c2c3a-specialist-drafts.test.cjs
+  INFO PHASE_8C2C3A_INSTALLATION.txt
+
+IMPORTANT
+- These three methods have status 'draft'.
+- phase4BProductionLibrary.ts is deliberately NOT modified.
+- No route, score, candidate eligibility, curriculum-skill score, RLS policy,
+  Supabase table, stored answer, or learner-facing teaching is changed.
+- This phase will NOT introduce new codes into the 12-question coverage CSV.
+  Do not interpret an unchanged CSV as an installation failure.
+- Do not activate or register these definitions without Phase 8C-2C.3B-D validation.
+
+METHOD IDs:
+  heuristic.multi_step.equal_spacing_interval_count
+  heuristic.multi_step.multiplicative_comparison_chain
+  ratio.relationship.before_after_change
+
+INSTALL (PowerShell in VS Code):
+  Set-Location 'C:\Users\leegy\gk-design-world'
+  $zip = Join-Path $env:USERPROFILE 'Downloads\DREAMSCAPE_4E2B_8C2C3A_SPECIALIST_DRAFTS_INSTALL.zip'
+  Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+  node --test tests/phase4e2b8c2c3a-specialist-drafts.test.cjs
+  npx tsc --noEmit
+  git -c core.pager=cat diff --check
+  git status --short
+
+ONLY IF ALL LOCAL CHECKS PASS (watch for pre-existing repo errors):
+  $env:GIT_PAGER = 'cat'
+  git add lib/math-intelligence/teaching/method-library/methods/phase4E2B8C2C3ASpecialistDrafts.ts
+  git add tests/phase4e2b8c2c3a-specialist-drafts.test.cjs
+  git -c core.pager=cat diff --cached --stat
+  git -c core.pager=cat diff --cached --check
+  git commit -m 'Phase 8C-2C3A add inactive specialist teaching method drafts'
+  git push
+
+LOCAL PACKAGING VERIFICATION
+- 65/65 focused tests passed in a reconstructed partial source tree.
+- The partial source tree has missing application dependencies; its full
+  tsc run cannot establish project-wide TypeScript cleanliness.
+- There were no TypeScript diagnostic lines for the new draft source file.
+- The full repository TypeScript check above is therefore REQUIRED.
+
+NEXT: Phase 8C-2C.3B, validating eligibility and applicability with positive
+and negative evidence, while keeping methods inactive until 8C-2C.3C/D.

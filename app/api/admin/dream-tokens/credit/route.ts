@@ -112,6 +112,14 @@ function mapAdjustmentError(error: { code?: string; message?: string }) {
         "Dream Token adjustments are unavailable until the Phase 2A-3B-2A database migration is applied.",
     };
   }
+  if (code === "40P01" || code === "40001" || code === "55P03") {
+    // Transient lock conflict: the transaction rolled back, so nothing was applied.
+    // The page keeps the same request id on 5xx, so a retry stays idempotent.
+    return {
+      status: 503,
+      error: "Dream Tokens are busy for this account. Please try again.",
+    };
+  }
   if (code === "42501") return { status: 403, error: "Admin access only." };
   if (code === "P0002") return { status: 404, error: "Target account not found." };
   if (message.includes("IDEMPOTENCY_KEY_REUSED")) {

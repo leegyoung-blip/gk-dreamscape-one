@@ -1,0 +1,264 @@
+{
+  "generated_by": "tests/nova-plus-phase2b1-decision-audit.test.cjs",
+  "results": [
+    {
+      "id": "S01",
+      "observed": {
+        "subjectState": "unknown",
+        "milestone": "Building Picture",
+        "attention": null
+      }
+    },
+    {
+      "id": "S02",
+      "observed": {
+        "purposeState": "building",
+        "label": "Building",
+        "meaning": "This skill is developing. Progress is happening, but it is not secure yet."
+      }
+    },
+    {
+      "id": "S03",
+      "observed": {
+        "statusLabel": "Needs Attention",
+        "inAttentionList": true
+      }
+    },
+    {
+      "id": "S04",
+      "observed": {
+        "parentStrongest": {
+          "subject": "english",
+          "mastery": 100
+        },
+        "myLearningStateForThatSubject": "unknown"
+      }
+    },
+    {
+      "id": "S05",
+      "observed": {
+        "strengthsGaps": "Secure concept",
+        "masteryMap": "Secure",
+        "progress": "Strong",
+        "parentReport": "Strength"
+      }
+    },
+    {
+      "id": "S06",
+      "observed": {
+        "state": "strong",
+        "milestone": "Milestone 6 · Strong",
+        "attention": null
+      }
+    },
+    {
+      "id": "S07",
+      "observed": {
+        "strengthsGaps": "Confirmed gap / Needs attention",
+        "masteryMap": "Needs Practice",
+        "progress": "Needs Attention",
+        "parentReport": "Confirmed support"
+      }
+    },
+    {
+      "id": "S08",
+      "observed": {
+        "state": "attention",
+        "milestone": "Milestone 2 · Building",
+        "attentionSubject": "math"
+      }
+    },
+    {
+      "id": "S09",
+      "observed": {
+        "progressConceptsStrengthened": 1,
+        "parentImproved": 1,
+        "strengthsGapsRecentlyImproved": 0
+      }
+    },
+    {
+      "id": "S11",
+      "observed": {
+        "expression": "skill.trend === \"improving\" ? \"Improving\" : \"Stable\"",
+        "declining": "Stable",
+        "no_data": "Stable",
+        "improving": "Improving"
+      }
+    },
+    {
+      "id": "S12",
+      "observed": {
+        "order": [
+          "d",
+          "w"
+        ]
+      }
+    },
+    {
+      "id": "S13",
+      "observed": {
+        "strengthsGaps": "Still building",
+        "masteryMap": "Building",
+        "progress": "Needs Attention",
+        "parentReport": "(not shown)"
+      }
+    },
+    {
+      "id": "S14",
+      "observed": {
+        "strengthsGaps": "Still building",
+        "masteryMap": "Building",
+        "progress": "Needs Attention",
+        "parentReport": "Building evidence"
+      }
+    },
+    {
+      "id": "S16",
+      "observed": {
+        "teacherCorrect": 0.8,
+        "teacherIncorrect": 0.8,
+        "teacherPartial": 0.6,
+        "teacherLowConfidence": 0.5,
+        "modelHighConfidence": 0.5,
+        "modelBelowThreshold": 0,
+        "uncertain": 0,
+        "mapping071": 0,
+        "mapping072": 0.5
+      }
+    },
+    {
+      "id": "S17",
+      "observed": {
+        "uiLabel": "Teacher evidence · 0.80",
+        "serverProposedWeight": 0.5
+      }
+    },
+    {
+      "id": "S18",
+      "observed": {
+        "clientDefaultDecision": "include",
+        "storedNeedsReviewRuleUses078": true,
+        "responseSendsRawModelNeedsReview": true
+      }
+    },
+    {
+      "id": "S19",
+      "observed": {
+        "missionAvailableGate": true,
+        "unavailableCopy": true
+      }
+    },
+    {
+      "id": "S21",
+      "observed": {
+        "chosenLane": "stretch",
+        "chosenSkill": "k"
+      }
+    },
+    {
+      "id": "S22",
+      "observed": {
+        "s1": "strong",
+        "s2": "strong",
+        "s3": "strong",
+        "g": "attention"
+      }
+    },
+    {
+      "id": "S23",
+      "observed": {
+        "attentionSubject": null
+      }
+    },
+    {
+      "id": "S25",
+      "observed": {
+        "inWindow": 0,
+        "strengths": [
+          "old"
+        ]
+      }
+    },
+    {
+      "id": "S26",
+      "observed": {
+        "baselineAgeDays": 2
+      }
+    },
+    {
+      "id": "S27",
+      "observed": {
+        "kept": [
+          "a2"
+        ]
+      }
+    },
+    {
+      "id": "S28",
+      "observed": {
+        "order": [
+          "gapR",
+          "gap",
+          "emg",
+          "obs"
+        ]
+      }
+    },
+    {
+      "id": "S29",
+      "observed": {
+        "q4": "unknown",
+        "q5": "strong",
+        "m85": "strong",
+        "m8499": "developing",
+        "m70": "developing",
+        "m6999": "attention",
+        "milestone78": 5,
+        "milestone7799": 4,
+        "milestone55": 3,
+        "milestone40": 2,
+        "milestone3999": 1
+      }
+    },
+    {
+      "id": "S30",
+      "observed": {
+        "repeated": {
+          "q6a1w2c35": true,
+          "q5": false,
+          "c3499": false
+        },
+        "boundarySkill": {
+          "strengthsGaps": "Still building",
+          "masteryMap": "Building",
+          "progress": "Needs Attention",
+          "parentReport": "Confirmed support"
+        }
+      }
+    },
+    {
+      "id": "S31",
+      "observed": {
+        "group": "strong",
+        "label": "Secure",
+        "meaning": "Nova has enough evidence to show that this skill is secure right now."
+      }
+    },
+    {
+      "id": "S32",
+      "observed": {
+        "strengthsGaps": "Secure concept",
+        "masteryMap": "Secure",
+        "progress": "Strong",
+        "parentReport": "(not shown)"
+      }
+    },
+    {
+      "id": "S33",
+      "observed": {
+        "headline": "Observed once",
+        "explanation": "This has been seen once, so Nova treats it as an observation rather than a confirmed gap."
+      }
+    }
+  ]
+}

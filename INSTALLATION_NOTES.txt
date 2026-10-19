@@ -1,30 +1,26 @@
-DREAMSCAPE ONE — Phase 4E-2B-8C-2C.1 STAFF PREVIEW TYPE GUARD HOTFIX
+DREAMSCAPE ONE — Phase 4E-2B-8C-2C.3B ES2017 BigInt compatibility hotfix
 
-Affected source:
-  lib/math/teaching/student-serving/phase4E2B1StaffMethodPreview.server.ts
-Regression test:
-  tests/phase4e2b8c2c1-skill-evidence-audit.test.cjs
+Only repository file changed:
+lib/math-intelligence/teaching/method-library/methods/phase4E2B8C2C3BApplicabilityReview.ts
 
-Root cause:
-  Set.has(skill.status) cannot narrow the status type to exclude
-  'not_applicable', so the returned object did not satisfy the staff UI's
-  status union. The compiler flagged the return in publicScoreComparison.
+Cause: 15 TS2737 errors because project tsconfig targets ES2017. BigInt
+literals such as 0n and 1n require ES2020 compiler target.
 
-Change:
-  Use explicit literal checks of the four staff-approved statuses. Keep
-  'not_applicable' hidden; preserve score/ranking logic and staff authorisation.
-  Update the test that previously required the name 'allowedStatuses'.
+Fix: retain exact bigint arithmetic but use BigInt(0), BigInt(1) constants.
+No tsconfig changes, selector changes, database changes, live approvals,
+or learner release changes.
 
-VERIFICATION:
-  37/37 focused local tests passed on available source snapshot.
-  Strict TypeScript check passed for the affected publicScoreComparison function
-  using a standalone type fixture with the actual function extracted.
-  Full repository npx tsc --noEmit MUST be run locally.
+Locally verified:
+- 77/77 focused specialist tests passed (3A/3B/3C).
+- Standalone module compiled strictly with target ES2017 and lib esnext.
+- Full repository TypeScript check must be run in the real repository.
 
-INSTALL (execute from repo root with downloaded ZIP):
-  Expand-Archive -LiteralPath "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2C1_TYPE_GUARD_HOTFIX.zip" -DestinationPath (Get-Location).Path -Force
-  node --test tests/phase4e2b8c2c1-skill-evidence-audit.test.cjs tests/phase4e2b8c2b-method-differentiation.test.cjs tests/phase4e2b1-staff-method-preview.test.cjs
-  npx tsc --noEmit
-  git diff --check
+Install into repository root, then run:
+node --test tests/phase4e2b8c2c3a-specialist-drafts.test.cjs tests/phase4e2b8c2c3b-applicability-review.test.cjs tests/phase4e2b8c2c3c-shadow-ranking-comparison.test.cjs
+npx tsc --noEmit
+git diff --check
+git --no-pager status --short
 
-No database migrations, SQL, or environment changes required.
+Stage ONLY this patched source and the TWO new Phase 3C files when
+all tests and TypeScript pass. Do not stage unrelated Nova+, SQL,
+Dream Tokens, or local audit files.

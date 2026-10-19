@@ -1,0 +1,47 @@
+DREAMSCAPE ONE — Phase 4E-2B-8C-2C.3C
+Specialist Shadow Ranking Comparison — staff/offline only
+
+ADDITIVE SOURCE FILES (do not modify production files):
+  lib/math-intelligence/teaching/method-library/methods/phase4E2B8C2C3CShadowRankingComparison.ts
+  tests/phase4e2b8c2c3c-shadow-ranking-comparison.test.cjs
+
+PREREQUISITES:
+  Previous Phase 8C-2C.3A draft definitions and 8C-2C.3B applicability validation installed.
+  DO NOT integrate this module into a learner API or live selector.
+
+INSTALL:
+  Download this ZIP into your Windows Downloads directory.
+  In VS Code PowerShell, navigate to C:\Users\leegy\gk-design-world.
+  Expand-Archive -LiteralPath "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2C3C_SHADOW_RANKING_COMPARISON_INSTALL.zip" -DestinationPath (Get-Location).Path -Force
+
+VERIFY:
+  node --test tests/phase4e2b8c2c3c-shadow-ranking-comparison.test.cjs tests/phase4e2b8c2c3b-applicability-review.test.cjs tests/phase4e2b8c2c3a-specialist-drafts.test.cjs
+  npx tsc --noEmit
+  git diff --check
+  git --no-pager status --short
+
+COMMIT ONLY AFTER VERIFICATION:
+  git add lib/math-intelligence/teaching/method-library/methods/phase4E2B8C2C3CShadowRankingComparison.ts
+  git add tests/phase4e2b8c2c3c-shadow-ranking-comparison.test.cjs
+  git --no-pager diff --cached --name-only
+  git --no-pager diff --cached --check
+  git commit -m "Phase 8C-2C3C add shadow specialist ranking comparison"
+  git push
+
+FUNCTIONAL LIMITS:
+- Verified specialist structure gets a comparable staff REVIEW RECORD only, not a 4C score.
+- The report pairs it with actual known active 4B candidates from a validated 4C snapshot.
+- Every specialistScore, specialistRank and scoreDelta is NULL.
+- A 'ready_for_staff_comparison' result is NOT teaching approval, method eligibility, or learner access.
+- Source code does not register new draft methods, grant curriculum points, write to DB, or change production ranking.
+- This pure module does NOT authenticate incoming reviewer facts. Any later staff-route integration must independently gate 4A/4B evidence, caller permissions, and provenance.
+- Full repository TypeScript check is required locally. Only isolated strict type checking is validated in this package environment.
+- No Supabase SQL required. The prior 12-row candidate-coverage export should be UNCHANGED in this phase.
+
+LOCAL TESTING:
+  132/132 focused tests passed on the supplied source snapshot.
+  Isolated strict TypeScript compile passed with a type-only production-catalogue stub.
+
+NEXT:
+  Phase 8C-2C.3D: staff evidence provenance, pedagogical adjudication,
+  broader regression and governance before considering any active candidate registration.

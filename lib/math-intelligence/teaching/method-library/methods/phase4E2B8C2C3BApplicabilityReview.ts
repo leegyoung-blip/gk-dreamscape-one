@@ -98,14 +98,19 @@ const finitePositive = (value: unknown): value is number =>
 const validIds = (values: unknown): values is readonly string[] =>
   Array.isArray(values) && values.every(x => typeof x === 'string' && /^[a-z][a-z0-9_]{0,23}$/i.test(x));
 
+// Keep exact BigInt arithmetic while supporting this repository's ES2017 TS target.
+// BigInt literal syntax (e.g. zero/one with the n suffix) requires an ES2020 compilation target;
+// constructor calls are valid under ES2017 with the existing esnext library.
+const BIGINT_ZERO = BigInt(0);
+const BIGINT_ONE = BigInt(1);
 type Fraction = Readonly<{ n: bigint; d: bigint }>;
-const abs = (n: bigint): bigint => n < 0n ? -n : n;
+const abs = (n: bigint): bigint => n < BIGINT_ZERO ? -n : n;
 function gcd(a: bigint, b: bigint): bigint {
-  while (b !== 0n) [a, b] = [b, a % b];
-  return a === 0n ? 1n : abs(a);
+  while (b !== BIGINT_ZERO) [a, b] = [b, a % b];
+  return a === BIGINT_ZERO ? BIGINT_ONE : abs(a);
 }
 function frac(n: bigint, d: bigint): Fraction {
-  if (d < 0n) { n = -n; d = -d; }
+  if (d < BIGINT_ZERO) { n = -n; d = -d; }
   const g = gcd(abs(n), d);
   return {n:n/g, d:d/g};
 }
@@ -147,7 +152,7 @@ function reviewComparison(facts: Extract<SpecialistFact, {kind:'multiplicative_c
     edges.get(edge.quantity)!.push({target:edge.relativeTo, factor:frac(f.d,f.n)});
   }
   const first = facts.quantityKeys[0];
-  const values = new Map<string, Fraction>([[first, {n:1n,d:1n}]]);
+  const values = new Map<string, Fraction>([[first, {n:BIGINT_ONE,d:BIGINT_ONE}]]);
   const queue: string[] = [first];
   while (queue.length) {
     const current = queue.shift()!;
@@ -186,12 +191,12 @@ function reviewChangingRatio(facts: Extract<SpecialistFact, {kind:'ratio_before_
   const [deltaA,deltaB] = facts.changes.map(x => BigInt(x!));
   const denominator = d*a - c*b;
   const numerator = c*deltaB - d*deltaA;
-  if (denominator === 0n) return result('excluded', 'SPECIALIST_8C2C3B_NONUNIQUE_OR_CONTRADICTORY_RATIO', id);
+  if (denominator === BIGINT_ZERO) return result('excluded', 'SPECIALIST_8C2C3B_NONUNIQUE_OR_CONTRADICTORY_RATIO', id);
   const x = frac(numerator, denominator);
-  if (x.n <= 0n || (a*x.n + deltaA*x.d) <= 0n || (b*x.n + deltaB*x.d) <= 0n)
+  if (x.n <= BIGINT_ZERO || (a*x.n + deltaA*x.d) <= BIGINT_ZERO || (b*x.n + deltaB*x.d) <= BIGINT_ZERO)
     return result('excluded', 'SPECIALIST_8C2C3B_NONPOSITIVE_QUANTITIES', id);
-  if (facts.quantityType === 'whole_objects' && ((a*x.n) % x.d !== 0n || (b*x.n) % x.d !== 0n ||
-      (a*x.n + deltaA*x.d) % x.d !== 0n || (b*x.n + deltaB*x.d) % x.d !== 0n))
+  if (facts.quantityType === 'whole_objects' && ((a*x.n) % x.d !== BIGINT_ZERO || (b*x.n) % x.d !== BIGINT_ZERO ||
+      (a*x.n + deltaA*x.d) % x.d !== BIGINT_ZERO || (b*x.n + deltaB*x.d) % x.d !== BIGINT_ZERO))
     return result('excluded', 'SPECIALIST_8C2C3B_FRACTIONAL_OBJECT_COUNT', id);
   return result('compatible_for_review', 'SPECIALIST_8C2C3B_CHANGING_RATIO_STRUCTURE_SUPPORTED', id);
 }

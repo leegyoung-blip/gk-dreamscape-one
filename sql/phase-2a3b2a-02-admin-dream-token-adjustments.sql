@@ -1,4 +1,7 @@
--- DREAMSCAPE Phase 2A-3B-2A: Secure admin Dream Token adjustments (revision 2).
+-- DREAMSCAPE Phase 2A-3B-2A: Secure admin Dream Token adjustments (revision 3).
+-- Revision 3: takes the per-user advisory lock used by milo_bank_guard_locked_dt_spend()
+-- before the profiles row lock, matching the lock order of all other ledger writes.
+-- Rehearse first with phase-2a3b2a-05-rollback-only-rehearsal.sql (never commits).
 -- MANUAL SQL ONLY: Never run as part of an automatic build, CI, or migration deploy.
 -- Run phase-2a3b2a-01-readonly-preflight.sql first and review every result.
 --
@@ -174,6 +177,17 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Admin access only' USING ERRCODE = '42501';
   END IF;
+
+  -- Lock order must match every other ledger write for this user:
+  --   1. the per-user advisory lock taken by the BEFORE INSERT trigger
+  --      public.milo_bank_guard_locked_dt_spend(), then
+  --   2. the profiles row lock taken by the AFTER INSERT balance trigger.
+  -- Taking the same advisory lock here first (identical key expression) prevents
+  -- a lock-order inversion with concurrent ledger spends. Advisory locks are
+  -- re-entrant within a session, so the guard's own acquisition later succeeds
+  -- immediately and the guard still enforces Milo Bank reserved balances.
+  -- Taken for credits too, as the guard body is not assumed to skip them.
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(p_target_user_id::text));
 
   -- Target must exist. Locking its profile row serialises every adjustment for
   -- that account, so balance checks and duplicate detection cannot race.
