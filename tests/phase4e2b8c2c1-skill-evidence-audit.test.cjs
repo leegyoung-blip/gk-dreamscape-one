@@ -87,7 +87,13 @@ test('P1 explicitly numbered popped balloons have safe positive diagnostic only'
 test('staff output only emits allowlisted 8C2C metadata and static code',()=>{
  const s=fs.readFileSync(path.join(root,'lib/math/teaching/student-serving/phase4E2B1StaffMethodPreview.server.ts'),'utf8');
  assert.match(s,/SKILL_\$\{skillRule\}/);
- assert.match(s,/allowedStatuses/);
+ // Use explicit discriminant comparisons: Set.has() alone cannot
+ // narrow the 'not_applicable' member of the audit status union.
+ assert.match(s,/skill\.status === 'undeclared'/);
+ assert.match(s,/skill\.status === 'no_exact_match'/);
+ assert.match(s,/skill\.status === 'partially_declared'/);
+ assert.match(s,/skill\.status === 'exact_match_present'/);
+ assert.doesNotMatch(s,/allowedStatuses\.has\(skill\.status\)/);
  assert.match(s,/curriculumSkillAudit/);
  assert.match(s,/studentReleased: false/);assert.match(s,/teachingApproved: false/);
 });
@@ -125,4 +131,9 @@ test('malformed staff audit metadata is discarded, valid audit adds a bounded re
  const invalid=await run();
  assert.equal(invalid.scoreComparison.curriculumSkillAudit,undefined);
  assert.equal(JSON.stringify(invalid).includes(secret),false);
+ selection.curriculumSkillAudit={status:'not_applicable',ruleCode:'8C2C_INVALID_EVIDENCE_INPUT',
+  auditedMethodCount:0,undeclaredMethodCount:0,exactMatchMethodCount:0};
+ const notApplicable=await run();
+ assert.equal(notApplicable.scoreComparison.curriculumSkillAudit,undefined);
+ assert.ok(!notApplicable.reasonCodes.some(code=>code.startsWith('SKILL_')));
 });

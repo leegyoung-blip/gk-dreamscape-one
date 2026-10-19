@@ -168,8 +168,14 @@ function publicScoreComparison(
   // Expose only fixed enumerations and bounded counts to authenticated staff.
   // No curriculum text, prompt, answer data or internal method evidence exits.
   const skill = output.curriculumSkillAudit;
-  const allowedStatuses = new Set(['undeclared', 'no_exact_match', 'partially_declared', 'exact_match_present']);
-  const curriculumSkillAudit = skill && allowedStatuses.has(skill.status) &&
+  // Explicit discriminant checks are necessary here: Set.has() does not
+  // narrow Phase8C2CSkillAudit['status'] to the staff-visible status union.
+  // In particular, 'not_applicable' must never be returned to the staff UI.
+  const curriculumSkillAudit = skill &&
+    (skill.status === 'undeclared' ||
+      skill.status === 'no_exact_match' ||
+      skill.status === 'partially_declared' ||
+      skill.status === 'exact_match_present') &&
     /^8C2C_[A-Z0-9_]{3,75}$/.test(skill.ruleCode) &&
     skill.auditedMethodCount === 2 &&
     Number.isInteger(skill.undeclaredMethodCount) &&

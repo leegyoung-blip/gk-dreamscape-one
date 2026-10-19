@@ -1,31 +1,78 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-function createSupabaseAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+/*
+ * Admin Dream Token adjustments (credit and debit).
+ *
+ * Security model:
+ * - The caller's bearer token is verified server-side and the caller must
+ *   have profiles.role = 'admin'. Nothing from the browser is trusted.
+ * - The signed amount and ledger title are derived here from the action,
+ *   matching the Admin Dream Tokens page exactly.
+ * - The ledger row is written by public.admin_adjust_dream_tokens (service
+ *   role only), which re-checks the admin and target, records the acting
+ *   admin and enforces idempotency on request_id in one transaction.
+ *   The existing balance trigger on dream_token_transactions is unchanged.
+ */
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Missing Supabase admin environment variables.");
-  }
+type AdminTokenAction = "class_attendance" | "manual_add" | "manual_deduct";
 
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
+const CLASS_ATTENDANCE_AMOUNT = 100;
+
+// Largest value that fits the smallest integer type a ledger amount column may
+// use (int4). This is a database safety bound, not a business limit.
+const MAX_ADMIN_DREAM_TOKEN_ADJUSTMENT = 2_147_483_647;
+
+const ACTION_TITLES: Record<AdminTokenAction, string> = {
+  class_attendance: "Class Attendance Reward",
+  manual_add: "Admin Manual Add",
+  manual_deduct: "Admin Manual Deduct",
+};
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: { "Cache-Control": "no-store" },
   });
 }
 
-async function verifyAdmin(req: NextRequest) {
-  const authHeader = req.headers.get("authorization") || "";
-  const token = authHeader.replace("Bearer ", "").trim();
+function isAdminTokenAction(value: unknown): value is AdminTokenAction {
+  return (
+    value === "class_attendance" ||
+    value === "manual_add" ||
+    value === "manual_deduct"
+  );
+}
 
-  if (!token) {
-    return { ok: false, error: "Missing auth token.", adminClient: null };
+function resolveSignedAmount(action: AdminTokenAction, amount: unknown) {
+  if (action === "class_attendance") return CLASS_ATTENDANCE_AMOUNT;
+
+  if (
+    typeof amount !== "number" ||
+    !Number.isSafeInteger(amount) ||
+    amount <= 0 ||
+    amount > MAX_ADMIN_DREAM_TOKEN_ADJUSTMENT
+  ) {
+    return null;
   }
 
-  const adminClient = createSupabaseAdminClient();
+  return action === "manual_deduct" ? -amount : amount;
+}
+
+async function verifyAdmin(request: Request) {
+  const authHeader = request.headers.get("authorization") || "";
+  const token = authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+
+  if (!token) {
+    return { ok: false as const, status: 401, error: "Authentication required." };
+  }
+
+  const adminClient = createAdminClient();
 
   const {
     data: { user },
@@ -33,7 +80,7 @@ async function verifyAdmin(req: NextRequest) {
   } = await adminClient.auth.getUser(token);
 
   if (userError || !user) {
-    return { ok: false, error: "Invalid auth token.", adminClient: null };
+    return { ok: false as const, status: 401, error: "Invalid session." };
   }
 
   const { data: profile, error: profileError } = await adminClient
@@ -43,95 +90,138 @@ async function verifyAdmin(req: NextRequest) {
     .maybeSingle();
 
   if (profileError) {
-    return { ok: false, error: profileError.message, adminClient: null };
+    return { ok: false as const, status: 500, error: "Could not verify admin access." };
   }
 
-  if (profile?.role?.trim().toLowerCase() !== "admin") {
-    return { ok: false, error: "Admin access only.", adminClient: null };
+  if (String(profile?.role || "").trim().toLowerCase() !== "admin") {
+    return { ok: false as const, status: 403, error: "Admin access only." };
   }
 
-  return { ok: true, error: null, adminClient };
+  return { ok: true as const, adminClient, adminUserId: user.id };
 }
 
-function getTransactionType(amount: number): "earn" | "spend" {
-  return amount < 0 ? "spend" : "earn";
+function mapAdjustmentError(error: { code?: string; message?: string }) {
+  const code = error.code || "";
+  const message = error.message || "";
+
+  if (code === "PGRST202" || code === "42883") {
+    return {
+      status: 503,
+      error:
+        "Dream Token adjustments are unavailable until the Phase 2A-3B-2A database migration is applied.",
+    };
+  }
+  if (code === "42501") return { status: 403, error: "Admin access only." };
+  if (code === "P0002") return { status: 404, error: "Target account not found." };
+  if (message.includes("IDEMPOTENCY_KEY_REUSED")) {
+    return {
+      status: 409,
+      error: "This request id was already used for a different adjustment.",
+    };
+  }
+  if (code === "22023" || code === "22003") {
+    return { status: 400, error: "Invalid Dream Token amount." };
+  }
+  return { status: 500, error: "Dream Tokens could not be updated." };
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const { userId, amount, title } = await req.json();
+    const access = await verifyAdmin(request);
 
-    const finalAmount = Number(amount);
+    if (!access.ok) {
+      return json({ error: access.error }, access.status);
+    }
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Missing student user ID." },
-        { status: 400 }
+    const body = (await request.json().catch(() => null)) as {
+      userId?: unknown;
+      action?: unknown;
+      amount?: unknown;
+      requestId?: unknown;
+    } | null;
+
+    if (!body || typeof body !== "object") {
+      return json({ error: "Invalid request body." }, 400);
+    }
+
+    const userId = typeof body.userId === "string" ? body.userId.trim() : "";
+    const requestId =
+      typeof body.requestId === "string" ? body.requestId.trim() : "";
+
+    if (!UUID_PATTERN.test(userId)) {
+      return json({ error: "A valid target account is required." }, 400);
+    }
+
+    if (!UUID_PATTERN.test(requestId)) {
+      return json({ error: "A valid request id is required." }, 400);
+    }
+
+    if (!isAdminTokenAction(body.action)) {
+      return json({ error: "Invalid Dream Token action." }, 400);
+    }
+
+    const signedAmount = resolveSignedAmount(body.action, body.amount);
+
+    if (signedAmount === null) {
+      return json(
+        {
+          error: `Dream Token amount must be a whole number between 1 and ${MAX_ADMIN_DREAM_TOKEN_ADJUSTMENT}.`,
+        },
+        400,
       );
     }
 
-    if (!Number.isFinite(finalAmount) || finalAmount === 0) {
-      return NextResponse.json(
-        { error: "Invalid token amount." },
-        { status: 400 }
-      );
+    const { adminClient, adminUserId } = access;
+
+    const { data: target, error: targetError } = await adminClient
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (targetError) {
+      return json({ error: "Could not verify the target account." }, 500);
     }
 
-    const result = await verifyAdmin(req);
-
-    if (!result.ok || !result.adminClient) {
-      return NextResponse.json(
-        { error: result.error || "Admin access denied." },
-        { status: 401 }
-      );
+    if (!target) {
+      return json({ error: "Target account not found." }, 404);
     }
 
-    const adminClient = result.adminClient;
+    const { data, error } = await adminClient.rpc("admin_adjust_dream_tokens", {
+      p_request_id: requestId,
+      p_admin_user_id: adminUserId,
+      p_target_user_id: userId,
+      p_amount: signedAmount,
+      p_title: ACTION_TITLES[body.action],
+      p_action: body.action,
+    });
 
-    const { data: selectedProfile, error: selectedProfileError } =
-      await adminClient
-        .from("profiles")
-        .select("id, email, role")
-        .eq("id", userId)
-        .eq("role", "student")
-        .maybeSingle();
-
-    if (selectedProfileError) {
-      return NextResponse.json(
-        { error: selectedProfileError.message },
-        { status: 500 }
-      );
+    if (error) {
+      const mapped = mapAdjustmentError(error);
+      if (mapped.status >= 500) {
+        console.error("Admin Dream Token adjustment failed", {
+          code: error.code,
+          requestId,
+        });
+      }
+      return json({ error: mapped.error }, mapped.status);
     }
 
-    if (!selectedProfile) {
-      return NextResponse.json(
-        { error: "Student profile not found." },
-        { status: 404 }
-      );
-    }
+    const result = (Array.isArray(data) ? data[0] : data) as {
+      duplicate?: unknown;
+      new_balance?: unknown;
+    } | null;
 
-    const { error: insertError } = await adminClient
-      .from("dream_token_transactions")
-      .insert({
-        user_id: userId,
-        amount: finalAmount,
-        token_kind: "virtual",
-        type: getTransactionType(finalAmount),
-        title: title || "Dream Token Update",
-      });
+    const newBalance = Number(result?.new_balance);
 
-    if (insertError) {
-      return NextResponse.json(
-        { error: insertError.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ success: true });
+    return json({
+      success: true,
+      duplicate: Boolean(result?.duplicate),
+      amount: signedAmount,
+      newBalance: Number.isFinite(newBalance) ? newBalance : null,
+    });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error." },
-      { status: 500 }
-    );
+    console.error("Admin Dream Token adjustment error", error);
+    return json({ error: "Dream Tokens could not be updated." }, 500);
   }
 }

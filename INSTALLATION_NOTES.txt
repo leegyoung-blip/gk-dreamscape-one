@@ -1,0 +1,30 @@
+DREAMSCAPE ONE — Phase 4E-2B-8C-2C.1 STAFF PREVIEW TYPE GUARD HOTFIX
+
+Affected source:
+  lib/math/teaching/student-serving/phase4E2B1StaffMethodPreview.server.ts
+Regression test:
+  tests/phase4e2b8c2c1-skill-evidence-audit.test.cjs
+
+Root cause:
+  Set.has(skill.status) cannot narrow the status type to exclude
+  'not_applicable', so the returned object did not satisfy the staff UI's
+  status union. The compiler flagged the return in publicScoreComparison.
+
+Change:
+  Use explicit literal checks of the four staff-approved statuses. Keep
+  'not_applicable' hidden; preserve score/ranking logic and staff authorisation.
+  Update the test that previously required the name 'allowedStatuses'.
+
+VERIFICATION:
+  37/37 focused local tests passed on available source snapshot.
+  Strict TypeScript check passed for the affected publicScoreComparison function
+  using a standalone type fixture with the actual function extracted.
+  Full repository npx tsc --noEmit MUST be run locally.
+
+INSTALL (execute from repo root with downloaded ZIP):
+  Expand-Archive -LiteralPath "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2C1_TYPE_GUARD_HOTFIX.zip" -DestinationPath (Get-Location).Path -Force
+  node --test tests/phase4e2b8c2c1-skill-evidence-audit.test.cjs tests/phase4e2b8c2b-method-differentiation.test.cjs tests/phase4e2b1-staff-method-preview.test.cjs
+  npx tsc --noEmit
+  git diff --check
+
+No database migrations, SQL, or environment changes required.

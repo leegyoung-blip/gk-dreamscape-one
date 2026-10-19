@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -231,6 +231,11 @@ export default function DreamTokensAdminPage() {
   const [selectedAction, setSelectedAction] =
     useState<TokenAction>("class_attendance");
   const [manualAmount, setManualAmount] = useState(50);
+  // Reused when the same adjustment is retried after an unconfirmed attempt,
+  // so the server-side idempotency check cannot double-apply it.
+  const pendingTokenRequest = useRef<{ key: string; requestId: string } | null>(
+    null
+  );
 
   const [selectedGemAction, setSelectedGemAction] =
     useState<GemAction>("manual_add");
@@ -317,18 +322,6 @@ export default function DreamTokensAdminPage() {
 
     return 0;
   }, [selectedAction, manualAmount]);
-
-  const tokenActionTitle = useMemo(() => {
-    if (selectedAction === "class_attendance") {
-      return "Class Attendance Reward";
-    }
-
-    if (selectedAction === "manual_add") {
-      return "Admin Manual Add";
-    }
-
-    return "Admin Manual Deduct";
-  }, [selectedAction]);
 
   const finalGemAmount = useMemo(() => {
     const amount = Math.abs(Number(gemAmount) || 0);
@@ -475,22 +468,74 @@ export default function DreamTokensAdminPage() {
 
     setIsSubmittingTokens(true);
 
-    const { error } = await supabase.from("dream_token_transactions").insert({
-      user_id: selectedUserId,
-      amount: finalTokenAmount,
-      token_kind: "virtual",
-      type: finalTokenAmount > 0 ? "earn" : "spend",
-      title: tokenActionTitle,
-    });
+    /*
+     * Adjustments go through the admin API, which verifies admin access,
+     * derives the signed amount and title, and writes the ledger row
+     * server-side. The browser no longer inserts ledger rows directly.
+     */
+    const requestAmount = Math.abs(finalTokenAmount);
+    const requestKey = `${selectedUserId}|${selectedAction}|${requestAmount}`;
 
-    if (error) {
-      setTokenMessage(error.message);
+    if (pendingTokenRequest.current?.key !== requestKey) {
+      pendingTokenRequest.current = {
+        key: requestKey,
+        requestId: crypto.randomUUID(),
+      };
+    }
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      setTokenMessage("Your session has expired. Please sign in again.");
       setIsSubmittingTokens(false);
       return;
     }
 
+    let response: Response;
+    let result: {
+      error?: string;
+      duplicate?: boolean;
+      newBalance?: number | null;
+    } | null = null;
+
+    try {
+      response = await fetch("/api/admin/dream-tokens/credit", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: selectedUserId,
+          action: selectedAction,
+          amount: requestAmount,
+          requestId: pendingTokenRequest.current.requestId,
+        }),
+      });
+      result = await response.json().catch(() => null);
+    } catch {
+      setTokenMessage(
+        "Dream Tokens could not be confirmed. Submitting again will not apply it twice."
+      );
+      setIsSubmittingTokens(false);
+      return;
+    }
+
+    if (!response.ok) {
+      // A definitive rejection will not have written anything, so the next
+      // attempt may use a fresh request id.
+      if (response.status < 500) pendingTokenRequest.current = null;
+      setTokenMessage(result?.error || "Dream Tokens could not be updated.");
+      setIsSubmittingTokens(false);
+      return;
+    }
+
+    pendingTokenRequest.current = null;
+
     /*
-     * The insert above fires update_profile_dream_token_balance_trigger.
+     * The server-side ledger insert fires update_profile_dream_token_balance_trigger.
      * Re-read the synchronized profile balance rather than independently
      * calculating a second wallet value in the UI.
      */
@@ -503,10 +548,13 @@ export default function DreamTokensAdminPage() {
       .eq("id", selectedUserId)
       .maybeSingle();
 
+    const serverBalance =
+      typeof result?.newBalance === "number" ? result.newBalance : null;
+
     const exactBalance =
       !updatedProfileError && updatedProfile
         ? Number(updatedProfile.dream_token_balance || 0)
-        : null;
+        : serverBalance;
 
     setUsers((currentUsers) =>
       currentUsers.map((user) =>
@@ -516,7 +564,9 @@ export default function DreamTokensAdminPage() {
               dreamTokenBalance:
                 exactBalance !== null
                   ? exactBalance
-                  : user.dreamTokenBalance + finalTokenAmount,
+                  : result?.duplicate
+                    ? user.dreamTokenBalance
+                    : user.dreamTokenBalance + finalTokenAmount,
             }
           : user
       )
@@ -524,9 +574,11 @@ export default function DreamTokensAdminPage() {
 
     window.dispatchEvent(new Event("dream-tokens-updated"));
     setTokenMessage(
-      updatedProfileError
-        ? "Dream Tokens updated. The current balance will refresh on the next page load."
-        : "Dream Tokens updated successfully."
+      result?.duplicate
+        ? "This adjustment was already applied. No additional Dream Tokens were added."
+        : exactBalance === null
+          ? "Dream Tokens updated. The current balance will refresh on the next page load."
+          : "Dream Tokens updated successfully."
     );
     setIsSubmittingTokens(false);
   }
