@@ -37,6 +37,7 @@ export type StaffMethodCandidateScore = Readonly<{
 export type StaffMethodScoreComparison = Readonly<{
   candidates: readonly StaffMethodCandidateScore[];
   selectionIssueCodes: readonly string[];
+  methodDifferentiation?: Readonly<{ status: 'evidence_found' | 'needs_review'; ruleCode: string; preferredMethodId: string | null; lessSuitableMethodId: string | null; }>;
 }>;
 type Metadata = Readonly<{
   phase: '4E-2B-1';
@@ -147,9 +148,26 @@ function publicScoreComparison(
       });
     }
   }
+  const finding = output.methodDifferentiation;
+  // Only expose an allow-listed static rule code and method IDs already
+  // verified as eligible by the same 4C selector. Never return prompt text.
+  const eligibleMethodIds = new Set(candidates.filter(item => item.eligible).map(item => item.methodId));
+  const methodDifferentiation = finding &&
+    finding.status !== 'not_applicable' &&
+    /^8C2B_[A-Z0-9_]{3,75}$/.test(finding.ruleCode) &&
+    (finding.preferredMethodId === null ||
+      (validId(finding.preferredMethodId) && eligibleMethodIds.has(finding.preferredMethodId))) &&
+    (finding.lessSuitableMethodId === null ||
+      (validId(finding.lessSuitableMethodId) && eligibleMethodIds.has(finding.lessSuitableMethodId))) &&
+    (finding.status !== 'evidence_found' ||
+      (finding.preferredMethodId !== null && finding.lessSuitableMethodId !== null))
+      ? {status: finding.status, ruleCode: finding.ruleCode,
+          preferredMethodId: finding.preferredMethodId,
+          lessSuitableMethodId: finding.lessSuitableMethodId} : undefined;
   return {
     candidates,
     selectionIssueCodes: [...new Set(issueCodes)].slice(0, 12),
+    ...(methodDifferentiation ? {methodDifferentiation} : {}),
   };
 }
 
@@ -216,12 +234,17 @@ export async function previewStaffMathMethod(
       return denied('selector', selection.reasonCodes.length ? selection.reasonCodes : ['SELECTOR_BLOCKED']);
     }
     if (selection.status === 'ambiguous') {
+      const scoreComparison = publicScoreComparison(selection);
+      // Existing staff UI/CSV shows static reason codes; no panel change
+      // needed to make the 8C-2B shadow diagnostic visible to reviewers.
+      const rule = scoreComparison.methodDifferentiation?.ruleCode;
       return {
         ...marker, status: 'ambiguous', stage: 'selector',
-        reasonCodes: [...new Set(selection.reasonCodes)].slice(0, 16),
+        reasonCodes: [...new Set([...selection.reasonCodes,
+          ...(rule ? [`METHOD_${rule}`] : [])])].slice(0, 16),
         candidateMethodCount: selection.candidateMethodCount,
         primaryFamilies: selection.primaryFamilies.slice(0, 16),
-        scoreComparison: publicScoreComparison(selection),
+        scoreComparison,
       };
     }
     const methodId = selection.selection?.primaryMethodId;

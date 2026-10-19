@@ -9,6 +9,7 @@ import { identifyVerifiedFactorDigitEvidence } from '../../../math-intelligence/
 import { identifyRingArrivalIncrementPattern } from '../../../math-intelligence/teaching/understanding/rules/constantIncrementPattern';
 import type { Phase4BMethodFamilyId } from '../../../math-intelligence/teaching/method-library/taxonomy/types';
 import { selectTeachingStrategy, type MethodCandidateEvidence } from './selector';
+import { differentiateCloselyRelatedMethods, type MethodDifferentiation } from './phase4E2B8C2BMethodDifferentiation';
 import { composeTeachingMethods, type MethodComposition } from './composition';
 import type { StrategySelection, SelectionInputBoundary, ScoreDimension } from './types';
 import {validateReviewedStructureEvidence, type ReviewedStructureEvidence, type B2EvidenceTrace} from './reviewedStructureEvidence';
@@ -53,6 +54,8 @@ export type Phase4C4AdapterResult = {
   composition: MethodComposition | null;
   /** Present only when B2 evidence was supplied and provenance validated. */
   b2EvidenceTrace?: B2EvidenceTrace;
+  /** 8C-2B staff-only shadow comparison; never authorizes selection or approval. */
+  methodDifferentiation?: MethodDifferentiation;
 };
 const dims: readonly ScoreDimension[] = ['problem_structure','required_reasoning','curriculum_skill','learner_level','math_domain','representation_fit','prerequisites'];
 const zero = (method: TeachingMethod, domain: ScoreDimension, detail: string) => ({dimension:domain,code:'4B_METADATA_CHECK',detail:`${method.methodId}: ${detail}`});
@@ -183,9 +186,25 @@ export function selectFromPhase4A4B(input:Phase4C4AdapterInput):Phase4C4AdapterR
     reasonCodes:['CROSS_FAMILY_SELECTION_UNRESOLVED'],primaryFamilies:families,candidateMethodCount:candidates.length,
     familySelections:selections,selection:null,composition:null,...reviewTrace};
   const selected=selections[0];
+  // Differentiation is diagnostic-only, so it cannot change the frozen 4C-2
+  // scores, 4C-4 selection, or signed B4 review behavior. No unsafe
+  // learner/answer-bearing content is placed in the diagnostic object.
+  const methodDifferentiation = selected.status === 'ambiguous' && !validatedReview
+    ? differentiateCloselyRelatedMethods({
+        learnerLevel: requirement.learnerLevel,
+        domain: c.contract.mathematics.domain,
+        problemStructure: c.contract.mathematics.problemStructure,
+        prompt: c.contract.content.prompt,
+        hasVisual: c.contract.visual.hasVisual,
+        hasParts: c.contract.multipart.hasParts,
+        eligibleMethodIds: selected.candidates.filter(m => m.eligible).map(m => m.methodId),
+      })
+    : undefined;
+  const diagnosticTrace = methodDifferentiation && methodDifferentiation.status !== 'not_applicable'
+    ? {methodDifferentiation} : {};
   if (selected.status!=='selected') return {schemaVersion:PHASE4C4_ADAPTER_VERSION,status:'ambiguous',
     reasonCodes:['SINGLE_FAMILY_SELECTION_AMBIGUOUS'],primaryFamilies:families,candidateMethodCount:candidates.length,
-    familySelections:selections,selection:selected,composition:null,...reviewTrace};
+    familySelections:selections,selection:selected,composition:null,...reviewTrace,...diagnosticTrace};
   // No learner-specific support necessity evidence is provided by the 4B source. Empty support is intentional.
   const composition=composeTeachingMethods({selection:selected,supportCandidates:[]});
   if (composition.status!=='primary_only') return fail('COMPOSITION_NOT_VALID',families,candidates.length,selections);
