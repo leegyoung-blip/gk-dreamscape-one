@@ -112,8 +112,13 @@ export function differentiateCloselyRelatedMethods(input: ComparisonContext): Me
       input.domain === 'whole_numbers' && input.problemStructure === 'subtraction_change' &&
       input.learnerLevel <= 3) {
     const knownDecrease = /\b(?:sells?|sold|spent|gave\s+away|removed|took\s+away|lost|used|ate|flew\s+away)\b\s+(?:\w+\s+){0,2}\d+\b|\b\d+\b(?:\s+\w+){0,3}\s+(?:were\s+|was\s+)?(?:sold|removed|lost|used|taken\s+away)\b/i.test(stem);
+    // A directly quantified loss can also be expressed as "4 pop" or
+    // "4 balloons popped", with the subject before the action. Restrict
+    // this to a complete short sentence to avoid treating "4 people pop
+    // balloons" as a known number of balloons lost.
+    const knownPopDecrease = /(?:^|[.!?]\s*)\d+\s+(?:(?:balloons?)\s+)?pop(?:ped)?\s*(?:[.!?]|$)/i.test(stem);
     const finalTarget = /\bhow\s+many\b.{0,90}\b(?:left|remain|remaining)\b/i.test(lastSentence);
-    if (knownDecrease && finalTarget && nums >= 2 &&
+    if ((knownDecrease || knownPopDecrease) && finalTarget && nums >= 2 &&
         !/\bhow\s+many\b.{0,60}\b(?:sold|removed|lost|used|taken\s+away)\b/i.test(lastSentence)) {
       return diagnostic('evidence_found', '8C2B_KNOWN_DECREASE_FINAL_UNKNOWN', methods.forward, methods.findChange);
     }

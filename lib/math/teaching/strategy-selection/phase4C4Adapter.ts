@@ -10,6 +10,7 @@ import { identifyRingArrivalIncrementPattern } from '../../../math-intelligence/
 import type { Phase4BMethodFamilyId } from '../../../math-intelligence/teaching/method-library/taxonomy/types';
 import { selectTeachingStrategy, type MethodCandidateEvidence } from './selector';
 import { differentiateCloselyRelatedMethods, topTwoEligibleMethodIds, type MethodDifferentiation } from './phase4E2B8C2BMethodDifferentiation';
+import { auditTopTwoCurriculumSkillDeclarations, type Phase8C2CSkillAudit } from './phase4E2B8C2CSkillAudit';
 import { composeTeachingMethods, type MethodComposition } from './composition';
 import type { StrategySelection, SelectionInputBoundary, ScoreDimension } from './types';
 import {validateReviewedStructureEvidence, type ReviewedStructureEvidence, type B2EvidenceTrace} from './reviewedStructureEvidence';
@@ -56,6 +57,8 @@ export type Phase4C4AdapterResult = {
   b2EvidenceTrace?: B2EvidenceTrace;
   /** 8C-2B staff-only shadow comparison; never authorizes selection or approval. */
   methodDifferentiation?: MethodDifferentiation;
+  /** 8C-2C.1 shadow-only: identifies absent authored curriculum skill metadata. */
+  curriculumSkillAudit?: Phase8C2CSkillAudit;
 };
 const dims: readonly ScoreDimension[] = ['problem_structure','required_reasoning','curriculum_skill','learner_level','math_domain','representation_fit','prerequisites'];
 const zero = (method: TeachingMethod, domain: ScoreDimension, detail: string) => ({dimension:domain,code:'4B_METADATA_CHECK',detail:`${method.methodId}: ${detail}`});
@@ -200,11 +203,27 @@ export function selectFromPhase4A4B(input:Phase4C4AdapterInput):Phase4C4AdapterR
         eligibleMethodIds: topTwoEligibleMethodIds(selected.candidates),
       })
     : undefined;
+  // Important: absent authored skills cannot earn 15 curriculum points.
+  // Inspect only the validated TOP TWO. This is a metadata audit, not an
+  // alternative scoring policy or an inference from the schoolwork prompt.
+  const curriculumSkillAudit = selected.status === 'ambiguous' && !validatedReview
+    ? auditTopTwoCurriculumSkillDeclarations({
+        topTwoMethodIds: topTwoEligibleMethodIds(selected.candidates),
+        registeredMethods: primary,
+        curriculumKeys: [c.contract.curriculum.primarySkill?.code,
+          c.contract.curriculum.primarySkill?.id,
+          ...c.contract.curriculum.secondarySkills.flatMap(skill => [skill.code, skill.id]),
+          ...c.contract.curriculum.skillTags,
+          c.contract.curriculum.legacySkillLabel],
+      })
+    : undefined;
+  const skillAuditTrace = curriculumSkillAudit && curriculumSkillAudit.status !== 'not_applicable'
+    ? {curriculumSkillAudit} : {};
   const diagnosticTrace = methodDifferentiation && methodDifferentiation.status !== 'not_applicable'
     ? {methodDifferentiation} : {};
   if (selected.status!=='selected') return {schemaVersion:PHASE4C4_ADAPTER_VERSION,status:'ambiguous',
     reasonCodes:['SINGLE_FAMILY_SELECTION_AMBIGUOUS'],primaryFamilies:families,candidateMethodCount:candidates.length,
-    familySelections:selections,selection:selected,composition:null,...reviewTrace,...diagnosticTrace};
+    familySelections:selections,selection:selected,composition:null,...reviewTrace,...diagnosticTrace,...skillAuditTrace};
   // No learner-specific support necessity evidence is provided by the 4B source. Empty support is intentional.
   const composition=composeTeachingMethods({selection:selected,supportCandidates:[]});
   if (composition.status!=='primary_only') return fail('COMPOSITION_NOT_VALID',families,candidates.length,selections);

@@ -38,6 +38,7 @@ export type StaffMethodScoreComparison = Readonly<{
   candidates: readonly StaffMethodCandidateScore[];
   selectionIssueCodes: readonly string[];
   methodDifferentiation?: Readonly<{ status: 'evidence_found' | 'needs_review'; ruleCode: string; preferredMethodId: string | null; lessSuitableMethodId: string | null; }>;
+  curriculumSkillAudit?: Readonly<{ status: 'undeclared' | 'no_exact_match' | 'partially_declared' | 'exact_match_present'; ruleCode: string; auditedMethodCount: number; undeclaredMethodCount: number; exactMatchMethodCount: number }>;
 }>;
 type Metadata = Readonly<{
   phase: '4E-2B-1';
@@ -164,10 +165,26 @@ function publicScoreComparison(
       ? {status: finding.status, ruleCode: finding.ruleCode,
           preferredMethodId: finding.preferredMethodId,
           lessSuitableMethodId: finding.lessSuitableMethodId} : undefined;
+  // Expose only fixed enumerations and bounded counts to authenticated staff.
+  // No curriculum text, prompt, answer data or internal method evidence exits.
+  const skill = output.curriculumSkillAudit;
+  const allowedStatuses = new Set(['undeclared', 'no_exact_match', 'partially_declared', 'exact_match_present']);
+  const curriculumSkillAudit = skill && allowedStatuses.has(skill.status) &&
+    /^8C2C_[A-Z0-9_]{3,75}$/.test(skill.ruleCode) &&
+    skill.auditedMethodCount === 2 &&
+    Number.isInteger(skill.undeclaredMethodCount) &&
+    skill.undeclaredMethodCount >= 0 && skill.undeclaredMethodCount <= 2 &&
+    Number.isInteger(skill.exactMatchMethodCount) &&
+    skill.exactMatchMethodCount >= 0 && skill.exactMatchMethodCount <= 2
+      ? {status: skill.status, ruleCode: skill.ruleCode,
+          auditedMethodCount: skill.auditedMethodCount,
+          undeclaredMethodCount: skill.undeclaredMethodCount,
+          exactMatchMethodCount: skill.exactMatchMethodCount} : undefined;
   return {
     candidates,
     selectionIssueCodes: [...new Set(issueCodes)].slice(0, 12),
     ...(methodDifferentiation ? {methodDifferentiation} : {}),
+    ...(curriculumSkillAudit ? {curriculumSkillAudit} : {}),
   };
 }
 
@@ -238,10 +255,12 @@ export async function previewStaffMathMethod(
       // Existing staff UI/CSV shows static reason codes; no panel change
       // needed to make the 8C-2B shadow diagnostic visible to reviewers.
       const rule = scoreComparison.methodDifferentiation?.ruleCode;
+      const skillRule = scoreComparison.curriculumSkillAudit?.ruleCode;
       return {
         ...marker, status: 'ambiguous', stage: 'selector',
         reasonCodes: [...new Set([...selection.reasonCodes,
-          ...(rule ? [`METHOD_${rule}`] : [])])].slice(0, 16),
+          ...(rule ? [`METHOD_${rule}`] : []),
+          ...(skillRule ? [`SKILL_${skillRule}`] : [])])].slice(0, 16),
         candidateMethodCount: selection.candidateMethodCount,
         primaryFamilies: selection.primaryFamilies.slice(0, 16),
         scoreComparison,
