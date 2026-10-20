@@ -43,23 +43,6 @@ const NOVA_ZONE_KEYS: NovaZoneKey[] = [
   "skyforge_hangar",
 ];
 
-type DreamTokenTransaction = {
-  id: string;
-  amount: number;
-  type: string | null;
-  title: string | null;
-  created_at: string | null;
-};
-
-type DreamGemTransaction = {
-  id: string;
-  amount: number;
-  type: string | null;
-  title: string | null;
-  source: string | null;
-  created_at: string | null;
-};
-
 type NovaSubscriptionRow = {
   status: string | null;
   access_until: string | null;
@@ -376,13 +359,7 @@ export default function NovaWorldPage() {
     property: 0,
     stocks: 0,
   });
-  const [tokenTransactions, setTokenTransactions] = useState<
-    DreamTokenTransaction[]
-  >([]);
   const [dreamGemBalance, setDreamGemBalance] = useState(0);
-  const [dreamGemTransactions, setDreamGemTransactions] = useState<
-    DreamGemTransaction[]
-  >([]);
   const [hasStudentRewardsAccess, setHasStudentRewardsAccess] = useState(false);
   const [dreamGemsLoading, setDreamGemsLoading] = useState(true);
   const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
@@ -422,9 +399,7 @@ export default function NovaWorldPage() {
       if (!user) {
         setUserEmail(null);
         setProfileAssets({ cash: 0, property: 0, stocks: 0 });
-        setTokenTransactions([]);
         setDreamGemBalance(0);
-        setDreamGemTransactions([]);
         setHasStudentRewardsAccess(false);
         setIsAdmin(false);
         setDreamGemsLoading(false);
@@ -463,9 +438,7 @@ export default function NovaWorldPage() {
       const [
         profileResult,
         subscriptionResult,
-        gemTransactionsResult,
         balanceResult,
-        recentTransactionsResult,
         stocksResult,
         stockHoldingsResult,
         propertiesResult,
@@ -481,23 +454,10 @@ export default function NovaWorldPage() {
           .select("status,access_until")
           .eq("user_id", user.id),
         supabase
-          .from("dream_gem_transactions")
-          .select("id,amount,type,title,source,created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(8),
-        supabase
           .from("dream_token_transactions")
           .select("amount")
           .eq("user_id", user.id)
           .eq("token_kind", "virtual"),
-        supabase
-          .from("dream_token_transactions")
-          .select("id,amount,type,title,created_at")
-          .eq("user_id", user.id)
-          .eq("token_kind", "virtual")
-          .order("created_at", { ascending: false })
-          .limit(8),
         supabase
           .from("milo_exchange_stocks")
           .select("symbol,current_price")
@@ -555,27 +515,6 @@ export default function NovaWorldPage() {
       if (isStale()) return;
 
       setHasStudentRewardsAccess(hasStudentRewardsAccess);
-
-      if (gemTransactionsResult.error) {
-        console.warn(
-          "Could not load Dream Gem transactions:",
-          gemTransactionsResult.error.message,
-        );
-        setDreamGemTransactions([]);
-      } else {
-        setDreamGemTransactions(
-          (gemTransactionsResult.data || []).map((transaction) => ({
-            id: String(transaction.id),
-            amount: Number(transaction.amount || 0),
-            type: transaction.type ? String(transaction.type) : null,
-            title: transaction.title ? String(transaction.title) : null,
-            source: transaction.source ? String(transaction.source) : null,
-            created_at: transaction.created_at
-              ? String(transaction.created_at)
-              : null,
-          })),
-        );
-      }
 
       const cashValue = balanceResult.error
         ? 0
@@ -639,26 +578,6 @@ export default function NovaWorldPage() {
         property: propertyValue,
         stocks: stockValue,
       });
-
-      if (recentTransactionsResult.error) {
-        console.warn(
-          "Could not load recent Dreamscape Token transactions:",
-          recentTransactionsResult.error.message,
-        );
-        setTokenTransactions([]);
-      } else {
-        setTokenTransactions(
-          (recentTransactionsResult.data || []).map((transaction) => ({
-            id: String(transaction.id),
-            amount: Number(transaction.amount || 0),
-            type: transaction.type ? String(transaction.type) : null,
-            title: transaction.title ? String(transaction.title) : null,
-            created_at: transaction.created_at
-              ? String(transaction.created_at)
-              : null,
-          })),
-        );
-      }
 
       setProfileAssetsLoading(false);
       setDreamGemsLoading(false);

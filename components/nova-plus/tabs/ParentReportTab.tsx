@@ -53,7 +53,11 @@ const TIMEFRAMES: Array<{
   { key: "90", label: "3 months", days: 90 },
 ];
 
+// null, undefined and blank strings are "missing", not zero (Number(null) is
+// 0), so fallbacks and baselines are not fed a fake 0.
 function asNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -257,8 +261,6 @@ function parentSummary(
   days: number,
 ) {
   const strongest = strongestSubject(profile);
-  const period =
-    days === 7 ? "This week" : days === 30 ? "This month" : "Over the last three months";
 
   // Subject mastery reflects all recorded evidence, not just this period.
   const firstSentence = strongest
@@ -267,10 +269,14 @@ function parentSummary(
       )}% mastery.`
     : "Nova is still building a reliable overall academic picture.";
 
+  // Trends come from the server and may cover a longer interval than this
+  // report; the period only selects which practised concepts are counted.
+  const practisedIn =
+    days === 7 ? "this week" : days === 30 ? "this month" : "in the last three months";
   const movementSentence =
     improved.length > 0
-      ? `${period}, ${improved.length} practised concept${improved.length === 1 ? " has" : "s have"} shown positive movement.`
-      : `${period}, there is not yet enough repeated evidence to call out a clear improvement trend.`;
+      ? `${improved.length} concept${improved.length === 1 ? "" : "s"} practised ${practisedIn} currently show${improved.length === 1 ? "s" : ""} an improving trend (Nova's trend can cover a longer interval than this report).`
+      : `Among concepts practised ${practisedIn}, there is not yet enough repeated evidence to call out a clear improving trend.`;
 
   const supportSentence =
     support.length > 0
@@ -887,10 +893,10 @@ export default function ParentReportTab({
   const [recommendations, setRecommendations] =
     useState<NovaRecommendationsPayload | null>(null);
   const [recommendationsLoading, setRecommendationsLoading] = useState(true);
-  // Open cycles are needed to match Nova Recommends' top priority. If they
-  // cannot be loaded, no single next step is named.
+  // Open cycles are needed to match Nova Recommends' top priority. Unless BOTH
+  // feeds load, no single next step is named and "no priority" is never claimed.
   const [cycles, setCycles] = useState<NovaLearningCyclesPayload | null>(null);
-  const [cyclesVerified, setCyclesVerified] = useState(false);
+  const [feedsVerified, setFeedsVerified] = useState(false);
   const schoolworkEvidence = useNovaSchoolworkEvidence(learnerId);
 
   const period = TIMEFRAMES.find((item) => item.key === timeframe) ?? TIMEFRAMES[1];
@@ -901,28 +907,45 @@ export default function ParentReportTab({
 
     async function loadRecommendations() {
       setRecommendationsLoading(true);
+      setFeedsVerified(false);
+      setRecommendations(null);
+      setCycles(null);
 
-      const [recommendationsResult, cyclesResult] = await Promise.all([
-        supabase.rpc("get_nova_plus_recommendations", {
-          p_student_user_id: learnerId,
-        }),
-        supabase.rpc("get_nova_learning_cycles", {
-          p_student_user_id: learnerId,
-        }),
-      ]);
+      try {
+        const [recommendationsResult, cyclesResult] = await Promise.all([
+          supabase.rpc("get_nova_plus_recommendations", {
+            p_student_user_id: learnerId,
+          }),
+          supabase.rpc("get_nova_learning_cycles", {
+            p_student_user_id: learnerId,
+          }),
+        ]);
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      setRecommendations(
-        (recommendationsResult.data ?? null) as NovaRecommendationsPayload | null,
-      );
-      setCycles(
-        cyclesResult.error
-          ? null
-          : ((cyclesResult.data ?? null) as NovaLearningCyclesPayload | null),
-      );
-      setCyclesVerified(!cyclesResult.error);
-      setRecommendationsLoading(false);
+        // A successful response with no data keeps its existing meaning (no
+        // recommendations), as in Nova Recommends; only errors are unverified.
+        const verified = !recommendationsResult.error && !cyclesResult.error;
+
+        setRecommendations(
+          verified
+            ? ((recommendationsResult.data ?? null) as NovaRecommendationsPayload | null)
+            : null,
+        );
+        setCycles(
+          verified
+            ? ((cyclesResult.data ?? null) as NovaLearningCyclesPayload | null)
+            : null,
+        );
+        setFeedsVerified(verified);
+      } catch {
+        if (cancelled) return;
+        setRecommendations(null);
+        setCycles(null);
+        setFeedsVerified(false);
+      } finally {
+        if (!cancelled) setRecommendationsLoading(false);
+      }
     }
 
     void loadRecommendations();
@@ -994,7 +1017,9 @@ export default function ParentReportTab({
     [recentSkills],
   );
 
-  const newlySecure = useMemo(
+  // Currently strong AND currently improving. No earlier status is known, so
+  // this is never described as "newly" secure.
+  const strongAndImproving = useMemo(
     () =>
       improved.filter((skill) => isStrongSkill(skill)),
     [improved],
@@ -1040,7 +1065,7 @@ export default function ParentReportTab({
 
   // Same top priority Nova Recommends shows (first focus_now concept without an
   // open learning cycle). Never a different lane, never unverified.
-  const firstRecommendation = cyclesVerified
+  const firstRecommendation = feedsVerified
     ? focusRecommendation(
         recommendations?.recommendations,
         openCycleSkillIds(cycles),
@@ -1058,9 +1083,9 @@ export default function ParentReportTab({
           : `Academic question evidence added since ${baselineLabel}, a shorter span than this report period.`,
     },
     {
-      label: "Concepts strengthened",
+      label: "Currently improving",
       value: String(improved.length),
-      note: "Concepts showing positive recent movement.",
+      note: "Concepts practised in this period that currently show an improving trend. The trend can cover a longer interval.",
     },
     {
       label: "Currently strong",
@@ -1385,13 +1410,13 @@ export default function ParentReportTab({
         <div className={styles.progressGrid}>
           <article>
             <span>↗</span>
-            <small>Concepts improved</small>
+            <small>Currently improving</small>
             <strong>{improved.length}</strong>
           </article>
           <article>
             <span>◆</span>
-            <small>Newly secure</small>
-            <strong>{newlySecure.length}</strong>
+            <small>Strong and improving</small>
+            <strong>{strongAndImproving.length}</strong>
           </article>
           <article>
             <span>✓</span>
@@ -1457,7 +1482,7 @@ export default function ParentReportTab({
           </article>
         ) : (
           <div className={styles.emptyState}>
-            {cyclesVerified
+            {feedsVerified
               ? "Nova Recommends has no single top-priority concept right now. Open it to see the current options."
               : "Open Nova Recommends to see the current next step."}
           </div>

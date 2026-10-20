@@ -212,7 +212,7 @@ const PURPOSE_STATE_META: Record<
     label: "Needs More Evidence",
     colour: "#93a3b8",
     meaning:
-      "Nova has not seen enough varied work yet, so this is not a confirmed weakness.",
+      "Nova has not yet confirmed a strength or a learning gap from the available evidence.",
   },
 };
 
@@ -365,7 +365,7 @@ function englishNextStep(
   state: PurposeState,
 ) {
   if (state === "needs_evidence") {
-    return `Try a few more questions that use “${item.mastery_name}”. Nova will update this skill once it has seen more varied evidence.`;
+    return `Try a few more questions that use “${item.mastery_name}”. Nova will update this skill as more evidence comes in.`;
   }
 
   if (state === "needs_practice") {

@@ -211,14 +211,14 @@ test('Parent next step matches Nova Recommends\' Focus Now (open cycles excluded
  ];
  for (const c of cases) {
   const cycles = {open_cycles:c.open.map((skill_id) => ({skill_id}))};
-  const parent = evalComponentConst(PA, 'firstRecommendation', {recommendations:{recommendations:c.recs}, cycles, cyclesVerified:true, focusRecommendation:ep.focusRecommendation, openCycleSkillIds:ep.openCycleSkillIds});
+  const parent = evalComponentConst(PA, 'firstRecommendation', {recommendations:{recommendations:c.recs}, cycles, feedsVerified:true, focusRecommendation:ep.focusRecommendation, openCycleSkillIds:ep.openCycleSkillIds});
   const recommends = recommendsFocus({recommendations:c.recs}, cycles);
   assert.equal(parent?.skill_id ?? null, recommends?.skill_id ?? null, JSON.stringify(c));
  }
 });
 
-test('Parent next step is withheld when open cycles cannot be verified', () => {
- const parent = evalComponentConst(PA, 'firstRecommendation', {recommendations:{recommendations:[{skill_id:'a', lane:'focus_now'}]}, cycles:null, cyclesVerified:false, focusRecommendation:ep.focusRecommendation, openCycleSkillIds:ep.openCycleSkillIds});
+test('Parent next step is withheld when the recommendation feeds cannot be verified', () => {
+ const parent = evalComponentConst(PA, 'firstRecommendation', {recommendations:{recommendations:[{skill_id:'a', lane:'focus_now'}]}, cycles:null, feedsVerified:false, focusRecommendation:ep.focusRecommendation, openCycleSkillIds:ep.openCycleSkillIds});
  assert.equal(parent, null);
  assert.match(read(PA), /\{firstRecommendation \? "One clear next step" : "Next steps"\}/);
 });
@@ -272,7 +272,9 @@ test('Parent summary scopes lifetime mastery as "all recorded evidence" and move
  const profile = {subject_summaries:[summary('english', 80, 20), summary('math', 60, 20)]};
  const text = pa.parentSummary(profile, [skill({skill_name:'A'})], [], 7);
  assert.match(text, /^Across all recorded evidence, English is currently the strongest/);
- assert.match(text, /This week, 1 practised concept has shown positive movement\./);
+ // Final corrections (B): a current server trend, not movement over the selected period.
+ assert.match(text, /1 concept practised this week currently shows an improving trend \(Nova's trend can cover a longer interval than this report\)\./);
+ assert.doesNotMatch(text, /shown positive movement/);
  assert.doesNotMatch(text, /^This week, English/);
 });
 
@@ -301,4 +303,161 @@ test('Progress and Parent Report label a short or missing baseline instead of ca
  const paLabel = (baseline) => evalComponentConst(PA, 'periodComparison', {baseline, baselineLabel:'18 Oct 2026', period:{label:'30 days'}});
  assert.equal(paLabel(shortBase), 'Comparable history only starts 18 Oct 2026, so changes are measured from then, not across the full 30 days.');
  assert.equal(paLabel(null), 'Nova does not have an earlier profile to compare with yet.');
+});
+
+/* ---------- Phase 2B-1B final corrections ---------- */
+
+const PR_NUM = extractTopLevel(PR, ['asNumber', 'parseSubjectSummaries', 'snapshotSubjectMastery', 'snapshotAcademicMastery']);
+const PA_NUM = extractTopLevel(PA, ['asNumber', 'parseSubjectSummaries', 'questionCountFromSnapshot']);
+const prMove = extractTopLevel(PR, ['statusLabel', 'skillMovementLabel'], {classifyConceptEvidence:ep.classifyConceptEvidence});
+
+test('A: an already-strong skill that improves slightly is "Strong and improving", never newly strong', () => {
+ const longStrong = skill({status:'mastered', questions_attempted:120, confidence_score:90, unique_activities:9, active_weeks:20, trend:'improving', trend_points:2, first_seen_at:daysAgo(300), last_attempted_at:daysAgo(1)});
+ const parentImproved = evalComponentConst(PA, 'improved', {recentSkills:[longStrong], hasImprovementEvidence:ep.hasImprovementEvidence});
+ const parentCount = evalComponentConst(PA, 'strongAndImproving', {improved:parentImproved, isStrongSkill:pa.isStrongSkill});
+ assert.equal(parentCount.length, 1);
+ assert.equal(prMove.skillMovementLabel(longStrong), 'Strong and improving');
+ for (const file of [PA, PR]) {
+  const src = read(file);
+  assert.doesNotMatch(src, /Newly secure|NEWLY SECURE|is now strong|Strengthened to Strong|newlySecure/, file);
+ }
+ assert.match(read(PA), /<small>Strong and improving<\/small>/);
+ assert.match(read(PR), /<small>STRONG AND IMPROVING<\/small>/);
+ assert.match(read(PR), /`\$\{skill\.skill_name\} is strong and improving`/);
+});
+
+test('B: Parent Report trend wording never claims improvement over the selected period', () => {
+ const profile = {subject_summaries:[summary('english', 80, 20), summary('math', 60, 20)]};
+ for (const [days, phrase] of [[7, 'this week'], [30, 'this month'], [90, 'in the last three months']]) {
+  const many = pa.parentSummary(profile, [skill(), skill()], [], days);
+  assert.match(many, new RegExp(`2 concepts practised ${phrase} currently show an improving trend`));
+  const none = pa.parentSummary(profile, [], [], days);
+  assert.match(none, new RegExp(`Among concepts practised ${phrase}, there is not yet enough repeated evidence`));
+ }
+ const src = read(PA);
+ assert.doesNotMatch(src, /Concepts strengthened|Concepts improved|positive recent movement|shown positive movement/);
+ assert.match(src, /label: "Currently improving"/);
+ assert.match(src, /The trend can cover a longer interval\./);
+});
+
+test('C: asNumber treats null, undefined and blank strings as missing but keeps 0 and "0"', () => {
+ for (const asNumber of [PR_NUM.asNumber, PA_NUM.asNumber]) {
+  assert.deepEqual([null, undefined, '', '   ', 'abc'].map(asNumber), [null, null, null, null, null]);
+  assert.deepEqual([0, '0', '12', 12.5, ' 7 '].map(asNumber), [0, 0, 12, 12.5, 7]);
+ }
+});
+
+test('C: a null question count falls back to subject summaries (Parent Report and Progress)', () => {
+ const snapshot = {source_question_count:null, subject_summaries:[{subject:'english', questions_attempted:30}, {subject:'math', questions_attempted:20}]};
+ assert.equal(PA_NUM.questionCountFromSnapshot(snapshot), 50);
+ assert.equal(PA_NUM.questionCountFromSnapshot({...snapshot, source_question_count:0}), 0, 'a real 0 is kept');
+ const profile = {latest_snapshot:snapshot, subject_summaries:[{subject:'english', questions_attempted:31}, {subject:'math', questions_attempted:21}]};
+ assert.equal(evalComponentConst(PR, 'latestQuestionCount', {profile, asNumber:PR_NUM.asNumber}), 52, 'Progress falls back to current summaries');
+});
+
+test('C: a null overall mastery never becomes 0', () => {
+ assert.equal(PR_NUM.snapshotAcademicMastery({overall_mastery:null}), null);
+ assert.equal(PR_NUM.snapshotAcademicMastery({overall_mastery:null, subject_summaries:[{subject:'english', mastery_score:80}, {subject:'math', mastery_score:60}]}), 70);
+ assert.equal(PR_NUM.snapshotSubjectMastery({subject_summaries:[{subject:'english', mastery_score:null}]}, 'english'), null);
+ assert.equal(PR_NUM.snapshotAcademicMastery({overall_mastery:0}), 0, 'a real 0 is kept');
+});
+
+/* D: run Parent Report's real recommendations effect against a controllable Supabase mock. */
+function recommendationsEffect() {
+ const sf = sourceFile(PA);
+ let fn = null;
+ (function walk(n) { if (fn) return; if (ts.isFunctionDeclaration(n) && n.name?.text === 'loadRecommendations') fn = n; else ts.forEachChild(n, walk); })(sf);
+ assert.ok(fn, 'loadRecommendations not found');
+ const effect = fn.parent.parent; // Block -> arrow function passed to useEffect
+ assert.ok(ts.isArrowFunction(effect));
+ const keys = ['supabase', 'learnerId', 'setRecommendationsLoading', 'setFeedsVerified', 'setRecommendations', 'setCycles'];
+ return vm.runInNewContext(transpile(`(function (${keys.join(', ')}) { return ${effect.getText(sf)}; })`), {});
+}
+function harness() {
+ const state = {};
+ const setter = (key) => (value) => { state[key] = value; };
+ const pending = [];
+ const supabase = {rpc(name, args) { let resolve, reject; const promise = new Promise((r, j) => { resolve = r; reject = j; }); pending.push({name, learner:args.p_student_user_id, resolve, reject}); return promise; }};
+ const run = (learnerId) => recommendationsEffect()(supabase, learnerId, setter('loading'), setter('verified'), setter('recommendations'), setter('cycles'))();
+ const take = (name, learner) => { const i = pending.findIndex((c) => c.name === name && c.learner === learner); assert.ok(i >= 0, `${name}/${learner}`); return pending.splice(i, 1)[0]; };
+ return {state, run, take};
+}
+const flush = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); };
+const RECS = (id) => ({data:{recommendations:[{skill_id:id, lane:'focus_now'}]}, error:null});
+const CYCLES = {data:{open_cycles:[]}, error:null};
+
+test('D: both feeds succeed -> verified; loading ends', async () => {
+ const h = harness();
+ h.run('kid-a');
+ assert.equal(h.state.loading, true);
+ assert.equal(h.state.verified, false);
+ h.take('get_nova_plus_recommendations', 'kid-a').resolve(RECS('a1'));
+ h.take('get_nova_learning_cycles', 'kid-a').resolve(CYCLES);
+ await flush();
+ assert.deepEqual(plain({loading:h.state.loading, verified:h.state.verified, first:h.state.recommendations.recommendations[0].skill_id}), {loading:false, verified:true, first:'a1'});
+});
+
+test('D: recommendations-only error is unverified, not "no priority"', async () => {
+ const h = harness();
+ h.run('kid-a');
+ h.take('get_nova_plus_recommendations', 'kid-a').resolve({data:null, error:{message:'boom'}});
+ h.take('get_nova_learning_cycles', 'kid-a').resolve(CYCLES);
+ await flush();
+ assert.deepEqual(plain({loading:h.state.loading, verified:h.state.verified, recs:h.state.recommendations}), {loading:false, verified:false, recs:null});
+ const empty = read(PA).slice(read(PA).indexOf('{feedsVerified\n'));
+ assert.match(empty, /: "Open Nova Recommends to see the current next step\."/);
+});
+
+test('D: cycles-only error is unverified', async () => {
+ const h = harness();
+ h.run('kid-a');
+ h.take('get_nova_plus_recommendations', 'kid-a').resolve(RECS('a1'));
+ h.take('get_nova_learning_cycles', 'kid-a').resolve({data:null, error:{message:'boom'}});
+ await flush();
+ assert.deepEqual(plain({loading:h.state.loading, verified:h.state.verified, recs:h.state.recommendations}), {loading:false, verified:false, recs:null});
+});
+
+test('D: a rejected request ends loading and stays unverified', async () => {
+ const h = harness();
+ h.run('kid-a');
+ h.take('get_nova_plus_recommendations', 'kid-a').reject(new Error('network'));
+ h.take('get_nova_learning_cycles', 'kid-a').resolve(CYCLES);
+ await flush();
+ assert.deepEqual(plain({loading:h.state.loading, verified:h.state.verified}), {loading:false, verified:false});
+});
+
+test('D: success with data:null keeps its existing meaning (verified, no recommendations)', async () => {
+ const h = harness();
+ h.run('kid-a');
+ h.take('get_nova_plus_recommendations', 'kid-a').resolve({data:null, error:null});
+ h.take('get_nova_learning_cycles', 'kid-a').resolve(CYCLES);
+ await flush();
+ assert.deepEqual(plain({verified:h.state.verified, recs:h.state.recommendations}), {verified:true, recs:null});
+});
+
+test('D: a stale response for learner A cannot overwrite learner B', async () => {
+ const h = harness();
+ const cleanupA = h.run('kid-a');
+ const recsA = h.take('get_nova_plus_recommendations', 'kid-a');
+ const cyclesA = h.take('get_nova_learning_cycles', 'kid-a');
+ cleanupA(); // learner switch
+ h.run('kid-b');
+ h.take('get_nova_plus_recommendations', 'kid-b').resolve(RECS('b1'));
+ h.take('get_nova_learning_cycles', 'kid-b').resolve(CYCLES);
+ await flush();
+ recsA.resolve(RECS('a1'));
+ cyclesA.reject(new Error('late failure'));
+ await flush();
+ assert.deepEqual(plain({loading:h.state.loading, verified:h.state.verified, first:h.state.recommendations.recommendations[0].skill_id}), {loading:false, verified:true, first:'b1'});
+});
+
+test('E: unconfirmed concepts are not described as lacking varied work', () => {
+ const meaning = mm.PURPOSE_STATE_META.needs_evidence.meaning;
+ assert.equal(meaning, 'Nova has not yet confirmed a strength or a learning gap from the available evidence.');
+ assert.doesNotMatch(read(MM), /varied/);
+});
+
+test('retained 2B-1B safeguards: review flag parity and low-confidence English still hold', () => {
+ assert.equal(an.storedNeedsReview({needs_review:false, mapping_confidence:0.75, extraction_confidence:0.95}, true), true);
+ assert.equal(englishUi.englishMasteryDisplayGroup({stage:'Strong', evidence_confidence:'Low'}), 'needs_evidence');
 });

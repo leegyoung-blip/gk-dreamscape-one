@@ -1,0 +1,34 @@
+DREAMSCAPE ONE — PHASE 4E-2B-8C-2C.4B
+Authenticated source-bound mathematics evidence CORROBORATION
+
+Files to ADD (exact repository paths):
+  lib/math/teaching/student-serving/phase4E2B8C2C4BVerifiedMathEvidence.server.ts
+  tests/phase4e2b8c2c4b-verified-math-evidence.test.cjs
+
+NO replacement of existing production files. NO SQL, env variables, new routes,
+production catalogue registration, scoring changes or learner-facing release.
+
+CONTRACT:
+- Accepts only an authenticated Request plus quizId/questionId.
+- First runs existing staff-only 4A queue; then fresh authenticated DB source.
+- Requires explicit positive question version and linked question identities.
+- Correlates extremely narrow text patterns for three inactive specialists.
+- Runs the existing specialist applicability checker.
+- Returns ONLY static review codes, draft IDs and source version.
+- Does NOT return extracted facts, text, answer keys, numerical solutions,
+  approvals, signed attestations, persistent artifacts or ranking changes.
+- ALL outcomes still require separate independent human verification.
+- Two source reads are NOT an atomic transaction. Later reviewer approval must
+  independently re-check source and version in the trusted persistence flow.
+
+RECOMMENDED LOCAL STEPS:
+1. Extract this ZIP into the repository root, preserving paths.
+2. Run:
+   node --test tests/phase4e2b8c2c4b-verified-math-evidence.test.cjs tests/phase4e2b8c2c4a-staff-specialist-review.test.cjs tests/phase4e2b8c2c3d-governance-regression.test.cjs
+   npx tsc --noEmit
+   git --no-pager diff --check
+3. Only if all commands pass, stage precisely these two new files and commit.
+
+This module is not yet wired to any UI/HTTP route: do not expect the 12-question
+candidate score CSV to change. The following phase should design an auditable
+staff verification and storage workflow before any 'verified fact' is reusable.

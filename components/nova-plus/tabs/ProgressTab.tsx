@@ -60,7 +60,11 @@ const SUBJECTS: Array<{ key: SubjectKey; label: string }> = [
   { key: "math", label: "Mathematics" },
 ];
 
+// null, undefined and blank strings are "missing", not zero (Number(null) is
+// 0), so fallbacks and baselines are not fed a fake 0.
 function asNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -186,7 +190,7 @@ function skillMovementLabel(skill: ProfileSkill) {
   const current = statusLabel(skill);
 
   if (skill.trend === "improving") {
-    if (current === "Strong") return "Strengthened to Strong";
+    if (current === "Strong") return "Strong and improving";
     if (current === "Developing") return "Moving Forward";
     if (current === "Ready to Reassess") return "Ready to Check Again";
     return "Early Improvement";
@@ -464,7 +468,8 @@ export default function ProgressTab({
     [recentSkills],
   );
 
-  const newlySecure = useMemo(
+  // Currently strong AND currently improving; no earlier status is known.
+  const strongAndImproving = useMemo(
     () =>
       improvedSkills.filter(
         (skill) => classifyConceptEvidence(skill) === "supported_strength",
@@ -589,7 +594,7 @@ export default function ProgressTab({
         date: skill.last_attempted_at ?? profile.generated_at,
         title:
           classifyConceptEvidence(skill) === "supported_strength"
-            ? `${skill.skill_name} is now strong`
+            ? `${skill.skill_name} is strong and improving`
             : `${skill.skill_name} is improving`,
         detail: `${subjectLabel(skill.subject)} · ${skill.topic}`,
         tone: "positive",
@@ -691,8 +696,8 @@ export default function ProgressTab({
 
         <article className={styles.summaryCard}>
           <span className={styles.summaryIcon}>◆</span>
-          <small>NEWLY SECURE</small>
-          <strong>{newlySecure.length}</strong>
+          <small>STRONG AND IMPROVING</small>
+          <strong>{strongAndImproving.length}</strong>
           <p>Improving concepts currently sitting in Strong.</p>
         </article>
 

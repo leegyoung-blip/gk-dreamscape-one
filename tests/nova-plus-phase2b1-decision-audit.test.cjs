@@ -333,8 +333,8 @@ test('S19 [PASS] recommendation without a quiz link shows "Practice mission unav
 });
 
 test('S21 [FIXED 2B-1B] Parent Report next step is Nova Recommends\' Focus Now item, never a stretch or open-cycle concept', () => {
- const scope = (recs, openIds, cyclesVerified = true) => ({
-  recommendations:{recommendations:recs}, cycles:{open_cycles:openIds.map((skill_id) => ({skill_id}))}, cyclesVerified,
+ const scope = (recs, openIds, feedsVerified = true) => ({
+  recommendations:{recommendations:recs}, cycles:{open_cycles:openIds.map((skill_id) => ({skill_id}))}, feedsVerified,
   focusRecommendation:ep.focusRecommendation, openCycleSkillIds:ep.openCycleSkillIds,
  });
  const stretchOnly = evalComponentConst(PA, 'firstRecommendation', scope([{skill_id:'k', lane:'stretch'}], []));
