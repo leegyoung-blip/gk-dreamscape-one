@@ -124,10 +124,10 @@ export function englishMasteryDisplayGroup(
     return "needs_evidence";
   }
 
-  if (
-    item.evidence_confidence === "Low" &&
-    ["Starting", "Building", "Progressing"].includes(item.stage)
-  ) {
+  // Evidence sufficiency comes before stage: the server's Low confidence
+  // (unknown confidence is normalised to Low) never supports a Secure claim
+  // or any other confirmed stage, however high the stage is.
+  if (item.evidence_confidence === "Low") {
     return "needs_evidence";
   }
 

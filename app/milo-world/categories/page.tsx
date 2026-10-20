@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 import ExpeditionQuiz from "@/components/milo/categories/ExpeditionQuiz";
 import ExpeditionComplete from "@/components/milo/categories/ExpeditionComplete";
@@ -1104,10 +1105,19 @@ export default function MiloCategoriesPage() {
     && multiplayerWaitingForCount === 0;
 
   useEffect(() => {
+    let isMounted = true;
+    // Only the newest load may update state; older, slower responses are dropped.
+    let latestLoadId = 0;
+
     async function loadUserAccess() {
+      const loadId = ++latestLoadId;
+      const isStale = () => !isMounted || loadId !== latestLoadId;
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
+      if (isStale()) return;
 
       if (!user) {
         setUserAccess({
@@ -1125,6 +1135,8 @@ export default function MiloCategoriesPage() {
         .select("role")
         .eq("id", user.id)
         .maybeSingle();
+
+      if (isStale()) return;
 
       if (profileError) {
         console.warn("Could not load profile role:", profileError.message);
@@ -1149,14 +1161,14 @@ export default function MiloCategoriesPage() {
 
     loadUserAccess();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    // Reload only when the signed-in user changes (login, logout, switch).
+    const stopAuthListener = onAuthUserChange(supabase, () => {
       loadUserAccess();
     });
 
     return () => {
-      subscription.unsubscribe();
+      isMounted = false;
+      stopAuthListener();
     };
   }, []);
 

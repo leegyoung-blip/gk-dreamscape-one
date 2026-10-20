@@ -9,6 +9,7 @@ import {
 } from "react";
 import { getLearningEntitlements } from "@/lib/learning-access";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 
 export type LearningMissionZoneKey = "core" | "think" | "science";
@@ -395,10 +396,11 @@ export function useLearningMissionRouteAccess(
       silentRefresh();
     }, 60_000);
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") {
+    // Only react when the signed-in user changes. INITIAL_SESSION is covered by
+    // the initial check above, and same-user TOKEN_REFRESHED / SIGNED_IN events
+    // do not change access (focus and the 60-second interval still revalidate).
+    const stopAuthListener = onAuthUserChange(supabase, ({ userId }) => {
+      if (!userId) {
         requestIdRef.current += 1;
 
         if (mountedRef.current) {
@@ -411,7 +413,7 @@ export function useLearningMissionRouteAccess(
       }
 
       // Keep Supabase work outside the auth callback and never flash the
-      // checking screen for SIGNED_IN/TOKEN_REFRESHED/USER_UPDATED events.
+      // checking screen when another account signs in.
       window.setTimeout(() => {
         if (mountedRef.current) {
           silentRefresh();
@@ -426,7 +428,7 @@ export function useLearningMissionRouteAccess(
         handleReleaseUpdate,
       );
       window.clearInterval(interval);
-      subscription.unsubscribe();
+      stopAuthListener();
     };
   }, [refreshAccess]);
 

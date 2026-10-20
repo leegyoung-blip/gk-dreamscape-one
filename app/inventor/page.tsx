@@ -6,6 +6,7 @@ import type { CSSProperties } from "react";
 import { preload } from "react-dom";
 import DeferredVideo from "@/components/media/DeferredVideo";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 import ObjectivesPanel, {
   type CurrentObjectivesStatus,
@@ -400,8 +401,13 @@ export default function NovaWorldPage() {
 
   useEffect(() => {
     let isMounted = true;
+    // Only the newest load may update state; older, slower responses are dropped.
+    let latestLoadId = 0;
 
     async function loadUserTokensAndObjectives() {
+      const loadId = ++latestLoadId;
+      const isStale = () => !isMounted || loadId !== latestLoadId;
+
       if (isMounted) {
         setObjectivesLoading(true);
         setDreamGemsLoading(true);
@@ -411,7 +417,7 @@ export default function NovaWorldPage() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!isMounted) return;
+      if (isStale()) return;
 
       if (!user) {
         setUserEmail(null);
@@ -438,7 +444,7 @@ export default function NovaWorldPage() {
           p_scope: "nova",
         });
 
-      if (!isMounted) return;
+      if (isStale()) return;
 
       if (objectiveError) {
         console.warn(
@@ -510,7 +516,7 @@ export default function NovaWorldPage() {
           .eq("user_id", user.id),
       ]);
 
-      if (!isMounted) return;
+      if (isStale()) return;
 
       if (profileResult.error) {
         console.warn(
@@ -541,11 +547,14 @@ export default function NovaWorldPage() {
         );
       }
 
-      setHasStudentRewardsAccess(
+      const hasStudentRewardsAccess =
         roleHasStudentRewardsAccess(role) ||
-          hasActiveNovaSubscription(subscriptionRows) ||
-          (await hasFounding50StudentAccess()),
-      );
+        hasActiveNovaSubscription(subscriptionRows) ||
+        (await hasFounding50StudentAccess());
+
+      if (isStale()) return;
+
+      setHasStudentRewardsAccess(hasStudentRewardsAccess);
 
       if (gemTransactionsResult.error) {
         console.warn(
@@ -658,9 +667,8 @@ export default function NovaWorldPage() {
 
     loadUserTokensAndObjectives();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    // Reload only when the signed-in user changes (login, logout, switch).
+    const stopAuthListener = onAuthUserChange(supabase, () => {
       loadUserTokensAndObjectives();
     });
 
@@ -679,7 +687,7 @@ export default function NovaWorldPage() {
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      stopAuthListener();
       window.removeEventListener("focus", refreshObjectives);
       window.removeEventListener("dream-tokens-updated", refreshObjectives);
       window.removeEventListener("dream-gems-updated", refreshObjectives);

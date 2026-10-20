@@ -1,0 +1,59 @@
+DREAMSCAPE ONE — Phase 4E-2B-8C-2C.4A
+Authenticated Staff Specialist Review Queue (read-only, internal only)
+
+PACKAGE CONTENTS (ADD ONLY; no existing source code replacements):
+  lib/math/teaching/student-serving/phase4E2B8C2C4AStaffSpecialistReview.server.ts
+  tests/phase4e2b8c2c4a-staff-specialist-review.test.cjs
+
+PURPOSE
+- Resolve the quiz/question through the existing authenticated admin/curriculum-lead
+  staff resolver and verify identity, 4A understanding gates, 4A/4B consumer
+  consistency and 4C selection status on EVERY invocation.
+- Queue only inactive specialist drafts whose taxonomy fits the verified
+  learner level, mathematical domain, structure, reasoning and primary family.
+- Never accept caller-supplied facts, approvals or ranking evidence.
+- Return no answers, prompts, student data, raw errors, scoring overrides,
+  or approved teaching content.
+- Do not create a route, change existing staff UI, or enable a specialist method.
+- Structural facts have NOT been extracted or independently verified yet. Thus
+  pending_evidence is NOT mathematical applicability or a ranked method.
+
+IMPORTANT
+This is an internal server-only entry point. No UI or API is wired to it in this phase.
+There are no Supabase changes, no new RLS policies, no migrations and no DB writes.
+The existing 12-question candidate-score export should remain unchanged.
+
+INSTALL (VS Code PowerShell)
+  Set-Location "C:\Users\leegy\gk-design-world"
+  $env:GIT_PAGER = "cat"
+  $zip = "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2C4A_STAFF_EVIDENCE_GATE_INSTALL.zip"
+  Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+
+TESTS
+  node --test tests/phase4e2b8c2c4a-staff-specialist-review.test.cjs tests/phase4e2b8c2c3d-governance-regression.test.cjs
+  if ($LASTEXITCODE -ne 0) { throw "Tests failed: do not commit" }
+  npx tsc --noEmit
+  if ($LASTEXITCODE -ne 0) { throw "TypeScript failed: do not commit" }
+  git --no-pager diff --check
+  if ($LASTEXITCODE -ne 0) { throw "Git whitespace check failed: do not commit" }
+
+STAGE ONLY THESE TWO FILES
+  git add lib/math/teaching/student-serving/phase4E2B8C2C4AStaffSpecialistReview.server.ts
+  git add tests/phase4e2b8c2c4a-staff-specialist-review.test.cjs
+  git --no-pager diff --cached --name-only
+  git --no-pager diff --cached --check
+
+COMMIT ONLY IF THE STAGED LIST SHOWS EXACTLY THE TWO INTENDED FILES
+  git commit -m "Phase 8C-2C4A add authenticated staff specialist review gate"
+  git push
+
+LOCAL VERIFICATION (SOURCE SNAPSHOT, NOT FULL REPOSITORY)
+  127/127 tests passed across specialist drafts, applicability, shadow
+  comparisons, governance audit and new staff review gate.
+  Full application compilation has NOT been verified; the extracted snapshot is
+  incomplete and cannot resolve unrelated Next.js/Supabase dependencies.
+
+NEXT STAGE
+  8C-2C.4B: Build an explicit staff evidence attestation workflow, with
+  source-version linkage and independent mathematical-structure verification.
+  No draft may be compared as eligible until that evidence is trustworthy.

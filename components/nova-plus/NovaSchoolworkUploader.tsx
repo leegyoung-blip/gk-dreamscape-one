@@ -264,35 +264,28 @@ function evidenceStrength(
     return "Not included";
   }
 
-  if (
-    ["correct", "incorrect", "partial"].includes(item.teacher_mark) &&
-    ["teacher_mark", "combined"].includes(item.correctness_source)
-  ) {
-    return state.correctness === "partial"
-      ? "Teacher evidence · 0.60"
-      : "Teacher evidence · 0.80";
+  // Show the weight the server actually proposed for the AI reading. Once the
+  // reviewer edits correctness or concept, the final weight is decided when
+  // the review is saved, so no precise number is claimed here.
+  const edited =
+    state.correctness !== state.original_correctness ||
+    state.skill_code !== state.original_skill_code;
+
+  if (edited) {
+    return "Reviewed by you · weight set when saved";
   }
 
-  const correctnessEdited =
-    state.correctness !== state.original_correctness;
-
-  if (correctnessEdited) {
-    return state.correctness === "partial"
-      ? "Reviewed evidence · 0.30"
-      : "Reviewed evidence · 0.50";
-  }
+  const weight = Number(item.proposed_evidence_weight);
 
   if (
-    item.correctness_confidence >= 0.9 &&
-    (state.skill_code !== state.original_skill_code ||
-      item.mapping_confidence >= 0.85)
+    item.proposed_evidence_weight === null ||
+    item.proposed_evidence_weight === undefined ||
+    !Number.isFinite(weight)
   ) {
-    return state.correctness === "partial"
-      ? "AI-checked · 0.35"
-      : "AI-checked · 0.50";
+    return "Weight set when saved";
   }
 
-  return "Conservative evidence · ≤0.35";
+  return `Proposed weight · ${weight.toFixed(2)}`;
 }
 
 export default function NovaSchoolworkUploader({
@@ -1527,11 +1520,6 @@ export default function NovaSchoolworkUploader({
                                     correctness:
                                       event.target
                                         .value as Correctness,
-                                    decision:
-                                      state.decision ===
-                                      "review"
-                                        ? "include"
-                                        : state.decision,
                                   },
                                 )
                               }
@@ -1574,11 +1562,6 @@ export default function NovaSchoolworkUploader({
                                     skill_code:
                                       event.target
                                         .value,
-                                    decision:
-                                      state.decision ===
-                                      "review"
-                                        ? "include"
-                                        : state.decision,
                                   },
                                 )
                               }

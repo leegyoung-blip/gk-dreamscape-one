@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import type { CSSProperties } from "react";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 import ThinkLabHub from "@/components/nova/think-lab/ThinkLabHub";
 import { ReactorTransferCelebration } from "@/components/nova/think-lab/ThinkLabReactor";
@@ -431,6 +432,10 @@ export default function ThinkingSkillsLabPage() {
   const [selectedGame, setSelectedGame] =
     useState<GameId>("colour-code");
   const [userId, setUserId] = useState<string | null>(null);
+  // Current account for event handlers, without re-running the load effect.
+  const userIdRef = useRef<string | null>(null);
+  // Only the newest status load may update state.
+  const statusLoadIdRef = useRef(0);
   const [status, setStatus] = useState<LabStatus>(EMPTY_STATUS);
   const [profileAssets, setProfileAssets] =
     useState<ProfileAssetBreakdown>(EMPTY_PROFILE_ASSETS);
@@ -503,6 +508,9 @@ export default function ThinkingSkillsLabPage() {
     displayedProfileAssets.stocks;
 
   const loadStatus = useCallback(async () => {
+    const loadId = ++statusLoadIdRef.current;
+    const isStale = () => loadId !== statusLoadIdRef.current;
+
     setLoading(true);
     setProfileAssetsLoading(true);
     setDreamGemsLoading(true);
@@ -512,8 +520,11 @@ export default function ThinkingSkillsLabPage() {
       error: userError,
     } = await supabase.auth.getUser();
 
+    if (isStale()) return;
+
     if (userError || !user) {
       const today = getSingaporeDateKey();
+      userIdRef.current = null;
       setUserId(null);
       setStatus((current) =>
         current.activityDate === today ? current : createGuestStatus(today)
@@ -527,6 +538,7 @@ export default function ThinkingSkillsLabPage() {
       return;
     }
 
+    userIdRef.current = user.id;
     setUserId(user.id);
 
     const [
@@ -574,6 +586,8 @@ export default function ThinkingSkillsLabPage() {
         .select("property_id,quantity")
         .eq("user_id", user.id),
     ]);
+
+    if (isStale()) return;
 
     if (statusResult.error) {
       console.error(
@@ -717,6 +731,9 @@ export default function ThinkingSkillsLabPage() {
           .limit(8),
       ]);
 
+      // Never show a previous account's wallet after switching accounts.
+      if (userIdRef.current !== accountUserId) return;
+
       if (balanceResult.error) {
         console.warn(
           "Could not refresh Dreamscape Tokens:",
@@ -761,12 +778,14 @@ export default function ThinkingSkillsLabPage() {
     []
   );
 
+  // Runs once: loadStatus and refreshCashAndTransactions are stable callbacks.
+  // userId is read from a ref so that setting it does not re-run this effect
+  // (which previously reloaded the status and re-subscribed to auth events).
   useEffect(() => {
     loadStatus();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    // Reload only when the signed-in user changes (login, logout, switch).
+    const stopAuthListener = onAuthUserChange(supabase, () => {
       loadStatus();
     });
 
@@ -775,8 +794,9 @@ export default function ThinkingSkillsLabPage() {
     }
 
     function refreshTokenAssets() {
-      if (userId) {
-        refreshCashAndTransactions(userId);
+      const currentUserId = userIdRef.current;
+      if (currentUserId) {
+        refreshCashAndTransactions(currentUserId);
       }
     }
 
@@ -784,14 +804,14 @@ export default function ThinkingSkillsLabPage() {
     window.addEventListener("dream-tokens-updated", refreshTokenAssets);
 
     return () => {
-      subscription.unsubscribe();
+      stopAuthListener();
       window.removeEventListener("focus", refreshAllAssets);
       window.removeEventListener(
         "dream-tokens-updated",
         refreshTokenAssets
       );
     };
-  }, [loadStatus, refreshCashAndTransactions, userId]);
+  }, [loadStatus, refreshCashAndTransactions]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {

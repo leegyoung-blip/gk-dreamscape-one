@@ -10,6 +10,16 @@ import type {
   ProfileSkill,
   ProfileSnapshot,
 } from "@/lib/nova-plus/types";
+import type { NovaLearningCyclesPayload } from "@/lib/nova-plus/phase6-types";
+import { subjectState } from "@/lib/nova-plus/helpers";
+import {
+  classifyConceptEvidence,
+  focusRecommendation,
+  hasImprovementEvidence,
+  openCycleSkillIds,
+  selectPeriodBaseline,
+  trendDisplayLabel,
+} from "@/lib/nova-plus/evidence-presentation";
 import styles from "./ParentReportTab.module.css";
 
 type ParentReportTabProps = {
@@ -97,29 +107,22 @@ function isCanonicalAcademicSkill(skill: ProfileSkill) {
   return true;
 }
 
+// Shared NOVA+ claim policy, so this report agrees with the other tabs.
 function isStrongSkill(skill: ProfileSkill) {
-  return (
-    ["secure", "mastered"].includes(skill.status) &&
-    skill.questions_attempted >= 5 &&
-    skill.confidence_score >= 55
-  );
+  return classifyConceptEvidence(skill) === "supported_strength";
 }
 
 function isConfirmedSupportSkill(skill: ProfileSkill) {
-  return (
-    skill.status === "needs_support" &&
-    skill.granular_eligible &&
-    skill.evidence_quality === "ready" &&
-    skill.questions_attempted >= 5 &&
-    skill.confidence_score >= 55
-  );
+  return classifyConceptEvidence(skill) === "confirmed_gap";
 }
 
+// "Still building evidence" also lists needs_support concepts that are not
+// yet confirmed, instead of hiding them from the report.
 function isBuildingEvidenceSkill(skill: ProfileSkill) {
   if (isConfirmedSupportSkill(skill)) return false;
 
   return (
-    ["emerging", "developing", "not_enough_data"].includes(skill.status) &&
+    ["emerging", "developing", "not_enough_data", "needs_support"].includes(skill.status) &&
     skill.questions_attempted >= 3 &&
     (skill.recent_wrong_answers > 0 || skill.trend === "declining")
   );
@@ -159,28 +162,8 @@ function parseSubjectSummaries(snapshot: ProfileSnapshot) {
     );
 }
 
-function baselineSnapshot(
-  profile: NovaPlusProfilePayload,
-  days: number,
-): ProfileSnapshot | null {
-  const start = windowStart(days).getTime();
-
-  const timeline = [...(profile.timeline ?? [])]
-    .filter((snapshot) => snapshot.snapshot_date || snapshot.generated_at)
-    .sort((a, b) => {
-      const left =
-        safeDate(a.snapshot_date ?? a.generated_at)?.getTime() ?? 0;
-      const right =
-        safeDate(b.snapshot_date ?? b.generated_at)?.getTime() ?? 0;
-      return left - right;
-    });
-
-  const before = timeline.filter((snapshot) => {
-    const date = safeDate(snapshot.snapshot_date ?? snapshot.generated_at);
-    return date ? date.getTime() <= start : false;
-  });
-
-  return before[before.length - 1] ?? timeline[0] ?? null;
+function baselineSnapshot(profile: NovaPlusProfilePayload, days: number) {
+  return selectPeriodBaseline(profile.timeline, windowStart(days));
 }
 
 function questionCountFromSnapshot(snapshot: ProfileSnapshot | null) {
@@ -217,16 +200,28 @@ function currentSubjectMastery(
   );
 }
 
+// "Strongest" is a comparison: it needs at least two subjects that each meet
+// the established 5-question evidence floor (My Learning's subject state).
 function strongestSubject(profile: NovaPlusProfilePayload) {
-  return (["english", "math"] as const)
+  const comparable = (["english", "math"] as const)
+    .filter((subject) =>
+      subjectState(
+        profile.subject_summaries.find(
+          (item) => item.subject.toLowerCase() === subject,
+        ),
+      ) !== "unknown",
+    )
     .map((subject) => ({
       subject,
       mastery: currentSubjectMastery(profile, subject),
     }))
     .filter((item): item is { subject: "english" | "math"; mastery: number } =>
       Number.isFinite(item.mastery),
-    )
-    .sort((a, b) => b.mastery - a.mastery)[0] ?? null;
+    );
+
+  if (comparable.length < 2) return null;
+
+  return comparable.sort((a, b) => b.mastery - a.mastery)[0] ?? null;
 }
 
 function consistencyLabel(skills: ProfileSkill[], questions: number) {
@@ -265,16 +260,17 @@ function parentSummary(
   const period =
     days === 7 ? "This week" : days === 30 ? "This month" : "Over the last three months";
 
+  // Subject mastery reflects all recorded evidence, not just this period.
   const firstSentence = strongest
-    ? `${period}, ${subjectLabel(strongest.subject)} is currently the strongest academic area at ${Math.round(
+    ? `Across all recorded evidence, ${subjectLabel(strongest.subject)} is currently the strongest academic area at ${Math.round(
         strongest.mastery,
       )}% mastery.`
-    : `${period}, Nova is still building a reliable overall academic picture.`;
+    : "Nova is still building a reliable overall academic picture.";
 
   const movementSentence =
     improved.length > 0
-      ? `${improved.length} concept${improved.length === 1 ? " has" : "s have"} shown positive movement.`
-      : "There is not yet enough repeated evidence to call out a clear improvement trend.";
+      ? `${period}, ${improved.length} practised concept${improved.length === 1 ? " has" : "s have"} shown positive movement.`
+      : `${period}, there is not yet enough repeated evidence to call out a clear improvement trend.`;
 
   const supportSentence =
     support.length > 0
@@ -514,7 +510,7 @@ function printReport({
         <b>${escapeHtml(recommendation.quiz.quiz_title)}</b>
       </div>
     `
-    : `<div class="empty">Nova needs more mapped evidence before selecting a confident next priority.</div>`;
+    : `<div class="empty">No single top-priority concept is shown here. Nova Recommends in NOVA+ lists the current options.</div>`;
 
   const tipsHtml = tips
     .map(
@@ -891,6 +887,10 @@ export default function ParentReportTab({
   const [recommendations, setRecommendations] =
     useState<NovaRecommendationsPayload | null>(null);
   const [recommendationsLoading, setRecommendationsLoading] = useState(true);
+  // Open cycles are needed to match Nova Recommends' top priority. If they
+  // cannot be loaded, no single next step is named.
+  const [cycles, setCycles] = useState<NovaLearningCyclesPayload | null>(null);
+  const [cyclesVerified, setCyclesVerified] = useState(false);
   const schoolworkEvidence = useNovaSchoolworkEvidence(learnerId);
 
   const period = TIMEFRAMES.find((item) => item.key === timeframe) ?? TIMEFRAMES[1];
@@ -902,15 +902,26 @@ export default function ParentReportTab({
     async function loadRecommendations() {
       setRecommendationsLoading(true);
 
-      const { data } = await supabase.rpc("get_nova_plus_recommendations", {
-        p_student_user_id: learnerId,
-      });
+      const [recommendationsResult, cyclesResult] = await Promise.all([
+        supabase.rpc("get_nova_plus_recommendations", {
+          p_student_user_id: learnerId,
+        }),
+        supabase.rpc("get_nova_learning_cycles", {
+          p_student_user_id: learnerId,
+        }),
+      ]);
 
       if (cancelled) return;
 
       setRecommendations(
-        (data ?? null) as NovaRecommendationsPayload | null,
+        (recommendationsResult.data ?? null) as NovaRecommendationsPayload | null,
       );
+      setCycles(
+        cyclesResult.error
+          ? null
+          : ((cyclesResult.data ?? null) as NovaLearningCyclesPayload | null),
+      );
+      setCyclesVerified(!cyclesResult.error);
       setRecommendationsLoading(false);
     }
 
@@ -975,11 +986,7 @@ export default function ParentReportTab({
   const improved = useMemo(
     () =>
       recentSkills
-        .filter(
-          (skill) =>
-            skill.trend === "improving" &&
-            Number(skill.trend_points ?? 0) > 0,
-        )
+        .filter(hasImprovementEvidence)
         .sort(
           (a, b) =>
             Number(b.trend_points ?? 0) - Number(a.trend_points ?? 0),
@@ -989,9 +996,7 @@ export default function ParentReportTab({
 
   const newlySecure = useMemo(
     () =>
-      improved.filter((skill) =>
-        ["secure", "mastered"].includes(skill.status),
-      ),
+      improved.filter((skill) => isStrongSkill(skill)),
     [improved],
   );
 
@@ -1013,7 +1018,8 @@ export default function ParentReportTab({
   );
 
   const currentQuestionCount = currentAcademicQuestions(profile);
-  const baselineQuestionCount = questionCountFromSnapshot(baseline);
+  const baselineQuestionCount = questionCountFromSnapshot(baseline?.snapshot ?? null);
+  const baselineLabel = baseline ? formatDate(baseline.date.toISOString()) : "";
   const questionsCompleted =
     baselineQuestionCount === null
       ? currentQuestionCount
@@ -1032,14 +1038,24 @@ export default function ParentReportTab({
     [profile, improved, confirmedSupport, days],
   );
 
-  const firstRecommendation =
-    recommendations?.recommendations?.[0] ?? null;
+  // Same top priority Nova Recommends shows (first focus_now concept without an
+  // open learning cycle). Never a different lane, never unverified.
+  const firstRecommendation = cyclesVerified
+    ? focusRecommendation(
+        recommendations?.recommendations,
+        openCycleSkillIds(cycles),
+      )
+    : null;
 
   const reportMetrics: ParentMetric[] = [
     {
       label: "Questions completed",
       value: String(Math.round(questionsCompleted)),
-      note: "Academic question evidence added in this report period.",
+      note: !baseline
+        ? "All recorded academic questions. There is no earlier profile yet to measure this period against."
+        : baseline.coversPeriod
+          ? "Academic question evidence added in this report period."
+          : `Academic question evidence added since ${baselineLabel}, a shorter span than this report period.`,
     },
     {
       label: "Concepts strengthened",
@@ -1049,7 +1065,7 @@ export default function ParentReportTab({
     {
       label: "Currently strong",
       value: String(strengths.length),
-      note: "Top evidence-backed strengths highlighted in this report.",
+      note: "Top evidence-backed strengths, based on all recorded evidence.",
     },
     {
       label: "Learning consistency",
@@ -1103,11 +1119,11 @@ export default function ParentReportTab({
     strengths,
   ]);
 
-  const periodComparison = baseline
-    ? `Compared with the learner profile around ${formatDate(
-        baseline.snapshot_date ?? baseline.generated_at,
-      )}`
-    : "Nova is still building a longer-term comparison baseline.";
+  const periodComparison = !baseline
+    ? "Nova does not have an earlier profile to compare with yet."
+    : baseline.coversPeriod
+      ? `Compared with the learner profile around ${baselineLabel}`
+      : `Comparable history only starts ${baselineLabel}, so changes are measured from then, not across the full ${period.label.toLowerCase()}.`;
 
   function handlePdf() {
     printReport({
@@ -1216,7 +1232,7 @@ export default function ParentReportTab({
               <span className={styles.goodEyebrow}>WHAT&apos;S GOING WELL</span>
               <h3>Current strengths</h3>
             </div>
-            <b>{strengths.length} highlighted</b>
+            <b>{strengths.length} highlighted · all recorded evidence</b>
           </div>
 
           <div className={styles.conceptList}>
@@ -1263,7 +1279,7 @@ export default function ParentReportTab({
                     </span>
                     <span>
                       <small>Trend</small>
-                      <b>{skill.trend === "improving" ? "Improving" : "Stable"}</b>
+                      <b>{trendDisplayLabel(skill.trend)}</b>
                     </span>
                   </div>
                 </details>
@@ -1283,7 +1299,7 @@ export default function ParentReportTab({
               <span className={styles.supportEyebrow}>WHAT NEEDS SUPPORT</span>
               <h3>Where practice can help</h3>
             </div>
-            <b>{confirmedSupport.length} confirmed</b>
+            <b>{confirmedSupport.length} confirmed · all recorded evidence</b>
           </div>
 
           <div className={styles.conceptList}>
@@ -1411,7 +1427,7 @@ export default function ParentReportTab({
         <div className={styles.sectionHeading}>
           <div>
             <span className={styles.eyebrow}>WHAT NOVA RECOMMENDS NEXT</span>
-            <h3>One clear next step</h3>
+            <h3>{firstRecommendation ? "One clear next step" : "Next steps"}</h3>
           </div>
           <button type="button" onClick={onOpenRecommendations}>
             View Nova Recommends
@@ -1441,8 +1457,9 @@ export default function ParentReportTab({
           </article>
         ) : (
           <div className={styles.emptyState}>
-            Nova needs more mapped evidence before selecting a confident next
-            priority.
+            {cyclesVerified
+              ? "Nova Recommends has no single top-priority concept right now. Open it to see the current options."
+              : "Open Nova Recommends to see the current next step."}
           </div>
         )}
       </section>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 import MasteryCodeQuickPlay from "@/components/milo/activity-lab/MasteryCodeQuickPlay";
 import MasteryCodeSurvival from "@/components/milo/activity-lab/MasteryCodeSurvival";
@@ -494,12 +495,18 @@ export default function ActivityLabPage() {
     }
   }, []);
 
-  async function refreshTokenBalance(activeUserId: string) {
+  async function refreshTokenBalance(
+    activeUserId: string,
+    isCurrent: () => boolean = () => true,
+  ) {
     const { data, error } = await supabase
       .from("dream_token_transactions")
       .select("amount")
       .eq("user_id", activeUserId)
       .eq("token_kind", "virtual");
+
+    // A newer account load may have started while this was in flight.
+    if (!isCurrent()) return;
 
     if (error) {
       console.warn("Could not load Dreamscape Tokens:", error.message);
@@ -512,13 +519,18 @@ export default function ActivityLabPage() {
 
   useEffect(() => {
     let mounted = true;
+    // Only the newest load may update state; older, slower responses are dropped.
+    let latestLoadId = 0;
 
     async function loadAccount() {
+      const loadId = ++latestLoadId;
+      const isStale = () => !mounted || loadId !== latestLoadId;
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!mounted) return;
+      if (isStale()) return;
 
       if (!user) {
         setIsAdmin(false);
@@ -534,7 +546,7 @@ export default function ActivityLabPage() {
         .eq("id", user.id)
         .maybeSingle();
 
-      if (!mounted) return;
+      if (isStale()) return;
 
       if (profileError) {
         console.warn("Could not load Activity Lab account role:", profileError.message);
@@ -550,19 +562,18 @@ export default function ActivityLabPage() {
       setUserEmail(user.email ?? "");
       setDreamTokens(0);
 
-      await refreshTokenBalance(user.id);
+      await refreshTokenBalance(user.id, () => !isStale());
     }
 
     loadAccount();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    // Reload only when the signed-in user changes (login, logout, switch).
+    const stopAuthListener = onAuthUserChange(supabase, () => {
       loadAccount();
     });
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      stopAuthListener();
     };
   }, []);
 

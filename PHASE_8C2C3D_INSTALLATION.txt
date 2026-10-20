@@ -1,0 +1,61 @@
+DREAMSCAPE ONE — Phase 4E-2B-8C-2C.3D
+Regression and Governance Verification (OFFLINE / STAFF DIAGNOSTICS ONLY)
+
+Package includes (all paths relative to repository root):
+  scripts/phase4e2b8c2c3d-verify-coverage.cjs
+  tests/fixtures/phase4e2b8c2c3d-baseline.json
+  tests/phase4e2b8c2c3d-governance-regression.test.cjs
+
+DOES NOT MODIFY:
+  - Live production method catalogue
+  - 4C selector or candidate scores
+  - Method approval / release gates
+  - Supabase database or RLS
+  - Student or parent-facing routes
+
+INDEPENDENT CHECKS:
+  - 3 new specialist drafts are inactive, unregistered, without curriculum-skill boosts
+  - Existing production entry points do not directly import new specialist modules
+  - Shadow output cannot imply scored specialist rank, score delta or primary method
+  - No DB or answer-key dependencies in the pure applicability/comparison modules
+  - Invalid structure, visual uncertainty, selected outcomes and tampered 4C snapshots
+    never create review-ready shadow comparisons
+  - Twelve-question pinned evidence baseline: 5 selected, 7 ambiguous;
+    P4 corrected true top two; P3/P5/P6 specialist review codes retained
+  - Optional read-only comparison of a newly exported 12-question CSV
+
+OUTSTANDING RELEASE BLOCKERS (NOT SOLVED BY THESE TESTS):
+  - Confirm the production repository full npx tsc --noEmit passes, including the
+    ES2017 BigInt hotfix from Phase 8C-2C.3B.
+  - Authenticate and authorise staff via existing backend, not from caller input.
+  - Independently validate mathematical facts / diagram evidence and provenance.
+  - Establish pedagogy correctness, especially for the five incumbent selections
+    that did not receive comparative scores in the sample.
+  - Review and approve candidate eligibility before any scoring/policy change.
+  - Verify full project regression suite, not only the focused tests.
+
+INSTALL:
+  Extract into C:\Users\leegy\gk-design-world (keep relative paths).
+
+FOCUSED REGRESSION:
+  node --test tests/phase4e2b8c2c3a-specialist-drafts.test.cjs tests/phase4e2b8c2c3b-applicability-review.test.cjs tests/phase4e2b8c2c3c-shadow-ranking-comparison.test.cjs tests/phase4e2b8c2c3d-governance-regression.test.cjs tests/phase4e2b8c2c2-ranking-evidence.test.cjs tests/phase4e2b8c2c1-skill-evidence-audit.test.cjs tests/phase4e2b8c2b-method-differentiation.test.cjs tests/phase4e2b1-staff-method-preview.test.cjs tests/phase4e2b3-understanding-gate-diagnostics.test.cjs
+  npx tsc --noEmit
+  git diff --check
+
+OPTIONAL, WITH LOCAL EXPORTED CSV:
+  node scripts/phase4e2b8c2c3d-verify-coverage.cjs "C:\path\to\DREAMSCAPE_4E2B8C_CANDIDATE_SCORE_COVERAGE.csv"
+
+The fixture is ONLY an approved snapshot of diagnostic results, not an oracle
+for mathematical correctness. A failed baseline check means investigate;
+never edit expected values merely to obtain green tests.
+
+WHEN ALL CHECKS PASS:
+  git add scripts/phase4e2b8c2c3d-verify-coverage.cjs
+  git add tests/fixtures/phase4e2b8c2c3d-baseline.json
+  git add tests/phase4e2b8c2c3d-governance-regression.test.cjs
+  git --no-pager diff --cached --check
+  git --no-pager diff --cached --name-only
+  git commit -m "Phase 8C-2C3D add specialist governance regression audit"
+  git push
+
+No Supabase SQL is required.

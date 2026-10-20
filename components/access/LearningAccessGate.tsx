@@ -5,6 +5,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 
 type LearningZone =
@@ -214,14 +215,14 @@ export default function LearningAccessGate({
       showChecking: true,
     });
 
-    const {
-      data: { subscription },
-    } =
-      supabase.auth.onAuthStateChange(
-        (event) => {
-          if (
-            event === "SIGNED_OUT"
-          ) {
+    // Only react when the signed-in user changes. INITIAL_SESSION is covered by
+    // the initial check above, and same-user TOKEN_REFRESHED / SIGNED_IN events
+    // do not change access (focus and the expiry timer still re-check).
+    const stopAuthListener =
+      onAuthUserChange(
+        supabase,
+        ({ userId }) => {
+          if (!userId) {
             latestRequestId += 1;
             clearExpiryTimer();
             setStatus("logged-out");
@@ -255,7 +256,7 @@ export default function LearningAccessGate({
       cancelled = true;
       latestRequestId += 1;
       clearExpiryTimer();
-      subscription.unsubscribe();
+      stopAuthListener();
 
       window.removeEventListener(
         "focus",

@@ -1,0 +1,130 @@
+{
+  "phase": "4E-2B-8C-2C.3D",
+  "description": "Read-only reference from user-provided 8C-2C.2 12-question coverage; no question text or answer keys. This is a regression baseline, not an independent correctness certification.",
+  "expectedSelected": 5,
+  "expectedAmbiguous": 7,
+  "rows": [
+    {
+      "code": "MATH-P1-GEO-012-Q03",
+      "outcome": "selected",
+      "methodId": "patterns.sequence_rule.shape_attribute_progression"
+    },
+    {
+      "code": "MATH-P1-PROB-003-Q04",
+      "outcome": "ambiguous",
+      "topMethodId": "model.change.find_change",
+      "topScore": 77.0,
+      "secondMethodId": "model.change.forward_change",
+      "secondScore": 77.0,
+      "reasonCodes": [
+        "SINGLE_FAMILY_SELECTION_AMBIGUOUS",
+        "METHOD_8C2B_KNOWN_DECREASE_FINAL_UNKNOWN",
+        "SKILL_8C2C_TOP_TWO_SKILLS_UNDECLARED"
+      ]
+    },
+    {
+      "code": "MATH-P2-GEO-026-Q04",
+      "outcome": "selected",
+      "methodId": "geometry.properties.defining_properties"
+    },
+    {
+      "code": "MATH-P2-NUM-106-Q04",
+      "outcome": "selected",
+      "methodId": "number.factors_multiples.bounded_common_multiple_maximum"
+    },
+    {
+      "code": "MATH-P3-MEAS-013-Q104",
+      "outcome": "ambiguous",
+      "topMethodId": "heuristic.multi_step.dependency_order",
+      "topScore": 77.0,
+      "secondMethodId": "heuristic.multi_step.final_synthesis",
+      "secondScore": 77.0,
+      "reasonCodes": [
+        "SINGLE_FAMILY_SELECTION_AMBIGUOUS",
+        "METHOD_8C2B_MULTISTEP_DEPENDENCY_SYNTHESIS_OVERLAP",
+        "SKILL_8C2C_TOP_TWO_SKILLS_UNDECLARED",
+        "RANK_8C2C2_EQUAL_SPACING_INTERVAL_COUNT_REVIEW"
+      ]
+    },
+    {
+      "code": "MATH-P3-NUM-078-Q104",
+      "outcome": "selected",
+      "methodId": "number.place_value.constrained_digit_formation"
+    },
+    {
+      "code": "MATH-P4-GEO-016-A03",
+      "outcome": "ambiguous",
+      "topMethodId": "geometry.angle.find_unknown",
+      "topScore": 77.0,
+      "secondMethodId": "geometry.angle.known_relationships",
+      "secondScore": 77.0,
+      "reasonCodes": [
+        "SINGLE_FAMILY_SELECTION_AMBIGUOUS",
+        "METHOD_8C2B_VISUAL_OR_MULTIPART_REVIEW_REQUIRED",
+        "SKILL_8C2C_TOP_TWO_SKILLS_UNDECLARED",
+        "RANK_8C2C2_VISUAL_REVIEW_REQUIRED"
+      ]
+    },
+    {
+      "code": "MATH-P4-NUM-043-Q102",
+      "outcome": "ambiguous",
+      "topMethodId": "heuristic.multi_step.identify_subgoals",
+      "topScore": 77.0,
+      "secondMethodId": "heuristic.multi_step.dependency_order",
+      "secondScore": 70.75,
+      "reasonCodes": [
+        "SINGLE_FAMILY_SELECTION_AMBIGUOUS",
+        "METHOD_8C2B_MULTISTEP_SUBGOAL_DEPENDENCY_OVERLAP",
+        "SKILL_8C2C_TOP_TWO_SKILLS_UNDECLARED",
+        "RANK_8C2C2_MULTISTEP_METHODS_COMPLEMENTARY"
+      ]
+    },
+    {
+      "code": "MATH-P5-NUM-024-Q104",
+      "outcome": "ambiguous",
+      "topMethodId": "heuristic.multi_step.dependency_order",
+      "topScore": 77.0,
+      "secondMethodId": "heuristic.multi_step.final_synthesis",
+      "secondScore": 77.0,
+      "reasonCodes": [
+        "SINGLE_FAMILY_SELECTION_AMBIGUOUS",
+        "METHOD_8C2B_MULTISTEP_DEPENDENCY_SYNTHESIS_OVERLAP",
+        "SKILL_8C2C_TOP_TWO_SKILLS_UNDECLARED",
+        "RANK_8C2C2_MULTIPLICATIVE_CHAIN_REVIEW"
+      ]
+    },
+    {
+      "code": "MATH-P5-NUM-020-Q104",
+      "outcome": "ambiguous",
+      "topMethodId": "heuristic.multi_step.dependency_order",
+      "topScore": 72.0,
+      "secondMethodId": "heuristic.multi_step.final_synthesis",
+      "secondScore": 72.0,
+      "reasonCodes": [
+        "SINGLE_FAMILY_SELECTION_AMBIGUOUS",
+        "METHOD_8C2B_TARGET_NOT_UNIQUE",
+        "SKILL_8C2C_TOP_TWO_SKILLS_UNDECLARED",
+        "RANK_8C2C2_MULTIPART_REVIEW_REQUIRED"
+      ]
+    },
+    {
+      "code": "MATH-P6-ALG-032-Q104",
+      "outcome": "selected",
+      "methodId": "number.factors_multiples.hcf_equal_cut_and_count"
+    },
+    {
+      "code": "MATH-P6-RATIO-023-Q103",
+      "outcome": "ambiguous",
+      "topMethodId": "ratio.relationship.part_whole_connection",
+      "topScore": 77.0,
+      "secondMethodId": "ratio.relationship.ratio_units",
+      "secondScore": 77.0,
+      "reasonCodes": [
+        "SINGLE_FAMILY_SELECTION_AMBIGUOUS",
+        "METHOD_8C2B_RATIO_UNITS_OR_PART_WHOLE_UNRESOLVED",
+        "SKILL_8C2C_TOP_TWO_SKILLS_UNDECLARED",
+        "RANK_8C2C2_CHANGING_RATIO_REVIEW"
+      ]
+    }
+  ]
+}

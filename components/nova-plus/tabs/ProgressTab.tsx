@@ -7,6 +7,11 @@ import type {
   ProfileSkill,
   ProfileSnapshot,
 } from "@/lib/nova-plus/types";
+import {
+  classifyConceptEvidence,
+  hasImprovementEvidence,
+  selectPeriodBaseline,
+} from "@/lib/nova-plus/evidence-presentation";
 import styles from "./ProgressTab.module.css";
 
 type ProgressTabProps = {
@@ -158,21 +163,22 @@ function snapshotAcademicMastery(snapshot: ProfileSnapshot) {
   );
 }
 
+// Labels follow the shared NOVA+ claim policy: "Strong" and "Needs Attention"
+// only when the evidence confirms them; otherwise "Needs More Evidence".
 function statusLabel(skill: ProfileSkill) {
-  if (skill.status === "mastered" || skill.status === "secure") return "Strong";
-  if (skill.status === "needs_support" || skill.status === "emerging") {
-    return "Needs Attention";
-  }
+  const claim = classifyConceptEvidence(skill);
+  if (claim === "supported_strength") return "Strong";
+  if (claim === "confirmed_gap") return "Needs Attention";
+  if (claim === "needs_evidence") return "Needs More Evidence";
   if (skill.status === "review_due") return "Ready to Reassess";
   return "Developing";
 }
 
 function statusTone(skill: ProfileSkill) {
-  if (skill.status === "mastered" || skill.status === "secure") return "strong";
-  if (skill.status === "needs_support" || skill.status === "emerging") {
-    return "attention";
-  }
-  if (skill.status === "review_due") return "reassess";
+  const claim = classifyConceptEvidence(skill);
+  if (claim === "supported_strength") return "strong";
+  if (claim === "confirmed_gap") return "attention";
+  if (claim !== "needs_evidence" && skill.status === "review_due") return "reassess";
   return "developing";
 }
 
@@ -285,22 +291,7 @@ function baselineSnapshot(profile: NovaPlusProfilePayload, days: number | null) 
   const start = startOfWindow(days);
   if (!start) return null;
 
-  const snapshots = [...(profile.timeline ?? [])]
-    .filter((snapshot) => snapshot.snapshot_date || snapshot.generated_at)
-    .sort((a, b) => {
-      const left = safeDate(a.snapshot_date ?? a.generated_at)?.getTime() ?? 0;
-      const right = safeDate(b.snapshot_date ?? b.generated_at)?.getTime() ?? 0;
-      return left - right;
-    });
-
-  const before = snapshots.filter((snapshot) => {
-    const date = safeDate(snapshot.snapshot_date ?? snapshot.generated_at);
-    return date ? date <= start : false;
-  });
-
-  if (before.length) return before[before.length - 1];
-
-  return snapshots[0] ?? null;
+  return selectPeriodBaseline(profile.timeline, start);
 }
 
 function skillSortValue(skill: ProfileSkill) {
@@ -468,11 +459,7 @@ export default function ProgressTab({
   const improvedSkills = useMemo(
     () =>
       recentSkills
-        .filter(
-          (skill) =>
-            skill.trend === "improving" &&
-            Number(skill.trend_points ?? 0) > 0,
-        )
+        .filter(hasImprovementEvidence)
         .sort((a, b) => skillSortValue(b) - skillSortValue(a)),
     [recentSkills],
   );
@@ -480,7 +467,7 @@ export default function ProgressTab({
   const newlySecure = useMemo(
     () =>
       improvedSkills.filter(
-        (skill) => skill.status === "secure" || skill.status === "mastered",
+        (skill) => classifyConceptEvidence(skill) === "supported_strength",
       ),
     [improvedSkills],
   );
@@ -499,11 +486,16 @@ export default function ProgressTab({
   const attentionSkills = useMemo(
     () =>
       recentSkills
-        .filter(
-          (skill) =>
-            ["needs_support", "emerging", "review_due"].includes(skill.status) ||
-            skill.trend === "declining",
-        )
+        .filter((skill) => {
+          // Never list a concept as needing attention from too little evidence.
+          const claim = classifyConceptEvidence(skill);
+          if (claim === "needs_evidence") return false;
+          return (
+            claim === "confirmed_gap" ||
+            skill.status === "review_due" ||
+            skill.trend === "declining"
+          );
+        })
         .sort((a, b) => {
           const aDecline = a.trend === "declining" ? 1 : 0;
           const bDecline = b.trend === "declining" ? 1 : 0;
@@ -524,7 +516,7 @@ export default function ProgressTab({
   );
 
   const currentAcademic = currentAcademicMastery(profile);
-  const baselineAcademic = baseline ? snapshotAcademicMastery(baseline) : null;
+  const baselineAcademic = baseline ? snapshotAcademicMastery(baseline.snapshot) : null;
   const academicDelta =
     currentAcademic !== null && baselineAcademic !== null
       ? currentAcademic - baselineAcademic
@@ -537,7 +529,7 @@ export default function ProgressTab({
       .reduce((sum, item) => sum + Number(item.questions_attempted ?? 0), 0);
 
   const baselineQuestionCount = baseline
-    ? asNumber(baseline.source_question_count)
+    ? asNumber(baseline.snapshot.source_question_count)
     : null;
 
   const questionsCompleted =
@@ -547,7 +539,7 @@ export default function ProgressTab({
 
   const subjectCards = (["english", "math"] as const).map((subject) => {
     const current = currentSubjectMastery(profile, subject);
-    const previous = baseline ? snapshotSubjectMastery(baseline, subject) : null;
+    const previous = baseline ? snapshotSubjectMastery(baseline.snapshot, subject) : null;
     const delta =
       current !== null && previous !== null ? current - previous : null;
 
@@ -596,7 +588,7 @@ export default function ProgressTab({
         id: `skill-${skill.skill_id}`,
         date: skill.last_attempted_at ?? profile.generated_at,
         title:
-          skill.status === "secure" || skill.status === "mastered"
+          classifyConceptEvidence(skill) === "supported_strength"
             ? `${skill.skill_name} is now strong`
             : `${skill.skill_name} is improving`,
         detail: `${subjectLabel(skill.subject)} · ${skill.topic}`,
@@ -640,15 +632,28 @@ export default function ProgressTab({
     profile.generated_at,
   ]);
 
+  // A baseline newer than the period start is a shorter comparison, and is
+  // labelled with its real date rather than as a full-period change.
+  const baselineLabel = baseline
+    ? formatDate(baseline.date.toISOString(), true)
+    : "";
   const periodComparison =
     days === null
       ? "All available learning history"
-      : baseline
-        ? `Compared with the profile around ${formatDate(
-            baseline.snapshot_date ?? baseline.generated_at,
-            true,
-          )}`
-        : `Showing the last ${days} days`;
+      : !baseline
+        ? `No earlier profile to compare with yet, so no ${days}-day change is shown`
+        : baseline.coversPeriod
+          ? `Compared with the profile around ${baselineLabel}`
+          : `Comparable history only starts ${baselineLabel}, so changes are measured from then, not across ${days} days`;
+
+  const questionsNote =
+    days === null
+      ? "All academic question evidence recorded in the learner profile."
+      : !baseline
+        ? "All recorded academic questions. There is no earlier profile yet to measure this period against."
+        : baseline.coversPeriod
+          ? "Academic question evidence added in this period."
+          : `Academic question evidence added since ${baselineLabel}, a shorter span than the selected period.`;
 
   return (
     <section className={styles.page}>
@@ -702,7 +707,7 @@ export default function ProgressTab({
           <span className={styles.summaryIcon}>◎</span>
           <small>QUESTIONS COMPLETED</small>
           <strong>{Math.round(questionsCompleted)}</strong>
-          <p>Academic question evidence added to the learner profile.</p>
+          <p>{questionsNote}</p>
         </article>
       </section>
 

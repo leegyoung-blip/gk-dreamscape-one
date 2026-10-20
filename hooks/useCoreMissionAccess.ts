@@ -9,6 +9,7 @@ import {
 import {
   roleHasStaffLearningAccess,
 } from "@/lib/learning-access";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 
 export type CoreAccessStatus =
@@ -511,12 +512,14 @@ export function useCoreMissionAccess() {
       handleWindowFocus,
     );
 
-    const {
-      data: { subscription },
-    } =
-      supabase.auth.onAuthStateChange(
-        (event) => {
-          if (event === "SIGNED_OUT") {
+    // Only react when the signed-in user changes. INITIAL_SESSION is covered by
+    // the initial refresh above, and same-user TOKEN_REFRESHED / SIGNED_IN events
+    // (for example when a tab regains focus) do not change access.
+    const stopAuthListener =
+      onAuthUserChange(
+        supabase,
+        ({ userId: nextUserId }) => {
+          if (!nextUserId) {
             accessRequestIdRef.current += 1;
             balanceRequestIdRef.current += 1;
             clearAccessCache();
@@ -529,9 +532,8 @@ export function useCoreMissionAccess() {
             return;
           }
 
-          if (event === "SIGNED_IN") {
-            clearAccessCache();
-          }
+          // A different account signed in: never reuse the previous snapshot.
+          clearAccessCache();
 
           window.setTimeout(() => {
             void refreshAccess({
@@ -562,7 +564,7 @@ export function useCoreMissionAccess() {
         handleWindowFocus,
       );
 
-      subscription.unsubscribe();
+      stopAuthListener();
 
       accessRequestIdRef.current += 1;
       balanceRequestIdRef.current += 1;

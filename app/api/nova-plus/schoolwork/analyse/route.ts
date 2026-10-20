@@ -921,6 +921,20 @@ Rules:
 `;
 }
 
+/**
+ * Review flag stored with the item AND returned to the reviewer. The model's
+ * own needs_review is only one input; missing concepts or low mapping /
+ * extraction confidence always require review.
+ */
+function storedNeedsReview(item: ReasonedItem, hasPrimarySkill: boolean) {
+  return (
+    Boolean(item.needs_review) ||
+    !hasPrimarySkill ||
+    clamp01(item.mapping_confidence) < 0.78 ||
+    clamp01(item.extraction_confidence) < 0.78
+  );
+}
+
 function proposedEvidenceWeight(item: ReasonedItem) {
   const mapping = clamp01(item.mapping_confidence);
   const correctness = clamp01(item.correctness_confidence);
@@ -1686,11 +1700,7 @@ Re-check the original file, then produce the final verified analysis.
           extraction_confidence: clamp01(item.extraction_confidence),
           correctness_confidence: clamp01(item.correctness_confidence),
           mapping_confidence: clamp01(item.mapping_confidence),
-          needs_review:
-            Boolean(item.needs_review) ||
-            !primarySkill ||
-            clamp01(item.mapping_confidence) < 0.78 ||
-            clamp01(item.extraction_confidence) < 0.78,
+          needs_review: storedNeedsReview(item, Boolean(primarySkill)),
           evidence_recommendation: item.evidence_recommendation,
           proposed_evidence_weight: evidenceWeight,
           reasoning_note: cleanText(item.reasoning_note),
@@ -1876,6 +1886,11 @@ Re-check the original file, then produce the final verified analysis.
       skills: skillDisplay,
       items: validItems.map((item) => ({
         ...item,
+        // Same stricter flag that was stored above, not the model's raw flag.
+        needs_review: storedNeedsReview(
+          item,
+          taxonomyByCode.has(item.primary_skill_code),
+        ),
         proposed_evidence_weight: proposedEvidenceWeight(item),
         primary_skill: item.primary_skill_code
           ? skillDisplay[item.primary_skill_code] || null

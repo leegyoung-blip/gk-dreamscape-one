@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 import { canEditCore } from "@/lib/core-missions/catalogue";
 
@@ -152,15 +153,20 @@ export default function CoreMissionTopBar({
 
   useEffect(() => {
     let mounted = true;
+    // Only the newest load may update state; older, slower responses are dropped.
+    let latestLoadId = 0;
 
     async function loadWallets() {
+      const loadId = ++latestLoadId;
+      const isStale = () => !mounted || loadId !== latestLoadId;
+
       setLoading(true);
 
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!mounted) return;
+      if (isStale()) return;
 
       if (!user) {
         setUserEmail(null);
@@ -226,7 +232,7 @@ export default function CoreMissionTopBar({
           .limit(8),
       ]);
 
-      if (!mounted) return;
+      if (isStale()) return;
 
       if (profileResult.error) {
         console.warn(
@@ -349,9 +355,8 @@ export default function CoreMissionTopBar({
 
     void loadWallets();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    // Reload only when the signed-in user changes (login, logout, switch).
+    const stopAuthListener = onAuthUserChange(supabase, () => {
       void loadWallets();
     });
 
@@ -365,7 +370,7 @@ export default function CoreMissionTopBar({
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      stopAuthListener();
       window.removeEventListener("focus", refreshWallets);
       window.removeEventListener("dream-tokens-updated", refreshWallets);
       window.removeEventListener("dream-gems-updated", refreshWallets);

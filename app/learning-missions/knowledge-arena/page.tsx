@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 import {
   ArenaBattleResultCard,
@@ -1087,10 +1088,19 @@ export default function KnowledgeArenaPage() {
   }, [novaGuideOpen, novaGuideStep, stage, selectedTopic, selectedChallengeMode]);
 
   useEffect(() => {
+    let isMounted = true;
+    // Only the newest load may update state; older, slower responses are dropped.
+    let latestLoadId = 0;
+
     async function loadUser() {
+      const loadId = ++latestLoadId;
+      const isStale = () => !isMounted || loadId !== latestLoadId;
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
+      if (isStale()) return;
 
       if (!user) {
         setUserId(null);
@@ -1115,11 +1125,15 @@ export default function KnowledgeArenaPage() {
         .eq("id", user.id)
         .maybeSingle();
 
+      if (isStale()) return;
+
       setIsAdmin(String(profileRow?.role || "").trim().toLowerCase() === "admin");
 
       const { data: balances, error: balancesError } = await supabase.rpc(
         "get_my_dreamscape_balances"
       );
+
+      if (isStale()) return;
 
       if (!balancesError) {
         const row = Array.isArray(balances) ? balances[0] : balances;
@@ -1130,6 +1144,8 @@ export default function KnowledgeArenaPage() {
       const { data: upgradeData, error: upgradeError } = await supabase.rpc(
         "get_my_knowledge_arena_nova_upgrade_v1"
       );
+
+      if (isStale()) return;
 
       if (!upgradeError && upgradeData) {
         const upgrade = Array.isArray(upgradeData) ? upgradeData[0] : upgradeData;
@@ -1143,16 +1159,16 @@ export default function KnowledgeArenaPage() {
 
     void loadUser();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => void loadUser());
+    // Reload only when the signed-in user changes (login, logout, switch).
+    const stopAuthListener = onAuthUserChange(supabase, () => void loadUser());
 
     const refreshBalances = () => void loadUser();
     window.addEventListener("dream-tokens-updated", refreshBalances);
     window.addEventListener("dream-gems-updated", refreshBalances);
 
     return () => {
-      subscription.unsubscribe();
+      isMounted = false;
+      stopAuthListener();
       window.removeEventListener("dream-tokens-updated", refreshBalances);
       window.removeEventListener("dream-gems-updated", refreshBalances);
     };

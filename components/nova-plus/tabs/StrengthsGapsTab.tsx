@@ -11,6 +11,11 @@ import {
   safeNumber,
   SUBJECT_META,
 } from "@/lib/nova-plus/helpers";
+import {
+  classifyConceptEvidence,
+  hasImprovementEvidence,
+  hasRepeatedEvidence,
+} from "@/lib/nova-plus/evidence-presentation";
 import { useNovaSchoolworkEvidence } from "@/hooks/useNovaSchoolworkEvidence";
 import type { NovaSchoolworkSkillEvidence } from "@/hooks/useNovaSchoolworkEvidence";
 import { useNovaTeachingEvidence } from "@/hooks/useNovaTeachingEvidence";
@@ -78,20 +83,21 @@ const STATE_META: Record<
   },
 };
 
-function hasRepeatedEvidence(skill: ProfileSkill) {
-  const questions = safeNumber(skill.questions_attempted);
-  const activities = safeNumber(skill.unique_activities);
-  const weeks = safeNumber(skill.active_weeks);
-  const confidence = safeNumber(skill.confidence_score);
-
-  return (
-    questions >= 6 &&
-    (activities >= 2 || weeks >= 2) &&
-    confidence >= 35
-  );
+// Academic concepts use the shared NOVA+ claim policy so this tab agrees with
+// Mastery Map, Progress and Parent Report. Concepts that are not yet confirmed
+// either way sit in "Still building" ("not secure yet or still need more
+// evidence").
+function conceptState(skill: ProfileSkill): ConceptState {
+  const claim = classifyConceptEvidence(skill);
+  if (claim === "supported_strength") return "strong";
+  if (claim === "confirmed_gap") return "attention";
+  return "developing";
 }
 
-function conceptState(skill: ProfileSkill): ConceptState {
+// Knowledge Arena rows are a different evidence model (general-knowledge and
+// topic-level rows without granular/ready curriculum evidence), so they keep
+// their original rule rather than the curriculum concept policy.
+function knowledgeConceptState(skill: ProfileSkill): ConceptState {
   if (
     ["mastered", "secure"].includes(skill.status) &&
     safeNumber(skill.questions_attempted) >= 5
@@ -556,12 +562,7 @@ export default function StrengthsGapsTab({
   const attention = academicSkills.filter((skill) => conceptState(skill) === "attention");
 
   const recentlyImproved = academicSkills
-    .filter(
-      (skill) =>
-        skill.trend === "improving" &&
-        safeNumber(skill.trend_points) > 0 &&
-        safeNumber(skill.questions_attempted) >= 4,
-    )
+    .filter(hasImprovementEvidence)
     .sort(
       (a, b) =>
         safeNumber(b.trend_points) - safeNumber(a.trend_points) ||
@@ -569,9 +570,9 @@ export default function StrengthsGapsTab({
     )
     .slice(0, 6);
 
-  const knowledgeStrong = knowledgeSkills.filter((skill) => conceptState(skill) === "strong");
-  const knowledgeDeveloping = knowledgeSkills.filter((skill) => conceptState(skill) === "developing");
-  const knowledgeAttention = knowledgeSkills.filter((skill) => conceptState(skill) === "attention");
+  const knowledgeStrong = knowledgeSkills.filter((skill) => knowledgeConceptState(skill) === "strong");
+  const knowledgeDeveloping = knowledgeSkills.filter((skill) => knowledgeConceptState(skill) === "developing");
+  const knowledgeAttention = knowledgeSkills.filter((skill) => knowledgeConceptState(skill) === "attention");
 
   return (
     <div className={styles.page}>

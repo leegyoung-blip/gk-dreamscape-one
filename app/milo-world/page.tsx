@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { preload } from "react-dom";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 import DeferredVideo from "@/components/media/DeferredVideo";
 import ObjectivesPanel, {
@@ -2585,15 +2586,20 @@ export default function MiloWorldPage() {
 
   useEffect(() => {
     let isMounted = true;
+    // Only the newest load may update state; older, slower responses are dropped.
+    let latestLoadId = 0;
 
     async function loadDreamTokensAndObjectives() {
+      const loadId = ++latestLoadId;
+      const isStale = () => !isMounted || loadId !== latestLoadId;
+
       if (isMounted) setObjectivesLoading(true);
 
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!isMounted) return;
+      if (isStale()) return;
 
       if (!user) {
         setUserEmail(null);
@@ -2615,7 +2621,7 @@ export default function MiloWorldPage() {
         .eq("id", user.id)
         .maybeSingle();
 
-      if (!isMounted) return;
+      if (isStale()) return;
 
       if (clubProfileError || !clubProfile) {
         console.warn(
@@ -2637,7 +2643,7 @@ export default function MiloWorldPage() {
         { p_scope: "milo" },
       );
 
-      if (!isMounted) return;
+      if (isStale()) return;
 
       if (objectiveError) {
         console.warn(
@@ -2691,7 +2697,7 @@ export default function MiloWorldPage() {
           .eq("user_id", user.id),
       ]);
 
-      if (!isMounted) return;
+      if (isStale()) return;
 
       const cashValue = balanceResult.error
         ? 0
@@ -2782,9 +2788,8 @@ export default function MiloWorldPage() {
 
     loadDreamTokensAndObjectives();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    // Reload only when the signed-in user changes (login, logout, switch).
+    const stopAuthListener = onAuthUserChange(supabase, () => {
       loadDreamTokensAndObjectives();
     });
 
@@ -2804,7 +2809,7 @@ export default function MiloWorldPage() {
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      stopAuthListener();
       window.removeEventListener("focus", loadDreamTokensAndObjectives);
       window.removeEventListener(
         "dream-tokens-updated",

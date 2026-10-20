@@ -26,6 +26,7 @@ import {
   inferCurrentEnglishLevel,
   type EnglishMasteryDisplayGroup,
 } from "@/lib/nova-plus/english-mastery-ui";
+import { classifyConceptEvidence } from "@/lib/nova-plus/evidence-presentation";
 import { useEnglishMastery } from "@/components/nova-plus/EnglishMasteryProvider";
 import { useNovaSchoolworkEvidence } from "@/hooks/useNovaSchoolworkEvidence";
 import styles from "./MasteryMapTab.module.css";
@@ -39,7 +40,7 @@ type Props = {
 
 type SubjectKey = "english" | "math" | "science";
 type LiveSubject = "english" | "math";
-type LegacyMapState = "strong" | "developing" | "attention" | "unknown";
+type LegacyMapState = "strong" | "developing" | "attention" | "limited" | "unknown";
 type ConfidenceLabel = "Low" | "Moderate" | "High";
 type PurposeState =
   | "secure"
@@ -177,6 +178,7 @@ const LEGACY_STATE_META: Record<
   strong: { label: "Strong", colour: "#4de2a1" },
   developing: { label: "Developing", colour: "#ffae57" },
   attention: { label: "Needs Attention", colour: "#ff6c72" },
+  limited: { label: "Limited evidence", colour: "#93a3b8" },
   unknown: { label: "Not assessed", colour: "#8d9caf" },
 };
 
@@ -262,32 +264,23 @@ function isCanonicalMathConcept(concept: CurriculumConcept) {
   );
 }
 
-function hasRepeatedMathEvidence(concept: CurriculumConcept) {
-  return (
-    safeNumber(concept.questions_attempted) >= 6 &&
-    (safeNumber(concept.unique_activities) >= 2 ||
-      safeNumber(concept.active_weeks) >= 2) &&
-    safeNumber(concept.confidence_score) >= 35
-  );
-}
-
+// Shared NOVA+ claim policy (lib/nova-plus/evidence-presentation.ts), so the
+// map, Strengths & Gaps, Progress and Parent Report agree on each concept.
 function mathConceptState(concept: CurriculumConcept): LegacyMapState {
   if (!concept.has_evidence || safeNumber(concept.questions_attempted) <= 0) {
     return "unknown";
   }
 
-  if (
-    ["secure", "mastered"].includes(concept.status) &&
-    safeNumber(concept.questions_attempted) >= 5
-  ) {
-    return "strong";
+  switch (classifyConceptEvidence(concept)) {
+    case "supported_strength":
+      return "strong";
+    case "confirmed_gap":
+      return "attention";
+    case "developing":
+      return "developing";
+    default:
+      return "limited";
   }
-
-  if (concept.status === "needs_support" && hasRepeatedMathEvidence(concept)) {
-    return "attention";
-  }
-
-  return "developing";
 }
 
 function inferMathCurrentLevel(
@@ -363,7 +356,7 @@ function mathPurposeState(concept: CurriculumConcept): PurposeState {
 
   if (state === "strong") return "secure";
   if (state === "attention") return "needs_practice";
-  if (state === "unknown") return "needs_evidence";
+  if (state === "unknown" || state === "limited") return "needs_evidence";
   return "building";
 }
 
@@ -474,7 +467,10 @@ function buildMathGroups(
       assessed: rows.filter((row) => mathConceptState(row) !== "unknown").length,
       secure: rows.filter((row) => mathConceptState(row) === "strong").length,
       priority: rows.filter((row) => mathConceptState(row) === "attention").length,
-      needsEvidence: rows.filter((row) => mathConceptState(row) === "unknown").length,
+      needsEvidence: rows.filter((row) => {
+        const state = mathConceptState(row);
+        return state === "unknown" || state === "limited";
+      }).length,
       accent: MATH_ACCENTS[index % MATH_ACCENTS.length],
     }))
     .sort(

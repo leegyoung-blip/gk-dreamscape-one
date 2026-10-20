@@ -10,6 +10,7 @@ import {
   roleHasStaffLearningAccess,
 } from "@/lib/learning-access";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -459,8 +460,13 @@ export default function LearningMissionsPage() {
 
   useEffect(() => {
     let isMounted = true;
+    // Only the newest load may update state; older, slower responses are dropped.
+    let latestLoadId = 0;
 
     async function loadUserAndAssets() {
+      const loadId = ++latestLoadId;
+      const isStale = () => !isMounted || loadId !== latestLoadId;
+
       if (isMounted) {
         setProfileAssetsLoading(true);
         setDreamGemsLoading(true);
@@ -470,7 +476,7 @@ export default function LearningMissionsPage() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!isMounted) return;
+      if (isStale()) return;
 
       if (!user) {
         setUserMissionAccess({
@@ -512,7 +518,7 @@ export default function LearningMissionsPage() {
           hasFounding50StudentAccess(),
         ]);
 
-      if (!isMounted) return;
+      if (isStale()) return;
 
       if (profileResult.error) {
         console.warn(
@@ -619,7 +625,7 @@ export default function LearningMissionsPage() {
           .eq("user_id", user.id),
       ]);
 
-      if (!isMounted) return;
+      if (isStale()) return;
 
       if (gemTransactionsResult.error) {
         console.warn(
@@ -730,9 +736,8 @@ export default function LearningMissionsPage() {
 
     loadUserAndAssets();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    // Reload only when the signed-in user changes (login, logout, switch).
+    const stopAuthListener = onAuthUserChange(supabase, () => {
       loadUserAndAssets();
     });
 
@@ -742,7 +747,7 @@ export default function LearningMissionsPage() {
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      stopAuthListener();
       window.removeEventListener("focus", loadUserAndAssets);
       window.removeEventListener("dream-tokens-updated", loadUserAndAssets);
       window.removeEventListener("dream-gems-updated", loadUserAndAssets);

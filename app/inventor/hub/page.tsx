@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useRouter } from "next/navigation";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 import WardrobeFittedLayer from "@/components/nova-home/WardrobeFittedLayer";
 import RugRushGame, { type RugRushCompletion } from "@/components/nova-home/RugRushGame";
@@ -1050,7 +1051,13 @@ export default function NovaHomePage() {
     }
   }
 
+  const novaHomeLoadIdRef = useRef(0);
+
   const loadNovaHome = useCallback(async () => {
+    // Only the newest load may update state; older, slower responses are dropped.
+    const loadId = ++novaHomeLoadIdRef.current;
+    const isStale = () => loadId !== novaHomeLoadIdRef.current;
+
     setBalanceLoading(true);
     setCatalogLoading(true);
     setSetupError("");
@@ -1058,6 +1065,8 @@ export default function NovaHomePage() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    if (isStale()) return;
 
     if (!user) {
       setAuthChecked(true);
@@ -1131,6 +1140,8 @@ export default function NovaHomePage() {
         .eq("user_id", user.id)
         .maybeSingle(),
     ]);
+
+    if (isStale()) return;
 
     setAuthChecked(true);
 
@@ -1300,9 +1311,8 @@ export default function NovaHomePage() {
   useEffect(() => {
     loadNovaHome();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    // Reload only when the signed-in user changes (login, logout, switch).
+    const stopAuthListener = onAuthUserChange(supabase, () => {
       loadNovaHome();
     });
 
@@ -1315,7 +1325,7 @@ export default function NovaHomePage() {
     window.addEventListener("dream-gems-updated", refreshFromWalletEvent);
 
     return () => {
-      subscription.unsubscribe();
+      stopAuthListener();
       window.removeEventListener("focus", refreshFromWalletEvent);
       window.removeEventListener(
         "dream-tokens-updated",
