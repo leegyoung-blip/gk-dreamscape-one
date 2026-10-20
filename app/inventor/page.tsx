@@ -114,43 +114,8 @@ function formatDreamTokenAmount(value: number) {
   return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DT`;
 }
 
-function formatDreamTokenTransactionDate(value: string | null) {
-  if (!value) return "";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "";
-
-  return new Intl.DateTimeFormat("en-SG", {
-    timeZone: "Asia/Singapore",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-}
-
 function formatDreamGemAmount(value: number) {
   return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DG`;
-}
-
-function formatDreamGemSource(source: string | null) {
-  switch (source) {
-    case "class_attendance":
-      return "Class attendance";
-    case "core_mission":
-      return "Core Mission";
-    case "think_mission":
-      return "Think Mission";
-    case "redemption":
-      return "Reward redemption";
-    case "admin_adjustment":
-      return "Admin adjustment";
-    case "reversal":
-      return "Reversal";
-    default:
-      return "Dream Gem activity";
-  }
 }
 
 function hasActiveNovaSubscription(rows: NovaSubscriptionRow[]) {
@@ -866,9 +831,7 @@ export default function NovaWorldPage() {
       <FloatingControls
         userEmail={userEmail}
         profileAssets={profileAssets}
-        tokenTransactions={tokenTransactions}
         dreamGemBalance={dreamGemBalance}
-        dreamGemTransactions={dreamGemTransactions}
         dreamGemsLoading={dreamGemsLoading}
         hasStudentRewardsAccess={hasStudentRewardsAccess}
         profileAssetsLoading={profileAssetsLoading}
@@ -1400,20 +1363,15 @@ export default function NovaWorldPage() {
 function FloatingControls({
   userEmail,
   profileAssets,
-  tokenTransactions,
   dreamGemBalance,
-  dreamGemTransactions,
   dreamGemsLoading,
-  hasStudentRewardsAccess,
   profileAssetsLoading,
   screenMode,
   onOpenMembership,
 }: {
   userEmail: string | null;
   profileAssets: ProfileAssetBreakdown;
-  tokenTransactions: DreamTokenTransaction[];
   dreamGemBalance: number;
-  dreamGemTransactions: DreamGemTransaction[];
   dreamGemsLoading: boolean;
   hasStudentRewardsAccess: boolean;
   profileAssetsLoading: boolean;
@@ -1424,35 +1382,32 @@ function FloatingControls({
   const isMobile = screenMode === "mobile";
   const isCompact = !isDesktop;
   const [profileAssetsOpen, setProfileAssetsOpen] = useState(false);
-  const [dreamGemsOpen, setDreamGemsOpen] = useState(false);
   const [compactMenuOpen, setCompactMenuOpen] = useState(false);
   const profileAssetsTotal =
     profileAssets.cash + profileAssets.property + profileAssets.stocks;
 
   useEffect(() => {
-    if (!profileAssetsOpen && !dreamGemsOpen && !compactMenuOpen) return;
+    if (!profileAssetsOpen && !compactMenuOpen) return;
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setProfileAssetsOpen(false);
-        setDreamGemsOpen(false);
         setCompactMenuOpen(false);
       }
     }
 
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [profileAssetsOpen, dreamGemsOpen, compactMenuOpen]);
+  }, [profileAssetsOpen, compactMenuOpen]);
 
   return (
     <>
-      {(profileAssetsOpen || dreamGemsOpen || compactMenuOpen) && (
+      {(profileAssetsOpen || compactMenuOpen) && (
         <button
           type="button"
           aria-label="Close account panels"
           onClick={() => {
             setProfileAssetsOpen(false);
-            setDreamGemsOpen(false);
             setCompactMenuOpen(false);
           }}
           style={{
@@ -1506,7 +1461,6 @@ function FloatingControls({
           type="button"
           onClick={() => {
             setProfileAssetsOpen(false);
-            setDreamGemsOpen(false);
             setCompactMenuOpen((current) => !current);
           }}
           aria-expanded={compactMenuOpen}
@@ -1616,7 +1570,6 @@ function FloatingControls({
           <button
             type="button"
             onClick={() => {
-              setDreamGemsOpen(false);
               setProfileAssetsOpen((current) => !current);
             }}
             aria-label="Dream Tokens and profile assets"
@@ -1640,13 +1593,13 @@ function FloatingControls({
             </strong>
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setProfileAssetsOpen(false);
-              setDreamGemsOpen((current) => !current);
-            }}
-            aria-label="Dream Gems"
+          <div
+            data-wallet-balance="dream-gems"
+            aria-label={
+              dreamGemsLoading
+                ? "Dream Gems balance loading"
+                : `Dream Gems balance ${formatDreamGemAmount(dreamGemBalance)}`
+            }
             style={{
               minHeight: isMobile ? "38px" : "42px",
               padding: isMobile ? "0 10px" : "0 13px",
@@ -1657,7 +1610,7 @@ function FloatingControls({
               display: "inline-flex",
               alignItems: "center",
               gap: "7px",
-              cursor: "pointer",
+              cursor: "default",
               boxShadow: "0 12px 28px rgba(0,0,0,0.3)",
             }}
           >
@@ -1665,7 +1618,7 @@ function FloatingControls({
             <strong style={{ color: "#e9d5ff", fontSize: isMobile ? "10px" : "12px" }}>
               {dreamGemsLoading ? "..." : formatDreamGemAmount(dreamGemBalance)}
             </strong>
-          </button>
+          </div>
         </div>
       )}
 
@@ -1686,7 +1639,6 @@ function FloatingControls({
           <button
             type="button"
             onClick={() => {
-              setDreamGemsOpen(false);
               setProfileAssetsOpen((current) => !current);
             }}
             aria-expanded={profileAssetsOpen}
@@ -1893,163 +1845,19 @@ function FloatingControls({
                     </div>
                   ))}
                 </div>
-
-                <p
-                  style={{
-                    margin: "16px 4px 10px",
-                    color: "rgba(255,255,255,0.48)",
-                    fontSize: "10px",
-                    letterSpacing: "0.13em",
-                    textTransform: "uppercase",
-                    fontWeight: 800,
-                  }}
-                >
-                  Latest cash transactions
-                </p>
-
-                {profileAssetsLoading ? (
-                  <div
-                    style={{
-                      padding: "20px 14px",
-                      color: "rgba(255,255,255,0.58)",
-                      fontSize: "13px",
-                      textAlign: "center",
-                    }}
-                  >
-                    Loading assets...
-                  </div>
-                ) : !userEmail ? (
-                  <Link
-                    href="/login"
-                    onClick={() => setProfileAssetsOpen(false)}
-                    style={{
-                      minHeight: "50px",
-                      borderRadius: "14px",
-                      border: "1px solid rgba(126,232,255,0.24)",
-                      background: "rgba(83,215,255,0.08)",
-                      color: "white",
-                      textDecoration: "none",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "12px",
-                      fontWeight: 800,
-                    }}
-                  >
-                    Log in to view assets
-                  </Link>
-                ) : tokenTransactions.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "20px 14px",
-                      borderRadius: "14px",
-                      background: "rgba(255,255,255,0.035)",
-                      color: "rgba(255,255,255,0.58)",
-                      fontSize: "13px",
-                      lineHeight: 1.5,
-                      textAlign: "center",
-                    }}
-                  >
-                    No token transactions yet.
-                  </div>
-                ) : (
-                  <div style={{ display: "grid", gap: "8px" }}>
-                    {tokenTransactions.map((transaction) => {
-                      const isPositive = transaction.amount >= 0;
-                      return (
-                        <div
-                          key={transaction.id}
-                          role="menuitem"
-                          style={{
-                            minHeight: "58px",
-                            borderRadius: "14px",
-                            border: "1px solid rgba(126,232,255,0.12)",
-                            background: "rgba(255,255,255,0.035)",
-                            display: "grid",
-                            gridTemplateColumns: "34px minmax(0, 1fr) auto",
-                            alignItems: "center",
-                            gap: "10px",
-                            padding: "10px 12px",
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: "32px",
-                              height: "32px",
-                              borderRadius: "11px",
-                              border: isPositive
-                                ? "1px solid rgba(93,255,181,0.34)"
-                                : "1px solid rgba(255,167,120,0.34)",
-                              background: isPositive
-                                ? "rgba(93,255,181,0.1)"
-                                : "rgba(255,138,92,0.1)",
-                              color: isPositive ? "#9fffd2" : "#ffc0a0",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontWeight: 900,
-                            }}
-                          >
-                            {isPositive ? "+" : "−"}
-                          </span>
-                          <span style={{ minWidth: 0 }}>
-                            <strong
-                              style={{
-                                display: "block",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                color: "white",
-                                fontSize: "12px",
-                              }}
-                            >
-                              {transaction.title ||
-                                (isPositive
-                                  ? "Dreamscape Token reward"
-                                  : "Dreamscape Token spend")}
-                            </strong>
-                            <span
-                              style={{
-                                display: "block",
-                                marginTop: "4px",
-                                color: "rgba(255,255,255,0.43)",
-                                fontSize: "10px",
-                              }}
-                            >
-                              {formatDreamTokenTransactionDate(
-                                transaction.created_at,
-                              )}
-                            </span>
-                          </span>
-                          <strong
-                            style={{
-                              color: isPositive ? "#9fffd2" : "#ffc0a0",
-                              fontSize: "12px",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {isPositive ? "+" : ""}
-                            {transaction.amount} DT
-                          </strong>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             </div>
           )}
         </div>
 
         <div style={{ position: "relative", zIndex: 83 }}>
-          <button
-            type="button"
-            onClick={() => {
-              setProfileAssetsOpen(false);
-              setDreamGemsOpen((current) => !current);
-            }}
-            aria-expanded={dreamGemsOpen}
-            aria-haspopup="menu"
+          <div
+            data-wallet-balance="dream-gems"
+            aria-label={
+              dreamGemsLoading
+                ? "Dream Gems balance loading"
+                : `Dream Gems balance ${formatDreamGemAmount(dreamGemBalance)}`
+            }
             style={{
               display: isDesktop ? "flex" : "none",
               height: "46px",
@@ -2066,11 +1874,8 @@ function FloatingControls({
               fontSize: isMobile ? "10px" : "14px",
               letterSpacing: isMobile ? "0.02em" : "0.08em",
               textTransform: "uppercase",
-              boxShadow: dreamGemsOpen
-                ? "0 16px 38px rgba(0,0,0,0.34), 0 0 30px rgba(192,132,252,0.32)"
-                : "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(192,132,252,0.2)",
+              boxShadow: "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(192,132,252,0.2)",
               whiteSpace: "nowrap",
-              cursor: "pointer",
               fontFamily: "inherit",
             }}
           >
@@ -2108,316 +1913,8 @@ function FloatingControls({
                     "en-SG",
                   )}
             </strong>
-            <span
-              aria-hidden="true"
-              style={{
-                color: "#e9d5ff",
-                fontSize: "13px",
-                transform: dreamGemsOpen ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 180ms ease",
-              }}
-            >
-              ▾
-            </span>
-          </button>
+          </div>
 
-          {dreamGemsOpen && (
-            <div
-              role="menu"
-              style={{
-                position: isCompact ? "fixed" : "absolute",
-                top: isCompact ? (isMobile ? "112px" : "132px") : "calc(100% + 10px)",
-                right: isCompact ? (isMobile ? "12px" : "18px") : 0,
-                left: "auto",
-                width: isCompact ? "min(390px, calc(100vw - 24px))" : "390px",
-                maxHeight: "min(590px, calc(100dvh - 92px))",
-                overflowY: "auto",
-                overflowX: "hidden",
-                borderRadius: "20px",
-                border: "1px solid rgba(216,180,254,0.36)",
-                background:
-                  "linear-gradient(145deg, rgba(35,16,65,0.98), rgba(10,8,29,0.99))",
-                boxShadow:
-                  "0 28px 72px rgba(0,0,0,0.58), 0 0 32px rgba(192,132,252,0.17)",
-                backdropFilter: "blur(22px)",
-                WebkitBackdropFilter: "blur(22px)",
-                color: "white",
-              }}
-            >
-              <div
-                style={{
-                  padding: "18px",
-                  borderBottom: "1px solid rgba(216,180,254,0.16)",
-                }}
-              >
-                <p
-                  style={{
-                    margin: 0,
-                    color: "#e9d5ff",
-                    fontSize: "11px",
-                    letterSpacing: "0.16em",
-                    textTransform: "uppercase",
-                    fontWeight: 900,
-                  }}
-                >
-                  Dream Gem Wallet
-                </p>
-
-                <div
-                  style={{
-                    marginTop: "9px",
-                    display: "flex",
-                    alignItems: "end",
-                    justifyContent: "space-between",
-                    gap: "14px",
-                  }}
-                >
-                  <strong
-                    style={{
-                      fontSize: "34px",
-                      lineHeight: 1,
-                      letterSpacing: "-0.04em",
-                    }}
-                  >
-                    {dreamGemsLoading
-                      ? "Loading..."
-                      : formatDreamGemAmount(dreamGemBalance)}
-                  </strong>
-
-                  <Link
-                    href={userEmail ? "/profile" : "/login"}
-                    onClick={() => setDreamGemsOpen(false)}
-                    style={{
-                      color: "#f3e8ff",
-                      fontSize: "11px",
-                      fontWeight: 800,
-                      textDecoration: "none",
-                    }}
-                  >
-                    {userEmail ? "View wallet →" : "Log in →"}
-                  </Link>
-                </div>
-
-                <p
-                  style={{
-                    margin: "12px 0 0",
-                    color: "rgba(255,255,255,0.62)",
-                    fontSize: "12px",
-                    lineHeight: 1.55,
-                  }}
-                >
-                  Dream Gems are premium learning rewards. Eligible users can
-                  earn them through verified class attendance, Core Missions,
-                  and Think Missions. They may be redeemed for selected tangible
-                  or premium rewards, but never exchanged for cash.
-                </p>
-              </div>
-
-              <div style={{ padding: "12px" }}>
-                {!userEmail ? (
-                  <Link
-                    href="/login"
-                    onClick={() => setDreamGemsOpen(false)}
-                    style={{
-                      minHeight: "52px",
-                      borderRadius: "14px",
-                      border: "1px solid rgba(216,180,254,0.3)",
-                      background: "rgba(192,132,252,0.1)",
-                      color: "white",
-                      textDecoration: "none",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "12px",
-                      fontWeight: 850,
-                    }}
-                  >
-                    Log in to view Dream Gems
-                  </Link>
-                ) : !hasStudentRewardsAccess ? (
-                  <div
-                    style={{
-                      borderRadius: "16px",
-                      border: "1px solid rgba(216,180,254,0.26)",
-                      background: "rgba(192,132,252,0.08)",
-                      padding: "16px",
-                    }}
-                  >
-                    <strong
-                      style={{
-                        display: "block",
-                        color: "white",
-                        fontSize: "14px",
-                      }}
-                    >
-                      Get Student Access for bigger rewards
-                    </strong>
-                    <p
-                      style={{
-                        margin: "7px 0 0",
-                        color: "rgba(255,255,255,0.6)",
-                        fontSize: "12px",
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      Your Dream Gem wallet is ready and currently starts at 0.
-                      Student Access unlocks eligible Core and Think activities
-                      that can award Dream Gems.
-                    </p>
-                    <Link
-                      href="/pricing"
-                      onClick={() => setDreamGemsOpen(false)}
-                      style={{
-                        marginTop: "13px",
-                        minHeight: "46px",
-                        borderRadius: "13px",
-                        background:
-                          "linear-gradient(135deg, #c084fc, #7c3aed)",
-                        color: "white",
-                        textDecoration: "none",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: "0 14px",
-                        fontSize: "11px",
-                        fontWeight: 900,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Get Student Access
-                    </Link>
-                  </div>
-                ) : null}
-
-                <p
-                  style={{
-                    margin: "16px 4px 10px",
-                    color: "rgba(255,255,255,0.48)",
-                    fontSize: "10px",
-                    letterSpacing: "0.13em",
-                    textTransform: "uppercase",
-                    fontWeight: 800,
-                  }}
-                >
-                  Latest Dream Gem activity
-                </p>
-
-                {dreamGemsLoading ? (
-                  <div
-                    style={{
-                      padding: "20px 14px",
-                      color: "rgba(255,255,255,0.58)",
-                      fontSize: "13px",
-                      textAlign: "center",
-                    }}
-                  >
-                    Loading Dream Gems...
-                  </div>
-                ) : dreamGemTransactions.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "20px 14px",
-                      borderRadius: "14px",
-                      background: "rgba(255,255,255,0.035)",
-                      color: "rgba(255,255,255,0.58)",
-                      fontSize: "13px",
-                      lineHeight: 1.5,
-                      textAlign: "center",
-                    }}
-                  >
-                    No Dream Gem transactions yet.
-                  </div>
-                ) : (
-                  <div style={{ display: "grid", gap: "8px" }}>
-                    {dreamGemTransactions.map((transaction) => {
-                      const isPositive = transaction.amount >= 0;
-
-                      return (
-                        <div
-                          key={transaction.id}
-                          role="menuitem"
-                          style={{
-                            minHeight: "62px",
-                            borderRadius: "14px",
-                            border: "1px solid rgba(216,180,254,0.14)",
-                            background: "rgba(255,255,255,0.035)",
-                            display: "grid",
-                            gridTemplateColumns: "34px minmax(0, 1fr) auto",
-                            alignItems: "center",
-                            gap: "10px",
-                            padding: "10px 12px",
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: "32px",
-                              height: "32px",
-                              borderRadius: "11px",
-                              border: isPositive
-                                ? "1px solid rgba(167,139,250,0.5)"
-                                : "1px solid rgba(255,167,120,0.34)",
-                              background: isPositive
-                                ? "rgba(167,139,250,0.14)"
-                                : "rgba(255,138,92,0.1)",
-                              color: isPositive ? "#ddd6fe" : "#ffc0a0",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontWeight: 900,
-                            }}
-                          >
-                            {isPositive ? "◆" : "−"}
-                          </span>
-
-                          <span style={{ minWidth: 0 }}>
-                            <strong
-                              style={{
-                                display: "block",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                color: "white",
-                                fontSize: "12px",
-                              }}
-                            >
-                              {transaction.title || "Dream Gem activity"}
-                            </strong>
-                            <span
-                              style={{
-                                display: "block",
-                                marginTop: "4px",
-                                color: "rgba(255,255,255,0.43)",
-                                fontSize: "10px",
-                              }}
-                            >
-                              {formatDreamGemSource(transaction.source)}
-                              {transaction.created_at
-                                ? ` · ${formatDreamTokenTransactionDate(
-                                    transaction.created_at,
-                                  )}`
-                                : ""}
-                            </span>
-                          </span>
-
-                          <strong
-                            style={{
-                              color: isPositive ? "#ddd6fe" : "#ffc0a0",
-                              fontSize: "12px",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {isPositive ? "+" : ""}
-                            {transaction.amount} DG
-                          </strong>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

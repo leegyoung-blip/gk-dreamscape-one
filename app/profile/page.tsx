@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getLearningEntitlements, learningPlanLabel } from "@/lib/learning-access";
 import {
@@ -9,6 +9,8 @@ import {
 } from "@/lib/organisation-access";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
+
+type HistoryLoadStatus = "idle" | "loading" | "loaded" | "error";
 
 type DreamTokenTransaction = {
   id: string;
@@ -548,6 +550,28 @@ export default function ProfilePage() {
   const [showGemHistory, setShowGemHistory] =
     useState(false);
 
+  /*
+   * Balances and histories load separately. The Dream Token balance comes from
+   * an amount-only read (same filters as before); each full transaction
+   * history downloads only when its "View History" panel is opened, and is
+   * refreshed with the page only once it has been opened.
+   */
+  const [dreamTokenBalance, setDreamTokenBalance] =
+    useState(0);
+
+  const [tokenHistoryStatus, setTokenHistoryStatus] =
+    useState<HistoryLoadStatus>("idle");
+
+  const [gemHistoryStatus, setGemHistoryStatus] =
+    useState<HistoryLoadStatus>("idle");
+
+  // Signed-in account whose data is on screen, and whose histories are loaded.
+  const profileUserIdRef = useRef<string | null>(null);
+  const tokenHistoryUserIdRef = useRef<string | null>(null);
+  const gemHistoryUserIdRef = useRef<string | null>(null);
+  const tokenHistoryRequestRef = useRef(0);
+  const gemHistoryRequestRef = useRef(0);
+
   const [isLoadingTokens, setIsLoadingTokens] =
     useState(true);
 
@@ -565,11 +589,89 @@ export default function ProfilePage() {
     setPropertyPortfolioValue,
   ] = useState(0);
 
-  const dreamTokenBalance = tokenTransactions.reduce(
-    (total, transaction) =>
-      total + Number(transaction.amount || 0),
-    0,
-  );
+  const loadTokenHistory = useCallback(async (userId: string) => {
+    const requestId = ++tokenHistoryRequestRef.current;
+    setTokenHistoryStatus((current) =>
+      current === "loaded" ? current : "loading",
+    );
+
+    const { data, error } = await supabase
+      .from("dream_token_transactions")
+      .select("id,user_id,type,title,amount,token_kind,created_at")
+      .eq("user_id", userId)
+      .eq("token_kind", "virtual")
+      .order("created_at", {
+        ascending: false,
+      });
+
+    // Ignore superseded requests and anything for an account no longer shown.
+    if (
+      requestId !== tokenHistoryRequestRef.current ||
+      profileUserIdRef.current !== userId
+    ) {
+      return;
+    }
+
+    if (error) {
+      console.error("Token history error:", error.message);
+      setTokenHistoryStatus("error");
+      return;
+    }
+
+    tokenHistoryUserIdRef.current = userId;
+    setTokenTransactions((data ?? []) as DreamTokenTransaction[]);
+    setTokenHistoryStatus("loaded");
+  }, []);
+
+  const loadGemHistory = useCallback(async (userId: string) => {
+    const requestId = ++gemHistoryRequestRef.current;
+    setGemHistoryStatus((current) =>
+      current === "loaded" ? current : "loading",
+    );
+
+    const { data, error } = await supabase
+      .from("dream_gem_transactions")
+      .select(
+        "id,user_id,type,source,title,description,amount,balance_after,created_at",
+      )
+      .eq("user_id", userId)
+      .order("created_at", {
+        ascending: false,
+      });
+
+    if (
+      requestId !== gemHistoryRequestRef.current ||
+      profileUserIdRef.current !== userId
+    ) {
+      return;
+    }
+
+    if (error) {
+      console.error("Dream Gem history error:", error.message);
+      setGemHistoryStatus("error");
+      return;
+    }
+
+    gemHistoryUserIdRef.current = userId;
+    setGemTransactions((data ?? []) as DreamGemTransaction[]);
+    setGemHistoryStatus("loaded");
+  }, []);
+
+  function openTokenHistory() {
+    setShowTokenHistory(true);
+    const userId = profileUserIdRef.current;
+    if (userId && tokenHistoryUserIdRef.current !== userId) {
+      void loadTokenHistory(userId);
+    }
+  }
+
+  function openGemHistory() {
+    setShowGemHistory(true);
+    const userId = profileUserIdRef.current;
+    if (userId && gemHistoryUserIdRef.current !== userId) {
+      void loadGemHistory(userId);
+    }
+  }
 
   const totalNetWorth =
     dreamTokenBalance +
@@ -868,8 +970,14 @@ export default function ProfilePage() {
         setMembershipMessage("");
         setMembershipError("");
         setIsLoadingMembership(false);
+        profileUserIdRef.current = null;
+        tokenHistoryUserIdRef.current = null;
+        gemHistoryUserIdRef.current = null;
+        setDreamTokenBalance(0);
         setTokenTransactions([]);
         setGemTransactions([]);
+        setTokenHistoryStatus("idle");
+        setGemHistoryStatus("idle");
         setDreamGemBalance(0);
         setStockPortfolioValue(0);
         setPropertyPortfolioValue(0);
@@ -881,6 +989,17 @@ export default function ProfilePage() {
       }
 
       const userId = data.user.id;
+
+      if (profileUserIdRef.current !== userId) {
+        // A different account: never show the previous account's history.
+        profileUserIdRef.current = userId;
+        tokenHistoryUserIdRef.current = null;
+        gemHistoryUserIdRef.current = null;
+        setTokenTransactions([]);
+        setGemTransactions([]);
+        setTokenHistoryStatus("idle");
+        setGemHistoryStatus("idle");
+      }
 
       setEmail(data.user.email ?? null);
       void loadMembershipControls();
@@ -1122,32 +1241,17 @@ export default function ProfilePage() {
 
       const [
         tokenResult,
-        gemResult,
         stocksResult,
         stockHoldingsResult,
         propertiesResult,
         propertyHoldingsResult,
       ] = await Promise.all([
+        // Balance only: the same rows as before, amounts only.
         supabase
           .from("dream_token_transactions")
-          .select(
-            "id,user_id,type,title,amount,token_kind,created_at",
-          )
+          .select("amount")
           .eq("user_id", userId)
-          .eq("token_kind", "virtual")
-          .order("created_at", {
-            ascending: false,
-          }),
-
-        supabase
-          .from("dream_gem_transactions")
-          .select(
-            "id,user_id,type,source,title,description,amount,balance_after,created_at",
-          )
-          .eq("user_id", userId)
-          .order("created_at", {
-            ascending: false,
-          }),
+          .eq("token_kind", "virtual"),
 
         supabase
           .from("milo_exchange_stocks")
@@ -1182,26 +1286,23 @@ export default function ProfilePage() {
           tokenResult.error.message,
         );
 
-        setTokenTransactions([]);
+        setDreamTokenBalance(0);
       } else {
-        setTokenTransactions(
-          (tokenResult.data ??
-            []) as DreamTokenTransaction[],
+        setDreamTokenBalance(
+          (tokenResult.data ?? []).reduce(
+            (total, row) => total + Number(row.amount || 0),
+            0,
+          ),
         );
       }
 
-      if (gemResult.error) {
-        console.error(
-          "Dream Gem error:",
-          gemResult.error.message,
-        );
+      // Keep an open (or previously opened) history in step with the balance.
+      if (tokenHistoryUserIdRef.current === userId) {
+        void loadTokenHistory(userId);
+      }
 
-        setGemTransactions([]);
-      } else {
-        setGemTransactions(
-          (gemResult.data ??
-            []) as DreamGemTransaction[],
-        );
+      if (gemHistoryUserIdRef.current === userId) {
+        void loadGemHistory(userId);
       }
 
       if (
@@ -1341,7 +1442,8 @@ export default function ProfilePage() {
         refreshBalances,
       );
     };
-  }, []);
+    // Both history loaders are stable (useCallback with no dependencies).
+  }, [loadGemHistory, loadTokenHistory]);
 
   async function loadMembershipControls() {
     setIsLoadingMembership(true);
@@ -2675,7 +2777,7 @@ Thank you.`;
           <div className="mt-5 grid gap-6 lg:grid-cols-2">
             <button
               type="button"
-              onClick={() => setShowTokenHistory(true)}
+              onClick={openTokenHistory}
               className="group rounded-[30px] border border-yellow-300/26 bg-[linear-gradient(180deg,rgba(112,57,18,0.38),rgba(4,20,48,0.82))] p-6 text-left shadow-[0_0_42px_rgba(250,204,21,0.07),0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl transition hover:scale-[1.01] hover:border-yellow-200/42 sm:p-7"
             >
               <div className="flex items-start justify-between gap-5">
@@ -2730,7 +2832,7 @@ Thank you.`;
 
             <button
               type="button"
-              onClick={() => setShowGemHistory(true)}
+              onClick={openGemHistory}
               className="group rounded-[30px] border border-fuchsia-200/28 bg-[linear-gradient(180deg,rgba(76,24,112,0.44),rgba(4,20,48,0.86))] p-6 text-left shadow-[0_0_46px_rgba(217,70,239,0.10),0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl transition hover:scale-[1.01] hover:border-fuchsia-200/46 sm:p-7"
             >
               <div className="flex items-start justify-between gap-5">
@@ -4201,7 +4303,18 @@ Thank you.`;
                   </p>
                 </div>
 
-                {tokenTransactions.length === 0 ? (
+                {tokenTransactions.length === 0 &&
+                (tokenHistoryStatus === "idle" ||
+                  tokenHistoryStatus === "loading") ? (
+                  <p className="mt-6 text-sm text-white/48">
+                    Loading Dream Token history...
+                  </p>
+                ) : tokenTransactions.length === 0 &&
+                  tokenHistoryStatus === "error" ? (
+                  <p className="mt-6 text-sm text-white/48">
+                    Dream Token history could not be loaded. Please try again.
+                  </p>
+                ) : tokenTransactions.length === 0 ? (
                   <p className="mt-6 text-sm text-white/48">
                     No Dream Token activity yet.
                   </p>
@@ -4335,7 +4448,18 @@ Thank you.`;
                   </div>
                 )}
 
-                {gemTransactions.length === 0 ? (
+                {gemTransactions.length === 0 &&
+                (gemHistoryStatus === "idle" ||
+                  gemHistoryStatus === "loading") ? (
+                  <p className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-5 text-sm text-white/48">
+                    Loading Dream Gem history...
+                  </p>
+                ) : gemTransactions.length === 0 &&
+                  gemHistoryStatus === "error" ? (
+                  <p className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-5 text-sm text-white/48">
+                    Dream Gem history could not be loaded. Please try again.
+                  </p>
+                ) : gemTransactions.length === 0 ? (
                   <p className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-5 text-sm text-white/48">
                     No Dream Gem activity yet. Your balance will remain at 0 until an eligible reward or adjustment is recorded.
                   </p>

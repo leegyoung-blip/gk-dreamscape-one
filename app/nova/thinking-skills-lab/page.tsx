@@ -47,25 +47,9 @@ type ProfileAssetBreakdown = {
   stocks: number;
 };
 
-type DreamTokenTransaction = {
-  id: string;
-  amount: number;
-  type: string | null;
-  title: string | null;
-  created_at: string | null;
-};
-
 
 type TokenAmountRow = {
   amount: number | string | null;
-};
-
-type DreamTokenTransactionRow = {
-  id: string | number;
-  amount: number | string | null;
-  type: string | null;
-  title: string | null;
-  created_at: string | null;
 };
 
 type StockRow = {
@@ -409,22 +393,6 @@ function formatDreamGemAmount(value: number) {
   return `${Math.max(0, Math.round(value)).toLocaleString("en-US")} DG`;
 }
 
-function formatDreamTokenTransactionDate(value: string | null) {
-  if (!value) return "";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "";
-
-  return new Intl.DateTimeFormat("en-SG", {
-    timeZone: "Asia/Singapore",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-}
-
 export default function ThinkingSkillsLabPage() {
   const screenMode = useResponsiveMode();
 
@@ -439,9 +407,6 @@ export default function ThinkingSkillsLabPage() {
   const [status, setStatus] = useState<LabStatus>(EMPTY_STATUS);
   const [profileAssets, setProfileAssets] =
     useState<ProfileAssetBreakdown>(EMPTY_PROFILE_ASSETS);
-  const [tokenTransactions, setTokenTransactions] = useState<
-    DreamTokenTransaction[]
-  >([]);
   const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
   const [profileAssetsOpen, setProfileAssetsOpen] = useState(false);
   const [dreamGemBalance, setDreamGemBalance] = useState(0);
@@ -530,7 +495,6 @@ export default function ThinkingSkillsLabPage() {
         current.activityDate === today ? current : createGuestStatus(today)
       );
       setProfileAssets(EMPTY_PROFILE_ASSETS);
-      setTokenTransactions([]);
       setDreamGemBalance(0);
       setDreamGemsLoading(false);
       setProfileAssetsLoading(false);
@@ -545,7 +509,6 @@ export default function ThinkingSkillsLabPage() {
       statusResult,
       profileResult,
       balanceResult,
-      recentTransactionsResult,
       stocksResult,
       stockHoldingsResult,
       propertiesResult,
@@ -562,13 +525,6 @@ export default function ThinkingSkillsLabPage() {
         .select("amount")
         .eq("user_id", user.id)
         .eq("token_kind", "virtual"),
-      supabase
-        .from("dream_token_transactions")
-        .select("id,amount,type,title,created_at")
-        .eq("user_id", user.id)
-        .eq("token_kind", "virtual")
-        .order("created_at", { ascending: false })
-        .limit(8),
       supabase
         .from("milo_exchange_stocks")
         .select("symbol,current_price")
@@ -628,26 +584,6 @@ export default function ThinkingSkillsLabPage() {
       console.warn(
         "Could not load Dreamscape Tokens:",
         balanceResult.error.message
-      );
-    }
-
-    if (recentTransactionsResult.error) {
-      console.warn(
-        "Could not load recent Dreamscape Token transactions:",
-        recentTransactionsResult.error.message
-      );
-      setTokenTransactions([]);
-    } else {
-      setTokenTransactions(
-        ((recentTransactionsResult.data ?? []) as DreamTokenTransactionRow[]).map((transaction) => ({
-          id: String(transaction.id),
-          amount: Number(transaction.amount ?? 0),
-          type: transaction.type ? String(transaction.type) : null,
-          title: transaction.title ? String(transaction.title) : null,
-          created_at: transaction.created_at
-            ? String(transaction.created_at)
-            : null,
-        }))
       );
     }
 
@@ -716,20 +652,11 @@ export default function ThinkingSkillsLabPage() {
 
   const refreshCashAndTransactions = useCallback(
     async (accountUserId: string) => {
-      const [balanceResult, recentTransactionsResult] = await Promise.all([
-        supabase
-          .from("dream_token_transactions")
-          .select("amount")
-          .eq("user_id", accountUserId)
-          .eq("token_kind", "virtual"),
-        supabase
-          .from("dream_token_transactions")
-          .select("id,amount,type,title,created_at")
-          .eq("user_id", accountUserId)
-          .eq("token_kind", "virtual")
-          .order("created_at", { ascending: false })
-          .limit(8),
-      ]);
+      const balanceResult = await supabase
+        .from("dream_token_transactions")
+        .select("amount")
+        .eq("user_id", accountUserId)
+        .eq("token_kind", "virtual");
 
       // Never show a previous account's wallet after switching accounts.
       if (userIdRef.current !== accountUserId) return;
@@ -754,25 +681,6 @@ export default function ThinkingSkillsLabPage() {
           ...current,
           tokenBalance: cashValue,
         }));
-      }
-
-      if (recentTransactionsResult.error) {
-        console.warn(
-          "Could not refresh recent Dreamscape Token transactions:",
-          recentTransactionsResult.error.message
-        );
-      } else {
-        setTokenTransactions(
-          ((recentTransactionsResult.data ?? []) as DreamTokenTransactionRow[]).map((transaction) => ({
-            id: String(transaction.id),
-            amount: Number(transaction.amount ?? 0),
-            type: transaction.type ? String(transaction.type) : null,
-            title: transaction.title ? String(transaction.title) : null,
-            created_at: transaction.created_at
-              ? String(transaction.created_at)
-              : null,
-          }))
-        );
       }
     },
     []
@@ -1276,66 +1184,6 @@ export default function ThinkingSkillsLabPage() {
                       </div>
                     ))}
                   </div>
-
-                  <p className="transactions-heading">
-                    Latest cash transactions
-                  </p>
-
-                  {profileAssetsLoading ? (
-                    <div className="transactions-empty">
-                      Loading assets...
-                    </div>
-                  ) : tokenTransactions.length === 0 ? (
-                    <div className="transactions-empty">
-                      No token transactions yet.
-                    </div>
-                  ) : (
-                    <div className="transactions-list">
-                      {tokenTransactions.map((transaction) => {
-                        const isPositive = transaction.amount >= 0;
-
-                        return (
-                          <div
-                            className="transaction-row"
-                            role="menuitem"
-                            key={transaction.id}
-                          >
-                            <span
-                              className={`transaction-sign ${
-                                isPositive ? "is-positive" : "is-negative"
-                              }`}
-                              aria-hidden="true"
-                            >
-                              {isPositive ? "+" : "−"}
-                            </span>
-
-                            <span className="transaction-copy">
-                              <strong>
-                                {transaction.title ||
-                                  (isPositive
-                                    ? "Dreamscape Token reward"
-                                    : "Dreamscape Token spend")}
-                              </strong>
-                              <small>
-                                {formatDreamTokenTransactionDate(
-                                  transaction.created_at
-                                )}
-                              </small>
-                            </span>
-
-                            <strong
-                              className={`transaction-amount ${
-                                isPositive ? "is-positive" : "is-negative"
-                              }`}
-                            >
-                              {isPositive ? "+" : ""}
-                              {transaction.amount} DT
-                            </strong>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
               </div>
             )}

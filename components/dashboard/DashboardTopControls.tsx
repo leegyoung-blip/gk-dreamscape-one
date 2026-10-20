@@ -7,21 +7,6 @@ import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
-type DreamTokenTransaction = {
-  id: string;
-  amount: number;
-  title: string | null;
-  created_at: string | null;
-};
-
-type DreamGemTransaction = {
-  id: string;
-  amount: number;
-  title: string | null;
-  source: string | null;
-  created_at: string | null;
-};
-
 type StockRow = {
   symbol: string;
   current_price: number;
@@ -81,40 +66,11 @@ function formatDG(value: number) {
   return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DG`;
 }
 
-function formatDate(value: string | null) {
-  if (!value) return "";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  return new Intl.DateTimeFormat("en-SG", {
-    timeZone: "Asia/Singapore",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function formatGemSource(source: string | null) {
-  switch (source) {
-    case "class_attendance":
-      return "Class attendance";
-    case "core_mission":
-      return "Core Mission";
-    case "think_mission":
-      return "Think Mission";
-    case "redemption":
-      return "Reward redemption";
-    case "admin_adjustment":
-      return "Admin adjustment";
-    case "reversal":
-      return "Reversal";
-    default:
-      return "Dream Gem activity";
-  }
-}
-
+/*
+ * Dream Token and Dream Gem transaction history is shown only on /profile.
+ * These controls show current balances; Profile Assets opens the cash,
+ * property and stock breakdown, and the Dream Gem balance is display-only.
+ */
 export default function DashboardTopControls() {
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
@@ -127,17 +83,10 @@ export default function DashboardTopControls() {
     property: 0,
     stocks: 0,
   });
-  const [tokenTransactions, setTokenTransactions] = useState<
-    DreamTokenTransaction[]
-  >([]);
   const [gemBalance, setGemBalance] = useState(0);
-  const [gemTransactions, setGemTransactions] = useState<
-    DreamGemTransaction[]
-  >([]);
   const [loading, setLoading] = useState(true);
 
   const [assetsOpen, setAssetsOpen] = useState(false);
-  const [gemsOpen, setGemsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const assetTotal = assets.cash + assets.property + assets.stocks;
@@ -157,9 +106,7 @@ export default function DashboardTopControls() {
       if (!user) {
         setUserEmail(null);
         setAssets({ cash: 0, property: 0, stocks: 0 });
-        setTokenTransactions([]);
         setGemBalance(0);
-        setGemTransactions([]);
         setLoading(false);
         return;
       }
@@ -169,12 +116,10 @@ export default function DashboardTopControls() {
       const [
         profileResult,
         tokenBalanceResult,
-        tokenTransactionsResult,
         stocksResult,
         holdingsResult,
         propertiesResult,
         propertyHoldingsResult,
-        gemTransactionsResult,
       ] = await Promise.all([
         supabase
           .from("profiles")
@@ -186,13 +131,6 @@ export default function DashboardTopControls() {
           .select("amount")
           .eq("user_id", user.id)
           .eq("token_kind", "virtual"),
-        supabase
-          .from("dream_token_transactions")
-          .select("id,amount,title,created_at")
-          .eq("user_id", user.id)
-          .eq("token_kind", "virtual")
-          .order("created_at", { ascending: false })
-          .limit(8),
         supabase
           .from("milo_exchange_stocks")
           .select("symbol,current_price")
@@ -209,12 +147,6 @@ export default function DashboardTopControls() {
           .from("milo_exchange_property_holdings")
           .select("property_id,quantity")
           .eq("user_id", user.id),
-        supabase
-          .from("dream_gem_transactions")
-          .select("id,amount,title,source,created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(8),
       ]);
 
       if (!mounted) return;
@@ -310,45 +242,6 @@ export default function DashboardTopControls() {
 
       setAssets({ cash, property, stocks });
 
-      if (tokenTransactionsResult.error) {
-        console.warn(
-          "Could not load dashboard Dream Token transactions:",
-          tokenTransactionsResult.error.message,
-        );
-        setTokenTransactions([]);
-      } else {
-        setTokenTransactions(
-          (tokenTransactionsResult.data || []).map((row) => ({
-            id: String(row.id),
-            amount: Number(row.amount || 0),
-            title: row.title ? String(row.title) : null,
-            created_at: row.created_at
-              ? String(row.created_at)
-              : null,
-          })),
-        );
-      }
-
-      if (gemTransactionsResult.error) {
-        console.warn(
-          "Could not load dashboard Dream Gem transactions:",
-          gemTransactionsResult.error.message,
-        );
-        setGemTransactions([]);
-      } else {
-        setGemTransactions(
-          (gemTransactionsResult.data || []).map((row) => ({
-            id: String(row.id),
-            amount: Number(row.amount || 0),
-            title: row.title ? String(row.title) : null,
-            source: row.source ? String(row.source) : null,
-            created_at: row.created_at
-              ? String(row.created_at)
-              : null,
-          })),
-        );
-      }
-
       setLoading(false);
     }
 
@@ -390,7 +283,7 @@ export default function DashboardTopControls() {
   }, []);
 
   useEffect(() => {
-    if (!assetsOpen && !gemsOpen && !menuOpen) return;
+    if (!assetsOpen && !menuOpen) return;
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -401,24 +294,16 @@ export default function DashboardTopControls() {
     document.addEventListener("keydown", closeOnEscape);
     return () =>
       document.removeEventListener("keydown", closeOnEscape);
-  }, [assetsOpen, gemsOpen, menuOpen]);
+  }, [assetsOpen, menuOpen]);
 
   function closeEverything() {
     setAssetsOpen(false);
-    setGemsOpen(false);
     setMenuOpen(false);
   }
 
   function openAssets() {
     setMenuOpen(false);
-    setGemsOpen(false);
     setAssetsOpen(true);
-  }
-
-  function openGems() {
-    setMenuOpen(false);
-    setAssetsOpen(false);
-    setGemsOpen(true);
   }
 
   const baseTopButton: CSSProperties = {
@@ -439,7 +324,7 @@ export default function DashboardTopControls() {
 
   return (
     <>
-      {(assetsOpen || gemsOpen || menuOpen) && (
+      {(assetsOpen || menuOpen) && (
         <button
           type="button"
           aria-label="Close account panels"
@@ -492,7 +377,6 @@ export default function DashboardTopControls() {
             <button
               type="button"
               onClick={() => {
-                setGemsOpen(false);
                 setAssetsOpen((current) => !current);
               }}
               aria-expanded={assetsOpen}
@@ -552,14 +436,13 @@ export default function DashboardTopControls() {
           </div>
 
           <div style={{ position: "relative", zIndex: 73 }}>
-            <button
-              type="button"
-              onClick={() => {
-                setAssetsOpen(false);
-                setGemsOpen((current) => !current);
-              }}
-              aria-expanded={gemsOpen}
-              aria-haspopup="menu"
+            <div
+              data-wallet-balance="dream-gems"
+              aria-label={
+                loading
+                  ? "Dream Gems balance loading"
+                  : `Dream Gems balance ${formatDG(gemBalance)}`
+              }
               style={{
                 ...baseTopButton,
                 padding: "0 16px",
@@ -570,10 +453,8 @@ export default function DashboardTopControls() {
                 fontSize: 14,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
-                cursor: "pointer",
-                boxShadow: gemsOpen
-                  ? "0 16px 38px rgba(0,0,0,0.34), 0 0 30px rgba(192,132,252,0.32)"
-                  : "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(192,132,252,0.2)",
+                boxShadow:
+                  "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(192,132,252,0.2)",
               }}
             >
               <span
@@ -599,19 +480,7 @@ export default function DashboardTopControls() {
               <strong style={{ color: "#e9d5ff", fontSize: 14 }}>
                 {loading ? "..." : formatDG(gemBalance)}
               </strong>
-              <span
-                aria-hidden="true"
-                style={{
-                  color: "#e9d5ff",
-                  transform: gemsOpen
-                    ? "rotate(180deg)"
-                    : "rotate(0deg)",
-                  transition: "transform 180ms ease",
-                }}
-              >
-                ▾
-              </span>
-            </button>
+            </div>
           </div>
 
           <Link
@@ -642,7 +511,6 @@ export default function DashboardTopControls() {
             type="button"
             onClick={() => {
               setAssetsOpen(false);
-              setGemsOpen(false);
               setMenuOpen((current) => !current);
             }}
             aria-expanded={menuOpen}
@@ -704,13 +572,13 @@ export default function DashboardTopControls() {
                 </strong>
               </button>
 
-              <button
-                type="button"
-                onClick={openGems}
+              <div
+                data-wallet-balance="dream-gems"
                 style={{
                   ...compactMenuItemStyle,
                   border: "1px solid rgba(216,180,254,0.22)",
                   background: "rgba(192,132,252,0.08)",
+                  cursor: "default",
                 }}
               >
                 <span style={{ color: "#e9d5ff" }}>◆</span>
@@ -723,7 +591,7 @@ export default function DashboardTopControls() {
                 >
                   {loading ? "..." : formatDG(gemBalance)}
                 </strong>
-              </button>
+              </div>
 
               <Link
                 href={userEmail ? "/profile" : "/login"}
@@ -744,31 +612,12 @@ export default function DashboardTopControls() {
 
       {assetsOpen && (
         <WalletPanel
-          kind="assets"
           isMobile={isMobile}
           userEmail={userEmail}
           loading={loading}
           assetTotal={assetTotal}
           assets={assets}
-          tokenTransactions={tokenTransactions}
-          gemBalance={gemBalance}
-          gemTransactions={gemTransactions}
           onClose={() => setAssetsOpen(false)}
-        />
-      )}
-
-      {gemsOpen && (
-        <WalletPanel
-          kind="gems"
-          isMobile={isMobile}
-          userEmail={userEmail}
-          loading={loading}
-          assetTotal={assetTotal}
-          assets={assets}
-          tokenTransactions={tokenTransactions}
-          gemBalance={gemBalance}
-          gemTransactions={gemTransactions}
-          onClose={() => setGemsOpen(false)}
         />
       )}
     </>
@@ -795,30 +644,20 @@ const compactMenuItemStyle: CSSProperties = {
 };
 
 function WalletPanel({
-  kind,
   isMobile,
   userEmail,
   loading,
   assetTotal,
   assets,
-  tokenTransactions,
-  gemBalance,
-  gemTransactions,
   onClose,
 }: {
-  kind: "assets" | "gems";
   isMobile: boolean;
   userEmail: string | null;
   loading: boolean;
   assetTotal: number;
   assets: ProfileAssetBreakdown;
-  tokenTransactions: DreamTokenTransaction[];
-  gemBalance: number;
-  gemTransactions: DreamGemTransaction[];
   onClose: () => void;
 }) {
-  const isAssets = kind === "assets";
-
   return (
     <div
       role="menu"
@@ -836,12 +675,9 @@ function WalletPanel({
         overflowX: "hidden",
         overflowY: "auto",
         borderRadius: 20,
-        border: isAssets
-          ? "1px solid rgba(126,232,255,0.3)"
-          : "1px solid rgba(216,180,254,0.36)",
-        background: isAssets
-          ? "linear-gradient(145deg, rgba(3,20,39,0.99), rgba(3,10,25,0.99))"
-          : "linear-gradient(145deg, rgba(35,16,65,0.99), rgba(10,8,29,0.99))",
+        border: "1px solid rgba(126,232,255,0.3)",
+        background:
+          "linear-gradient(145deg, rgba(3,20,39,0.99), rgba(3,10,25,0.99))",
         boxShadow:
           "0 28px 72px rgba(0,0,0,0.58), 0 0 32px rgba(83,215,255,0.12)",
         backdropFilter: "blur(22px)",
@@ -852,9 +688,7 @@ function WalletPanel({
       <div
         style={{
           padding: 18,
-          borderBottom: isAssets
-            ? "1px solid rgba(126,232,255,0.13)"
-            : "1px solid rgba(216,180,254,0.16)",
+          borderBottom: "1px solid rgba(126,232,255,0.13)",
         }}
       >
         <div
@@ -869,14 +703,14 @@ function WalletPanel({
             <p
               style={{
                 margin: 0,
-                color: isAssets ? "#8ee8ff" : "#e9d5ff",
+                color: "#8ee8ff",
                 fontSize: 11,
                 letterSpacing: "0.16em",
                 textTransform: "uppercase",
                 fontWeight: 900,
               }}
             >
-              {isAssets ? "Profile Assets" : "Dream Gem Wallet"}
+              Profile Assets
             </p>
 
             <strong
@@ -888,11 +722,7 @@ function WalletPanel({
                 letterSpacing: "-0.04em",
               }}
             >
-              {loading
-                ? "Loading..."
-                : isAssets
-                  ? formatDT(assetTotal)
-                  : formatDG(gemBalance)}
+              {loading ? "Loading..." : formatDT(assetTotal)}
             </strong>
           </div>
 
@@ -914,20 +744,6 @@ function WalletPanel({
             ×
           </button>
         </div>
-
-        {!isAssets && (
-          <p
-            style={{
-              margin: "12px 0 0",
-              color: "rgba(255,255,255,0.56)",
-              fontSize: 12,
-              lineHeight: 1.55,
-            }}
-          >
-            Dream Gems are premium learning rewards for selected
-            redemptions. They cannot be exchanged for cash.
-          </p>
-        )}
       </div>
 
       <div style={{ padding: 12 }}>
@@ -951,260 +767,60 @@ function WalletPanel({
           >
             Log in to view your wallet
           </Link>
-        ) : isAssets ? (
-          <>
-            <div style={{ display: "grid", gap: 8 }}>
-              {[
-                ["Cash", assets.cash, "✦"],
-                ["Property", assets.property, "⌂"],
-                ["Stocks", assets.stocks, "↗"],
-              ].map(([label, value, icon]) => (
-                <div
-                  key={String(label)}
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            {[
+              ["Cash", assets.cash, "✦"],
+              ["Property", assets.property, "⌂"],
+              ["Stocks", assets.stocks, "↗"],
+            ].map(([label, value, icon]) => (
+              <div
+                key={String(label)}
+                style={{
+                  minHeight: 58,
+                  borderRadius: 14,
+                  border: "1px solid rgba(126,232,255,0.12)",
+                  background: "rgba(255,255,255,0.035)",
+                  display: "grid",
+                  gridTemplateColumns: "34px minmax(0,1fr) auto",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                }}
+              >
+                <span
                   style={{
-                    minHeight: 58,
-                    borderRadius: 14,
-                    border: "1px solid rgba(126,232,255,0.12)",
-                    background: "rgba(255,255,255,0.035)",
-                    display: "grid",
-                    gridTemplateColumns: "34px minmax(0,1fr) auto",
+                    width: 32,
+                    height: 32,
+                    borderRadius: 11,
+                    border: "1px solid rgba(83,215,255,0.26)",
+                    background: "rgba(83,215,255,0.09)",
+                    color: "#8ee8ff",
+                    display: "flex",
                     alignItems: "center",
-                    gap: 10,
-                    padding: "10px 12px",
+                    justifyContent: "center",
+                    fontWeight: 900,
                   }}
                 >
-                  <span
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 11,
-                      border: "1px solid rgba(83,215,255,0.26)",
-                      background: "rgba(83,215,255,0.09)",
-                      color: "#8ee8ff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: 900,
-                    }}
-                  >
-                    {icon}
-                  </span>
+                  {icon}
+                </span>
 
-                  <strong style={{ fontSize: 13 }}>{label}</strong>
+                <strong style={{ fontSize: 13 }}>{label}</strong>
 
-                  <strong
-                    style={{
-                      color: "#9fffd2",
-                      fontSize: 12,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {loading ? "—" : formatDT(Number(value))}
-                  </strong>
-                </div>
-              ))}
-            </div>
-
-            <p
-              style={{
-                margin: "16px 4px 10px",
-                color: "rgba(255,255,255,0.48)",
-                fontSize: 10,
-                letterSpacing: "0.13em",
-                textTransform: "uppercase",
-                fontWeight: 800,
-              }}
-            >
-              Latest cash transactions
-            </p>
-
-            {loading ? (
-              <WalletMessage text="Loading transactions..." />
-            ) : tokenTransactions.length === 0 ? (
-              <WalletMessage text="No Dream Token transactions yet." />
-            ) : (
-              <div style={{ display: "grid", gap: 8 }}>
-                {tokenTransactions.map((transaction) => (
-                  <TransactionRow
-                    key={transaction.id}
-                    amount={transaction.amount}
-                    title={
-                      transaction.title ||
-                      (transaction.amount >= 0
-                        ? "Dream Token reward"
-                        : "Dream Token spend")
-                    }
-                    subtitle={formatDate(transaction.created_at)}
-                    suffix="DT"
-                    gem={false}
-                  />
-                ))}
+                <strong
+                  style={{
+                    color: "#9fffd2",
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {loading ? "—" : formatDT(Number(value))}
+                </strong>
               </div>
-            )}
-          </>
-        ) : (
-          <>
-            <p
-              style={{
-                margin: "0 4px 10px",
-                color: "rgba(255,255,255,0.48)",
-                fontSize: 10,
-                letterSpacing: "0.13em",
-                textTransform: "uppercase",
-                fontWeight: 800,
-              }}
-            >
-              Latest Dream Gem activity
-            </p>
-
-            {loading ? (
-              <WalletMessage text="Loading Dream Gems..." />
-            ) : gemTransactions.length === 0 ? (
-              <WalletMessage text="No Dream Gem transactions yet." />
-            ) : (
-              <div style={{ display: "grid", gap: 8 }}>
-                {gemTransactions.map((transaction) => (
-                  <TransactionRow
-                    key={transaction.id}
-                    amount={transaction.amount}
-                    title={
-                      transaction.title || "Dream Gem activity"
-                    }
-                    subtitle={[
-                      formatGemSource(transaction.source),
-                      formatDate(transaction.created_at),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                    suffix="DG"
-                    gem
-                  />
-                ))}
-              </div>
-            )}
-          </>
+            ))}
+          </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function WalletMessage({ text }: { text: string }) {
-  return (
-    <div
-      style={{
-        padding: "20px 14px",
-        borderRadius: 14,
-        background: "rgba(255,255,255,0.035)",
-        color: "rgba(255,255,255,0.58)",
-        fontSize: 13,
-        lineHeight: 1.5,
-        textAlign: "center",
-      }}
-    >
-      {text}
-    </div>
-  );
-}
-
-function TransactionRow({
-  amount,
-  title,
-  subtitle,
-  suffix,
-  gem,
-}: {
-  amount: number;
-  title: string;
-  subtitle: string;
-  suffix: "DT" | "DG";
-  gem: boolean;
-}) {
-  const positive = amount >= 0;
-
-  return (
-    <div
-      style={{
-        minHeight: 60,
-        borderRadius: 14,
-        border: gem
-          ? "1px solid rgba(216,180,254,0.14)"
-          : "1px solid rgba(126,232,255,0.12)",
-        background: "rgba(255,255,255,0.035)",
-        display: "grid",
-        gridTemplateColumns: "34px minmax(0,1fr) auto",
-        alignItems: "center",
-        gap: 10,
-        padding: "10px 12px",
-      }}
-    >
-      <span
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: 11,
-          border: positive
-            ? gem
-              ? "1px solid rgba(167,139,250,0.5)"
-              : "1px solid rgba(93,255,181,0.34)"
-            : "1px solid rgba(255,167,120,0.34)",
-          background: positive
-            ? gem
-              ? "rgba(167,139,250,0.14)"
-              : "rgba(93,255,181,0.1)"
-            : "rgba(255,138,92,0.1)",
-          color: positive
-            ? gem
-              ? "#ddd6fe"
-              : "#9fffd2"
-            : "#ffc0a0",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontWeight: 900,
-        }}
-      >
-        {positive ? (gem ? "◆" : "+") : "−"}
-      </span>
-
-      <span style={{ minWidth: 0 }}>
-        <strong
-          style={{
-            display: "block",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            fontSize: 12,
-          }}
-        >
-          {title}
-        </strong>
-        <span
-          style={{
-            display: "block",
-            marginTop: 4,
-            color: "rgba(255,255,255,0.43)",
-            fontSize: 10,
-          }}
-        >
-          {subtitle}
-        </span>
-      </span>
-
-      <strong
-        style={{
-          color: positive
-            ? gem
-              ? "#ddd6fe"
-              : "#9fffd2"
-            : "#ffc0a0",
-          fontSize: 12,
-          whiteSpace: "nowrap",
-        }}
-      >
-        {positive ? "+" : ""}
-        {amount} {suffix}
-      </strong>
     </div>
   );
 }

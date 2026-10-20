@@ -42,14 +42,6 @@ const MILO_ZONE_KEYS: MiloZoneKey[] = [
   "quiz_hall",
 ];
 
-type DreamTokenTransaction = {
-  id: string;
-  amount: number;
-  type: string | null;
-  title: string | null;
-  created_at: string | null;
-};
-
 type StockRow = {
   symbol: string;
   current_price: number;
@@ -267,22 +259,6 @@ function useResponsiveMode() {
 
 function formatDreamTokenAmount(value: number) {
   return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DT`;
-}
-
-function formatDreamTokenTransactionDate(value: string | null) {
-  if (!value) return "";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "";
-
-  return new Intl.DateTimeFormat("en-SG", {
-    timeZone: "Asia/Singapore",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
 }
 
 function ResponsiveMiloStyles() {
@@ -2566,9 +2542,6 @@ export default function MiloWorldPage() {
     property: 0,
     stocks: 0,
   });
-  const [tokenTransactions, setTokenTransactions] = useState<
-    DreamTokenTransaction[]
-  >([]);
   const [profileAssetsOpen, setProfileAssetsOpen] = useState(false);
   const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -2604,7 +2577,6 @@ export default function MiloWorldPage() {
       if (!user) {
         setUserEmail(null);
         setProfileAssets({ cash: 0, property: 0, stocks: 0 });
-        setTokenTransactions([]);
         setProfileAssetsLoading(false);
         setProfileAssetsOpen(false);
         setObjectiveStatus(null);
@@ -2661,7 +2633,6 @@ export default function MiloWorldPage() {
 
       const [
         balanceResult,
-        recentTransactionsResult,
         stocksResult,
         stockHoldingsResult,
         propertiesResult,
@@ -2672,13 +2643,6 @@ export default function MiloWorldPage() {
           .select("amount")
           .eq("user_id", user.id)
           .eq("token_kind", "virtual"),
-        supabase
-          .from("dream_token_transactions")
-          .select("id,amount,type,title,created_at")
-          .eq("user_id", user.id)
-          .eq("token_kind", "virtual")
-          .order("created_at", { ascending: false })
-          .limit(8),
         supabase
           .from("milo_exchange_stocks")
           .select("symbol,current_price")
@@ -2761,26 +2725,6 @@ export default function MiloWorldPage() {
         property: propertyValue,
         stocks: stockValue,
       });
-
-      if (recentTransactionsResult.error) {
-        console.warn(
-          "Could not load recent Dreamscape Token transactions:",
-          recentTransactionsResult.error,
-        );
-        setTokenTransactions([]);
-      } else {
-        setTokenTransactions(
-          (recentTransactionsResult.data || []).map((transaction) => ({
-            id: String(transaction.id),
-            amount: Number(transaction.amount || 0),
-            type: transaction.type ? String(transaction.type) : null,
-            title: transaction.title ? String(transaction.title) : null,
-            created_at: transaction.created_at
-              ? String(transaction.created_at)
-              : null,
-          })),
-        );
-      }
 
       setProfileAssetsLoading(false);
       setObjectivesLoading(false);
@@ -3398,153 +3342,6 @@ export default function MiloWorldPage() {
                       </div>
                     ))}
                   </div>
-
-                  <p
-                    style={{
-                      margin: "16px 4px 10px",
-                      color: "rgba(255,255,255,0.48)",
-                      fontSize: "10px",
-                      letterSpacing: "0.13em",
-                      textTransform: "uppercase",
-                      fontWeight: 800,
-                    }}
-                  >
-                    Latest cash transactions
-                  </p>
-
-                  {profileAssetsLoading ? (
-                    <div
-                      style={{
-                        padding: "20px 14px",
-                        color: "rgba(255,255,255,0.58)",
-                        fontSize: "13px",
-                        textAlign: "center",
-                      }}
-                    >
-                      Loading assets...
-                    </div>
-                  ) : !userEmail ? (
-                    <Link
-                      href="/login"
-                      onClick={() => setProfileAssetsOpen(false)}
-                      style={{
-                        minHeight: "50px",
-                        borderRadius: "14px",
-                        border: "1px solid rgba(126,232,255,0.24)",
-                        background: "rgba(83,215,255,0.08)",
-                        color: "white",
-                        textDecoration: "none",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "12px",
-                        fontWeight: 850,
-                      }}
-                    >
-                      Log in to view assets
-                    </Link>
-                  ) : tokenTransactions.length === 0 ? (
-                    <div
-                      style={{
-                        padding: "20px 14px",
-                        borderRadius: "14px",
-                        background: "rgba(255,255,255,0.035)",
-                        color: "rgba(255,255,255,0.58)",
-                        fontSize: "13px",
-                        lineHeight: 1.5,
-                        textAlign: "center",
-                      }}
-                    >
-                      No token transactions yet.
-                    </div>
-                  ) : (
-                    <div style={{ display: "grid", gap: "8px" }}>
-                      {tokenTransactions.map((transaction) => {
-                        const isPositive = transaction.amount >= 0;
-
-                        return (
-                          <div
-                            key={transaction.id}
-                            style={{
-                              minHeight: "58px",
-                              borderRadius: "14px",
-                              border: "1px solid rgba(126,232,255,0.12)",
-                              background: "rgba(255,255,255,0.035)",
-                              display: "grid",
-                              gridTemplateColumns: "34px minmax(0, 1fr) auto",
-                              alignItems: "center",
-                              gap: "10px",
-                              padding: "10px 12px",
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: "32px",
-                                height: "32px",
-                                borderRadius: "11px",
-                                border: isPositive
-                                  ? "1px solid rgba(93,255,181,0.34)"
-                                  : "1px solid rgba(255,167,120,0.34)",
-                                background: isPositive
-                                  ? "rgba(93,255,181,0.1)"
-                                  : "rgba(255,138,92,0.1)",
-                                color: isPositive ? "#9fffd2" : "#ffc0a0",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontWeight: 900,
-                              }}
-                            >
-                              {isPositive ? "+" : "−"}
-                            </span>
-
-                            <span style={{ minWidth: 0 }}>
-                              <strong
-                                style={{
-                                  display: "block",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                  color: "white",
-                                  fontSize: "12px",
-                                  lineHeight: 1.35,
-                                }}
-                              >
-                                {transaction.title ||
-                                  (isPositive
-                                    ? "Dreamscape Token reward"
-                                    : "Dreamscape Token spend")}
-                              </strong>
-
-                              <span
-                                style={{
-                                  display: "block",
-                                  marginTop: "4px",
-                                  color: "rgba(255,255,255,0.43)",
-                                  fontSize: "10px",
-                                }}
-                              >
-                                {formatDreamTokenTransactionDate(
-                                  transaction.created_at,
-                                )}
-                              </span>
-                            </span>
-
-                            <strong
-                              style={{
-                                color: isPositive ? "#9fffd2" : "#ffc0a0",
-                                fontSize: "12px",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {isPositive ? "+" : ""}
-                              {transaction.amount} DT
-                            </strong>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
