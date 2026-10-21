@@ -1,0 +1,939 @@
+{
+  "phase": "4E-2B-8C-2D.1",
+  "fixtureType": "synthetic_offline_quality_casebook",
+  "methodLibraryVersion": "4E-2B-8C-2C.3A",
+  "applicabilityVersion": "4E-2B-8C-2C.3B",
+  "provenance": "Original invented synthetic training/evaluation scenarios, not retrieved from production question records or answer_data.",
+  "notApproval": true,
+  "cases": [
+    {
+      "caseId": "SPACING_VALID_MAIN",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic straight road: 4th to 12th marker, 6 m between adjacent markers.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 3,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 4,
+          "lastOrdinal": 12,
+          "gapLength": 6,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 8,
+        "expectedDistance": 48
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      }
+    },
+    {
+      "caseId": "SPACING_VALID_ADJACENT",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic adjacent markers: 1st to 2nd, 9 m per gap.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 3,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 1,
+          "lastOrdinal": 2,
+          "gapLength": 9,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 1,
+        "expectedDistance": 9
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      }
+    },
+    {
+      "caseId": "SPACING_COUNT_OBJECTS",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Question asks for number of markers, not distance.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 3,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 4,
+          "lastOrdinal": 12,
+          "gapLength": 6,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "count_objects"
+        }
+      },
+      "expected": {
+        "status": "excluded",
+        "ruleCode": "SPECIALIST_8C2C3B_SPACING_STRUCTURE_MISMATCH"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval."
+    },
+    {
+      "caseId": "SPACING_UNEQUAL",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Unequal gap lengths break repeated equal intervals.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 3,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 4,
+          "lastOrdinal": 12,
+          "gapLength": 6,
+          "equalAdjacentGaps": false,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "excluded",
+        "ruleCode": "SPECIALIST_8C2C3B_SPACING_STRUCTURE_MISMATCH"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval."
+    },
+    {
+      "caseId": "SPACING_GAP_UNKNOWN",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "No verified length of a gap.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 3,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 4,
+          "lastOrdinal": 12,
+          "gapLength": null,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "insufficient_evidence",
+        "ruleCode": "SPECIALIST_8C2C3B_SPACING_FACTS_UNCONFIRMED"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval."
+    },
+    {
+      "caseId": "SPACING_VISUAL_UNREVIEWED",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "A diagram-dependent question has not been visually reviewed.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 3,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": true,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 4,
+          "lastOrdinal": 12,
+          "gapLength": 6,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "insufficient_evidence",
+        "ruleCode": "SPECIALIST_8C2C3B_VISUAL_REVIEW_REQUIRED"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval."
+    },
+    {
+      "caseId": "CHAIN_VALID_HALF",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "scenario": "Synthetic total 66: Bella is three times Alan; Chen is half Bella. Find Chen.",
+      "input": {
+        "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+        "learnerLevel": 5,
+        "domain": "whole_numbers",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "comparison",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "multiplicative_comparison_chain",
+          "quantityKeys": [
+            "alan",
+            "bella",
+            "chen"
+          ],
+          "relationships": [
+            {
+              "quantity": "bella",
+              "relativeTo": "alan",
+              "numerator": 3,
+              "denominator": 1
+            },
+            {
+              "quantity": "chen",
+              "relativeTo": "bella",
+              "numerator": 1,
+              "denominator": 2
+            }
+          ],
+          "combinedTotalKnown": true,
+          "combinedTotalIncludesExactlyTheseQuantities": true,
+          "targetQuantity": "chen",
+          "comparisonType": "multiplicative"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_MULTIPLICATIVE_CHAIN_SUPPORTED"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval.",
+      "mathCheck": {
+        "kind": "comparison",
+        "combinedTotal": 66,
+        "amounts": {
+          "alan": 12,
+          "bella": 36,
+          "chen": 18
+        },
+        "expectedTarget": 18
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "identify_reference",
+          "equivalent_units",
+          "find_one_unit",
+          "scale_target",
+          "check_comparisons"
+        ],
+        "misconceptionId": "mixed_reference_units",
+        "visualHint": "bar_model",
+        "reviewPrompts": [
+          "Are all coefficients defined against the SAME reference quantity?",
+          "Are half-units aligned correctly?",
+          "Does the solution check every comparison and recombine the total?"
+        ]
+      }
+    },
+    {
+      "caseId": "CHAIN_VALID_SHARED_BASE",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "scenario": "Synthetic total 72: Bella is twice Alan, Chen is three times Alan. Find Chen.",
+      "input": {
+        "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+        "learnerLevel": 5,
+        "domain": "whole_numbers",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "comparison",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "multiplicative_comparison_chain",
+          "quantityKeys": [
+            "alan",
+            "bella",
+            "chen"
+          ],
+          "relationships": [
+            {
+              "quantity": "bella",
+              "relativeTo": "alan",
+              "numerator": 2,
+              "denominator": 1
+            },
+            {
+              "quantity": "chen",
+              "relativeTo": "alan",
+              "numerator": 3,
+              "denominator": 1
+            }
+          ],
+          "combinedTotalKnown": true,
+          "combinedTotalIncludesExactlyTheseQuantities": true,
+          "targetQuantity": "chen",
+          "comparisonType": "multiplicative"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_MULTIPLICATIVE_CHAIN_SUPPORTED"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval.",
+      "mathCheck": {
+        "kind": "comparison",
+        "combinedTotal": 72,
+        "amounts": {
+          "alan": 12,
+          "bella": 24,
+          "chen": 36
+        },
+        "expectedTarget": 36
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "identify_reference",
+          "equivalent_units",
+          "find_one_unit",
+          "scale_target",
+          "check_comparisons"
+        ],
+        "misconceptionId": "mixed_reference_units",
+        "visualHint": "bar_model",
+        "reviewPrompts": [
+          "Are all coefficients defined against the SAME reference quantity?",
+          "Are half-units aligned correctly?",
+          "Does the solution check every comparison and recombine the total?"
+        ]
+      }
+    },
+    {
+      "caseId": "CHAIN_ADDITIVE",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "scenario": "Bella has three MORE than Alan, not three times.",
+      "input": {
+        "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+        "learnerLevel": 5,
+        "domain": "whole_numbers",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "comparison",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "multiplicative_comparison_chain",
+          "quantityKeys": [
+            "alan",
+            "bella",
+            "chen"
+          ],
+          "relationships": [
+            {
+              "quantity": "bella",
+              "relativeTo": "alan",
+              "numerator": 3,
+              "denominator": 1
+            },
+            {
+              "quantity": "chen",
+              "relativeTo": "bella",
+              "numerator": 1,
+              "denominator": 2
+            }
+          ],
+          "combinedTotalKnown": true,
+          "combinedTotalIncludesExactlyTheseQuantities": true,
+          "targetQuantity": "chen",
+          "comparisonType": "additive"
+        }
+      },
+      "expected": {
+        "status": "excluded",
+        "ruleCode": "SPECIALIST_8C2C3B_ADDITIVE_NOT_MULTIPLICATIVE"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval."
+    },
+    {
+      "caseId": "CHAIN_CONTRADICTION",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "scenario": "An extra relation contradicts the existing multiplicative chain.",
+      "input": {
+        "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+        "learnerLevel": 5,
+        "domain": "whole_numbers",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "comparison",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "multiplicative_comparison_chain",
+          "quantityKeys": [
+            "alan",
+            "bella",
+            "chen"
+          ],
+          "relationships": [
+            {
+              "quantity": "bella",
+              "relativeTo": "alan",
+              "numerator": 3,
+              "denominator": 1
+            },
+            {
+              "quantity": "chen",
+              "relativeTo": "bella",
+              "numerator": 1,
+              "denominator": 2
+            },
+            {
+              "quantity": "chen",
+              "relativeTo": "alan",
+              "numerator": 2,
+              "denominator": 1
+            }
+          ],
+          "combinedTotalKnown": true,
+          "combinedTotalIncludesExactlyTheseQuantities": true,
+          "targetQuantity": "chen",
+          "comparisonType": "multiplicative"
+        }
+      },
+      "expected": {
+        "status": "excluded",
+        "ruleCode": "SPECIALIST_8C2C3B_CONTRADICTORY_MULTIPLIERS"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval."
+    },
+    {
+      "caseId": "CHAIN_UNRELATED",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "scenario": "One quantity is not connected to a shared base.",
+      "input": {
+        "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+        "learnerLevel": 5,
+        "domain": "whole_numbers",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "comparison",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "multiplicative_comparison_chain",
+          "quantityKeys": [
+            "alan",
+            "bella",
+            "chen",
+            "dana"
+          ],
+          "relationships": [
+            {
+              "quantity": "bella",
+              "relativeTo": "alan",
+              "numerator": 3,
+              "denominator": 1
+            },
+            {
+              "quantity": "chen",
+              "relativeTo": "bella",
+              "numerator": 1,
+              "denominator": 2
+            }
+          ],
+          "combinedTotalKnown": true,
+          "combinedTotalIncludesExactlyTheseQuantities": true,
+          "targetQuantity": "dana",
+          "comparisonType": "multiplicative"
+        }
+      },
+      "expected": {
+        "status": "excluded",
+        "ruleCode": "SPECIALIST_8C2C3B_DISCONNECTED_COMPARISONS"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval."
+    },
+    {
+      "caseId": "CHAIN_TOTAL_UNCONFIRMED",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "scenario": "A three-person total is not known.",
+      "input": {
+        "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+        "learnerLevel": 5,
+        "domain": "whole_numbers",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "comparison",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "multiplicative_comparison_chain",
+          "quantityKeys": [
+            "alan",
+            "bella",
+            "chen"
+          ],
+          "relationships": [
+            {
+              "quantity": "bella",
+              "relativeTo": "alan",
+              "numerator": 3,
+              "denominator": 1
+            },
+            {
+              "quantity": "chen",
+              "relativeTo": "bella",
+              "numerator": 1,
+              "denominator": 2
+            }
+          ],
+          "combinedTotalKnown": null,
+          "combinedTotalIncludesExactlyTheseQuantities": true,
+          "targetQuantity": "chen",
+          "comparisonType": "multiplicative"
+        }
+      },
+      "expected": {
+        "status": "insufficient_evidence",
+        "ruleCode": "SPECIALIST_8C2C3B_COMPARISON_FACTS_UNCONFIRMED"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval."
+    },
+    {
+      "caseId": "RATIO_VALID_MAIN",
+      "methodId": "ratio.relationship.before_after_change",
+      "scenario": "Synthetic 3:2 becomes 1:2 after adding 6 to first and 24 to second. Find original second.",
+      "input": {
+        "methodId": "ratio.relationship.before_after_change",
+        "learnerLevel": 6,
+        "domain": "ratio",
+        "problemStructure": "ratio_relationship",
+        "requiredReasoning": [
+          "ratio_scaling",
+          "addition"
+        ],
+        "primaryFamilies": [
+          "ratio.relationship"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "ratio_before_after_change",
+          "beforeRatio": [
+            3,
+            2
+          ],
+          "afterRatio": [
+            1,
+            2
+          ],
+          "changes": [
+            6,
+            24
+          ],
+          "changeEvidence": "both_explicit",
+          "quantityType": "whole_objects",
+          "goal": "original_quantity"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_CHANGING_RATIO_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval.",
+      "mathCheck": {
+        "kind": "ratio",
+        "original": [
+          9,
+          6
+        ],
+        "updated": [
+          15,
+          30
+        ],
+        "expectedTarget": 6
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "identify_quantities",
+          "represent_before",
+          "apply_changes",
+          "enforce_after_ratio",
+          "solve_and_verify"
+        ],
+        "misconceptionId": "reuse_ratio_unit_across_states",
+        "visualHint": "ratio_table",
+        "reviewPrompts": [
+          "Are ordered quantities labelled before and after?",
+          "Is no unchanged quantity assumed without evidence?",
+          "Does the learner verify both ratios and both stated changes?"
+        ]
+      }
+    },
+    {
+      "caseId": "RATIO_VALID_DIFFERENT_SCALE",
+      "methodId": "ratio.relationship.before_after_change",
+      "scenario": "Synthetic 2:3 becomes 1:2 after adding 5 and 16. Find original second.",
+      "input": {
+        "methodId": "ratio.relationship.before_after_change",
+        "learnerLevel": 6,
+        "domain": "ratio",
+        "problemStructure": "ratio_relationship",
+        "requiredReasoning": [
+          "ratio_scaling",
+          "addition"
+        ],
+        "primaryFamilies": [
+          "ratio.relationship"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "ratio_before_after_change",
+          "beforeRatio": [
+            2,
+            3
+          ],
+          "afterRatio": [
+            1,
+            2
+          ],
+          "changes": [
+            5,
+            16
+          ],
+          "changeEvidence": "both_explicit",
+          "quantityType": "whole_objects",
+          "goal": "original_quantity"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_CHANGING_RATIO_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval.",
+      "mathCheck": {
+        "kind": "ratio",
+        "original": [
+          12,
+          18
+        ],
+        "updated": [
+          17,
+          34
+        ],
+        "expectedTarget": 18
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "identify_quantities",
+          "represent_before",
+          "apply_changes",
+          "enforce_after_ratio",
+          "solve_and_verify"
+        ],
+        "misconceptionId": "reuse_ratio_unit_across_states",
+        "visualHint": "ratio_table",
+        "reviewPrompts": [
+          "Are ordered quantities labelled before and after?",
+          "Is no unchanged quantity assumed without evidence?",
+          "Does the learner verify both ratios and both stated changes?"
+        ]
+      }
+    },
+    {
+      "caseId": "RATIO_ASSUMED_UNCHANGED",
+      "methodId": "ratio.relationship.before_after_change",
+      "scenario": "The reviewer assumes one quantity was unchanged without source proof.",
+      "input": {
+        "methodId": "ratio.relationship.before_after_change",
+        "learnerLevel": 6,
+        "domain": "ratio",
+        "problemStructure": "ratio_relationship",
+        "requiredReasoning": [
+          "ratio_scaling",
+          "addition"
+        ],
+        "primaryFamilies": [
+          "ratio.relationship"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "ratio_before_after_change",
+          "beforeRatio": [
+            3,
+            2
+          ],
+          "afterRatio": [
+            1,
+            2
+          ],
+          "changes": [
+            6,
+            24
+          ],
+          "changeEvidence": "one_assumed",
+          "quantityType": "whole_objects",
+          "goal": "original_quantity"
+        }
+      },
+      "expected": {
+        "status": "excluded",
+        "ruleCode": "SPECIALIST_8C2C3B_UNVERIFIED_INVARIANT"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval."
+    },
+    {
+      "caseId": "RATIO_NON_UNIQUE",
+      "methodId": "ratio.relationship.before_after_change",
+      "scenario": "Ratios and changes are proportional, so the scale cannot be established.",
+      "input": {
+        "methodId": "ratio.relationship.before_after_change",
+        "learnerLevel": 6,
+        "domain": "ratio",
+        "problemStructure": "ratio_relationship",
+        "requiredReasoning": [
+          "ratio_scaling",
+          "addition"
+        ],
+        "primaryFamilies": [
+          "ratio.relationship"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "ratio_before_after_change",
+          "beforeRatio": [
+            3,
+            2
+          ],
+          "afterRatio": [
+            3,
+            2
+          ],
+          "changes": [
+            3,
+            2
+          ],
+          "changeEvidence": "both_explicit",
+          "quantityType": "whole_objects",
+          "goal": "original_quantity"
+        }
+      },
+      "expected": {
+        "status": "excluded",
+        "ruleCode": "SPECIALIST_8C2C3B_NONUNIQUE_OR_CONTRADICTORY_RATIO"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval."
+    },
+    {
+      "caseId": "RATIO_FRACTIONAL_OBJECTS",
+      "methodId": "ratio.relationship.before_after_change",
+      "scenario": "Changes imply fractional original counts of discrete objects.",
+      "input": {
+        "methodId": "ratio.relationship.before_after_change",
+        "learnerLevel": 6,
+        "domain": "ratio",
+        "problemStructure": "ratio_relationship",
+        "requiredReasoning": [
+          "ratio_scaling",
+          "addition"
+        ],
+        "primaryFamilies": [
+          "ratio.relationship"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "ratio_before_after_change",
+          "beforeRatio": [
+            3,
+            2
+          ],
+          "afterRatio": [
+            1,
+            2
+          ],
+          "changes": [
+            5,
+            11
+          ],
+          "changeEvidence": "both_explicit",
+          "quantityType": "whole_objects",
+          "goal": "original_quantity"
+        }
+      },
+      "expected": {
+        "status": "excluded",
+        "ruleCode": "SPECIALIST_8C2C3B_FRACTIONAL_OBJECT_COUNT"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval."
+    },
+    {
+      "caseId": "RATIO_CHANGE_MISSING",
+      "methodId": "ratio.relationship.before_after_change",
+      "scenario": "Only one of the two absolute changes was verified.",
+      "input": {
+        "methodId": "ratio.relationship.before_after_change",
+        "learnerLevel": 6,
+        "domain": "ratio",
+        "problemStructure": "ratio_relationship",
+        "requiredReasoning": [
+          "ratio_scaling",
+          "addition"
+        ],
+        "primaryFamilies": [
+          "ratio.relationship"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "ratio_before_after_change",
+          "beforeRatio": [
+            3,
+            2
+          ],
+          "afterRatio": [
+            1,
+            2
+          ],
+          "changes": [
+            6,
+            null
+          ],
+          "changeEvidence": "unknown",
+          "quantityType": "whole_objects",
+          "goal": "original_quantity"
+        }
+      },
+      "expected": {
+        "status": "insufficient_evidence",
+        "ruleCode": "SPECIALIST_8C2C3B_CHANGES_UNCONFIRMED"
+      },
+      "reviewNote": "Teacher review required; automated compatibility is not pedagogical approval."
+    }
+  ]
+}
