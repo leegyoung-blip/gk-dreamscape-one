@@ -5,6 +5,11 @@ import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
+import {
+  createRefreshScheduler,
+  onTabReturn,
+} from "@/lib/client/refreshScheduler";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
@@ -94,15 +99,21 @@ export default function DashboardTopControls() {
 
   useEffect(() => {
     let mounted = true;
+    let latestLoadId = 0;
 
     async function loadWallets() {
+      // Only the newest load may update state (an older reply can be for the
+      // previous account, or older than a wallet change).
+      const loadId = ++latestLoadId;
+      const isStale = () => !mounted || loadId !== latestLoadId;
+
       setLoading(true);
 
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!mounted) return;
+      if (isStale()) return;
 
       if (!user) {
         setUserEmail(null);
@@ -146,7 +157,7 @@ export default function DashboardTopControls() {
           .eq("user_id", user.id),
       ]);
 
-      if (!mounted) return;
+      if (isStale()) return;
 
       if (profileResult.error) {
         console.warn(
@@ -239,19 +250,23 @@ export default function DashboardTopControls() {
       setLoading(false);
     }
 
-    void loadWallets();
+    const scheduler = createRefreshScheduler(loadWallets);
+    scheduler.refresh();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      void loadWallets();
+    // Reload only when the signed-in user changes (login, logout, switch).
+    // Same-user SIGNED_IN on tab return is covered by onTabReturn below.
+    const stopAuthListener = onAuthUserChange(supabase, () => {
+      scheduler.force();
     });
 
+    // Wallet changes always reload; returning to the tab reloads only when
+    // the balances are more than 30 seconds old.
+    const stopTabReturn = onTabReturn(scheduler.revalidate);
+
     function refreshWallets() {
-      void loadWallets();
+      scheduler.refresh();
     }
 
-    window.addEventListener("focus", refreshWallets);
     window.addEventListener(
       "dream-tokens-updated",
       refreshWallets,
@@ -263,8 +278,8 @@ export default function DashboardTopControls() {
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
-      window.removeEventListener("focus", refreshWallets);
+      stopAuthListener();
+      stopTabReturn();
       window.removeEventListener(
         "dream-tokens-updated",
         refreshWallets,

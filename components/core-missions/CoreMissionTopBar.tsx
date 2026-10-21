@@ -7,6 +7,10 @@ import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import { canEditCore } from "@/lib/core-missions/catalogue";
+import {
+  createRefreshScheduler,
+  onTabReturn,
+} from "@/lib/client/refreshScheduler";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
@@ -245,25 +249,29 @@ export default function CoreMissionTopBar({
       setLoading(false);
     }
 
-    void loadWallets();
+    const scheduler = createRefreshScheduler(loadWallets);
+    scheduler.refresh();
 
     // Reload only when the signed-in user changes (login, logout, switch).
     const stopAuthListener = onAuthUserChange(supabase, () => {
-      void loadWallets();
+      scheduler.force();
     });
 
+    // Wallet changes always reload; returning to the tab reloads only when
+    // the balances are more than 30 seconds old.
+    const stopTabReturn = onTabReturn(scheduler.revalidate);
+
     function refreshWallets() {
-      void loadWallets();
+      scheduler.refresh();
     }
 
-    window.addEventListener("focus", refreshWallets);
     window.addEventListener("dream-tokens-updated", refreshWallets);
     window.addEventListener("dream-gems-updated", refreshWallets);
 
     return () => {
       mounted = false;
       stopAuthListener();
-      window.removeEventListener("focus", refreshWallets);
+      stopTabReturn();
       window.removeEventListener("dream-tokens-updated", refreshWallets);
       window.removeEventListener("dream-gems-updated", refreshWallets);
     };

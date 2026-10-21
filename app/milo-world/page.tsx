@@ -5,6 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { preload } from "react-dom";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
+import {
+  createRefreshScheduler,
+  onTabReturn,
+} from "@/lib/client/refreshScheduler";
 import { supabase } from "@/lib/supabase";
 import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import DeferredVideo from "@/components/media/DeferredVideo";
@@ -2722,42 +2726,35 @@ export default function MiloWorldPage() {
       setObjectivesLoading(false);
     }
 
-    loadDreamTokensAndObjectives();
+    // This load also reads the admin role, so returning to the tab always
+    // revalidates (freshnessMs: 0); only overlapping triggers are merged.
+    const scheduler = createRefreshScheduler(loadDreamTokensAndObjectives, {
+      freshnessMs: 0,
+    });
+    scheduler.refresh();
 
     // Reload only when the signed-in user changes (login, logout, switch).
     const stopAuthListener = onAuthUserChange(supabase, () => {
-      loadDreamTokensAndObjectives();
+      scheduler.force();
     });
 
-    window.addEventListener("focus", loadDreamTokensAndObjectives);
-    window.addEventListener(
-      "dream-tokens-updated",
-      loadDreamTokensAndObjectives,
-    );
-    window.addEventListener(
-      "dream-objectives-updated",
-      loadDreamTokensAndObjectives,
-    );
+    const stopTabReturn = onTabReturn(scheduler.revalidate);
+    window.addEventListener("dream-tokens-updated", scheduler.refresh);
+    window.addEventListener("dream-objectives-updated", scheduler.refresh);
     window.addEventListener(
       "dream-referral-objectives-updated",
-      loadDreamTokensAndObjectives,
+      scheduler.refresh,
     );
 
     return () => {
       isMounted = false;
       stopAuthListener();
-      window.removeEventListener("focus", loadDreamTokensAndObjectives);
-      window.removeEventListener(
-        "dream-tokens-updated",
-        loadDreamTokensAndObjectives,
-      );
-      window.removeEventListener(
-        "dream-objectives-updated",
-        loadDreamTokensAndObjectives,
-      );
+      stopTabReturn();
+      window.removeEventListener("dream-tokens-updated", scheduler.refresh);
+      window.removeEventListener("dream-objectives-updated", scheduler.refresh);
       window.removeEventListener(
         "dream-referral-objectives-updated",
-        loadDreamTokensAndObjectives,
+        scheduler.refresh,
       );
     };
   }, []);

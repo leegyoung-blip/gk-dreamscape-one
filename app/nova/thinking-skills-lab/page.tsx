@@ -10,6 +10,10 @@ import {
 } from "react";
 import type { CSSProperties } from "react";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
+import {
+  createRefreshScheduler,
+  onTabReturn,
+} from "@/lib/client/refreshScheduler";
 import { supabase } from "@/lib/supabase";
 import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import ThinkLabHub from "@/components/nova/think-lab/ThinkLabHub";
@@ -676,16 +680,18 @@ export default function ThinkingSkillsLabPage() {
   // userId is read from a ref so that setting it does not re-run this effect
   // (which previously reloaded the status and re-subscribed to auth events).
   useEffect(() => {
-    loadStatus();
+    const scheduler = createRefreshScheduler(loadStatus);
+    scheduler.refresh();
 
     // Reload only when the signed-in user changes (login, logout, switch).
     const stopAuthListener = onAuthUserChange(supabase, () => {
-      loadStatus();
+      scheduler.force();
     });
 
-    function refreshAllAssets() {
-      loadStatus();
-    }
+    // Returning to the tab reloads the status and assets only when they are
+    // more than 30 seconds old. Dream Token changes still refresh the cash
+    // balance at once, and the day-change timer below is unchanged.
+    const stopTabReturn = onTabReturn(scheduler.revalidate);
 
     function refreshTokenAssets() {
       const currentUserId = userIdRef.current;
@@ -694,12 +700,11 @@ export default function ThinkingSkillsLabPage() {
       }
     }
 
-    window.addEventListener("focus", refreshAllAssets);
     window.addEventListener("dream-tokens-updated", refreshTokenAssets);
 
     return () => {
       stopAuthListener();
-      window.removeEventListener("focus", refreshAllAssets);
+      stopTabReturn();
       window.removeEventListener(
         "dream-tokens-updated",
         refreshTokenAssets

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
+import { createRefreshScheduler } from "@/lib/client/refreshScheduler";
 import { supabase } from "@/lib/supabase";
 import {
   ArenaBattleResultCard,
@@ -1157,12 +1158,15 @@ export default function KnowledgeArenaPage() {
       }
     }
 
-    void loadUser();
+    // A battle reward dispatches Dream Tokens and Dream Gems events together;
+    // they now share one reload instead of two.
+    const scheduler = createRefreshScheduler(loadUser);
+    scheduler.refresh();
 
     // Reload only when the signed-in user changes (login, logout, switch).
-    const stopAuthListener = onAuthUserChange(supabase, () => void loadUser());
+    const stopAuthListener = onAuthUserChange(supabase, () => scheduler.force());
 
-    const refreshBalances = () => void loadUser();
+    const refreshBalances = () => scheduler.refresh();
     window.addEventListener("dream-tokens-updated", refreshBalances);
     window.addEventListener("dream-gems-updated", refreshBalances);
 

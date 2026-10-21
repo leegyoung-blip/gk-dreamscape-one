@@ -1,6 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
+import {
+  createRefreshScheduler,
+  onTabReturn,
+} from "@/lib/client/refreshScheduler";
 import { supabase } from "@/lib/supabase";
 import type { BankAccountSnapshot, BankTransaction } from "../lib/bank-types";
 import { classifyBankTransaction } from "../lib/transaction-utils";
@@ -35,13 +40,21 @@ export function useBankAccount() {
   const [account, setAccount] = useState<BankAccountSnapshot>(EMPTY_ACCOUNT);
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // Only the newest load may update state: an older reply can belong to the
+  // previous account or predate a savings / bond / wallet change.
+  const latestLoadIdRef = useRef(0);
 
   const loadAccount = useCallback(async () => {
+    const loadId = ++latestLoadIdRef.current;
+    const isStale = () => loadId !== latestLoadIdRef.current;
+
     setLoading(true);
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    if (isStale()) return;
 
     if (!user) {
       setIsLoggedIn(false);
@@ -68,6 +81,8 @@ export function useBankAccount() {
         .eq("token_kind", "virtual")
         .gte("created_at", startOfCurrentMonthIso()),
     ]);
+
+    if (isStale()) return;
 
     let totalDt = 0;
     let savings = 0;
@@ -104,6 +119,8 @@ export function useBankAccount() {
           .eq("user_id", user.id)
           .in("status", ["active", "matured"]),
       ]);
+
+      if (isStale()) return;
 
       totalDt = balanceResult.error
         ? 0
@@ -192,25 +209,31 @@ export function useBankAccount() {
   }, []);
 
   useEffect(() => {
-    loadAccount();
+    // Available and locked (savings / bond) funds come from the account
+    // summary, so returning to the tab always revalidates (freshnessMs: 0);
+    // only overlapping triggers are merged.
+    const scheduler = createRefreshScheduler(loadAccount, { freshnessMs: 0 });
+    scheduler.refresh();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      loadAccount();
+    // Reload only when the signed-in user changes (login, logout, switch).
+    // The raw auth listener also fired on INITIAL_SESSION (a second initial
+    // load) and on the SIGNED_IN Supabase re-emits on every tab return.
+    const stopAuthListener = onAuthUserChange(supabase, () => {
+      scheduler.force();
     });
 
-    window.addEventListener("focus", loadAccount);
-    window.addEventListener("dream-tokens-updated", loadAccount);
-    window.addEventListener("milo-bank-savings-updated", loadAccount);
-    window.addEventListener("milo-bank-bonds-updated", loadAccount);
+    // Wallet, savings and bond changes always reload.
+    const stopTabReturn = onTabReturn(scheduler.revalidate);
+    window.addEventListener("dream-tokens-updated", scheduler.refresh);
+    window.addEventListener("milo-bank-savings-updated", scheduler.refresh);
+    window.addEventListener("milo-bank-bonds-updated", scheduler.refresh);
 
     return () => {
-      subscription.unsubscribe();
-      window.removeEventListener("focus", loadAccount);
-      window.removeEventListener("dream-tokens-updated", loadAccount);
-      window.removeEventListener("milo-bank-savings-updated", loadAccount);
-      window.removeEventListener("milo-bank-bonds-updated", loadAccount);
+      stopAuthListener();
+      stopTabReturn();
+      window.removeEventListener("dream-tokens-updated", scheduler.refresh);
+      window.removeEventListener("milo-bank-savings-updated", scheduler.refresh);
+      window.removeEventListener("milo-bank-bonds-updated", scheduler.refresh);
     };
   }, [loadAccount]);
 

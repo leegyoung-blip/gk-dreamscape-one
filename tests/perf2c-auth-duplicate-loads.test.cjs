@@ -153,15 +153,16 @@ test('every migrated page and hook uses onAuthUserChange and cleans it up', () =
 });
 test('pages that previously loaded once explicitly still do (normal direct visits and refreshes)', () => {
  const initial = {
-  'app/inventor/hub/page.tsx': /useEffect\(\(\) => \{\s*loadNovaHome\(\);/,
-  'app/inventor/page.tsx': /\n\s*loadUserTokensAndObjectives\(\);\n/,
-  'app/learning-missions/page.tsx': /\n\s*loadUserAndAssets\(\);\n/,
-  'app/milo-world/page.tsx': /\n\s*loadDreamTokensAndObjectives\(\);\n/,
+  // PERF-2C-5: these loaders start through a refresh scheduler (still one explicit initial load).
+  'app/inventor/hub/page.tsx': /const scheduler = createRefreshScheduler\(loadNovaHome\);\s*scheduler\.refresh\(\);/,
+  'app/inventor/page.tsx': /const scheduler = createRefreshScheduler\(loadUserTokensAndObjectives,\s*\{\s*freshnessMs: 0,?\s*\}\);\s*scheduler\.refresh\(\);/,
+  'app/learning-missions/page.tsx': /const scheduler = createRefreshScheduler\(loadUserAndAssets,\s*\{\s*freshnessMs: 0,?\s*\}\);\s*scheduler\.refresh\(\);/,
+  'app/milo-world/page.tsx': /const scheduler = createRefreshScheduler\(loadDreamTokensAndObjectives,\s*\{\s*freshnessMs: 0,?\s*\}\);\s*scheduler\.refresh\(\);/,
   'app/milo-world/categories/page.tsx': /\n\s*loadUserAccess\(\);\n/,
   'app/milo-world/activity-lab/page.tsx': /\n\s*loadAccount\(\);\n/,
-  'app/nova/thinking-skills-lab/page.tsx': /useEffect\(\(\) => \{\s*loadStatus\(\);/,
-  'app/learning-missions/knowledge-arena/page.tsx': /\n\s*void loadUser\(\);\n/,
-  'components/core-missions/CoreMissionTopBar.tsx': /\n\s*void loadWallets\(\);\n/,
+  'app/nova/thinking-skills-lab/page.tsx': /const scheduler = createRefreshScheduler\(loadStatus\);\s*scheduler\.refresh\(\);/,
+  'app/learning-missions/knowledge-arena/page.tsx': /const scheduler = createRefreshScheduler\(loadUser\);\s*scheduler\.refresh\(\);/,
+  'components/core-missions/CoreMissionTopBar.tsx': /const scheduler = createRefreshScheduler\(loadWallets\);\s*scheduler\.refresh\(\);/,
   'hooks/useCoreMissionAccess.ts': /void refreshAccess\(\{\s*showChecking: true,/,
   'hooks/useLearningMissionRouteAccess.ts': /useEffect\(\(\) => \{\s*void refreshAccess\(\{ showChecking: true \}\);/,
   'components/access/LearningAccessGate.tsx': /void checkAccess\(\{\s*showChecking: true,\s*\}\);/,
@@ -203,7 +204,7 @@ test('reward, subscription and entitlement logic text is untouched by this phase
 const LAB = 'app/nova/thinking-skills-lab/page.tsx';
 function labLoadEffect() {
  const src = read(LAB);
- const start = src.indexOf('useEffect(() => {\n    loadStatus();');
+ const start = src.indexOf('useEffect(() => {\n    const scheduler = createRefreshScheduler(loadStatus);');
  assert.ok(start > 0, 'load effect found');
  const end = src.indexOf('\n  }, [', start);
  const deps = src.slice(end + '\n  }, ['.length, src.indexOf(']);', end)).split(',').map((d) => d.trim()).filter(Boolean);
@@ -252,7 +253,8 @@ test('Thinking Lab ignores stale loads and never shows a previous account wallet
 test('Thinking Lab wallet and game-completion updates still refresh', () => {
  const src = read(LAB);
  assert.match(src, /window\.addEventListener\("dream-tokens-updated", refreshTokenAssets\);/);
- assert.match(src, /window\.addEventListener\("focus", refreshAllAssets\);/);
+ // PERF-2C-5: returning to the tab revalidates through the scheduler (30-second freshness).
+ assert.match(src, /const stopTabReturn = onTabReturn\(scheduler\.revalidate\);/);
  assert.equal((src.match(/await refreshCashAndTransactions\(userId\);/g) || []).length, 2, 'clue purchase and completion paths');
  assert.match(src, /if \(status\.activityDate && singaporeDate !== status\.activityDate\) \{\s*loadStatus\(\);/, 'day rollover reload kept');
 });

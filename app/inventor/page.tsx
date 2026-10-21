@@ -8,6 +8,10 @@ import DeferredVideo from "@/components/media/DeferredVideo";
 import StudentAccessPrompt from "@/components/wallet/StudentAccessPrompt";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
+import {
+  createRefreshScheduler,
+  onTabReturn,
+} from "@/lib/client/refreshScheduler";
 import { supabase } from "@/lib/supabase";
 import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import ObjectivesPanel, {
@@ -551,18 +555,24 @@ export default function NovaWorldPage() {
       setObjectivesLoading(false);
     }
 
-    loadUserTokensAndObjectives();
+    // This load also decides Student Rewards access, so returning to the tab
+    // always revalidates (freshnessMs: 0); only overlapping triggers are
+    // merged, and a Dream Tokens + Dream Gems event pair costs one reload.
+    const scheduler = createRefreshScheduler(loadUserTokensAndObjectives, {
+      freshnessMs: 0,
+    });
+    scheduler.refresh();
 
     // Reload only when the signed-in user changes (login, logout, switch).
     const stopAuthListener = onAuthUserChange(supabase, () => {
-      loadUserTokensAndObjectives();
+      scheduler.force();
     });
 
     function refreshObjectives() {
-      loadUserTokensAndObjectives();
+      scheduler.refresh();
     }
 
-    window.addEventListener("focus", refreshObjectives);
+    const stopTabReturn = onTabReturn(scheduler.revalidate);
     window.addEventListener("dream-tokens-updated", refreshObjectives);
     window.addEventListener("dream-gems-updated", refreshObjectives);
     window.addEventListener("dream-objectives-updated", refreshObjectives);
@@ -574,7 +584,7 @@ export default function NovaWorldPage() {
     return () => {
       isMounted = false;
       stopAuthListener();
-      window.removeEventListener("focus", refreshObjectives);
+      stopTabReturn();
       window.removeEventListener("dream-tokens-updated", refreshObjectives);
       window.removeEventListener("dream-gems-updated", refreshObjectives);
       window.removeEventListener("dream-objectives-updated", refreshObjectives);

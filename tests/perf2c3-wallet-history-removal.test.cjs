@@ -79,7 +79,8 @@ test('current balances come from the stored DT balance and still refresh after r
   assert.match(src, /fetchDreamTokenBalance\(\s*supabase,\s*[a-zA-Z.]+,?\s*\)/, `${file} DT balance read`);
   assert.ok(!/from\("dream_token_transactions"\)\s*\.select\("amount"\)/.test(src), `${file} no longer sums the ledger`);
   assert.match(src, /window\.addEventListener\(\s*"dream-tokens-updated"/, `${file} refreshes on DT updates`);
-  assert.match(src, /window\.addEventListener\(\s*"focus"/, `${file} refreshes on focus`);
+  // PERF-2C-5: focus / visibility now revalidates through the refresh scheduler.
+  assert.match(src, /onTabReturn\(scheduler\.revalidate\)/, `${file} refreshes when the user returns to the tab`);
  }
  for (const file of [...WITH_GEM_CHIP, 'app/nova/thinking-skills-lab/page.tsx']) {
   assert.match(read(file), /dream_gem_balance/, `${file} reads the stored DG balance`);

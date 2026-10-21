@@ -12,6 +12,10 @@ import {
 } from "@/lib/learning-access";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
+import {
+  createRefreshScheduler,
+  onTabReturn,
+} from "@/lib/client/refreshScheduler";
 import { supabase } from "@/lib/supabase";
 import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 
@@ -618,23 +622,29 @@ export default function LearningMissionsPage() {
       setDreamGemsLoading(false);
     }
 
-    loadUserAndAssets();
+    // This load also decides which zones are unlocked, so returning to the
+    // tab always revalidates (freshnessMs: 0); only overlapping triggers are
+    // merged, and a Dream Tokens + Dream Gems event pair costs one reload.
+    const scheduler = createRefreshScheduler(loadUserAndAssets, {
+      freshnessMs: 0,
+    });
+    scheduler.refresh();
 
     // Reload only when the signed-in user changes (login, logout, switch).
     const stopAuthListener = onAuthUserChange(supabase, () => {
-      loadUserAndAssets();
+      scheduler.force();
     });
 
-    window.addEventListener("focus", loadUserAndAssets);
-    window.addEventListener("dream-tokens-updated", loadUserAndAssets);
-    window.addEventListener("dream-gems-updated", loadUserAndAssets);
+    const stopTabReturn = onTabReturn(scheduler.revalidate);
+    window.addEventListener("dream-tokens-updated", scheduler.refresh);
+    window.addEventListener("dream-gems-updated", scheduler.refresh);
 
     return () => {
       isMounted = false;
       stopAuthListener();
-      window.removeEventListener("focus", loadUserAndAssets);
-      window.removeEventListener("dream-tokens-updated", loadUserAndAssets);
-      window.removeEventListener("dream-gems-updated", loadUserAndAssets);
+      stopTabReturn();
+      window.removeEventListener("dream-tokens-updated", scheduler.refresh);
+      window.removeEventListener("dream-gems-updated", scheduler.refresh);
     };
   }, []);
 

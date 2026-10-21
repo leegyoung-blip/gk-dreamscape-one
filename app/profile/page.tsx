@@ -9,6 +9,10 @@ import {
 } from "@/lib/organisation-access";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
+import {
+  createRefreshScheduler,
+  onTabReturn,
+} from "@/lib/client/refreshScheduler";
 import { supabase } from "@/lib/supabase";
 import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import {
@@ -1104,7 +1108,14 @@ export default function ProfilePage() {
   useEffect(() => {
     let isMounted = true;
 
+    // Only the newest load may update state: an older reply can belong to the
+    // previous account (account switch) or predate a wallet change.
+    let latestLoadId = 0;
+
     async function loadProfile() {
+      const loadId = ++latestLoadId;
+      const isStale = () => !isMounted || loadId !== latestLoadId;
+
       setIsLoadingTokens(true);
       setIsLoadingGems(true);
       setIsLoadingPortfolio(true);
@@ -1113,7 +1124,7 @@ export default function ProfilePage() {
       const { data, error: userError } =
         await supabase.auth.getUser();
 
-      if (!isMounted) {
+      if (isStale()) {
         return;
       }
 
@@ -1178,7 +1189,7 @@ export default function ProfilePage() {
       const organisationClaim =
         await claimMyOrganisationInvites();
 
-      if (!isMounted) {
+      if (isStale()) {
         return;
       }
 
@@ -1206,7 +1217,7 @@ export default function ProfilePage() {
         .eq("id", userId)
         .maybeSingle();
 
-      if (!isMounted) {
+      if (isStale()) {
         return;
       }
 
@@ -1232,7 +1243,7 @@ export default function ProfilePage() {
         error: manageableOrganisationError,
       } = await supabase.rpc("get_my_manageable_organisations");
 
-      if (!isMounted) {
+      if (isStale()) {
         return;
       }
 
@@ -1265,7 +1276,7 @@ export default function ProfilePage() {
         "get_my_learning_profile_status",
       );
 
-      if (!isMounted) {
+      if (isStale()) {
         return;
       }
 
@@ -1312,7 +1323,7 @@ export default function ProfilePage() {
           ascending: false,
         });
 
-      if (!isMounted) {
+      if (isStale()) {
         return;
       }
 
@@ -1441,7 +1452,7 @@ export default function ProfilePage() {
           .eq("user_id", userId),
       ]);
 
-      if (!isMounted) {
+      if (isStale()) {
         return;
       }
 
@@ -1553,10 +1564,14 @@ export default function ProfilePage() {
       setIsLoadingPortfolio(false);
     }
 
-    void loadProfile();
+    // Wallet and membership changes always reload (an event pair costs one
+    // reload, and a change during a load queues one more); returning to the
+    // tab reloads only when the page data is more than 30 seconds old.
+    const scheduler = createRefreshScheduler(loadProfile);
+    scheduler.refresh();
 
     function refreshBalances() {
-      void loadProfile();
+      scheduler.refresh();
     }
 
     window.addEventListener(
@@ -1574,10 +1589,7 @@ export default function ProfilePage() {
       refreshBalances,
     );
 
-    window.addEventListener(
-      "focus",
-      refreshBalances,
-    );
+    const stopTabReturn = onTabReturn(scheduler.revalidate);
 
     // Logout or a different account (e.g. in another tab): drop the previous
     // account's history at once, before the reload below finishes.
@@ -1586,12 +1598,13 @@ export default function ProfilePage() {
       resetTransactionHistories();
       setShowTokenHistory(false);
       setShowGemHistory(false);
-      void loadProfile();
+      scheduler.force();
     });
 
     return () => {
       isMounted = false;
       stopAuthListener();
+      stopTabReturn();
 
       window.removeEventListener(
         "dream-tokens-updated",
@@ -1605,11 +1618,6 @@ export default function ProfilePage() {
 
       window.removeEventListener(
         "dreamscape-membership-updated",
-        refreshBalances,
-      );
-
-      window.removeEventListener(
-        "focus",
         refreshBalances,
       );
     };

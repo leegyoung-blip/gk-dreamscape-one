@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
 import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
+import {
+  createRefreshScheduler,
+  onTabReturn,
+} from "@/lib/client/refreshScheduler";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 type ThinkLevelBand = "foundation" | "growth" | "mastery";
@@ -196,18 +200,26 @@ export default function ThinkMissionsPage() {
   }, []);
 
   useEffect(() => {
+    // Rewards always refresh the balances (a Dream Tokens + Dream Gems pair
+    // costs one reload); returning to the tab refreshes them only when they
+    // are more than 30 seconds old.
+    // initialise() loads the balances on mount.
+    const scheduler = createRefreshScheduler(() => loadBalances(), {
+      loadedAt: Date.now(),
+    });
+
     function handleRewardUpdate() {
-      void loadBalances();
+      scheduler.refresh();
     }
 
     window.addEventListener("dream-tokens-updated", handleRewardUpdate);
     window.addEventListener("dream-gems-updated", handleRewardUpdate);
-    window.addEventListener("focus", handleRewardUpdate);
+    const stopTabReturn = onTabReturn(scheduler.revalidate);
 
     return () => {
       window.removeEventListener("dream-tokens-updated", handleRewardUpdate);
       window.removeEventListener("dream-gems-updated", handleRewardUpdate);
-      window.removeEventListener("focus", handleRewardUpdate);
+      stopTabReturn();
     };
   }, []);
 

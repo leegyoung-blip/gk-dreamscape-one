@@ -323,7 +323,7 @@ test('logout and account switches clear history at once and cancel replies in fl
  assert.match(reset, /tokenHistoryLoadingMoreRef\.current = false;\s*gemHistoryLoadingMoreRef\.current = false;/);
  assert.match(src, /profileUserIdRef\.current = null;\s*resetTransactionHistories\(\);\s*setDreamTokenBalance\(0\);/, 'guest branch');
  assert.match(src, /if \(profileUserIdRef\.current !== userId\) \{[^}]*?profileUserIdRef\.current = userId;\s*resetTransactionHistories\(\);/, 'account change');
- assert.match(src, /const stopAuthListener = onAuthUserChange\(supabase, \(\) => \{\s*profileUserIdRef\.current = null;\s*resetTransactionHistories\(\);\s*setShowTokenHistory\(false\);\s*setShowGemHistory\(false\);\s*void loadProfile\(\);\s*\}\);/, 'auth listener clears synchronously');
+ assert.match(src, /const stopAuthListener = onAuthUserChange\(supabase, \(\) => \{\s*profileUserIdRef\.current = null;\s*resetTransactionHistories\(\);\s*setShowTokenHistory\(false\);\s*setShowGemHistory\(false\);\s*scheduler\.force\(\);\s*\}\);/, 'auth listener clears synchronously, then reloads at once');
  assert.match(src, /return \(\) => \{\s*isMounted = false;\s*stopAuthListener\(\);/, 'listener removed on unmount');
 });
 
@@ -334,9 +334,11 @@ test('balances keep their verified sources and refresh without reloading full hi
  // An opened history refreshes with the page, but only its newest page.
  assert.match(src, /if \(tokenHistoryUserIdRef\.current === userId\) \{\s*void loadTokenHistory\(userId\);/);
  assert.match(src, /if \(gemHistoryUserIdRef\.current === userId\) \{\s*void loadGemHistory\(userId\);/);
- for (const event of ['dream-tokens-updated', 'dream-gems-updated', 'dreamscape-membership-updated', 'focus']) {
+ for (const event of ['dream-tokens-updated', 'dream-gems-updated', 'dreamscape-membership-updated']) {
   assert.match(src, new RegExp(`addEventListener\\(\\s*"${event}"`), `${event} refresh kept`);
  }
+ // PERF-2C-5: focus / visibility revalidates through the refresh scheduler.
+ assert.match(src, /const stopTabReturn = onTabReturn\(scheduler\.revalidate\);/, 'tab return refresh kept');
 });
 
 test('history is still lazy: nothing loads until View History is opened', () => {

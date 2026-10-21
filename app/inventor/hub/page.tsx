@@ -10,6 +10,10 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
+import {
+  createRefreshScheduler,
+  onTabReturn,
+} from "@/lib/client/refreshScheduler";
 import { supabase } from "@/lib/supabase";
 import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import WardrobeFittedLayer from "@/components/nova-home/WardrobeFittedLayer";
@@ -1303,24 +1307,28 @@ export default function NovaHomePage() {
   }, [router]);
 
   useEffect(() => {
-    loadNovaHome();
+    const scheduler = createRefreshScheduler(loadNovaHome);
+    scheduler.refresh();
 
     // Reload only when the signed-in user changes (login, logout, switch).
     const stopAuthListener = onAuthUserChange(supabase, () => {
-      loadNovaHome();
+      scheduler.force();
     });
 
+    // Wallet changes always reload (a Dream Tokens + Dream Gems pair costs one
+    // reload); returning to the tab reloads only when the balances, catalogues
+    // and collection are more than 30 seconds old.
     function refreshFromWalletEvent() {
-      loadNovaHome();
+      scheduler.refresh();
     }
 
-    window.addEventListener("focus", refreshFromWalletEvent);
+    const stopTabReturn = onTabReturn(scheduler.revalidate);
     window.addEventListener("dream-tokens-updated", refreshFromWalletEvent);
     window.addEventListener("dream-gems-updated", refreshFromWalletEvent);
 
     return () => {
       stopAuthListener();
-      window.removeEventListener("focus", refreshFromWalletEvent);
+      stopTabReturn();
       window.removeEventListener(
         "dream-tokens-updated",
         refreshFromWalletEvent,
