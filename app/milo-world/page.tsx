@@ -2592,11 +2592,20 @@ export default function MiloWorldPage() {
 
       setUserEmail(user.email ?? null);
 
-      const { data: clubProfile, error: clubProfileError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
+      // PERF-2D-1: the role read and the objectives RPC are independent, so
+      // they run together. The DT balance below still waits for the RPC,
+      // because it can settle a completed Milo Progress Objective first.
+      const [
+        { data: clubProfile, error: clubProfileError },
+        { data: objectiveData, error: objectiveError },
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase.rpc("get_current_objectives", { p_scope: "milo" }),
+      ]);
 
       if (isStale()) return;
 
@@ -2612,16 +2621,8 @@ export default function MiloWorldPage() {
         setIsAdmin(role === "admin");
       }
 
-      // Resolve the user's global Referral Objective + Milo Progress Objective.
-      // The scoped RPC also settles a newly completed Milo Progress Objective
-      // before the DT balance below is reloaded.
-      const { data: objectiveData, error: objectiveError } = await supabase.rpc(
-        "get_current_objectives",
-        { p_scope: "milo" },
-      );
-
-      if (isStale()) return;
-
+      // The user's global Referral Objective + Milo Progress Objective (loaded
+      // above, before the DT balance).
       if (objectiveError) {
         console.warn(
           "Could not load Milo objectives:",

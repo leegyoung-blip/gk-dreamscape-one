@@ -480,16 +480,6 @@ export default function NovaWorldPage() {
         );
       }
 
-      const hasStudentRewardsAccess =
-        roleHasStudentRewardsAccess(role) ||
-        hasActiveNovaSubscription(subscriptionRows) ||
-        (await hasFounding50StudentAccess());
-
-      if (isStale()) return;
-
-      setHasStudentRewardsAccess(hasStudentRewardsAccess);
-      setStudentAccessUserId(user.id);
-
       const cashValue = balanceResult.error
         ? 0
         : balanceResult.data || 0;
@@ -553,6 +543,19 @@ export default function NovaWorldPage() {
       setProfileAssetsLoading(false);
       setDreamGemsLoading(false);
       setObjectivesLoading(false);
+
+      // PERF-2D-1: Student Rewards access is decided last. Without a role or
+      // plan it waits for the Founding 50 check, which no longer holds back
+      // the wallet above. The Student Access prompt stays hidden until then.
+      const hasStudentRewardsAccess =
+        roleHasStudentRewardsAccess(role) ||
+        hasActiveNovaSubscription(subscriptionRows) ||
+        (await hasFounding50StudentAccess());
+
+      if (isStale()) return;
+
+      setHasStudentRewardsAccess(hasStudentRewardsAccess);
+      setStudentAccessUserId(user.id);
     }
 
     // This load also decides Student Rewards access, so returning to the tab

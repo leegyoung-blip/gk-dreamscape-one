@@ -450,6 +450,32 @@ export default function LearningMissionsPage() {
         return;
       }
 
+      // PERF-2D-1: the learner's own wallet and holdings do not depend on the
+      // access reads below, so they start now instead of after them. Access is
+      // still applied first; only the wallet waits for these replies.
+      const walletRequests = Promise.all([
+        fetchDreamTokenBalance(supabase, user.id),
+        supabase
+          .from("milo_exchange_stocks")
+          .select("symbol,current_price")
+          .eq("is_active", true),
+        supabase
+          .from("milo_exchange_holdings")
+          .select("symbol,quantity")
+          .eq("user_id", user.id),
+        supabase
+          .from("milo_exchange_properties")
+          .select("id,current_value")
+          .eq("is_active", true),
+        supabase
+          .from("milo_exchange_property_holdings")
+          .select("property_id,quantity")
+          .eq("user_id", user.id),
+      ]);
+      // If this load is superseded before the wallet is awaited, never leave
+      // a rejected promise unhandled (the replies are simply ignored).
+      walletRequests.catch(() => undefined);
+
       const [profileResult, subscriptionResult, zoneAccessResult, betaStudentAccess] =
         await Promise.all([
           supabase
@@ -537,25 +563,7 @@ export default function LearningMissionsPage() {
         stockHoldingsResult,
         propertiesResult,
         propertyHoldingsResult,
-      ] = await Promise.all([
-        fetchDreamTokenBalance(supabase, user.id),
-        supabase
-          .from("milo_exchange_stocks")
-          .select("symbol,current_price")
-          .eq("is_active", true),
-        supabase
-          .from("milo_exchange_holdings")
-          .select("symbol,quantity")
-          .eq("user_id", user.id),
-        supabase
-          .from("milo_exchange_properties")
-          .select("id,current_value")
-          .eq("is_active", true),
-        supabase
-          .from("milo_exchange_property_holdings")
-          .select("property_id,quantity")
-          .eq("user_id", user.id),
-      ]);
+      ] = await walletRequests;
 
       if (isStale()) return;
 

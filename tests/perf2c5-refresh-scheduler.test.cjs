@@ -325,7 +325,9 @@ test('loaders without a stale guard gained one (account switch and overlapping r
   assert.match(src, /const loadId = \+\+latestLoadId;/, file);
   assert.match(src, /const isStale = \(\) => !(mounted|isMounted) \|\| loadId !== latestLoadId;/, file);
  }
- assert.equal((read('app/profile/page.tsx').match(/if \(isStale\(\)\) \{/g) || []).length, 7, 'every Profile await is guarded');
+ // PERF-2D-1 merged Profile's independent reads into one await: getUser, the
+ // invite claim, the combined reads and the Founding 50 check are each guarded.
+ assert.equal((read('app/profile/page.tsx').match(/if \(isStale\(\)\) \{/g) || []).length, 4, 'every Profile await is guarded');
  assert.ok(!/if \(!isMounted\) \{/.test(read('app/profile/page.tsx').slice(read('app/profile/page.tsx').indexOf('async function loadProfile'), read('app/profile/page.tsx').indexOf('createRefreshScheduler(loadProfile)'))));
  for (const file of ['app/milo-world/bank/hooks/useBankAccount.ts', 'app/milo-world/bank/hooks/useBankBonds.ts']) {
   const src = read(file);

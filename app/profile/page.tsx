@@ -1206,169 +1206,6 @@ export default function ProfilePage() {
         );
       }
 
-      const {
-        data: profile,
-        error: profileError,
-      } = await supabase
-        .from("profiles")
-        .select(
-          "role, referral_code, username, dream_gem_balance",
-        )
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (isStale()) {
-        return;
-      }
-
-      if (profileError) {
-        console.error(
-          "Profile error:",
-          profileError.message,
-        );
-      }
-
-      const loadedUsername =
-        profile?.username ?? null;
-
-      const loadedRole =
-        normaliseRole(profile?.role) || "regular";
-
-
-      setRole(loadedRole);
-      setIsAdmin(loadedRole === "admin");
-
-      const {
-        data: manageableOrganisationRows,
-        error: manageableOrganisationError,
-      } = await supabase.rpc("get_my_manageable_organisations");
-
-      if (isStale()) {
-        return;
-      }
-
-      if (manageableOrganisationError) {
-        console.warn(
-          "Could not load organisation portal access:",
-          manageableOrganisationError.message,
-        );
-        setHasOrganisationPortalAccess(false);
-      } else {
-        setHasOrganisationPortalAccess(
-          Array.isArray(manageableOrganisationRows) &&
-            manageableOrganisationRows.length > 0,
-        );
-      }
-
-      setReferralCode(
-        profile?.referral_code ?? null,
-      );
-      setUsername(loadedUsername);
-      setUsernameDraft(loadedUsername ?? "");
-      setDreamGemBalance(
-        Number(profile?.dream_gem_balance || 0),
-      );
-
-      const {
-        data: learningProfileData,
-        error: learningProfileError,
-      } = await supabase.rpc(
-        "get_my_learning_profile_status",
-      );
-
-      if (isStale()) {
-        return;
-      }
-
-      if (learningProfileError) {
-        console.warn(
-          "Could not load learner details:",
-          learningProfileError.message,
-        );
-
-        setDateOfBirth("");
-        setAgeYears(null);
-        setAgeBand(null);
-        setLearnerDetailsMessage(
-          "Learner details could not be loaded.",
-        );
-        setLearnerDetailsMessageType("error");
-      } else {
-        const learningProfile =
-          (learningProfileData || {}) as LearningProfileStatus;
-
-        setDateOfBirth(
-          learningProfile.date_of_birth || "",
-        );
-        setAgeYears(
-          typeof learningProfile.age_years === "number"
-            ? learningProfile.age_years
-            : null,
-        );
-        setAgeBand(
-          learningProfile.age_band || null,
-        );
-      }
-
-      setIsLoadingLearnerDetails(false);
-
-      const {
-        data: subscriptionRows,
-        error: subscriptionError,
-      } = await supabase
-        .from("nova_subscriptions")
-        .select("status,access_until,plan_code")
-        .eq("user_id", userId)
-        .order("access_until", {
-          ascending: false,
-        });
-
-      if (isStale()) {
-        return;
-      }
-
-      if (subscriptionError) {
-        console.warn(
-          "Could not load Nova Student Access:",
-          subscriptionError.message,
-        );
-      }
-
-      const subscriptionData = subscriptionError
-        ? []
-        : ((subscriptionRows || []) as NovaSubscription[]);
-
-      const entitlements = getLearningEntitlements(
-        loadedRole,
-        subscriptionData,
-      );
-
-      setHasStudentRewardsAccess(entitlements.rewards || (await hasFounding50StudentAccess()));
-      setActiveLearningPlanLabels(
-        entitlements.activePlans.map(learningPlanLabel),
-      );
-
-      const latestAccessUntil =
-        subscriptionData
-          .map((row) => row.access_until)
-          .filter(
-            (value): value is string =>
-              typeof value === "string" &&
-              value.length > 0 &&
-              Number.isFinite(
-                new Date(value).getTime(),
-              ),
-          )
-          .sort(
-            (a, b) =>
-              new Date(b).getTime() -
-              new Date(a).getTime(),
-          )[0] || null;
-
-      setMembershipAccessUntil(
-        latestAccessUntil,
-      );
-
       const pendingReferralCode =
         typeof window !== "undefined"
           ? localStorage.getItem(
@@ -1418,13 +1255,52 @@ export default function ProfilePage() {
         );
       }
 
+      // PERF-2D-1: the invite claim (which can grant organisation access) and
+      // any pending referral bonus are written first, as before. Every read
+      // below is independent of the others, so they run together instead of
+      // one after another. Each result keeps its own error handling.
       const [
+        { data: profile, error: profileError },
+        {
+          data: manageableOrganisationRows,
+          error: manageableOrganisationError,
+        },
+        {
+          data: learningProfileData,
+          error: learningProfileError,
+        },
+        {
+          data: subscriptionRows,
+          error: subscriptionError,
+        },
         tokenResult,
         stocksResult,
         stockHoldingsResult,
         propertiesResult,
         propertyHoldingsResult,
       ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select(
+            "role, referral_code, username, dream_gem_balance",
+          )
+          .eq("id", userId)
+          .maybeSingle(),
+
+        supabase.rpc("get_my_manageable_organisations"),
+
+        supabase.rpc(
+          "get_my_learning_profile_status",
+        ),
+
+        supabase
+          .from("nova_subscriptions")
+          .select("status,access_until,plan_code")
+          .eq("user_id", userId)
+          .order("access_until", {
+            ascending: false,
+          }),
+
         // Balance only: read from the learner's stored profile balance
         // (profiles.dream_token_balance), not by summing ledger rows.
         fetchDreamTokenBalance(supabase, userId),
@@ -1455,6 +1331,121 @@ export default function ProfilePage() {
       if (isStale()) {
         return;
       }
+
+      if (profileError) {
+        console.error(
+          "Profile error:",
+          profileError.message,
+        );
+      }
+
+      const loadedUsername =
+        profile?.username ?? null;
+
+      const loadedRole =
+        normaliseRole(profile?.role) || "regular";
+
+
+      setRole(loadedRole);
+      setIsAdmin(loadedRole === "admin");
+
+      if (manageableOrganisationError) {
+        console.warn(
+          "Could not load organisation portal access:",
+          manageableOrganisationError.message,
+        );
+        setHasOrganisationPortalAccess(false);
+      } else {
+        setHasOrganisationPortalAccess(
+          Array.isArray(manageableOrganisationRows) &&
+            manageableOrganisationRows.length > 0,
+        );
+      }
+
+      setReferralCode(
+        profile?.referral_code ?? null,
+      );
+      setUsername(loadedUsername);
+      setUsernameDraft(loadedUsername ?? "");
+      setDreamGemBalance(
+        Number(profile?.dream_gem_balance || 0),
+      );
+
+      if (learningProfileError) {
+        console.warn(
+          "Could not load learner details:",
+          learningProfileError.message,
+        );
+
+        setDateOfBirth("");
+        setAgeYears(null);
+        setAgeBand(null);
+        setLearnerDetailsMessage(
+          "Learner details could not be loaded.",
+        );
+        setLearnerDetailsMessageType("error");
+      } else {
+        const learningProfile =
+          (learningProfileData || {}) as LearningProfileStatus;
+
+        setDateOfBirth(
+          learningProfile.date_of_birth || "",
+        );
+        setAgeYears(
+          typeof learningProfile.age_years === "number"
+            ? learningProfile.age_years
+            : null,
+        );
+        setAgeBand(
+          learningProfile.age_band || null,
+        );
+      }
+
+      setIsLoadingLearnerDetails(false);
+
+      if (subscriptionError) {
+        console.warn(
+          "Could not load Nova Student Access:",
+          subscriptionError.message,
+        );
+      }
+
+      const subscriptionData = subscriptionError
+        ? []
+        : ((subscriptionRows || []) as NovaSubscription[]);
+
+      const entitlements = getLearningEntitlements(
+        loadedRole,
+        subscriptionData,
+      );
+
+      if (entitlements.rewards) {
+        setHasStudentRewardsAccess(true);
+      }
+      setActiveLearningPlanLabels(
+        entitlements.activePlans.map(learningPlanLabel),
+      );
+
+      const latestAccessUntil =
+        subscriptionData
+          .map((row) => row.access_until)
+          .filter(
+            (value): value is string =>
+              typeof value === "string" &&
+              value.length > 0 &&
+              Number.isFinite(
+                new Date(value).getTime(),
+              ),
+          )
+          .sort(
+            (a, b) =>
+              new Date(b).getTime() -
+              new Date(a).getTime(),
+          )[0] || null;
+
+      setMembershipAccessUntil(
+        latestAccessUntil,
+      );
 
       if (tokenResult.error) {
         console.error(
@@ -1562,6 +1553,19 @@ export default function ProfilePage() {
       setIsLoadingTokens(false);
       setIsLoadingGems(false);
       setIsLoadingPortfolio(false);
+
+      // Without plan access, the Founding 50 beta check decides Student
+      // Rewards. It depends on the role and subscriptions above, so it stays
+      // after them; it runs last so it no longer delays the wallet.
+      if (!entitlements.rewards) {
+        const founding50Access = await hasFounding50StudentAccess();
+
+        if (isStale()) {
+          return;
+        }
+
+        setHasStudentRewardsAccess(founding50Access);
+      }
     }
 
     // Wallet and membership changes always reload (an event pair costs one

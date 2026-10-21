@@ -177,7 +177,9 @@ test('logout still resets access state immediately in the gates and the core hoo
 });
 test('loaders drop stale responses after every await (no previous account data after a switch)', () => {
  const minGuards = {
-  'app/inventor/hub/page.tsx': 2, 'app/inventor/page.tsx': 4, 'app/learning-missions/page.tsx': 3, 'app/milo-world/page.tsx': 4,
+  'app/inventor/hub/page.tsx': 2, 'app/inventor/page.tsx': 4, 'app/learning-missions/page.tsx': 3,
+  // PERF-2D-1: the role read and objectives RPC now share one await (one guard).
+  'app/milo-world/page.tsx': 3,
   'app/milo-world/categories/page.tsx': 2, 'app/milo-world/activity-lab/page.tsx': 2, 'app/nova/thinking-skills-lab/page.tsx': 2,
   'app/learning-missions/knowledge-arena/page.tsx': 4, 'components/core-missions/CoreMissionTopBar.tsx': 2,
  };
