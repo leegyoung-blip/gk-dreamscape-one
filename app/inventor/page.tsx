@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { preload } from "react-dom";
 import DeferredVideo from "@/components/media/DeferredVideo";
+import StudentAccessPrompt from "@/components/wallet/StudentAccessPrompt";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
@@ -326,6 +327,9 @@ export default function NovaWorldPage() {
   });
   const [dreamGemBalance, setDreamGemBalance] = useState(0);
   const [hasStudentRewardsAccess, setHasStudentRewardsAccess] = useState(false);
+  // The account whose rewards access was last checked; the Student Access
+  // prompt waits for this so it never flashes for entitled learners.
+  const [studentAccessUserId, setStudentAccessUserId] = useState<string | null>(null);
   const [dreamGemsLoading, setDreamGemsLoading] = useState(true);
   const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
   const [objectiveStatus, setObjectiveStatus] =
@@ -366,6 +370,7 @@ export default function NovaWorldPage() {
         setProfileAssets({ cash: 0, property: 0, stocks: 0 });
         setDreamGemBalance(0);
         setHasStudentRewardsAccess(false);
+        setStudentAccessUserId(null);
         setIsAdmin(false);
         setDreamGemsLoading(false);
         setProfileAssetsLoading(false);
@@ -375,6 +380,8 @@ export default function NovaWorldPage() {
       }
 
       setUserEmail(user.email ?? null);
+      // Another account's access result must not drive this account's prompt.
+      setStudentAccessUserId((current) => (current === user.id ? current : null));
 
       // Resolve the user's global Referral Objective + Nova Progress Objective.
       // The scoped RPC also settles a newly completed Nova Progress Objective
@@ -480,6 +487,7 @@ export default function NovaWorldPage() {
       if (isStale()) return;
 
       setHasStudentRewardsAccess(hasStudentRewardsAccess);
+      setStudentAccessUserId(user.id);
 
       const cashValue = balanceResult.error
         ? 0
@@ -973,6 +981,15 @@ export default function NovaWorldPage() {
 
           <span>Choose a location to begin</span>
         </div>
+
+        {userEmail && studentAccessUserId && !hasStudentRewardsAccess && (
+          <StudentAccessPrompt
+            style={{
+              marginTop: isMobile ? "18px" : "20px",
+              maxWidth: "390px",
+            }}
+          />
+        )}
       </section>
 
       {isDesktop ? (

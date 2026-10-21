@@ -1610,28 +1610,17 @@ export default function ThinkingSkillsLabPage() {
         .assets-dropdown-heading span { color: #8ee8ff; font-size: 10px; font-weight: 900; letter-spacing: .15em; text-transform: uppercase; }
         .assets-dropdown-heading strong { color: white; font-size: 27px; line-height: 1; letter-spacing: -.04em; }
         .assets-dropdown-scroll { max-height: min(476px, calc(100dvh - 160px)); padding: 11px; overflow-y: auto; overflow-x: hidden; }
-        .assets-list, .transactions-list { display: grid; gap: 8px; }
-        .assets-row, .transaction-row {
+        .assets-list { display: grid; gap: 8px; }
+        .assets-row {
           min-height: 54px; padding: 9px 11px; display: grid; grid-template-columns: 32px minmax(0,1fr) auto;
           align-items: center; gap: 10px; border-radius: 14px; border: 1px solid rgba(126,232,255,.12); background: rgba(255,255,255,.035);
         }
         .assets-row { color: white; font-size: 13px; font-weight: 750; }
-        .assets-row-icon, .transaction-sign {
+        .assets-row-icon {
           width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 11px; font-weight: 900;
         }
         .assets-row-icon { border: 1px solid rgba(83,215,255,.26); background: rgba(83,215,255,.09); color: #8ee8ff; }
         .assets-row > strong { color: #9fffd2; font-size: 12px; white-space: nowrap; }
-        .transactions-heading { margin: 15px 4px 9px; color: rgba(255,255,255,.48); font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
-        .transactions-empty { padding: 18px 12px; border-radius: 14px; background: rgba(255,255,255,.035); color: rgba(255,255,255,.58); font-size: 12px; text-align: center; }
-        .transaction-row { min-height: 58px; }
-        .transaction-sign.is-positive { border: 1px solid rgba(93,255,181,.34); background: rgba(93,255,181,.1); color: #9fffd2; }
-        .transaction-sign.is-negative { border: 1px solid rgba(255,167,120,.34); background: rgba(255,138,92,.1); color: #ffc0a0; }
-        .transaction-copy { min-width: 0; }
-        .transaction-copy strong { display: block; overflow: hidden; color: white; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-        .transaction-copy small { display: block; margin-top: 3px; color: rgba(255,255,255,.43); font-size: 10px; }
-        .transaction-amount { font-size: 12px; white-space: nowrap; }
-        .transaction-amount.is-positive { color: #9fffd2; }
-        .transaction-amount.is-negative { color: #ffc0a0; }
 
         .lab-layout {
           position: relative; z-index: 2; width: 100%; height: calc(100dvh - 66px); padding: 10px;

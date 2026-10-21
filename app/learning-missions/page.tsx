@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { preload } from "react-dom";
 import DeferredVideo from "@/components/media/DeferredVideo";
+import StudentAccessPrompt from "@/components/wallet/StudentAccessPrompt";
 import {
   getLearningEntitlements,
   roleHasStaffLearningAccess,
@@ -397,6 +398,12 @@ export default function LearningMissionsPage() {
       canAccessThink: false,
       canAccessScience: false,
     },
+  );
+
+  // userId is only set together with the checked access result, so the prompt
+  // never flashes for entitled learners while access is still loading.
+  const showStudentAccessPrompt = Boolean(
+    userMissionAccess.userId && !userMissionAccess.hasStudentRewardsAccess,
   );
 
   useEffect(() => {
@@ -1144,6 +1151,12 @@ export default function LearningMissionsPage() {
                 {lockedZoneMessage}
               </div>
             )}
+
+            {showStudentAccessPrompt && (
+              <StudentAccessPrompt
+                style={{ marginTop: "18px", maxWidth: "390px" }}
+              />
+            )}
           </div>
 
           {missionZones.map((zone) => (
@@ -1289,6 +1302,12 @@ export default function LearningMissionsPage() {
               >
                 {lockedZoneMessage}
               </div>
+            )}
+
+            {showStudentAccessPrompt && (
+              <StudentAccessPrompt
+                style={{ marginTop: "18px", maxWidth: "680px" }}
+              />
             )}
 
             <div

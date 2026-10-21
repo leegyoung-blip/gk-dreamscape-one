@@ -139,3 +139,67 @@ test('Profile never shows another account history and keeps an opened history cu
  assert.match(src, /if \(tokenHistoryUserIdRef\.current === userId\) \{\s*void loadTokenHistory\(userId\);/);
  assert.match(src, /if \(gemHistoryUserIdRef\.current === userId\) \{\s*void loadGemHistory\(userId\);/);
 });
+
+/* ---------------- Final review: Student Access prompt, CSS cleanup, links ---------------- */
+
+const PROMPT = 'components/wallet/StudentAccessPrompt.tsx';
+function functionBody(src, name) {
+ const start = src.indexOf(`function ${name}(`);
+ if (start < 0) return '';
+ const next = src.slice(start + 10).search(/\nfunction |\nexport default function /);
+ return next < 0 ? src.slice(start) : src.slice(start, start + 10 + next);
+}
+test('Student Access prompt keeps its original copy and pricing link', () => {
+ const src = read(PROMPT);
+ assert.match(src, /Get Student Access for bigger rewards/);
+ assert.match(src, /Student\s+Access unlocks eligible Core and Think activities that can award Dream\s+Gems\./);
+ assert.match(src, /href="\/pricing"/);
+ assert.match(src, />\s*Get Student Access\s*<\/Link>/);
+ assert.match(src, /pointerEvents: "auto"/, 'clickable inside pointer-events:none intro blocks');
+});
+test('Student Access prompt is restored outside the wallet controls with the original visibility rule', () => {
+ const inventor = read('app/inventor/page.tsx');
+ assert.match(inventor, /\{userEmail && studentAccessUserId && !hasStudentRewardsAccess && \(\s*<StudentAccessPrompt/);
+ assert.match(inventor, /setHasStudentRewardsAccess\(hasStudentRewardsAccess\);\s*setStudentAccessUserId\(user\.id\);/, 'shown only once access is checked for this user');
+ assert.match(inventor, /setStudentAccessUserId\(\(current\) => \(current === user\.id \? current : null\)\);/, 'reset when the account changes');
+ assert.match(inventor, /setHasStudentRewardsAccess\(false\);\s*setStudentAccessUserId\(null\);/, 'hidden for guests');
+ assert.ok(!/StudentAccessPrompt/.test(functionBody(inventor, 'FloatingControls')), 'not inside the wallet controls');
+
+ const missions = read('app/learning-missions/page.tsx');
+ assert.match(missions, /const showStudentAccessPrompt = Boolean\(\s*userMissionAccess\.userId && !userMissionAccess\.hasStudentRewardsAccess,\s*\);/);
+ assert.equal((missions.match(/\{showStudentAccessPrompt && \(\s*<StudentAccessPrompt/g) || []).length, 2, 'desktop and mobile layouts');
+ assert.ok(!/StudentAccessPrompt/.test(functionBody(missions, 'FloatingMissionControls')), 'not inside the wallet controls');
+ assert.match(missions, /setUserMissionAccess\(\{\s*userId: user\.id,[\s\S]*?hasStudentRewardsAccess,/, 'userId and access set together');
+});
+test('Thinking Lab no longer carries transaction-row CSS, and the assets styles are intact', () => {
+ const src = read('app/nova/thinking-skills-lab/page.tsx');
+ assert.ok(!/\.transactions?-(list|row|heading|empty|sign|copy|amount)\b/.test(src));
+ assert.match(src, /\.assets-list \{ display: grid; gap: 8px; \}/);
+ assert.match(src, /\.assets-row \{\s*min-height: 54px;/);
+ assert.match(src, /\.assets-row-icon \{\s*width: 32px;/);
+});
+test('every literal link in the wallet surfaces points to an existing page', () => {
+ const appDir = path.join(root, 'app');
+ const routeExists = (href) => {
+  const clean = href.split(/[?#]/)[0].replace(/\/$/, '') || '/';
+  if (clean === '/') return fs.existsSync(path.join(appDir, 'page.tsx'));
+  let dirs = [appDir];
+  for (const segment of clean.split('/').filter(Boolean)) {
+   const nextDirs = [];
+   for (const d of dirs) {
+    if (fs.existsSync(path.join(d, segment))) nextDirs.push(path.join(d, segment));
+    for (const e of fs.readdirSync(d, {withFileTypes:true})) {
+     if (e.isDirectory() && /^\[.+\]$/.test(e.name)) nextDirs.push(path.join(d, e.name));
+     if (e.isDirectory() && /^\(.+\)$/.test(e.name) && fs.existsSync(path.join(d, e.name, segment))) nextDirs.push(path.join(d, e.name, segment));
+    }
+   }
+   dirs = nextDirs;
+   if (!dirs.length) return false;
+  }
+  return dirs.some((d) => fs.existsSync(path.join(d, 'page.tsx')) || fs.existsSync(path.join(d, 'page.ts')));
+ };
+ for (const file of [...WALLET_UI, PROMPT, 'app/profile/page.tsx']) {
+  const hrefs = [...read(file).matchAll(/href=(?:"(\/[^"]*)"|\{"(\/[^"]*)"\})/g)].map((m) => m[1] || m[2]);
+  for (const href of hrefs) assert.ok(routeExists(href), `${file}: broken link ${href}`);
+ }
+});
