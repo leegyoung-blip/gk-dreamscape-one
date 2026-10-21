@@ -50,18 +50,42 @@ test('helper reads only the caller\'s own stored balance (RLS policy auth.uid() 
  assert.equal(calls[0].single, true);
  assert.ok(!calls.some((c) => c.table === 'dream_token_transactions'), 'never downloads ledger rows');
 });
-test('helper matches the old browser sum for empty, numeric-string and missing balances', async () => {
- // The old code summed virtual ledger amounts; with no rows that was 0.
- for (const [row, expected] of [[null, 0], [{dream_token_balance:null}, 0], [{dream_token_balance:'40'}, 40], [{dream_token_balance:-15}, -15], [{dream_token_balance:'not-a-number'}, 0]]) {
+test('a genuine zero balance is a successful result, not an error', async () => {
+ for (const row of [{dream_token_balance:0}, {dream_token_balance:'0'}]) {
   const {client} = mockClient({data:row, error:null});
-  assert.equal((await fetchDreamTokenBalance(client, 'user-a')).data, expected, JSON.stringify(row));
+  const r = await fetchDreamTokenBalance(client, 'user-a');
+  assert.deepEqual({...r}, {data:0, error:null}, JSON.stringify(row));
+ }
+ // A profile that exists but has no stored balance yet had no ledger rows before: still a genuine 0.
+ const {client} = mockClient({data:{dream_token_balance:null}, error:null});
+ assert.deepEqual({...(await fetchDreamTokenBalance(client, 'user-a'))}, {data:0, error:null});
+});
+test('numeric balances are returned exactly', async () => {
+ for (const [row, expected] of [[{dream_token_balance:'40'}, 40], [{dream_token_balance:-15}, -15], [{dream_token_balance:500000}, 500000]]) {
+  const {client} = mockClient({data:row, error:null});
+  assert.deepEqual({...(await fetchDreamTokenBalance(client, 'user-a'))}, {data:expected, error:null}, JSON.stringify(row));
  }
 });
-test('helper surfaces errors so each page keeps its previous error handling', async () => {
- const {client} = mockClient({data:null, error:{message:'permission denied'}});
+test('a missing or RLS-invisible profile row is an error, distinguishable from zero', async () => {
+ const {client} = mockClient({data:null, error:null});
+ const r = await fetchDreamTokenBalance(client, 'user-a');
+ assert.equal(r.data, 0, 'pages that ignore the error still show 0, as before');
+ assert.ok(r.error, 'missing profile must not be a silent zero');
+ assert.equal(r.error.code, 'DT_BALANCE_PROFILE_NOT_FOUND');
+ assert.match(r.error.message, /profile was not found or is not visible/);
+});
+test('an unreadable stored balance is an error, not a silent zero', async () => {
+ const {client} = mockClient({data:{dream_token_balance:'not-a-number'}, error:null});
  const r = await fetchDreamTokenBalance(client, 'user-a');
  assert.equal(r.data, 0);
- assert.equal(r.error.message, 'permission denied');
+ assert.equal(r.error.code, 'DT_BALANCE_INVALID_VALUE');
+});
+test('a Supabase query failure is passed through unchanged', async () => {
+ const failure = {message:'permission denied for table profiles', code:'42501'};
+ const {client} = mockClient({data:null, error:failure});
+ const r = await fetchDreamTokenBalance(client, 'user-a');
+ assert.equal(r.data, 0);
+ assert.equal(r.error, failure, 'the original error object reaches the page');
 });
 test('stored balance is equivalent to the original virtual-ledger calculation for consistent data', async () => {
  // Production reconciliation (PERF-2C-3) found 0 of 120 profiles differing; this pins the contract the
@@ -71,10 +95,86 @@ test('stored balance is equivalent to the original virtual-ledger calculation fo
   {user_id:'a', token_kind:'virtual', amount:500000}, {user_id:'b', token_kind:'virtual', amount:7},
  ];
  const oldBrowserSum = (u) => ledger.filter((r) => r.user_id === u && r.token_kind === 'virtual').reduce((s, r) => s + Number(r.amount || 0), 0);
- for (const user of ['a', 'b', 'nobody']) {
-  const {client} = mockClient({data:user === 'nobody' ? null : {dream_token_balance:oldBrowserSum(user)}, error:null});
-  assert.equal((await fetchDreamTokenBalance(client, user)).data, oldBrowserSum(user), user);
+ // 'c' has a profile but no ledger rows: the old sum was 0 and the stored balance is 0.
+ for (const user of ['a', 'b', 'c']) {
+  const {client} = mockClient({data:{dream_token_balance:oldBrowserSum(user)}, error:null});
+  const r = await fetchDreamTokenBalance(client, user);
+  assert.equal(r.error, null, user);
+  assert.equal(r.data, oldBrowserSum(user), user);
  }
+});
+
+/* ---------------- Account changes and stale responses ---------------- */
+
+// A client whose balance responses resolve when the test releases them, in any order.
+function deferredClient(balances) {
+ const pending = [];
+ const client = {from() {
+  let id;
+  const b = {select() { return b; }, eq(_c, v) { id = v; return b; }, maybeSingle() {
+   return new Promise((resolve) => pending.push({id, resolve: () => resolve({data:{dream_token_balance:balances[id]}, error:null})}));
+  }};
+  return b;
+ }};
+ return {client, release: (id) => { const i = pending.findIndex((p) => p.id === id); pending.splice(i, 1)[0].resolve(); }};
+}
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
+test('stale-response pattern: a slower load for the previous account never overwrites the new account', async () => {
+ // Mirrors the pages' guard: const loadId = ++latestLoadId; ... if (isStale()) return;
+ const {client, release} = deferredClient({'user-a':900, 'user-b':12});
+ let latestLoadId = 0, shown = null;
+ async function load(userId) {
+  const loadId = ++latestLoadId;
+  const isStale = () => loadId !== latestLoadId;
+  const r = await fetchDreamTokenBalance(client, userId);
+  if (isStale()) return;
+  shown = r.error ? 0 : r.data;
+ }
+ const first = load('user-a');   // learner A starts loading
+ const second = load('user-b');  // account switches to B before A returns
+ release('user-b'); await second;
+ release('user-a'); await first; // A's late response must be ignored
+ assert.equal(shown, 12);
+});
+test('account-check pattern: a wallet refresh for a different account is discarded', async () => {
+ // Mirrors Thinking Lab: if (userIdRef.current !== accountUserId) return; and Activity Lab's isCurrent().
+ const {client, release} = deferredClient({'user-a':900, 'user-b':12});
+ const userIdRef = {current:'user-a'};
+ let shown = 'untouched';
+ async function refresh(accountUserId) {
+  const r = await fetchDreamTokenBalance(client, accountUserId);
+  if (userIdRef.current !== accountUserId) return;
+  shown = r.data;
+ }
+ const pending = refresh('user-a');
+ userIdRef.current = 'user-b'; // signed out of A and into B while A's refresh is in flight
+ release('user-a'); await pending; await flush();
+ assert.equal(shown, 'untouched', 'A\'s balance is never shown to B');
+});
+test('converted pages keep their stale and account guards next to the balance read', () => {
+ const guarded = {
+  'components/core-missions/CoreMissionTopBar.tsx': /if \(isStale\(\)\) return;/,
+  'app/inventor/page.tsx': /if \(isStale\(\)\) return;/,
+  'app/inventor/hub/page.tsx': /if \(isStale\(\)\) return;/,
+  'app/learning-missions/page.tsx': /if \(isStale\(\)\) return;/,
+  'app/milo-world/page.tsx': /if \(isStale\(\)\) return;/,
+  'app/nova/thinking-skills-lab/page.tsx': /if \(userIdRef\.current !== accountUserId\) return;/,
+  'app/milo-world/activity-lab/page.tsx': /if \(!isCurrent\(\)\) return;/,
+  'app/profile/page.tsx': /profileUserIdRef\.current !== userId/,
+ };
+ for (const [file, re] of Object.entries(guarded)) assert.match(read(file), re, file);
+});
+test('pages handle a balance error without throwing, and guests never call the helper', () => {
+ for (const file of Object.keys(CONVERTED)) {
+  const src = read(file);
+  assert.ok(!/throw\s+[A-Za-z.]*(balance|token)[A-Za-z.]*\.error/i.test(src), `${file} throws on a balance error`);
+  for (const m of src.matchAll(/fetchDreamTokenBalance\(\s*supabase,\s*([A-Za-z.]+),?\s*\)/g)) {
+   assert.notEqual(m[1], 'null', `${file} calls the helper without a signed-in user`);
+  }
+ }
+ // Communities resolves guests without a request, keeping guest state separate from errors.
+ assert.match(read('app/milo-world/quiz-hall/communities/page.tsx'), /user\s*\?\s*fetchDreamTokenBalance\(\s*supabase,\s*user\.id,?\s*\)\s*:\s*Promise\.resolve\(\{ data: 0, error: null \}\)/);
 });
 
 /* ---------------- Converted pages ---------------- */

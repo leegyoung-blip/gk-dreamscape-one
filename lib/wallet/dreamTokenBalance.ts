@@ -17,10 +17,24 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/*
+ * Error codes for failures that are not Supabase query errors. A missing or
+ * invisible profile row (no profile yet, or blocked by RLS) and an unreadable
+ * stored value are errors, never a silent 0, so pages can tell them apart from a
+ * genuine zero balance.
+ */
+export const DT_BALANCE_PROFILE_NOT_FOUND = "DT_BALANCE_PROFILE_NOT_FOUND";
+export const DT_BALANCE_INVALID_VALUE = "DT_BALANCE_INVALID_VALUE";
+
+export type DreamTokenBalanceError = { message: string; code?: string };
+
 export type DreamTokenBalanceResult = {
-  /** Current balance; 0 when the learner has no balance yet (as before). */
+  /**
+   * Current balance when error is null (a genuine 0 included). When error is
+   * set this is 0, so pages that ignore the error behave as before.
+   */
   data: number;
-  error: { message: string } | null;
+  error: DreamTokenBalanceError | null;
 };
 
 export async function fetchDreamTokenBalance(
@@ -35,6 +49,32 @@ export async function fetchDreamTokenBalance(
 
   if (error) return { data: 0, error };
 
-  const balance = Number(data?.dream_token_balance ?? 0);
-  return { data: Number.isFinite(balance) ? balance : 0, error: null };
+  if (!data) {
+    return {
+      data: 0,
+      error: {
+        code: DT_BALANCE_PROFILE_NOT_FOUND,
+        message:
+          "Dream Token balance unavailable: the signed-in learner's profile was not found or is not visible.",
+      },
+    };
+  }
+
+  // A profile with no stored balance yet is a genuine zero (no transactions).
+  if (data.dream_token_balance === null || data.dream_token_balance === undefined) {
+    return { data: 0, error: null };
+  }
+
+  const balance = Number(data.dream_token_balance);
+  if (!Number.isFinite(balance)) {
+    return {
+      data: 0,
+      error: {
+        code: DT_BALANCE_INVALID_VALUE,
+        message: "Dream Token balance unavailable: the stored balance is not a number.",
+      },
+    };
+  }
+
+  return { data: balance, error: null };
 }
