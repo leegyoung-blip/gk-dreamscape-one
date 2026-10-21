@@ -1,0 +1,13 @@
+case_id,reviewer_slot,review_date,mathematical_correctness_0_3,conceptual_explanation_0_3,representation_clarity_0_3,step_progression_0_3,misconception_response_0_3,learner_accessibility_0_3,mathematical_hard_stop,diagram_hard_stop,evidence_notes,revision_required,incumbent_explanation_ref_staff_only,proposed_specialist_role,comparison_reason,disagreement_needs_adjudication,human_review_status
+SPACING_VALID_MAIN,reviewer_1,,,,,,,,,,,,,undecided,,,pending
+SPACING_VALID_MAIN,reviewer_2,,,,,,,,,,,,,undecided,,,pending
+SPACING_VALID_ADJACENT,reviewer_1,,,,,,,,,,,,,undecided,,,pending
+SPACING_VALID_ADJACENT,reviewer_2,,,,,,,,,,,,,undecided,,,pending
+CHAIN_VALID_HALF,reviewer_1,,,,,,,,,,,,,undecided,,,pending
+CHAIN_VALID_HALF,reviewer_2,,,,,,,,,,,,,undecided,,,pending
+CHAIN_VALID_SHARED_BASE,reviewer_1,,,,,,,,,,,,,undecided,,,pending
+CHAIN_VALID_SHARED_BASE,reviewer_2,,,,,,,,,,,,,undecided,,,pending
+RATIO_VALID_MAIN,reviewer_1,,,,,,,,,,,,,undecided,,,pending
+RATIO_VALID_MAIN,reviewer_2,,,,,,,,,,,,,undecided,,,pending
+RATIO_VALID_DIFFERENT_SCALE,reviewer_1,,,,,,,,,,,,,undecided,,,pending
+RATIO_VALID_DIFFERENT_SCALE,reviewer_2,,,,,,,,,,,,,undecided,,,pending

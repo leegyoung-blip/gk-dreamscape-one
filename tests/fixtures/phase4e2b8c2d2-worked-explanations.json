@@ -1,0 +1,551 @@
+{
+  "phase": "4E-2B-8C-2D.2",
+  "fixtureType": "offline_authored_worked_explanations",
+  "notApproval": true,
+  "liveGenerationTested": false,
+  "source": "Synthetic cases linked to 8C-2D.1, NOT production questions, real answer keys or learner outputs.",
+  "exemplars": [
+    {
+      "caseId": "SPACING_VALID_MAIN",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "learnerLevel": 3,
+      "sourceKind": "synthetic_offline_example",
+      "title": "How far is the 12th marker from the 4th marker?",
+      "question": "The markers are equally spaced 6 m apart on a straight path. Find the distance from marker 4 to marker 12.",
+      "steps": [
+        {
+          "stageId": "represent_positions",
+          "learnerExplanation": "Put a small mark for the 4th marker and another for the 12th. Each neighbouring pair has a 6 m gap."
+        },
+        {
+          "stageId": "count_intervals",
+          "learnerExplanation": "The marker numbers tell us the positions, not the number of gaps. Subtract 4 from 12 to count 8 gaps.",
+          "calculation": {
+            "operation": "subtract",
+            "left": 12,
+            "right": 4,
+            "result": 8
+          }
+        },
+        {
+          "stageId": "calculate_distance",
+          "learnerExplanation": "All 8 gaps are 6 m long. Multiply 8 by 6 to get the whole distance of 48 m.",
+          "calculation": {
+            "operation": "multiply",
+            "left": 8,
+            "right": 6,
+            "result": 48
+          }
+        },
+        {
+          "stageId": "check_small_case",
+          "learnerExplanation": "Between the 4th and 5th marker there is only one gap, even though two markers are shown. That gap is 6 m.",
+          "calculation": {
+            "operation": "subtract",
+            "left": 5,
+            "right": 4,
+            "result": 1
+          }
+        }
+      ],
+      "representation": {
+        "type": "number_line",
+        "labels": [
+          "4th marker",
+          "12th marker",
+          "8 equal gaps",
+          "6 m per gap"
+        ],
+        "description": "Label the 4th and 12th markers, then show eight identical gaps of 6 m between them."
+      },
+      "answer": {
+        "quantity": "distance",
+        "value": 48,
+        "unit": "m"
+      },
+      "misconception": {
+        "id": "count_positions_instead_of_gaps",
+        "incorrectApproach": "Count nine markers from the 4th through the 12th, then multiply by 6.",
+        "correction": "Mark two neighbouring positions and point to the one gap; intervals equal the difference in position numbers."
+      },
+      "comparison": {
+        "incumbent": "generic multi-step plan (illustrative, not production-scored)",
+        "advantageHypothesis": "Explicitly counting the gaps prevents an endpoint off-by-one error.",
+        "suggestedRole": "undecided",
+        "humanJudgment": "pending"
+      },
+      "humanReview": "pending",
+      "authoringClaim": "reference_example_not_live_generated",
+      "worked": null
+    },
+    {
+      "caseId": "SPACING_VALID_ADJACENT",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "learnerLevel": 3,
+      "sourceKind": "synthetic_offline_example",
+      "title": "One gap between two adjacent markers",
+      "question": "The markers are equally spaced 9 m apart. Find the distance from the 1st marker to the 2nd.",
+      "steps": [
+        {
+          "stageId": "represent_positions",
+          "learnerExplanation": "Mark the 1st and 2nd markers side by side. There is one equal gap of 9 m between them."
+        },
+        {
+          "stageId": "count_intervals",
+          "learnerExplanation": "Subtract the first position number from the second: 2 minus 1 gives one gap, not two gaps.",
+          "calculation": {
+            "operation": "subtract",
+            "left": 2,
+            "right": 1,
+            "result": 1
+          }
+        },
+        {
+          "stageId": "calculate_distance",
+          "learnerExplanation": "One gap is 9 m long, so the total distance is 1 times 9, which is 9 m.",
+          "calculation": {
+            "operation": "multiply",
+            "left": 1,
+            "right": 9,
+            "result": 9
+          }
+        },
+        {
+          "stageId": "check_small_case",
+          "learnerExplanation": "Point to the single space between the two markers. We count spaces, not the number of markers.",
+          "calculation": {
+            "operation": "subtract",
+            "left": 2,
+            "right": 1,
+            "result": 1
+          }
+        }
+      ],
+      "representation": {
+        "type": "number_line",
+        "labels": [
+          "1st marker",
+          "2nd marker",
+          "1 equal gap",
+          "9 m per gap"
+        ],
+        "description": "Draw two labelled marks with one 9 m gap between them."
+      },
+      "answer": {
+        "quantity": "distance",
+        "value": 9,
+        "unit": "m"
+      },
+      "misconception": {
+        "id": "count_positions_instead_of_gaps",
+        "incorrectApproach": "Multiply 2 markers by 9 m, as if two markers meant two gaps.",
+        "correction": "Trace the space separating the two markers; there is exactly one interval."
+      },
+      "comparison": {
+        "incumbent": "generic multi-step plan (illustrative, not production-scored)",
+        "advantageHypothesis": "A simple adjacent case makes the gap-count idea visible before larger problems.",
+        "suggestedRole": "undecided",
+        "humanJudgment": "pending"
+      },
+      "humanReview": "pending",
+      "authoringClaim": "reference_example_not_live_generated",
+      "worked": null
+    },
+    {
+      "caseId": "CHAIN_VALID_HALF",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "learnerLevel": 5,
+      "sourceKind": "synthetic_offline_example",
+      "title": "Three linked quantities from a total of 66",
+      "question": "Bella has three times as many objects as Alan. Chen has half as many as Bella. Together they have 66. How many does Chen have?",
+      "steps": [
+        {
+          "stageId": "identify_reference",
+          "learnerExplanation": "Use Alan as the reference. Bella has three Alan-sized amounts; Chen has half of Bella, not half of Alan."
+        },
+        {
+          "stageId": "equivalent_units",
+          "learnerExplanation": "To avoid half-bars, represent Alan with 2 little equal parts, Bella with 6, and Chen with 3. All bars use the same-sized part."
+        },
+        {
+          "stageId": "find_one_unit",
+          "learnerExplanation": "There are 2 plus 6 plus 3, or 11 equal parts altogether. Divide 66 by 11 to find 6 objects in one part.",
+          "calculation": {
+            "operation": "divide",
+            "left": 66,
+            "right": 11,
+            "result": 6
+          }
+        },
+        {
+          "stageId": "scale_target",
+          "learnerExplanation": "Chen has 3 equal parts. Multiply 3 by 6 to find that Chen has 18 objects.",
+          "calculation": {
+            "operation": "multiply",
+            "left": 3,
+            "right": 6,
+            "result": 18
+          }
+        },
+        {
+          "stageId": "check_comparisons",
+          "learnerExplanation": "Check: Alan has 12, Bella has 36, Chen has 18; Bella is three times Alan, Chen is half Bella, and 12 + 36 + 18 = 66.",
+          "calculation": {
+            "operation": "sum",
+            "values": [
+              12,
+              36,
+              18
+            ],
+            "result": 66
+          }
+        }
+      ],
+      "representation": {
+        "type": "bar_model",
+        "labels": [
+          "Alan: 2 equal parts",
+          "Bella: 6 equal parts",
+          "Chen: 3 equal parts",
+          "1 equal part: 6 objects"
+        ],
+        "description": "Aligned bars contain 2, 6 and 3 equally sized sections respectively. The same section size is used for everyone."
+      },
+      "answer": {
+        "quantity": "chen",
+        "value": 18,
+        "unit": "objects"
+      },
+      "misconception": {
+        "id": "mixed_reference_units",
+        "incorrectApproach": "Treat half of Bella as half of Alan when adding the quantities.",
+        "correction": "Label each relationship first and split all bars into one common small part."
+      },
+      "comparison": {
+        "incumbent": "generic multi-step plan (illustrative, not production-scored)",
+        "advantageHypothesis": "Common equal parts reveal why half of Bella is not half of Alan.",
+        "suggestedRole": "undecided",
+        "humanJudgment": "pending"
+      },
+      "humanReview": "pending",
+      "authoringClaim": "reference_example_not_live_generated",
+      "worked": {
+        "unitParts": {
+          "alan": 2,
+          "bella": 6,
+          "chen": 3
+        },
+        "oneUnit": 6,
+        "amounts": {
+          "alan": 12,
+          "bella": 36,
+          "chen": 18
+        },
+        "totalUnits": 11,
+        "combinedTotal": 66
+      }
+    },
+    {
+      "caseId": "CHAIN_VALID_SHARED_BASE",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "learnerLevel": 5,
+      "sourceKind": "synthetic_offline_example",
+      "title": "One base unit for three comparisons",
+      "question": "Bella has twice as many objects as Alan; Chen has three times as many as Alan. Together they have 72. How many does Chen have?",
+      "steps": [
+        {
+          "stageId": "identify_reference",
+          "learnerExplanation": "Both comparisons refer to Alan, so Alan is one reference part in our bar model."
+        },
+        {
+          "stageId": "equivalent_units",
+          "learnerExplanation": "Show Alan as 1 equal part, Bella as 2 parts and Chen as 3 parts. All parts have the same value."
+        },
+        {
+          "stageId": "find_one_unit",
+          "learnerExplanation": "Add 1 plus 2 plus 3 to make 6 equal parts. Divide the total of 72 by 6, giving 12 per part.",
+          "calculation": {
+            "operation": "divide",
+            "left": 72,
+            "right": 6,
+            "result": 12
+          }
+        },
+        {
+          "stageId": "scale_target",
+          "learnerExplanation": "Chen owns 3 parts, so multiply 3 by 12 and obtain 36 objects for Chen.",
+          "calculation": {
+            "operation": "multiply",
+            "left": 3,
+            "right": 12,
+            "result": 36
+          }
+        },
+        {
+          "stageId": "check_comparisons",
+          "learnerExplanation": "Check Alan 12, Bella 24 and Chen 36. Bella is twice Alan, Chen is three times Alan, and 12 + 24 + 36 = 72.",
+          "calculation": {
+            "operation": "sum",
+            "values": [
+              12,
+              24,
+              36
+            ],
+            "result": 72
+          }
+        }
+      ],
+      "representation": {
+        "type": "bar_model",
+        "labels": [
+          "Alan: 1 equal part",
+          "Bella: 2 equal parts",
+          "Chen: 3 equal parts",
+          "1 equal part: 12 objects"
+        ],
+        "description": "Place three bars of 1, 2 and 3 common parts in alignment."
+      },
+      "answer": {
+        "quantity": "chen",
+        "value": 36,
+        "unit": "objects"
+      },
+      "misconception": {
+        "id": "mixed_reference_units",
+        "incorrectApproach": "Assume Chen is three times Bella even though both comparisons mention Alan.",
+        "correction": "Underline the named reference in each statement; both comparisons refer to Alan."
+      },
+      "comparison": {
+        "incumbent": "generic multi-step plan (illustrative, not production-scored)",
+        "advantageHypothesis": "One common reference unit keeps two different multipliers from being mixed.",
+        "suggestedRole": "undecided",
+        "humanJudgment": "pending"
+      },
+      "humanReview": "pending",
+      "authoringClaim": "reference_example_not_live_generated",
+      "worked": {
+        "unitParts": {
+          "alan": 1,
+          "bella": 2,
+          "chen": 3
+        },
+        "oneUnit": 12,
+        "amounts": {
+          "alan": 12,
+          "bella": 24,
+          "chen": 36
+        },
+        "totalUnits": 6,
+        "combinedTotal": 72
+      }
+    },
+    {
+      "caseId": "RATIO_VALID_MAIN",
+      "methodId": "ratio.relationship.before_after_change",
+      "learnerLevel": 6,
+      "sourceKind": "synthetic_offline_example",
+      "title": "A ratio changes after two known additions",
+      "question": "The ratio of quantities A:B was 3:2. A increases by 6 and B increases by 24; the new ratio becomes 1:2. Find the original amount of B.",
+      "steps": [
+        {
+          "stageId": "identify_quantities",
+          "learnerExplanation": "Keep A first and B second in both ratios. The original ratio is 3 to 2; both A and B increase by the stated amounts."
+        },
+        {
+          "stageId": "represent_before",
+          "learnerExplanation": "Use a before-state unit u: original A = 3u and original B = 2u. Those before-state units are the same size."
+        },
+        {
+          "stageId": "apply_changes",
+          "learnerExplanation": "After the additions, the quantities become A = 3u + 6 and B = 2u + 24. Neither quantity stays unchanged."
+        },
+        {
+          "stageId": "enforce_after_ratio",
+          "learnerExplanation": "The new ratio 1:2 means B is twice A after the changes: 2(3u + 6) = 2u + 24. This gives u = 3.",
+          "calculation": {
+            "operation": "solve_ratio_scale",
+            "beforeRatio": [
+              3,
+              2
+            ],
+            "afterRatio": [
+              1,
+              2
+            ],
+            "changes": [
+              6,
+              24
+            ],
+            "result": 3
+          }
+        },
+        {
+          "stageId": "solve_and_verify",
+          "learnerExplanation": "Before: A = 9 and B = 6. After: A = 15 and B = 30. Their ratios are 3:2 and 1:2, and both additions are correct.",
+          "calculation": {
+            "operation": "check_ratio_states",
+            "before": [
+              9,
+              6
+            ],
+            "after": [
+              15,
+              30
+            ],
+            "result": true
+          }
+        }
+      ],
+      "representation": {
+        "type": "ratio_table",
+        "labels": [
+          "Before A: 9",
+          "Before B: 6",
+          "After A: 15",
+          "After B: 30",
+          "Change A: +6",
+          "Change B: +24"
+        ],
+        "description": "Two rows for before and after, with A and B columns and a separate change row. Do not equate the before and after ratio units."
+      },
+      "answer": {
+        "quantity": "original_B",
+        "value": 6,
+        "unit": "objects"
+      },
+      "misconception": {
+        "id": "reuse_ratio_unit_across_states",
+        "incorrectApproach": "Use one unit-size for both 3:2 and 1:2, even though both amounts changed.",
+        "correction": "Use separate before/after rows and check the differences in actual quantities."
+      },
+      "comparison": {
+        "incumbent": "static ratio-units approach (illustrative, not production-scored)",
+        "advantageHypothesis": "The before-and-after table makes changed unit sizes and both additions explicit.",
+        "suggestedRole": "undecided",
+        "humanJudgment": "pending"
+      },
+      "humanReview": "pending",
+      "authoringClaim": "reference_example_not_live_generated",
+      "worked": {
+        "before": [
+          9,
+          6
+        ],
+        "after": [
+          15,
+          30
+        ],
+        "beforeUnit": 3,
+        "afterUnit": 15,
+        "changes": [
+          6,
+          24
+        ]
+      }
+    },
+    {
+      "caseId": "RATIO_VALID_DIFFERENT_SCALE",
+      "methodId": "ratio.relationship.before_after_change",
+      "learnerLevel": 6,
+      "sourceKind": "synthetic_offline_example",
+      "title": "Two different ratio unit sizes",
+      "question": "Quantities A:B start in the ratio 2:3. A increases by 5 and B increases by 16, giving a new ratio 1:2. Find original B.",
+      "steps": [
+        {
+          "stageId": "identify_quantities",
+          "learnerExplanation": "Write A then B in both rows. The before ratio is 2:3, the after ratio is 1:2, and both changes are given."
+        },
+        {
+          "stageId": "represent_before",
+          "learnerExplanation": "Let u be one before-ratio unit. Initially A = 2u and B = 3u; we have not assumed an after-ratio unit."
+        },
+        {
+          "stageId": "apply_changes",
+          "learnerExplanation": "After the changes, A = 2u + 5 and B = 3u + 16. Both quantities have changed from their original values."
+        },
+        {
+          "stageId": "enforce_after_ratio",
+          "learnerExplanation": "Because the new B is twice the new A, 2(2u + 5) = 3u + 16. Solve to obtain u = 6.",
+          "calculation": {
+            "operation": "solve_ratio_scale",
+            "beforeRatio": [
+              2,
+              3
+            ],
+            "afterRatio": [
+              1,
+              2
+            ],
+            "changes": [
+              5,
+              16
+            ],
+            "result": 6
+          }
+        },
+        {
+          "stageId": "solve_and_verify",
+          "learnerExplanation": "Before A = 12 and B = 18. After A = 17 and B = 34. Both stated changes and both ratios are satisfied.",
+          "calculation": {
+            "operation": "check_ratio_states",
+            "before": [
+              12,
+              18
+            ],
+            "after": [
+              17,
+              34
+            ],
+            "result": true
+          }
+        }
+      ],
+      "representation": {
+        "type": "ratio_table",
+        "labels": [
+          "Before A: 12",
+          "Before B: 18",
+          "After A: 17",
+          "After B: 34",
+          "Change A: +5",
+          "Change B: +16"
+        ],
+        "description": "Use distinct before and after table rows so the before unit 6 is not mistaken for the after unit 17."
+      },
+      "answer": {
+        "quantity": "original_B",
+        "value": 18,
+        "unit": "objects"
+      },
+      "misconception": {
+        "id": "reuse_ratio_unit_across_states",
+        "incorrectApproach": "Assume a 6-object unit still applies after the quantities increase.",
+        "correction": "Compare actual amounts in both rows: A and B increase by different amounts, and the new ratio unit equals 17."
+      },
+      "comparison": {
+        "incumbent": "static ratio-units approach (illustrative, not production-scored)",
+        "advantageHypothesis": "A two-state table prevents the old and new ratio scales from being conflated.",
+        "suggestedRole": "undecided",
+        "humanJudgment": "pending"
+      },
+      "humanReview": "pending",
+      "authoringClaim": "reference_example_not_live_generated",
+      "worked": {
+        "before": [
+          12,
+          18
+        ],
+        "after": [
+          17,
+          34
+        ],
+        "beforeUnit": 6,
+        "afterUnit": 17,
+        "changes": [
+          5,
+          16
+        ]
+      }
+    }
+  ]
+}
