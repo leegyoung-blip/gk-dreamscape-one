@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import {
   getThinkGearProgress,
   thinkGearTrack,
@@ -266,20 +267,17 @@ export default function ThinkGearClient() {
 
     if (!resolvedUserId) return;
 
-    const { data, error } = await supabase
-      .from("dream_token_transactions")
-      .select("amount")
-      .eq("user_id", resolvedUserId)
-      .eq("token_kind", "virtual");
+    const { data, error } = await fetchDreamTokenBalance(
+      supabase,
+      resolvedUserId,
+    );
 
     if (error) {
       console.warn("Could not load Dreamscape Tokens:", error);
       return;
     }
 
-    setTokenBalance(
-      data?.reduce((sum, row) => sum + Number(row.amount || 0), 0) || 0,
-    );
+    setTokenBalance(data);
   }
 
   async function loadMissionProgress(activeUserId: string) {

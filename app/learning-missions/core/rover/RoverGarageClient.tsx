@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import { coreUpgradeTrack } from "@/lib/coreRoverProgress";
 import { getCoreRoverCombatStats } from "@/lib/coreRoverCombat";
 import {
@@ -547,11 +548,7 @@ export default function RoverGarageClient() {
           .select("stage,acquisition_method,dt_spent,acquired_at")
           .eq("user_id", user.id),
 
-        supabase
-          .from("dream_token_transactions")
-          .select("amount")
-          .eq("user_id", user.id)
-          .eq("token_kind", "virtual"),
+        fetchDreamTokenBalance(supabase, user.id),
 
         supabase
           .from("profiles")
@@ -622,11 +619,7 @@ export default function RoverGarageClient() {
 
       let catalogRows: RoverCatalogRow[] = [];
 
-      const fallbackTokenBalance =
-        tokensResult.data?.reduce(
-          (sum, row) => sum + Number(row.amount || 0),
-          0,
-        ) || 0;
+      const fallbackTokenBalance = tokensResult.data;
 
       const fallbackSelectedStage = Number(
         ((loadoutResult.data ?? []) as RoverLoadoutRow[])[0]?.selected_stage ?? 0,
@@ -718,12 +711,7 @@ export default function RoverGarageClient() {
             tokensResult.error.message,
           );
         } else {
-          setTokenBalance(
-            tokensResult.data?.reduce(
-              (sum, row) => sum + Number(row.amount || 0),
-              0,
-            ) || 0,
-          );
+          setTokenBalance(tokensResult.data);
         }
       }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 
 type IndustryId =
   | "retail"
@@ -1327,10 +1328,7 @@ export default function MiloNegotiationPage() {
           .select("slots,active_slot_id")
           .eq("user_id", user.id)
           .maybeSingle(),
-        supabase
-          .from("dream_token_transactions")
-          .select("amount,token_kind")
-          .eq("user_id", user.id),
+        fetchDreamTokenBalance(supabase, user.id),
         supabase
           .from("milo_exchange_stocks")
           .select("symbol,current_price")
@@ -1376,9 +1374,7 @@ export default function MiloNegotiationPage() {
         return;
       }
 
-      const balance = (tokenResult.data || [])
-        .filter((row) => row.token_kind === "virtual")
-        .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      const balance = tokenResult.data;
       setTokenBalance(balance);
 
       const stockPrices = new Map(

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
@@ -126,11 +127,7 @@ export default function DashboardTopControls() {
           .select("dream_gem_balance")
           .eq("id", user.id)
           .maybeSingle(),
-        supabase
-          .from("dream_token_transactions")
-          .select("amount")
-          .eq("user_id", user.id)
-          .eq("token_kind", "virtual"),
+        fetchDreamTokenBalance(supabase, user.id),
         supabase
           .from("milo_exchange_stocks")
           .select("symbol,current_price")
@@ -168,10 +165,7 @@ export default function DashboardTopControls() {
 
       const cash = tokenBalanceResult.error
         ? 0
-        : (tokenBalanceResult.data || []).reduce(
-            (sum, row) => sum + Number(row.amount || 0),
-            0,
-          );
+        : tokenBalanceResult.data;
 
       if (tokenBalanceResult.error) {
         console.warn(

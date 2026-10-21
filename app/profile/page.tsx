@@ -9,6 +9,7 @@ import {
 } from "@/lib/organisation-access";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 
 type HistoryLoadStatus = "idle" | "loading" | "loaded" | "error";
 
@@ -1246,12 +1247,9 @@ export default function ProfilePage() {
         propertiesResult,
         propertyHoldingsResult,
       ] = await Promise.all([
-        // Balance only: the same rows as before, amounts only.
-        supabase
-          .from("dream_token_transactions")
-          .select("amount")
-          .eq("user_id", userId)
-          .eq("token_kind", "virtual"),
+        // Balance only: read from the learner's stored profile balance
+        // (profiles.dream_token_balance), not by summing ledger rows.
+        fetchDreamTokenBalance(supabase, userId),
 
         supabase
           .from("milo_exchange_stocks")
@@ -1288,12 +1286,7 @@ export default function ProfilePage() {
 
         setDreamTokenBalance(0);
       } else {
-        setDreamTokenBalance(
-          (tokenResult.data ?? []).reduce(
-            (total, row) => total + Number(row.amount || 0),
-            0,
-          ),
-        );
+        setDreamTokenBalance(tokenResult.data);
       }
 
       // Keep an open (or previously opened) history in step with the balance.

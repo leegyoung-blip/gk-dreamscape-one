@@ -13,6 +13,7 @@ import {
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
@@ -533,11 +534,7 @@ export default function LearningMissionsPage() {
         propertiesResult,
         propertyHoldingsResult,
       ] = await Promise.all([
-        supabase
-          .from("dream_token_transactions")
-          .select("amount")
-          .eq("user_id", user.id)
-          .eq("token_kind", "virtual"),
+        fetchDreamTokenBalance(supabase, user.id),
         supabase
           .from("milo_exchange_stocks")
           .select("symbol,current_price")
@@ -560,10 +557,7 @@ export default function LearningMissionsPage() {
 
       const cashValue = balanceResult.error
         ? 0
-        : balanceResult.data?.reduce(
-            (sum, row) => sum + Number(row.amount || 0),
-            0,
-          ) || 0;
+        : balanceResult.data || 0;
 
       const stockPrices = new Map(
         ((stocksResult.data || []) as StockRow[]).map((stock) => [

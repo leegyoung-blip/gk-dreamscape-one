@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import WardrobeFittedLayer from "@/components/nova-home/WardrobeFittedLayer";
 import RugRushGame, { type RugRushCompletion } from "@/components/nova-home/RugRushGame";
 import RugCollectionPanel, {
@@ -1091,11 +1092,7 @@ export default function NovaHomePage() {
       cleaningToolOwnershipResult,
       cleaningToolEquippedResult,
     ] = await Promise.all([
-      supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", user.id)
-        .eq("token_kind", "virtual"),
+      fetchDreamTokenBalance(supabase, user.id),
       supabase
         .from("profiles")
         .select("dream_gem_balance")
@@ -1152,10 +1149,7 @@ export default function NovaHomePage() {
       );
       setDreamTokenBalance(0);
     } else {
-      const total = (balanceResult.data || []).reduce(
-        (sum, row) => sum + Number(row.amount || 0),
-        0,
-      );
+      const total = balanceResult.data;
       setDreamTokenBalance(total);
     }
 

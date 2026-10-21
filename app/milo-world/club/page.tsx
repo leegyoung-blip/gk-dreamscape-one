@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 
 type ViewName =
   | "storefronts"
@@ -2831,10 +2832,7 @@ export default function MiloBusinessBuilderPage() {
           .eq("id", user.id)
           .maybeSingle(),
         supabase.rpc("dreamscape_get_my_learning_access"),
-        supabase
-          .from("dream_token_transactions")
-          .select("amount,token_kind")
-          .eq("user_id", user.id),
+        fetchDreamTokenBalance(supabase, user.id),
         supabase
           .from("milo_exchange_stocks")
           .select("symbol,current_price")
@@ -2916,11 +2914,7 @@ export default function MiloBusinessBuilderPage() {
         }
       }
 
-      const tokenBalance =
-        (tokensResult.data || [])
-          .filter((row) => row.token_kind === "virtual")
-          .reduce((total, row) => total + Number(row.amount || 0), 0) +
-        welcomeCreditAwarded;
+      const tokenBalance = tokensResult.data + welcomeCreditAwarded;
 
       setDreamTokenBalance(tokenBalance);
 

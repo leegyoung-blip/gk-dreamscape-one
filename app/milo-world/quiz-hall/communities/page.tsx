@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
 import CreatorDiscoveryAdminPanel from "@/components/milo/CreatorDiscoveryAdminPanel";
 import CreatorClubLevelBadge from "@/components/milo/creator-engine/CreatorClubLevelBadge";
@@ -475,12 +476,8 @@ export default function CreatorClubsPage() {
     setDreamTokenLoading(Boolean(user));
 
     const tokenBalancePromise = user
-      ? supabase
-          .from("dream_token_transactions")
-          .select("amount")
-          .eq("user_id", user.id)
-          .eq("token_kind", "virtual")
-      : Promise.resolve({ data: [], error: null });
+      ? fetchDreamTokenBalance(supabase, user.id)
+      : Promise.resolve({ data: 0, error: null });
 
     const [
       clubsResponse,
@@ -513,10 +510,7 @@ export default function CreatorClubsPage() {
       setDreamTokenBalance(0);
       setDreamTokenLoading(false);
     } else {
-      const balance = (tokenBalanceResponse.data || []).reduce(
-        (total, row) => total + Number(row.amount || 0),
-        0,
-      );
+      const balance = tokenBalanceResponse.data;
       setDreamTokenBalance(Math.max(0, balance));
       setDreamTokenLoading(false);
     }

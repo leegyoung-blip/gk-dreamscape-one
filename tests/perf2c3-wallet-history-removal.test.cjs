@@ -71,10 +71,13 @@ test('Profile Assets keeps its cash, property and stock breakdown (investment in
   assert.match(src, /Stocks/, file);
  }
 });
-test('current balances are read exactly as before and still refresh after rewards and purchases', () => {
+test('current balances come from the stored DT balance and still refresh after rewards and purchases', () => {
+ // PERF-2C-3B: the DT display balance is read through fetchDreamTokenBalance
+ // (profiles.dream_token_balance) instead of summing the ledger in the browser.
  for (const file of WALLET_UI) {
   const src = read(file);
-  assert.match(src, /from\("dream_token_transactions"\)\s*\.select\("amount"\)\s*\.eq\("user_id", [a-zA-Z.]+\)\s*\.eq\("token_kind", "virtual"\)/, `${file} DT balance query`);
+  assert.match(src, /fetchDreamTokenBalance\(\s*supabase,\s*[a-zA-Z.]+,?\s*\)/, `${file} DT balance read`);
+  assert.ok(!/from\("dream_token_transactions"\)\s*\.select\("amount"\)/.test(src), `${file} no longer sums the ledger`);
   assert.match(src, /window\.addEventListener\(\s*"dream-tokens-updated"/, `${file} refreshes on DT updates`);
   assert.match(src, /window\.addEventListener\(\s*"focus"/, `${file} refreshes on focus`);
  }
@@ -82,7 +85,7 @@ test('current balances are read exactly as before and still refresh after reward
   assert.match(read(file), /dream_gem_balance/, `${file} reads the stored DG balance`);
  }
  const lab = read('app/nova/thinking-skills-lab/page.tsx');
- assert.match(lab, /const refreshCashAndTransactions = useCallback\([\s\S]*?\.select\("amount"\)[\s\S]*?if \(userIdRef\.current !== accountUserId\) return;[\s\S]*?cash: cashValue,[\s\S]*?tokenBalance: cashValue,/);
+ assert.match(lab, /const refreshCashAndTransactions = useCallback\([\s\S]*?fetchDreamTokenBalance\(\s*supabase,\s*accountUserId,?\s*\)[\s\S]*?if \(userIdRef\.current !== accountUserId\) return;[\s\S]*?cash: cashValue,[\s\S]*?tokenBalance: cashValue,/);
  assert.equal((lab.match(/await refreshCashAndTransactions\(userId\);/g) || []).length, 2, 'clue purchase and game completion still refresh');
 });
 test('PERF-2C auth and stale-response protections are preserved in the edited pages', () => {
@@ -107,10 +110,10 @@ test('role-dependent controls are unchanged (curriculum editor link, rewards acc
 /* ---------------- Profile: the only learner-facing history ---------------- */
 
 const PROFILE = 'app/profile/page.tsx';
-test('Profile computes the DT balance from an amount-only read with the same filters', () => {
+test('Profile reads the DT balance separately from history, from the stored balance', () => {
  const src = read(PROFILE);
- assert.match(src, /\/\/ Balance only: the same rows as before, amounts only\.\s*supabase\s*\.from\("dream_token_transactions"\)\s*\.select\("amount"\)\s*\.eq\("user_id", userId\)\s*\.eq\("token_kind", "virtual"\),/);
- assert.match(src, /setDreamTokenBalance\(\s*\(tokenResult\.data \?\? \[\]\)\.reduce\(/);
+ assert.match(src, /\/\/ Balance only: read from the learner's stored profile balance\s*\/\/ \(profiles\.dream_token_balance\), not by summing ledger rows\.\s*fetchDreamTokenBalance\(supabase, userId\),/);
+ assert.match(src, /setDreamTokenBalance\(tokenResult\.data\);/);
  assert.ok(!/const dreamTokenBalance = tokenTransactions\.reduce/.test(src), 'balance no longer depends on the history download');
  assert.match(src, /Number\(profile\?\.dream_gem_balance \|\| 0\)/, 'DG balance still from the stored column');
 });

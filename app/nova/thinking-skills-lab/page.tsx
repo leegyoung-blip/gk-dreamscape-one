@@ -11,6 +11,7 @@ import {
 import type { CSSProperties } from "react";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import ThinkLabHub from "@/components/nova/think-lab/ThinkLabHub";
 import { ReactorTransferCelebration } from "@/components/nova/think-lab/ThinkLabReactor";
 import type { ConfirmedReactorAward } from "@/components/nova/think-lab/ThinkLabReactor";
@@ -47,10 +48,6 @@ type ProfileAssetBreakdown = {
   stocks: number;
 };
 
-
-type TokenAmountRow = {
-  amount: number | string | null;
-};
 
 type StockRow = {
   symbol: string;
@@ -520,11 +517,7 @@ export default function ThinkingSkillsLabPage() {
         .select("dream_gem_balance")
         .eq("id", user.id)
         .maybeSingle(),
-      supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", user.id)
-        .eq("token_kind", "virtual"),
+      fetchDreamTokenBalance(supabase, user.id),
       supabase
         .from("milo_exchange_stocks")
         .select("symbol,current_price")
@@ -575,10 +568,7 @@ export default function ThinkingSkillsLabPage() {
 
     const cashValue = balanceResult.error
       ? 0
-      : ((balanceResult.data ?? []) as TokenAmountRow[]).reduce(
-          (sum, row) => sum + Number(row.amount ?? 0),
-          0
-        );
+      : balanceResult.data;
 
     if (balanceResult.error) {
       console.warn(
@@ -652,11 +642,10 @@ export default function ThinkingSkillsLabPage() {
 
   const refreshCashAndTransactions = useCallback(
     async (accountUserId: string) => {
-      const balanceResult = await supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", accountUserId)
-        .eq("token_kind", "virtual");
+      const balanceResult = await fetchDreamTokenBalance(
+        supabase,
+        accountUserId
+      );
 
       // Never show a previous account's wallet after switching accounts.
       if (userIdRef.current !== accountUserId) return;
@@ -667,10 +656,7 @@ export default function ThinkingSkillsLabPage() {
           balanceResult.error.message
         );
       } else {
-        const cashValue = ((balanceResult.data ?? []) as TokenAmountRow[]).reduce(
-          (sum, row) => sum + Number(row.amount ?? 0),
-          0
-        );
+        const cashValue = balanceResult.data;
 
         setProfileAssets((current) => ({
           ...current,

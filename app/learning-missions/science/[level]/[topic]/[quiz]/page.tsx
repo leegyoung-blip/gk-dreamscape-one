@@ -10,6 +10,7 @@ import {
   SCIENCE_MISSION_META,
 } from "@/lib/science/helpers";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import type {
   ScienceLevelRow,
   ScienceMissionType,
@@ -192,11 +193,7 @@ export default function ScienceQuizPage({ params }: PageProps) {
           .select("role,dream_gem_balance")
           .eq("id", user.id)
           .maybeSingle(),
-        supabase
-          .from("dream_token_transactions")
-          .select("amount")
-          .eq("user_id", user.id)
-          .eq("token_kind", "virtual"),
+        fetchDreamTokenBalance(supabase, user.id),
       ]);
 
       if (cancelled) return;
@@ -216,12 +213,7 @@ export default function ScienceQuizPage({ params }: PageProps) {
       if (tokenResult.error) {
         console.warn("Could not load DT balance:", tokenResult.error.message);
       } else {
-        setTokenBalance(
-          (tokenResult.data ?? []).reduce(
-            (sum, transaction) => sum + safeNumber(transaction.amount),
-            0,
-          ),
-        );
+        setTokenBalance(tokenResult.data);
       }
 
       if (!canAttemptScienceQuiz(loadedRole)) {

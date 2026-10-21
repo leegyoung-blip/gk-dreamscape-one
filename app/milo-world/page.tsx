@@ -6,6 +6,7 @@ import type { CSSProperties } from "react";
 import { preload } from "react-dom";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import DeferredVideo from "@/components/media/DeferredVideo";
 import ObjectivesPanel, {
   type CurrentObjectivesStatus,
@@ -2638,11 +2639,7 @@ export default function MiloWorldPage() {
         propertiesResult,
         propertyHoldingsResult,
       ] = await Promise.all([
-        supabase
-          .from("dream_token_transactions")
-          .select("amount")
-          .eq("user_id", user.id)
-          .eq("token_kind", "virtual"),
+        fetchDreamTokenBalance(supabase, user.id),
         supabase
           .from("milo_exchange_stocks")
           .select("symbol,current_price")
@@ -2663,12 +2660,7 @@ export default function MiloWorldPage() {
 
       if (isStale()) return;
 
-      const cashValue = balanceResult.error
-        ? 0
-        : balanceResult.data?.reduce(
-            (sum, row) => sum + Number(row.amount || 0),
-            0,
-          ) || 0;
+      const cashValue = balanceResult.error ? 0 : balanceResult.data;
 
       if (balanceResult.error) {
         console.warn("Could not load Dreamscape Tokens:", balanceResult.error);

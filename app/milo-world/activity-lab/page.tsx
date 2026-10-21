@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 import MasteryCodeQuickPlay from "@/components/milo/activity-lab/MasteryCodeQuickPlay";
 import MasteryCodeSurvival from "@/components/milo/activity-lab/MasteryCodeSurvival";
 import CargoRush from "@/components/milo/activity-lab/CargoRush";
@@ -499,11 +500,10 @@ export default function ActivityLabPage() {
     activeUserId: string,
     isCurrent: () => boolean = () => true,
   ) {
-    const { data, error } = await supabase
-      .from("dream_token_transactions")
-      .select("amount")
-      .eq("user_id", activeUserId)
-      .eq("token_kind", "virtual");
+    const { data, error } = await fetchDreamTokenBalance(
+      supabase,
+      activeUserId,
+    );
 
     // A newer account load may have started while this was in flight.
     if (!isCurrent()) return;
@@ -513,8 +513,7 @@ export default function ActivityLabPage() {
       return;
     }
 
-    const total = data?.reduce((sum, row) => sum + Number(row.amount || 0), 0) || 0;
-    setDreamTokens(total);
+    setDreamTokens(data);
   }
 
   useEffect(() => {

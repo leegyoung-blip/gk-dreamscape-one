@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 type ThinkLevelBand = "foundation" | "growth" | "mastery";
@@ -259,11 +260,7 @@ export default function ThinkMissionsPage() {
     }
 
     const [tokenResult, profileResult] = await Promise.all([
-      supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", resolvedUserId)
-        .eq("token_kind", "virtual"),
+      fetchDreamTokenBalance(supabase, resolvedUserId),
       supabase
         .from("profiles")
         .select("dream_gem_balance")
@@ -274,12 +271,7 @@ export default function ThinkMissionsPage() {
     if (tokenResult.error) {
       console.warn("Could not load Dreamscape Tokens:", tokenResult.error);
     } else {
-      setTokenBalance(
-        tokenResult.data?.reduce(
-          (sum, row) => sum + Number(row.amount || 0),
-          0,
-        ) || 0,
-      );
+      setTokenBalance(tokenResult.data);
     }
 
     if (profileResult.error) {

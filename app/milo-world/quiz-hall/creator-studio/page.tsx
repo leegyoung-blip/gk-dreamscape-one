@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
+import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
 
 import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
 
@@ -538,22 +539,11 @@ export default function CreatorStudioPage() {
     setAccountEmail(signedInUser?.email ?? null);
 
     if (signedInUser) {
-      const { data: tokenRows, error: tokenError } = await supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", signedInUser.id)
-        .eq("token_kind", "virtual");
+      const { data: tokenBalance, error: tokenError } =
+        await fetchDreamTokenBalance(supabase, signedInUser.id);
 
       if (!tokenError) {
-        setDreamTokenBalance(
-          Math.max(
-            0,
-            (tokenRows || []).reduce(
-              (total, row) => total + Number(row.amount || 0),
-              0,
-            ),
-          ),
-        );
+        setDreamTokenBalance(Math.max(0, tokenBalance));
       }
       setDreamTokenLoading(false);
     }
