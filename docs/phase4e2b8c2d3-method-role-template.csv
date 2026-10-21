@@ -1,0 +1,13 @@
+﻿case_id,reviewer_code,specialist_role_primary_supporting_not_warranted_undecided,reasoning_with_example,complexity_or_visual_tradeoff,disagreement_followup,approval_status
+SPACING_VALID_MAIN,R1,undecided,,,,PENDING
+SPACING_VALID_MAIN,R2,undecided,,,,PENDING
+SPACING_VALID_ADJACENT,R1,undecided,,,,PENDING
+SPACING_VALID_ADJACENT,R2,undecided,,,,PENDING
+CHAIN_VALID_HALF,R1,undecided,,,,PENDING
+CHAIN_VALID_HALF,R2,undecided,,,,PENDING
+CHAIN_VALID_SHARED_BASE,R1,undecided,,,,PENDING
+CHAIN_VALID_SHARED_BASE,R2,undecided,,,,PENDING
+RATIO_VALID_MAIN,R1,undecided,,,,PENDING
+RATIO_VALID_MAIN,R2,undecided,,,,PENDING
+RATIO_VALID_DIFFERENT_SCALE,R1,undecided,,,,PENDING
+RATIO_VALID_DIFFERENT_SCALE,R2,undecided,,,,PENDING

@@ -1,0 +1,517 @@
+{
+  "phase": "4E-2B-8C-2D.3",
+  "fixtureType": "authored_offline_same_question_method_pairs",
+  "syntheticOnly": true,
+  "actualNovaOutputsCompared": false,
+  "actualIncumbentOutputsCompared": false,
+  "sourceVersionValidatedAgainstProduction": false,
+  "notApproval": true,
+  "learnerReleased": false,
+  "note": "Pairs are written reference exercises and do not establish production method efficacy or learner understanding.",
+  "comparisons": [
+    {
+      "caseId": "SPACING_VALID_MAIN",
+      "question": "The markers are equally spaced 6 m apart on a straight path. Find the distance from marker 4 to marker 12.",
+      "learnerLevel": 3,
+      "specialistMethodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "incumbentMethodId": "heuristic.multi_step.identify_subgoals",
+      "incumbentMethodTitle": "Break a multi-step problem into meaningful subgoals",
+      "comparisonProvenance": "two_offline_authored_synthetic_references_not_live_nova_outputs",
+      "incumbentTeachingSource": "author_interpretation_of_existing_4B_method_not_captured_production_output",
+      "candidate4CScore": null,
+      "specialist4CScore": null,
+      "scoreDifference": null,
+      "specialist": {
+        "referenceCaseId": "SPACING_VALID_MAIN",
+        "source": "8C2D2_offline_exemplar"
+      },
+      "incumbent": {
+        "steps": [
+          {
+            "stageId": "state_final_target",
+            "learnerExplanation": "The target is the distance from the 4th marker to the 12th marker."
+          },
+          {
+            "stageId": "ask_what_needed",
+            "learnerExplanation": "To find that distance, we need the number of 6 m intervals between these marker positions."
+          },
+          {
+            "stageId": "repeat_dependencies",
+            "learnerExplanation": "The interval count is 12 − 4 = 8. Each interval is 6 m."
+          },
+          {
+            "stageId": "solve_forward",
+            "learnerExplanation": "Multiply eight intervals by 6 m: 8 × 6 = 48 m."
+          }
+        ],
+        "calculations": [
+          {
+            "operation": "subtract",
+            "left": 12,
+            "right": 4,
+            "result": 8
+          },
+          {
+            "operation": "multiply",
+            "left": 8,
+            "right": 6,
+            "result": 48
+          }
+        ],
+        "answer": {
+          "quantity": "distance",
+          "value": 48,
+          "unit": "m"
+        },
+        "representation": {
+          "type": "table",
+          "description": "Target: distance; prerequisite: interval count; given: 6 m per interval",
+          "labels": [
+            "target 48 m",
+            "8 intervals",
+            "6 m each"
+          ]
+        },
+        "misconceptionResponse": "Ask why subtracting indices gives gaps and check adjacent marker positions."
+      },
+      "reviewOrder": [
+        "incumbent",
+        "specialist"
+      ],
+      "comparisonHypothesis": "The specialist number line may be more concrete for P3; a concise subgoal table may be quicker once interval counting is understood.",
+      "tradeoff": "Specialist requires an explicit drawing for a gap calculation a fluent learner may already understand.",
+      "humanReview": "pending",
+      "pedagogicalRole": "undecided",
+      "studentFacing": false,
+      "approvalGranted": false
+    },
+    {
+      "caseId": "SPACING_VALID_ADJACENT",
+      "question": "The markers are equally spaced 9 m apart. Find the distance from the 1st marker to the 2nd.",
+      "learnerLevel": 3,
+      "specialistMethodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "incumbentMethodId": "heuristic.multi_step.dependency_order",
+      "incumbentMethodTitle": "Execute intermediate results in dependency order",
+      "comparisonProvenance": "two_offline_authored_synthetic_references_not_live_nova_outputs",
+      "incumbentTeachingSource": "author_interpretation_of_existing_4B_method_not_captured_production_output",
+      "candidate4CScore": null,
+      "specialist4CScore": null,
+      "scoreDifference": null,
+      "specialist": {
+        "referenceCaseId": "SPACING_VALID_ADJACENT",
+        "source": "8C2D2_offline_exemplar"
+      },
+      "incumbent": {
+        "steps": [
+          {
+            "stageId": "draw_dependencies",
+            "learnerExplanation": "Find the number of gaps first, then multiply by the distance in one gap."
+          },
+          {
+            "stageId": "choose_ready_step",
+            "learnerExplanation": "The endpoints are positions 1 and 2. Find their difference."
+          },
+          {
+            "stageId": "record_intermediate",
+            "learnerExplanation": "2 − 1 = 1 gap, and one gap is 9 m."
+          },
+          {
+            "stageId": "continue_to_target",
+            "learnerExplanation": "1 × 9 = 9 m; this is the distance asked for."
+          }
+        ],
+        "calculations": [
+          {
+            "operation": "subtract",
+            "left": 2,
+            "right": 1,
+            "result": 1
+          },
+          {
+            "operation": "multiply",
+            "left": 1,
+            "right": 9,
+            "result": 9
+          }
+        ],
+        "answer": {
+          "quantity": "distance",
+          "value": 9,
+          "unit": "m"
+        },
+        "representation": {
+          "type": "table",
+          "description": "Position difference before distance calculation",
+          "labels": [
+            "1 gap",
+            "9 m per gap",
+            "9 m total"
+          ]
+        },
+        "misconceptionResponse": "An adjacent pair encloses exactly one space even though two markers are pictured."
+      },
+      "reviewOrder": [
+        "specialist",
+        "incumbent"
+      ],
+      "comparisonHypothesis": "Both methods may teach this adjacent case equally well. The specialist may provide a visual introduction; the generic approach is sufficiently short.",
+      "tradeoff": "Over-teaching a single interval may add unnecessary steps.",
+      "humanReview": "pending",
+      "pedagogicalRole": "undecided",
+      "studentFacing": false,
+      "approvalGranted": false
+    },
+    {
+      "caseId": "CHAIN_VALID_HALF",
+      "question": "Bella has three times as many objects as Alan. Chen has half as many as Bella. Together they have 66. How many does Chen have?",
+      "learnerLevel": 5,
+      "specialistMethodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "incumbentMethodId": "heuristic.multi_step.identify_subgoals",
+      "incumbentMethodTitle": "Break a multi-step problem into meaningful subgoals",
+      "comparisonProvenance": "two_offline_authored_synthetic_references_not_live_nova_outputs",
+      "incumbentTeachingSource": "author_interpretation_of_existing_4B_method_not_captured_production_output",
+      "candidate4CScore": null,
+      "specialist4CScore": null,
+      "scoreDifference": null,
+      "specialist": {
+        "referenceCaseId": "CHAIN_VALID_HALF",
+        "source": "8C2D2_offline_exemplar"
+      },
+      "incumbent": {
+        "steps": [
+          {
+            "stageId": "state_final_target",
+            "learnerExplanation": "The question asks for Chen’s objects, not for Bella’s."
+          },
+          {
+            "stageId": "ask_what_needed",
+            "learnerExplanation": "Chen has half of Bella. To get Chen we need Bella, which is three times Alan."
+          },
+          {
+            "stageId": "repeat_dependencies",
+            "learnerExplanation": "If Alan has x objects, Bella has 3x and Chen has 3x/2. Their sum is 66."
+          },
+          {
+            "stageId": "solve_forward",
+            "learnerExplanation": "x + 3x + 3x/2 = 66, so 11x/2 = 66, x = 12. Chen has (3 × 12)/2 = 18 objects."
+          }
+        ],
+        "calculations": [
+          {
+            "operation": "sum",
+            "values": [
+              2,
+              6,
+              3
+            ],
+            "result": 11
+          },
+          {
+            "operation": "divide",
+            "left": 66,
+            "right": 11,
+            "result": 6
+          },
+          {
+            "operation": "sum",
+            "values": [
+              12,
+              36,
+              18
+            ],
+            "result": 66
+          },
+          {
+            "operation": "multiply",
+            "left": 3,
+            "right": 6,
+            "result": 18
+          }
+        ],
+        "answer": {
+          "quantity": "chen",
+          "value": 18,
+          "unit": "objects"
+        },
+        "representation": {
+          "type": "table",
+          "description": "Named quantities and their expressions relative to Alan",
+          "labels": [
+            "Alan x",
+            "Bella 3x",
+            "Chen 3x/2",
+            "Total 66"
+          ]
+        },
+        "misconceptionResponse": "Keep the relationship Chen = Bella/2; do not compute Chen = Alan/2."
+      },
+      "reviewOrder": [
+        "incumbent",
+        "specialist"
+      ],
+      "comparisonHypothesis": "Bar units may lower the burden of fraction equations for P5; symbolic subgoals can be efficient when fraction fluency is established.",
+      "tradeoff": "The common-part bar diagram adds a visual conversion step even for algebra-fluent learners.",
+      "humanReview": "pending",
+      "pedagogicalRole": "undecided",
+      "studentFacing": false,
+      "approvalGranted": false
+    },
+    {
+      "caseId": "CHAIN_VALID_SHARED_BASE",
+      "question": "Bella has twice as many objects as Alan; Chen has three times as many as Alan. Together they have 72. How many does Chen have?",
+      "learnerLevel": 5,
+      "specialistMethodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "incumbentMethodId": "heuristic.multi_step.dependency_order",
+      "incumbentMethodTitle": "Execute intermediate results in dependency order",
+      "comparisonProvenance": "two_offline_authored_synthetic_references_not_live_nova_outputs",
+      "incumbentTeachingSource": "author_interpretation_of_existing_4B_method_not_captured_production_output",
+      "candidate4CScore": null,
+      "specialist4CScore": null,
+      "scoreDifference": null,
+      "specialist": {
+        "referenceCaseId": "CHAIN_VALID_SHARED_BASE",
+        "source": "8C2D2_offline_exemplar"
+      },
+      "incumbent": {
+        "steps": [
+          {
+            "stageId": "draw_dependencies",
+            "learnerExplanation": "Chen depends on the one-reference amount, which depends on the total of six parts."
+          },
+          {
+            "stageId": "choose_ready_step",
+            "learnerExplanation": "Bella is twice Alan and Chen three times Alan: 1 + 2 + 3 = 6 identical Alan amounts."
+          },
+          {
+            "stageId": "record_intermediate",
+            "learnerExplanation": "72 ÷ 6 = 12, so Alan = 12 and Bella = 24."
+          },
+          {
+            "stageId": "continue_to_target",
+            "learnerExplanation": "Chen = 3 × 12 = 36; 12 + 24 + 36 = 72."
+          }
+        ],
+        "calculations": [
+          {
+            "operation": "sum",
+            "values": [
+              1,
+              2,
+              3
+            ],
+            "result": 6
+          },
+          {
+            "operation": "divide",
+            "left": 72,
+            "right": 6,
+            "result": 12
+          },
+          {
+            "operation": "multiply",
+            "left": 3,
+            "right": 12,
+            "result": 36
+          },
+          {
+            "operation": "sum",
+            "values": [
+              12,
+              24,
+              36
+            ],
+            "result": 72
+          }
+        ],
+        "answer": {
+          "quantity": "chen",
+          "value": 36,
+          "unit": "objects"
+        },
+        "representation": {
+          "type": "table",
+          "description": "Dependency table with base amount, multiplied amounts and total",
+          "labels": [
+            "Alan 1 part",
+            "Bella 2 parts",
+            "Chen 3 parts",
+            "Total 6 parts"
+          ]
+        },
+        "misconceptionResponse": "Explicitly label that both multipliers refer to Alan, not Bella."
+      },
+      "reviewOrder": [
+        "specialist",
+        "incumbent"
+      ],
+      "comparisonHypothesis": "For simple integer multipliers the incumbent table may be just as teachable; bar models may help children who have not consolidated the shared unit.",
+      "tradeoff": "A full three-bar drawing may repeat information already clear in a 1:2:3 table.",
+      "humanReview": "pending",
+      "pedagogicalRole": "undecided",
+      "studentFacing": false,
+      "approvalGranted": false
+    },
+    {
+      "caseId": "RATIO_VALID_MAIN",
+      "question": "The ratio of quantities A:B was 3:2. A increases by 6 and B increases by 24; the new ratio becomes 1:2. Find the original amount of B.",
+      "learnerLevel": 6,
+      "specialistMethodId": "ratio.relationship.before_after_change",
+      "incumbentMethodId": "ratio.relationship.ratio_units",
+      "incumbentMethodTitle": "Represent a ratio using equal units",
+      "comparisonProvenance": "two_offline_authored_synthetic_references_not_live_nova_outputs",
+      "incumbentTeachingSource": "author_interpretation_of_existing_4B_method_not_captured_production_output",
+      "candidate4CScore": null,
+      "specialist4CScore": null,
+      "scoreDifference": null,
+      "specialist": {
+        "referenceCaseId": "RATIO_VALID_MAIN",
+        "source": "8C2D2_offline_exemplar"
+      },
+      "incumbent": {
+        "steps": [
+          {
+            "stageId": "name_terms",
+            "learnerExplanation": "In both ratios A is the first term and B is the second term."
+          },
+          {
+            "stageId": "draw_equal_units",
+            "learnerExplanation": "Before, A has 3u and B 2u. After, A has v and B 2v. Draw the equal-unit bars separately by state."
+          },
+          {
+            "stageId": "compare_unit_counts",
+            "learnerExplanation": "From +6 and +24, 3u + 6 = v and 2u + 24 = 2v."
+          },
+          {
+            "stageId": "write_ratio",
+            "learnerExplanation": "Substitute: 2u + 24 = 2(3u + 6). Therefore u = 3, so original B = 2u = 6 objects."
+          }
+        ],
+        "calculations": [
+          {
+            "operation": "solve_ratio_scale",
+            "beforeRatio": [
+              3,
+              2
+            ],
+            "afterRatio": [
+              1,
+              2
+            ],
+            "changes": [
+              6,
+              24
+            ],
+            "result": 3
+          }
+        ],
+        "answer": {
+          "quantity": "original_B",
+          "value": 6,
+          "unit": "objects"
+        },
+        "representation": {
+          "type": "bar_model",
+          "description": "Two independently scaled ratio bar pairs linked using the stated additions",
+          "labels": [
+            "Before A 3u",
+            "Before B 2u",
+            "After A v",
+            "After B 2v"
+          ]
+        },
+        "misconceptionResponse": "Do not equate u and v; they represent different unit sizes for separate ratio states."
+      },
+      "reviewOrder": [
+        "incumbent",
+        "specialist"
+      ],
+      "comparisonHypothesis": "Explicit before/after tables may foreground the changes; ratio bars may support visual learners who understand independent unit sizes.",
+      "tradeoff": "The generic ratio-unit scaffold needs additional equations outside its original four teaching stages to solve the change problem.",
+      "humanReview": "pending",
+      "pedagogicalRole": "undecided",
+      "studentFacing": false,
+      "approvalGranted": false
+    },
+    {
+      "caseId": "RATIO_VALID_DIFFERENT_SCALE",
+      "question": "Quantities A:B start in the ratio 2:3. A increases by 5 and B increases by 16, giving a new ratio 1:2. Find original B.",
+      "learnerLevel": 6,
+      "specialistMethodId": "ratio.relationship.before_after_change",
+      "incumbentMethodId": "ratio.relationship.scale_table",
+      "incumbentMethodTitle": "Use a ratio table or double number line to scale relationships",
+      "comparisonProvenance": "two_offline_authored_synthetic_references_not_live_nova_outputs",
+      "incumbentTeachingSource": "author_interpretation_of_existing_4B_method_not_captured_production_output",
+      "candidate4CScore": null,
+      "specialist4CScore": null,
+      "scoreDifference": null,
+      "specialist": {
+        "referenceCaseId": "RATIO_VALID_DIFFERENT_SCALE",
+        "source": "8C2D2_offline_exemplar"
+      },
+      "incumbent": {
+        "steps": [
+          {
+            "stageId": "enter_known_pair",
+            "learnerExplanation": "Write before A = 2u and B = 3u, after A = v and B = 2v, keeping the rows separate."
+          },
+          {
+            "stageId": "choose_scale",
+            "learnerExplanation": "The changes link the distinct rows: 2u + 5 = v and 3u + 16 = 2v."
+          },
+          {
+            "stageId": "fill_target_pair",
+            "learnerExplanation": "Substituting gives 3u + 16 = 2(2u + 5). Hence u = 6, and the before pair is (12,18)."
+          },
+          {
+            "stageId": "cross_check",
+            "learnerExplanation": "After the changes the pair becomes (17,34), which is 1:2; before (12,18) is 2:3."
+          }
+        ],
+        "calculations": [
+          {
+            "operation": "solve_ratio_scale",
+            "beforeRatio": [
+              2,
+              3
+            ],
+            "afterRatio": [
+              1,
+              2
+            ],
+            "changes": [
+              5,
+              16
+            ],
+            "result": 6
+          }
+        ],
+        "answer": {
+          "quantity": "original_B",
+          "value": 18,
+          "unit": "objects"
+        },
+        "representation": {
+          "type": "ratio_table",
+          "description": "Separate before/after ratio rows, joined by the absolute changes",
+          "labels": [
+            "Before A 2u",
+            "Before B 3u",
+            "After A v",
+            "After B 2v"
+          ]
+        },
+        "misconceptionResponse": "New ratio units need not equal the original ones; changes must be applied to amounts, not ratio labels."
+      },
+      "reviewOrder": [
+        "specialist",
+        "incumbent"
+      ],
+      "comparisonHypothesis": "The specialist makes state transitions explicit; a well-labelled generic ratio table can express the same mathematics without a new method.",
+      "tradeoff": "The specialist may be redundant where the ordinary ratio table is already clear and complete.",
+      "humanReview": "pending",
+      "pedagogicalRole": "undecided",
+      "studentFacing": false,
+      "approvalGranted": false
+    }
+  ]
+}
