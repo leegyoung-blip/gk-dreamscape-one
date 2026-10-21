@@ -313,7 +313,8 @@ test('recommendation card separates missing mission from account restriction', (
  const src = read('components/nova-plus/tabs/NovaRecommendsTab.tsx');
  const card = src.slice(src.indexOf('function RecommendationCard'), src.indexOf('function CycleCard'));
  assert.match(card, /const missionAvailable =\s*Boolean\(quizHref\)/);
- assert.match(card, /missionAvailable &&\s*\(canLaunchPractice \|\| isAdminPreview\)/);
+ // Phase 2B-2D-A: a learner also needs confirmed practice access; admin preview of another learner is unchanged.
+ assert.match(card, /missionAvailable &&\s*\(canLaunchPractice\s*\?\s*practiceAccess === "allowed"\s*:\s*isAdminPreview\)/);
  const missing = card.indexOf('!missionAvailable ?');
  const unavailable = card.indexOf('Practice mission unavailable');
  const account = card.indexOf('Open from {learnerLabel}');

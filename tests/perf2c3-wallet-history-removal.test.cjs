@@ -119,8 +119,9 @@ test('Profile reads the DT balance separately from history, from the stored bala
 });
 test('Profile keeps the full DT and DG histories with the same columns and order, loaded on demand', () => {
  const src = read(PROFILE);
- assert.match(src, /const loadTokenHistory = useCallback\(async \(userId: string\) => \{[\s\S]*?\.select\("id,user_id,type,title,amount,token_kind,created_at"\)\s*\.eq\("user_id", userId\)\s*\.eq\("token_kind", "virtual"\)\s*\.order\("created_at", \{\s*ascending: false,\s*\}\);/);
- assert.match(src, /const loadGemHistory = useCallback\(async \(userId: string\) => \{[\s\S]*?"id,user_id,type,source,title,description,amount,balance_after,created_at"[\s\S]*?\.order\("created_at", \{\s*ascending: false,\s*\}\);/);
+ // PERF-2C-4 pages these queries (id breaks created_at ties; Load More reaches older rows).
+ assert.match(src, /const loadTokenHistory = useCallback\(async \(userId: string\) => \{[\s\S]*?\.select\("id,user_id,type,title,amount,token_kind,created_at"\)\s*\.eq\("user_id", userId\)\s*\.eq\("token_kind", "virtual"\)\s*\.order\("created_at", \{\s*ascending: false,\s*\}\)\s*\.order\("id", \{ ascending: false \}\)/);
+ assert.match(src, /const loadGemHistory = useCallback\(async \(userId: string\) => \{[\s\S]*?"id,user_id,type,source,title,description,amount,balance_after,created_at"[\s\S]*?\.order\("created_at", \{\s*ascending: false,\s*\}\)\s*\.order\("id", \{ ascending: false \}\)/);
  assert.match(src, /onClick=\{openTokenHistory\}/);
  assert.match(src, /onClick=\{openGemHistory\}/);
  assert.match(src, /function openTokenHistory\(\) \{\s*setShowTokenHistory\(true\);[\s\S]*?void loadTokenHistory\(userId\);/);
@@ -137,8 +138,10 @@ test('Profile never shows another account history and keeps an opened history cu
  for (const name of ['tokenHistoryRequestRef', 'gemHistoryRequestRef']) {
   assert.match(src, new RegExp(`requestId !== ${name}\\.current \\|\\|\\s*profileUserIdRef\\.current !== userId`), `${name} guard`);
  }
- assert.match(src, /if \(profileUserIdRef\.current !== userId\) \{[\s\S]*?tokenHistoryUserIdRef\.current = null;[\s\S]*?gemHistoryUserIdRef\.current = null;[\s\S]*?setTokenTransactions\(\[\]\);[\s\S]*?setGemTransactions\(\[\]\);/, 'cleared on account change');
- assert.match(src, /profileUserIdRef\.current = null;[\s\S]*?setDreamTokenBalance\(0\);[\s\S]*?setTokenTransactions\(\[\]\);[\s\S]*?setGemTransactions\(\[\]\);/, 'cleared on sign-out');
+ // PERF-2C-4 moved the clearing into resetTransactionHistories().
+ assert.match(src, /const resetTransactionHistories = useCallback\(\(\) => \{\s*tokenHistoryUserIdRef\.current = null;\s*gemHistoryUserIdRef\.current = null;[\s\S]*?setTokenHistory\(emptyHistoryPage\(\)\);\s*setGemHistory\(emptyHistoryPage\(\)\);/, 'reset clears both histories');
+ assert.match(src, /if \(profileUserIdRef\.current !== userId\) \{[^}]*?profileUserIdRef\.current = userId;\s*resetTransactionHistories\(\);/, 'cleared on account change');
+ assert.match(src, /profileUserIdRef\.current = null;\s*resetTransactionHistories\(\);\s*setDreamTokenBalance\(0\);/, 'cleared on sign-out');
  assert.match(src, /if \(tokenHistoryUserIdRef\.current === userId\) \{\s*void loadTokenHistory\(userId\);/);
  assert.match(src, /if \(gemHistoryUserIdRef\.current === userId\) \{\s*void loadGemHistory\(userId\);/);
 });

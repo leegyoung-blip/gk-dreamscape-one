@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { supabase } from "@/lib/supabase";
@@ -26,7 +27,31 @@ import {
   teachingRecoveryExplanation,
   type NovaTeachingSignal,
 } from "@/lib/nova-plus/teaching-evidence";
+import {
+  checkPracticeAccess,
+  practiceAccessState,
+  practiceQuizKey,
+  type PracticeAccessClient,
+  type PracticeAccessResult,
+  type PracticeAccessState,
+} from "@/lib/nova-plus/practice-access";
 import styles from "./NovaRecommendsTab.module.css";
+
+type PracticeAccessLookup = (
+  subject: unknown,
+  quizId: unknown,
+) => PracticeAccessState;
+
+// Shown inside the card so the learning insight stays visible.
+const PRACTICE_ACCESS_COPY: Record<
+  "blocked" | "unverified",
+  string
+> = {
+  blocked:
+    "This mission is not open for this account yet. The learning insight above still applies.",
+  unverified:
+    "Nova could not confirm access to this mission right now. Please try again shortly.",
+};
 
 type NovaRecommendsTabProps = {
   learnerId: string;
@@ -242,6 +267,7 @@ function RecommendationCard({
   learnerLabel,
   canLaunchPractice,
   isAdminPreview,
+  accessFor,
   featured = false,
   schoolworkCount = 0,
   teachingSignals = [],
@@ -252,6 +278,7 @@ function RecommendationCard({
   learnerLabel: string;
   canLaunchPractice: boolean;
   isAdminPreview: boolean;
+  accessFor: PracticeAccessLookup;
   featured?: boolean;
   schoolworkCount?: number;
   teachingSignals?: NovaTeachingSignal[];
@@ -268,9 +295,18 @@ function RecommendationCard({
   const missionAvailable =
     Boolean(quizHref);
 
+  // The learner may only act on a mission the access check has confirmed.
+  // Admin preview of another learner keeps its existing preview link.
+  const practiceAccess: PracticeAccessState =
+    canLaunchPractice
+      ? accessFor(item.subject, item.quiz?.quiz_id)
+      : "checking";
+
   const mayOpen =
     missionAvailable &&
-    (canLaunchPractice || isAdminPreview);
+    (canLaunchPractice
+      ? practiceAccess === "allowed"
+      : isAdminPreview);
 
   const shouldStartCycle =
     item.lane === "focus_now" &&
@@ -486,6 +522,31 @@ function RecommendationCard({
             <span>
               Nova is waiting for a mapped
               mission to become available.
+            </span>
+          </div>
+        ) : canLaunchPractice &&
+          practiceAccess === "checking" ? (
+          <button
+            type="button"
+            className={styles.startButton}
+            disabled
+          >
+            Checking access…
+          </button>
+        ) : canLaunchPractice ? (
+          <div
+            className={
+              styles.viewerNotice
+            }
+          >
+            <strong>
+              Practice mission unavailable
+            </strong>
+
+            <span>
+              {practiceAccess === "unverified"
+                ? PRACTICE_ACCESS_COPY.unverified
+                : PRACTICE_ACCESS_COPY.blocked}
             </span>
           </div>
         ) : (
@@ -790,8 +851,12 @@ function RecommendationCard({
               {item.alternatives.map(
                 (alternative) =>
                   alternative.quiz_href &&
-                  (canLaunchPractice ||
-                    isAdminPreview) ? (
+                  (canLaunchPractice
+                    ? accessFor(
+                        item.subject,
+                        alternative.quiz_id,
+                      ) === "allowed"
+                    : isAdminPreview) ? (
                     <a
                       href={
                         alternative.quiz_href
@@ -854,11 +919,18 @@ function CycleCard({
   cycle,
   learnerLabel,
   canLaunchPractice,
+  accessFor,
 }: {
   cycle: NovaLearningCycle;
   learnerLabel: string;
   canLaunchPractice: boolean;
+  accessFor: PracticeAccessLookup;
 }) {
+  // The server-selected practice quiz is linked only once access is confirmed.
+  const practiceAccess: PracticeAccessState =
+    canLaunchPractice
+      ? accessFor(cycle.subject, cycle.recommended_quiz_id)
+      : "checking";
   const ready =
     cycle.status === "ready_to_check";
 
@@ -1101,7 +1173,8 @@ function CycleCard({
               Start Nova Check
               <span>→</span>
             </a>
-          ) : cycle.recommended_quiz_href ? (
+          ) : cycle.recommended_quiz_href &&
+            practiceAccess === "allowed" ? (
             <a
               href={
                 cycle.recommended_quiz_href
@@ -1113,6 +1186,30 @@ function CycleCard({
               Continue Practice
               <span>→</span>
             </a>
+          ) : cycle.recommended_quiz_href &&
+            practiceAccess === "checking" ? (
+            <button
+              type="button"
+              className={styles.startButton}
+              disabled
+            >
+              Checking access…
+            </button>
+          ) : cycle.recommended_quiz_href ? (
+            <div
+              className={
+                styles.viewerNotice
+              }
+            >
+              <strong>
+                Practice mission unavailable
+              </strong>
+              <span>
+                {practiceAccess === "unverified"
+                  ? PRACTICE_ACCESS_COPY.unverified
+                  : PRACTICE_ACCESS_COPY.blocked}
+              </span>
+            </div>
           ) : (
             <div
               className={
@@ -1201,6 +1298,23 @@ export default function NovaRecommendsTab({
     setStartingSkillId,
   ] = useState<string | null>(null);
 
+  // Read-only practice access for the signed-in learner (defence in depth;
+  // the server remains authoritative). Keyed by learner + quiz set so a stale
+  // response can never apply to another learner or recommendation set.
+  const [
+    accessSnapshot,
+    setAccessSnapshot,
+  ] = useState<{
+    key: string;
+    result: PracticeAccessResult;
+  } | null>(null);
+
+  const learnerRef = useRef(learnerId);
+
+  useEffect(() => {
+    learnerRef.current = learnerId;
+  }, [learnerId]);
+
   const load = useCallback(
     async () => {
       setLoading(true);
@@ -1281,19 +1395,58 @@ export default function NovaRecommendsTab({
     item: NovaRecommendation,
   ) {
     const quizHref =
-      item.quiz?.quiz_href || "";
+      item.quiz?.quiz_href?.trim() || "";
+    const quizKey = practiceQuizKey(
+      item.subject,
+      item.quiz?.quiz_id,
+    );
 
     if (
       !canLaunchPractice ||
-      !quizHref
+      !quizHref ||
+      !quizKey
     ) {
       return;
     }
+
+    const learnerAtStart = learnerId;
 
     setStartingSkillId(
       String(item.skill_id),
     );
     setError("");
+
+    // Revalidate this exact quiz and the Core zone BEFORE opening a cycle.
+    const access = await checkPracticeAccess(
+      supabase as unknown as PracticeAccessClient,
+      [{ subject: item.subject, quizId: item.quiz.quiz_id }],
+    );
+
+    if (learnerRef.current !== learnerAtStart) return;
+
+    const accessState = practiceAccessState(
+      access,
+      item.subject,
+      item.quiz.quiz_id,
+    );
+
+    if (accessState !== "allowed") {
+      setStartingSkillId(null);
+      // Show the unavailable state on the card; no cycle, no navigation.
+      setAccessSnapshot((current) => {
+        if (!current) return current;
+        const accessible = new Set(current.result.accessible);
+        const unverified = new Set(current.result.unverified);
+        accessible.delete(quizKey);
+        if (accessState === "unverified") unverified.add(quizKey);
+        else unverified.delete(quizKey);
+        return {
+          key: current.key,
+          result: { ...current.result, accessible, unverified },
+        };
+      });
+      return;
+    }
 
     const { error: startError } =
       await supabase.rpc(
@@ -1316,6 +1469,57 @@ export default function NovaRecommendsTab({
 
   const openCycles =
     cyclePayload?.open_cycles ?? [];
+
+  const accessRefs = useMemo(() => {
+    const refs: Array<{ subject: string; quizId: string }> = [];
+    for (const item of payload?.recommendations ?? []) {
+      refs.push({ subject: item.subject, quizId: item.quiz?.quiz_id });
+      for (const alternative of item.alternatives ?? []) {
+        refs.push({ subject: item.subject, quizId: alternative.quiz_id });
+      }
+    }
+    for (const cycle of cyclePayload?.open_cycles ?? []) {
+      refs.push({
+        subject: cycle.subject,
+        quizId: cycle.recommended_quiz_id ?? "",
+      });
+    }
+    return refs.filter((ref) => practiceQuizKey(ref.subject, ref.quizId));
+  }, [payload?.recommendations, cyclePayload?.open_cycles]);
+
+  const accessKey = useMemo(
+    () =>
+      `${learnerId}|${[...new Set(accessRefs.map((ref) => practiceQuizKey(ref.subject, ref.quizId)))]
+        .sort()
+        .join(",")}`,
+    [learnerId, accessRefs],
+  );
+
+  useEffect(() => {
+    if (!canLaunchPractice || !accessRefs.length) return;
+
+    let cancelled = false;
+
+    async function verify() {
+      const result = await checkPracticeAccess(
+        supabase as unknown as PracticeAccessClient,
+        accessRefs,
+      );
+      if (!cancelled) setAccessSnapshot({ key: accessKey, result });
+    }
+
+    void verify();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canLaunchPractice, accessRefs, accessKey]);
+
+  const currentAccess =
+    accessSnapshot?.key === accessKey ? accessSnapshot.result : null;
+
+  const accessFor: PracticeAccessLookup = (subject, quizId) =>
+    practiceAccessState(currentAccess, subject, quizId);
 
   const cycleSkillIds = useMemo(
     () =>
@@ -1606,6 +1810,7 @@ export default function NovaRecommendsTab({
                       canLaunchPractice={
                         canLaunchPractice
                       }
+                      accessFor={accessFor}
                     />
                   ),
                 )}
@@ -1660,6 +1865,7 @@ export default function NovaRecommendsTab({
                 isAdminPreview={
                   isAdminPreview
                 }
+                accessFor={accessFor}
                 featured
                 starting={
                   startingSkillId ===
@@ -1746,6 +1952,7 @@ export default function NovaRecommendsTab({
                     isAdminPreview={
                       isAdminPreview
                     }
+                    accessFor={accessFor}
                     schoolworkCount={
                       schoolworkEvidence.bySkillId.get(
                         String(
@@ -1819,6 +2026,7 @@ export default function NovaRecommendsTab({
                 isAdminPreview={
                   isAdminPreview
                 }
+                accessFor={accessFor}
                 schoolworkCount={
                   schoolworkEvidence.bySkillId.get(
                     String(

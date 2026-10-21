@@ -233,7 +233,9 @@ test('Profile transaction history stays lazy and on the ledger', () => {
  const src = read('app/profile/page.tsx');
  assert.match(src, /const loadTokenHistory = useCallback\(async \(userId: string\) => \{[\s\S]*?from\("dream_token_transactions"\)\s*\.select\("id,user_id,type,title,amount,token_kind,created_at"\)/);
  assert.match(src, /function openTokenHistory\(\) \{\s*setShowTokenHistory\(true\);/);
- assert.equal((src.match(/from\("dream_token_transactions"\)/g) || []).length, 1, 'only the lazy history query');
+ // PERF-2C-4: the lazy history is paged — its first page plus "Load More", nothing else.
+ assert.match(src, /const loadMoreTokenHistory = useCallback\([\s\S]*?from\("dream_token_transactions"\)\s*\.select\("id,user_id,type,title,amount,token_kind,created_at"\)/);
+ assert.equal((src.match(/from\("dream_token_transactions"\)/g) || []).length, 2, 'only the lazy history queries');
 });
 
 /* ---------------- Writes, rewards and Dream Gems unchanged ---------------- */

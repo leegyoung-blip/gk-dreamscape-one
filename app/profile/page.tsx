@@ -8,8 +8,20 @@ import {
   takeOrganisationClaimMessage,
 } from "@/lib/organisation-access";
 import { hasFounding50StudentAccess } from "@/lib/founding-50/effective-student-access";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 import { fetchDreamTokenBalance } from "@/lib/wallet/dreamTokenBalance";
+import {
+  TRANSACTION_HISTORY_PAGE_SIZE,
+  appendOlderPage,
+  emptyHistoryPage,
+  mergeNewestPage,
+  olderThanFilter,
+  sameCursor,
+  toHistoryPage,
+  type HistoryCursor,
+  type HistoryPage,
+} from "@/lib/wallet/transactionHistory";
 
 type HistoryLoadStatus = "idle" | "loading" | "loaded" | "error";
 
@@ -536,11 +548,27 @@ export default function ProfilePage() {
   const [activeLearningPlanLabels, setActiveLearningPlanLabels] =
     useState<string[]>([]);
 
-  const [tokenTransactions, setTokenTransactions] =
-    useState<DreamTokenTransaction[]>([]);
+  // Loaded pages of each history (newest first), plus where the next page starts.
+  const [tokenHistory, setTokenHistory] =
+    useState<HistoryPage<DreamTokenTransaction>>(emptyHistoryPage);
 
-  const [gemTransactions, setGemTransactions] =
-    useState<DreamGemTransaction[]>([]);
+  const [gemHistory, setGemHistory] =
+    useState<HistoryPage<DreamGemTransaction>>(emptyHistoryPage);
+
+  const tokenTransactions = tokenHistory.rows;
+  const gemTransactions = gemHistory.rows;
+
+  const [tokenHistoryLoadingMore, setTokenHistoryLoadingMore] =
+    useState(false);
+
+  const [gemHistoryLoadingMore, setGemHistoryLoadingMore] =
+    useState(false);
+
+  const [tokenHistoryMoreError, setTokenHistoryMoreError] =
+    useState(false);
+
+  const [gemHistoryMoreError, setGemHistoryMoreError] =
+    useState(false);
 
   const [dreamGemBalance, setDreamGemBalance] =
     useState(0);
@@ -553,9 +581,10 @@ export default function ProfilePage() {
 
   /*
    * Balances and histories load separately. The Dream Token balance comes from
-   * an amount-only read (same filters as before); each full transaction
-   * history downloads only when its "View History" panel is opened, and is
-   * refreshed with the page only once it has been opened.
+   * the stored profile balance; each transaction history loads only when its
+   * "View History" panel is opened, one page of TRANSACTION_HISTORY_PAGE_SIZE
+   * rows at a time ("Load More" fetches the next), and is refreshed with the
+   * page only once it has been opened.
    */
   const [dreamTokenBalance, setDreamTokenBalance] =
     useState(0);
@@ -572,6 +601,11 @@ export default function ProfilePage() {
   const gemHistoryUserIdRef = useRef<string | null>(null);
   const tokenHistoryRequestRef = useRef(0);
   const gemHistoryRequestRef = useRef(0);
+  // "Load More" requests: a counter to drop stale replies, a flag to stop overlaps.
+  const tokenHistoryMoreRequestRef = useRef(0);
+  const gemHistoryMoreRequestRef = useRef(0);
+  const tokenHistoryLoadingMoreRef = useRef(false);
+  const gemHistoryLoadingMoreRef = useRef(false);
 
   const [isLoadingTokens, setIsLoadingTokens] =
     useState(true);
@@ -596,6 +630,7 @@ export default function ProfilePage() {
       current === "loaded" ? current : "loading",
     );
 
+    // Newest page only, plus one row to learn whether an older page exists.
     const { data, error } = await supabase
       .from("dream_token_transactions")
       .select("id,user_id,type,title,amount,token_kind,created_at")
@@ -603,7 +638,9 @@ export default function ProfilePage() {
       .eq("token_kind", "virtual")
       .order("created_at", {
         ascending: false,
-      });
+      })
+      .order("id", { ascending: false })
+      .limit(TRANSACTION_HISTORY_PAGE_SIZE + 1);
 
     // Ignore superseded requests and anything for an account no longer shown.
     if (
@@ -619,10 +656,70 @@ export default function ProfilePage() {
       return;
     }
 
+    // A refresh merges the newest page into the pages already loaded.
+    const newest = toHistoryPage((data ?? []) as DreamTokenTransaction[]);
+    const isRefresh = tokenHistoryUserIdRef.current === userId;
     tokenHistoryUserIdRef.current = userId;
-    setTokenTransactions((data ?? []) as DreamTokenTransaction[]);
+    setTokenHistory((current) =>
+      isRefresh ? mergeNewestPage(current, newest) : newest,
+    );
     setTokenHistoryStatus("loaded");
   }, []);
+
+  const loadMoreTokenHistory = useCallback(
+    async (cursor: HistoryCursor | null) => {
+      const userId = profileUserIdRef.current;
+      if (
+        !userId ||
+        !cursor ||
+        tokenHistoryUserIdRef.current !== userId ||
+        tokenHistoryLoadingMoreRef.current
+      ) {
+        return;
+      }
+
+      const requestId = ++tokenHistoryMoreRequestRef.current;
+      tokenHistoryLoadingMoreRef.current = true;
+      setTokenHistoryLoadingMore(true);
+      setTokenHistoryMoreError(false);
+
+      // The page strictly older than the last row shown.
+      const { data, error } = await supabase
+        .from("dream_token_transactions")
+        .select("id,user_id,type,title,amount,token_kind,created_at")
+        .eq("user_id", userId)
+        .eq("token_kind", "virtual")
+        .or(olderThanFilter(cursor))
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(TRANSACTION_HISTORY_PAGE_SIZE + 1);
+
+      if (
+        requestId !== tokenHistoryMoreRequestRef.current ||
+        profileUserIdRef.current !== userId
+      ) {
+        return;
+      }
+
+      tokenHistoryLoadingMoreRef.current = false;
+      setTokenHistoryLoadingMore(false);
+
+      if (error) {
+        console.error("Token history error:", error.message);
+        setTokenHistoryMoreError(true);
+        return;
+      }
+
+      const older = toHistoryPage((data ?? []) as DreamTokenTransaction[]);
+      // Append only if the list still ends where this page starts.
+      setTokenHistory((current) =>
+        sameCursor(current.cursor, cursor)
+          ? appendOlderPage(current, older)
+          : current,
+      );
+    },
+    [],
+  );
 
   const loadGemHistory = useCallback(async (userId: string) => {
     const requestId = ++gemHistoryRequestRef.current;
@@ -638,7 +735,9 @@ export default function ProfilePage() {
       .eq("user_id", userId)
       .order("created_at", {
         ascending: false,
-      });
+      })
+      .order("id", { ascending: false })
+      .limit(TRANSACTION_HISTORY_PAGE_SIZE + 1);
 
     if (
       requestId !== gemHistoryRequestRef.current ||
@@ -653,9 +752,87 @@ export default function ProfilePage() {
       return;
     }
 
+    const newest = toHistoryPage((data ?? []) as DreamGemTransaction[]);
+    const isRefresh = gemHistoryUserIdRef.current === userId;
     gemHistoryUserIdRef.current = userId;
-    setGemTransactions((data ?? []) as DreamGemTransaction[]);
+    setGemHistory((current) =>
+      isRefresh ? mergeNewestPage(current, newest) : newest,
+    );
     setGemHistoryStatus("loaded");
+  }, []);
+
+  const loadMoreGemHistory = useCallback(
+    async (cursor: HistoryCursor | null) => {
+      const userId = profileUserIdRef.current;
+      if (
+        !userId ||
+        !cursor ||
+        gemHistoryUserIdRef.current !== userId ||
+        gemHistoryLoadingMoreRef.current
+      ) {
+        return;
+      }
+
+      const requestId = ++gemHistoryMoreRequestRef.current;
+      gemHistoryLoadingMoreRef.current = true;
+      setGemHistoryLoadingMore(true);
+      setGemHistoryMoreError(false);
+
+      const { data, error } = await supabase
+        .from("dream_gem_transactions")
+        .select(
+          "id,user_id,type,source,title,description,amount,balance_after,created_at",
+        )
+        .eq("user_id", userId)
+        .or(olderThanFilter(cursor))
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(TRANSACTION_HISTORY_PAGE_SIZE + 1);
+
+      if (
+        requestId !== gemHistoryMoreRequestRef.current ||
+        profileUserIdRef.current !== userId
+      ) {
+        return;
+      }
+
+      gemHistoryLoadingMoreRef.current = false;
+      setGemHistoryLoadingMore(false);
+
+      if (error) {
+        console.error("Dream Gem history error:", error.message);
+        setGemHistoryMoreError(true);
+        return;
+      }
+
+      const older = toHistoryPage((data ?? []) as DreamGemTransaction[]);
+      setGemHistory((current) =>
+        sameCursor(current.cursor, cursor)
+          ? appendOlderPage(current, older)
+          : current,
+      );
+    },
+    [],
+  );
+
+  // Forget both histories (logout or a different account), cancelling any reply in flight.
+  const resetTransactionHistories = useCallback(() => {
+    tokenHistoryUserIdRef.current = null;
+    gemHistoryUserIdRef.current = null;
+    tokenHistoryRequestRef.current += 1;
+    gemHistoryRequestRef.current += 1;
+    tokenHistoryMoreRequestRef.current += 1;
+    gemHistoryMoreRequestRef.current += 1;
+    tokenHistoryLoadingMoreRef.current = false;
+    gemHistoryLoadingMoreRef.current = false;
+    setTokenHistory(emptyHistoryPage());
+    setGemHistory(emptyHistoryPage());
+    setTokenHistoryStatus("idle");
+    setGemHistoryStatus("idle");
+    setTokenHistoryLoadingMore(false);
+    setGemHistoryLoadingMore(false);
+    setTokenHistoryMoreError(false);
+    setGemHistoryMoreError(false);
   }, []);
 
   function openTokenHistory() {
@@ -972,13 +1149,8 @@ export default function ProfilePage() {
         setMembershipError("");
         setIsLoadingMembership(false);
         profileUserIdRef.current = null;
-        tokenHistoryUserIdRef.current = null;
-        gemHistoryUserIdRef.current = null;
+        resetTransactionHistories();
         setDreamTokenBalance(0);
-        setTokenTransactions([]);
-        setGemTransactions([]);
-        setTokenHistoryStatus("idle");
-        setGemHistoryStatus("idle");
         setDreamGemBalance(0);
         setStockPortfolioValue(0);
         setPropertyPortfolioValue(0);
@@ -994,12 +1166,7 @@ export default function ProfilePage() {
       if (profileUserIdRef.current !== userId) {
         // A different account: never show the previous account's history.
         profileUserIdRef.current = userId;
-        tokenHistoryUserIdRef.current = null;
-        gemHistoryUserIdRef.current = null;
-        setTokenTransactions([]);
-        setGemTransactions([]);
-        setTokenHistoryStatus("idle");
-        setGemHistoryStatus("idle");
+        resetTransactionHistories();
       }
 
       setEmail(data.user.email ?? null);
@@ -1412,8 +1579,19 @@ export default function ProfilePage() {
       refreshBalances,
     );
 
+    // Logout or a different account (e.g. in another tab): drop the previous
+    // account's history at once, before the reload below finishes.
+    const stopAuthListener = onAuthUserChange(supabase, () => {
+      profileUserIdRef.current = null;
+      resetTransactionHistories();
+      setShowTokenHistory(false);
+      setShowGemHistory(false);
+      void loadProfile();
+    });
+
     return () => {
       isMounted = false;
+      stopAuthListener();
 
       window.removeEventListener(
         "dream-tokens-updated",
@@ -1435,8 +1613,8 @@ export default function ProfilePage() {
         refreshBalances,
       );
     };
-    // Both history loaders are stable (useCallback with no dependencies).
-  }, [loadGemHistory, loadTokenHistory]);
+    // The history loaders and reset are stable (useCallback with no dependencies).
+  }, [loadGemHistory, loadTokenHistory, resetTransactionHistories]);
 
   async function loadMembershipControls() {
     setIsLoadingMembership(true);
@@ -4339,6 +4517,25 @@ Thank you.`;
                         </p>
                       </div>
                     ))}
+
+                    {tokenHistoryMoreError && (
+                      <p className="text-center text-sm text-white/48">
+                        More Dream Token history could not be loaded. Please try again.
+                      </p>
+                    )}
+
+                    {tokenHistory.hasMore && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void loadMoreTokenHistory(tokenHistory.cursor)
+                        }
+                        disabled={tokenHistoryLoadingMore}
+                        className="w-full rounded-full border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-white transition hover:bg-white/[0.1] disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {tokenHistoryLoadingMore ? "Loading..." : "Load More"}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -4502,6 +4699,25 @@ Thank you.`;
                         </div>
                       );
                     })}
+
+                    {gemHistoryMoreError && (
+                      <p className="text-center text-sm text-white/48">
+                        More Dream Gem history could not be loaded. Please try again.
+                      </p>
+                    )}
+
+                    {gemHistory.hasMore && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void loadMoreGemHistory(gemHistory.cursor)
+                        }
+                        disabled={gemHistoryLoadingMore}
+                        className="w-full rounded-full border border-fuchsia-100/20 bg-fuchsia-300/[0.06] px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-white transition hover:bg-fuchsia-300/[0.1] disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {gemHistoryLoadingMore ? "Loading..." : "Load More"}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
