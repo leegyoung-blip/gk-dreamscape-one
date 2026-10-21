@@ -296,8 +296,9 @@ test('Progress and Parent Report label a short or missing baseline instead of ca
  assert.match(prLabel(shortBase), /^Comparable history only starts .+, so changes are measured from then, not across 30 days$/);
  assert.match(prLabel(fullBase), /^Compared with the profile around /);
  assert.equal(prLabel(null), 'No earlier profile to compare with yet, so no 30-day change is shown');
- const notes = (baseline) => evalComponentConst(PR, 'questionsNote', {days:30, baseline, baselineLabel:'18 Oct'});
- assert.match(notes(null), /^All recorded academic questions/);
+ const notes = (baseline, questionsCompleted = 12) => evalComponentConst(PR, 'questionsNote', {days:30, baseline, baselineLabel:'18 Oct', questionsCompleted, latestQuestionCount:240});
+ // Progress final correction: no baseline means the period count is unavailable, not lifetime questions.
+ assert.match(notes(null, null), /^Period count unavailable: there is no comparable earlier question count\. 240 questions are recorded in total\.$/);
  assert.match(notes(shortBase), /since 18 Oct, a shorter span than the selected period/);
 
  const paLabel = (baseline) => evalComponentConst(PA, 'periodComparison', {baseline, baselineLabel:'18 Oct 2026', period:{label:'30 days'}});
@@ -460,4 +461,55 @@ test('E: unconfirmed concepts are not described as lacking varied work', () => {
 test('retained 2B-1B safeguards: review flag parity and low-confidence English still hold', () => {
  assert.equal(an.storedNeedsReview({needs_review:false, mapping_confidence:0.75, extraction_confidence:0.95}, true), true);
  assert.equal(englishUi.englishMasteryDisplayGroup({stage:'Strong', evidence_confidence:'Low'}), 'needs_evidence');
+});
+
+/* ---------- Progress final correction: historical question count and trend wording ---------- */
+
+const PR_Q = extractTopLevel(PR, ['asNumber', 'parseSubjectSummaries', 'snapshotQuestionCount']);
+
+test('Progress baseline count: null source count falls back to English + Math summaries (30 + 20 = 50)', () => {
+ const snap = {source_question_count:null, subject_summaries:[{subject:'english', questions_attempted:30}, {subject:'math', questions_attempted:20}, {subject:'science', questions_attempted:99}]};
+ assert.equal(PR_Q.snapshotQuestionCount(snap), 50);
+ assert.equal(PR_Q.snapshotQuestionCount({...snap, source_question_count:'  '}), 50, 'blank string is missing too');
+});
+
+test('Progress baseline count: an explicit 0 stays 0', () => {
+ assert.equal(PR_Q.snapshotQuestionCount({source_question_count:0, subject_summaries:[{subject:'english', questions_attempted:30}]}), 0);
+ assert.equal(PR_Q.snapshotQuestionCount({source_question_count:null, subject_summaries:[{subject:'english', questions_attempted:0}, {subject:'math', questions_attempted:0}]}), 0);
+});
+
+test('Progress baseline count: no reliable count gives null, and the period total is unavailable', () => {
+ for (const snap of [
+  {source_question_count:null},
+  {source_question_count:null, subject_summaries:[]},
+  {source_question_count:null, subject_summaries:[{subject:'science', questions_attempted:40}]},
+  {source_question_count:null, subject_summaries:[{subject:'english', questions_attempted:30}, {subject:'math', questions_attempted:null}]},
+ ]) assert.equal(PR_Q.snapshotQuestionCount(snap), null, JSON.stringify(snap));
+
+ const completed = (days, baselineQuestionCount) => evalComponentConst(PR, 'questionsCompleted', {days, baselineQuestionCount, latestQuestionCount:240});
+ assert.equal(completed(30, null), null, 'no lifetime fallback for a period');
+ assert.equal(completed(30, 200), 40);
+ assert.equal(completed(30, 0), 240, 'a genuine zero baseline counts everything since');
+ assert.equal(completed(null, null), 240, '"All time" shows the lifetime total');
+
+ const fullBase = {snapshot:{}, date:new Date(Date.now() - 40 * 86400000), coversPeriod:true};
+ const note = evalComponentConst(PR, 'questionsNote', {days:30, baseline:fullBase, baselineLabel:'10 Sep', questionsCompleted:null, latestQuestionCount:240});
+ assert.match(note, /^Period count unavailable/);
+ assert.doesNotMatch(note, /added in this period/);
+ assert.match(read(PR), /\{questionsCompleted === null \? "—" : Math\.round\(questionsCompleted\)\}/);
+});
+
+test('Progress labels separate period activity from the server trend', () => {
+ const src = read(PR);
+ for (const old of ['CONCEPTS STRENGTHENED', 'positive recent movement', 'RECENTLY IMPROVED', 'Concepts improved', 'No clear improvement signal yet for this timeframe']) {
+  assert.ok(!src.includes(old), `old wording still present: ${old}`);
+ }
+ assert.match(src, /<small>CURRENTLY IMPROVING<\/small>/);
+ assert.match(src, /Concepts practised in this period that currently show an improving trend\. The trend can span a different interval\./);
+ assert.match(src, /<small>Currently improving<\/small>/);
+ // Genuinely period-scoped activity keeps its period label.
+ const fullBase = {snapshot:{}, date:new Date(Date.now() - 40 * 86400000), coversPeriod:true};
+ assert.equal(evalComponentConst(PR, 'questionsNote', {days:30, baseline:fullBase, baselineLabel:'10 Sep', questionsCompleted:40, latestQuestionCount:240}), 'Academic question evidence added in this period.');
+ // The profile RPC receives no timeframe, so the server trend cannot be tied to the selected period.
+ assert.doesNotMatch(read('hooks/useNovaPlusProfile.ts'), /p_days|p_window|p_period/);
 });

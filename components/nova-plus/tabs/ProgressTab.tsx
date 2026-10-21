@@ -143,6 +143,23 @@ function parseSubjectSummaries(snapshot: ProfileSnapshot): SubjectSnapshotSummar
     .filter((item): item is SubjectSnapshotSummary => Boolean(item));
 }
 
+// Historical academic question count: a valid source_question_count first,
+// otherwise the English/Math subject-summary counts. Returns null (not 0) when
+// the snapshot has no usable count, so a period total is never derived from a
+// missing baseline. A genuine 0 is kept.
+function snapshotQuestionCount(snapshot: ProfileSnapshot): number | null {
+  const direct = asNumber(snapshot.source_question_count);
+  if (direct !== null) return direct;
+
+  const rows = parseSubjectSummaries(snapshot).filter((item) =>
+    ["english", "math"].includes(item.subject),
+  );
+  if (!rows.length) return null;
+  if (rows.some((item) => item.questions_attempted === null)) return null;
+
+  return rows.reduce((sum, item) => sum + (item.questions_attempted ?? 0), 0);
+}
+
 function snapshotSubjectMastery(snapshot: ProfileSnapshot, subject: "english" | "math") {
   return (
     parseSubjectSummaries(snapshot).find((item) => item.subject === subject)
@@ -534,13 +551,17 @@ export default function ProgressTab({
       .reduce((sum, item) => sum + Number(item.questions_attempted ?? 0), 0);
 
   const baselineQuestionCount = baseline
-    ? asNumber(baseline.snapshot.source_question_count)
+    ? snapshotQuestionCount(baseline.snapshot)
     : null;
 
+  // null = no reliable earlier count, so the period total is unavailable
+  // (lifetime questions are never presented as this period's questions).
   const questionsCompleted =
-    days === null || baselineQuestionCount === null
+    days === null
       ? latestQuestionCount
-      : Math.max(0, latestQuestionCount - baselineQuestionCount);
+      : baselineQuestionCount === null
+        ? null
+        : Math.max(0, latestQuestionCount - baselineQuestionCount);
 
   const subjectCards = (["english", "math"] as const).map((subject) => {
     const current = currentSubjectMastery(profile, subject);
@@ -654,8 +675,8 @@ export default function ProgressTab({
   const questionsNote =
     days === null
       ? "All academic question evidence recorded in the learner profile."
-      : !baseline
-        ? "All recorded academic questions. There is no earlier profile yet to measure this period against."
+      : questionsCompleted === null || !baseline
+        ? `Period count unavailable: there is no comparable earlier question count. ${Math.round(latestQuestionCount)} questions are recorded in total.`
         : baseline.coversPeriod
           ? "Academic question evidence added in this period."
           : `Academic question evidence added since ${baselineLabel}, a shorter span than the selected period.`;
@@ -689,9 +710,9 @@ export default function ProgressTab({
       <section className={styles.summaryGrid}>
         <article className={styles.summaryCard}>
           <span className={styles.summaryIcon}>↗</span>
-          <small>CONCEPTS STRENGTHENED</small>
+          <small>CURRENTLY IMPROVING</small>
           <strong>{improvedSkills.length}</strong>
-          <p>Concepts with positive recent movement.</p>
+          <p>Concepts practised in this period that currently show an improving trend. The trend can span a different interval.</p>
         </article>
 
         <article className={styles.summaryCard}>
@@ -711,7 +732,7 @@ export default function ProgressTab({
         <article className={styles.summaryCard}>
           <span className={styles.summaryIcon}>◎</span>
           <small>QUESTIONS COMPLETED</small>
-          <strong>{Math.round(questionsCompleted)}</strong>
+          <strong>{questionsCompleted === null ? "—" : Math.round(questionsCompleted)}</strong>
           <p>{questionsNote}</p>
         </article>
       </section>
@@ -793,7 +814,7 @@ export default function ProgressTab({
 
               <div className={styles.subjectStats}>
                 <div>
-                  <small>Concepts improved</small>
+                  <small>Currently improving</small>
                   <b>{card.improvedCount}</b>
                 </div>
                 <div>
@@ -874,7 +895,7 @@ export default function ProgressTab({
         <section className={styles.listSection}>
           <div className={styles.sectionHeadingCompact}>
             <div>
-              <span className={styles.eyebrow}>RECENTLY IMPROVED</span>
+              <span className={styles.eyebrow}>CURRENTLY IMPROVING</span>
               <h3>Momentum to keep</h3>
             </div>
           </div>
@@ -895,7 +916,7 @@ export default function ProgressTab({
 
             {!improvedSkills.length && (
               <div className={styles.listEmpty}>
-                No clear improvement signal yet for this timeframe.
+                No concept practised in this timeframe currently shows a clear improving trend.
               </div>
             )}
           </div>
