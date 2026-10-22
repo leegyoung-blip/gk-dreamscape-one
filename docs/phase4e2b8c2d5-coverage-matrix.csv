@@ -1,0 +1,10 @@
+specialist_method_id,primary_level,positive_cases,excluded_cases,insufficient_evidence_cases,difficulty_bands_tested,positive_difficulty_bands,untested_positive_difficulty_bands,gap_status
+heuristic.multi_step.equal_spacing_interval_count,3,2,1,1,1|2|3,1|2,3|4|5,PARTIAL_GRADE_DIFFICULTY
+heuristic.multi_step.equal_spacing_interval_count,4,2,2,0,3|4,3|4,1|2|5,PARTIAL_GRADE_DIFFICULTY
+heuristic.multi_step.equal_spacing_interval_count,5,2,2,1,1|3|4|5,1|5,2|3|4,PARTIAL_GRADE_DIFFICULTY
+heuristic.multi_step.equal_spacing_interval_count,6,3,1,1,2|4|5,2|4|5,1|3,PARTIAL_GRADE_DIFFICULTY
+heuristic.multi_step.multiplicative_comparison_chain,4,3,1,1,1|2|4,1|2|4,3|5,PARTIAL_GRADE_DIFFICULTY
+heuristic.multi_step.multiplicative_comparison_chain,5,3,2,1,1|2|3|4|5,1|3|5,2|4,PARTIAL_GRADE_DIFFICULTY
+heuristic.multi_step.multiplicative_comparison_chain,6,3,3,1,2|3|4|5,2|4|5,1|3,PARTIAL_GRADE_DIFFICULTY
+ratio.relationship.before_after_change,5,4,3,1,1|2|3|4|5,1|2|4|5,3,PARTIAL_GRADE_DIFFICULTY
+ratio.relationship.before_after_change,6,5,2,3,1|2|3|4|5,1|2|3|4|5,,ALL_FIVE_BANDS_SAMPLED
