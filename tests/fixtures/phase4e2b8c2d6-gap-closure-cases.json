@@ -1,0 +1,1248 @@
+{
+  "phase": "4E-2B-8C-2D.6",
+  "fixtureType": "synthetic_missing_grade_difficulty_gap_closure",
+  "notApproval": true,
+  "casesFromProduction": false,
+  "actualNovaOutputs": false,
+  "independentEducatorReviewCompleted": false,
+  "studentRelease": false,
+  "basePhase": "4E-2B-8C-2D.5",
+  "scope": "Exactly one new mathematically checked synthetic positive case for every level-by-difficulty gap reported in 2D.5. No newly authored NOVA explanations.",
+  "difficultyPolicy": "1 to 5 relative to question primary level; author labels are provisional, not expert-calibrated",
+  "cases": [
+    {
+      "caseId": "GAP_SPACE_01",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic: A straight line of flags is numbered from 3 to 19; neighbouring flags are exactly 4 m apart. Find the distance between the two numbered flags.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 3,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 3,
+          "lastOrdinal": 19,
+          "gapLength": 4,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example. Difficulty assigned provisionally for educator calibration. No learner testing or method approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 16,
+        "expectedDistance": 64
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      },
+      "difficultyRelativeToLevel": 3,
+      "coverageFocus": "P3 D3: Identify the gap count before multiplying metres",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_SPACE_02",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic: A straight path has consecutive labelled stepping stones 7 to 44, spaced 5 m apart. Find the distance from the 7th stone to the 44th stone.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 3,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 7,
+          "lastOrdinal": 44,
+          "gapLength": 5,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example. Difficulty assigned provisionally for educator calibration. No learner testing or method approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 37,
+        "expectedDistance": 185
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      },
+      "difficultyRelativeToLevel": 4,
+      "coverageFocus": "P3 D4: Reject the mistaken use of 44 as the number of gaps",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_SPACE_03",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic: Numbered posts in a straight row run from post 12 to post 93 with 6 m between neighbouring posts. Find the total distance between the stated posts.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 3,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 12,
+          "lastOrdinal": 93,
+          "gapLength": 6,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example. Difficulty assigned provisionally for educator calibration. No learner testing or method approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 81,
+        "expectedDistance": 486
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      },
+      "difficultyRelativeToLevel": 5,
+      "coverageFocus": "P3 D5: Long-range subtraction must precede multiplication",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_SPACE_04",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic: Six numbered garden markers lie in a straight row at equal 3 m gaps. Find the distance from marker 1 to marker 6.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 4,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 1,
+          "lastOrdinal": 6,
+          "gapLength": 3,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example. Difficulty assigned provisionally for educator calibration. No learner testing or method approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 5,
+        "expectedDistance": 15
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      },
+      "difficultyRelativeToLevel": 1,
+      "coverageFocus": "P4 D1: Explain that six posts create five gaps",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_SPACE_05",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic: Straight-row parade markers are numbered consecutively. Markers 9 and 22 are at opposite ends of a section and adjacent markers are 4 m apart. Find the section length.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 4,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 9,
+          "lastOrdinal": 22,
+          "gapLength": 4,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example. Difficulty assigned provisionally for educator calibration. No learner testing or method approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 13,
+        "expectedDistance": 52
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      },
+      "difficultyRelativeToLevel": 2,
+      "coverageFocus": "P4 D2: Relate ordinal differences to gaps",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_SPACE_06",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic: A long straight fence has consecutively numbered posts. Find the length between posts 18 and 105 when the same 9 m separates each pair of neighbours.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 4,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 18,
+          "lastOrdinal": 105,
+          "gapLength": 9,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example. Difficulty assigned provisionally for educator calibration. No learner testing or method approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 87,
+        "expectedDistance": 783
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      },
+      "difficultyRelativeToLevel": 5,
+      "coverageFocus": "P4 D5: Track large index differences and units",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_SPACE_07",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic: A straight boardwalk has numbered lamps from 4 through 19, with 2.5 m between successive lamps. Find the separation of lamps 4 and 19.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 5,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 4,
+          "lastOrdinal": 19,
+          "gapLength": 2.5,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example. Difficulty assigned provisionally for educator calibration. No learner testing or method approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 15,
+        "expectedDistance": 37.5
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      },
+      "difficultyRelativeToLevel": 2,
+      "coverageFocus": "P5 D2: Handle decimal distance without counting lamps",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_SPACE_08",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic: Along a straight display rail, consecutive labels identify positions 26 to 67. Every adjacent pair is 1.5 m apart. Find the distance between the endpoints.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 5,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 26,
+          "lastOrdinal": 67,
+          "gapLength": 1.5,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example. Difficulty assigned provisionally for educator calibration. No learner testing or method approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 41,
+        "expectedDistance": 61.5
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      },
+      "difficultyRelativeToLevel": 3,
+      "coverageFocus": "P5 D3: Use decimal multiplication consistently",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_SPACE_09",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic: On a straight footpath, numbered light poles increase one by one from 18 to 109. Their equal spacing is 3.5 m. Find the distance between those two poles.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 5,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 18,
+          "lastOrdinal": 109,
+          "gapLength": 3.5,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example. Difficulty assigned provisionally for educator calibration. No learner testing or method approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 91,
+        "expectedDistance": 318.5
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      },
+      "difficultyRelativeToLevel": 4,
+      "coverageFocus": "P5 D4: Check large interval counts and decimal units",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_SPACE_10",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic: A straight path has consecutively numbered signs; each adjacent gap is 4 m. Determine the distance from sign 2 to sign 9.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 6,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 2,
+          "lastOrdinal": 9,
+          "gapLength": 4,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example. Difficulty assigned provisionally for educator calibration. No learner testing or method approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 7,
+        "expectedDistance": 28
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      },
+      "difficultyRelativeToLevel": 1,
+      "coverageFocus": "P6 D1: Avoid an unnecessary multi-step diagram for simple cases",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_SPACE_11",
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "scenario": "Synthetic: A straight railway platform has evenly spaced numbered markers from 45 to 126, one number per marker. The adjacent gap is 2.5 m. Find their separation.",
+      "input": {
+        "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+        "learnerLevel": 6,
+        "domain": "measurement",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "subtraction",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "equal_spacing_interval_count",
+          "firstOrdinal": 45,
+          "lastOrdinal": 126,
+          "gapLength": 2.5,
+          "equalAdjacentGaps": true,
+          "indexing": "consecutive",
+          "path": "straight",
+          "goal": "distance_between_positions"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_EQUAL_SPACING_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example. Difficulty assigned provisionally for educator calibration. No learner testing or method approval.",
+      "mathCheck": {
+        "kind": "spacing",
+        "expectedIntervals": 81,
+        "expectedDistance": 202.5
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "represent_positions",
+          "count_intervals",
+          "calculate_distance",
+          "check_small_case"
+        ],
+        "misconceptionId": "count_positions_instead_of_gaps",
+        "visualHint": "number_line",
+        "reviewPrompts": [
+          "Can the learner explain why endpoints are not extra gaps?",
+          "Are units and an adjacent-pair check shown?",
+          "Does a short diagram support P3 understanding?"
+        ]
+      },
+      "difficultyRelativeToLevel": 3,
+      "coverageFocus": "P6 D3: Explain indexed intervals with decimals",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_CHAIN_01",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "scenario": "Synthetic: Three sticker collections A, B and C: B has twice A; C has three times B; their combined total is 81 stickers. How many are in C?",
+      "input": {
+        "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+        "learnerLevel": 4,
+        "domain": "whole_numbers",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "comparison",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "multiplicative_comparison_chain",
+          "quantityKeys": [
+            "a",
+            "b",
+            "c"
+          ],
+          "relationships": [
+            {
+              "quantity": "b",
+              "relativeTo": "a",
+              "numerator": 2,
+              "denominator": 1
+            },
+            {
+              "quantity": "c",
+              "relativeTo": "b",
+              "numerator": 3,
+              "denominator": 1
+            }
+          ],
+          "combinedTotalKnown": true,
+          "combinedTotalIncludesExactlyTheseQuantities": true,
+          "targetQuantity": "c",
+          "comparisonType": "multiplicative"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_MULTIPLICATIVE_CHAIN_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example; pedagogical difficulty and suitability require two independent educator reviews.",
+      "mathCheck": {
+        "kind": "comparison",
+        "amounts": {
+          "a": 9,
+          "b": 18,
+          "c": 54
+        },
+        "combinedTotal": 81,
+        "expectedTarget": 54
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "identify_reference",
+          "equivalent_units",
+          "find_one_unit",
+          "scale_target",
+          "check_comparisons"
+        ],
+        "misconceptionId": "mixed_reference_units",
+        "visualHint": "bar_model",
+        "reviewPrompts": [
+          "Are all coefficients defined against the SAME reference quantity?",
+          "Are half-units aligned correctly?",
+          "Does the solution check every comparison and recombine the total?"
+        ]
+      },
+      "difficultyRelativeToLevel": 3,
+      "coverageFocus": "P4 D3: Follow a linked multiplicative chain, not three independent multipliers",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_CHAIN_02",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "scenario": "Synthetic: Four classroom groups A, B, C and D contain 154 counters altogether. B has 3 times A, C has 2 times B, and D has 2 times C. Find group D.",
+      "input": {
+        "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+        "learnerLevel": 4,
+        "domain": "whole_numbers",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "comparison",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "multiplicative_comparison_chain",
+          "quantityKeys": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "relationships": [
+            {
+              "quantity": "b",
+              "relativeTo": "a",
+              "numerator": 3,
+              "denominator": 1
+            },
+            {
+              "quantity": "c",
+              "relativeTo": "b",
+              "numerator": 2,
+              "denominator": 1
+            },
+            {
+              "quantity": "d",
+              "relativeTo": "c",
+              "numerator": 2,
+              "denominator": 1
+            }
+          ],
+          "combinedTotalKnown": true,
+          "combinedTotalIncludesExactlyTheseQuantities": true,
+          "targetQuantity": "d",
+          "comparisonType": "multiplicative"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_MULTIPLICATIVE_CHAIN_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example; pedagogical difficulty and suitability require two independent educator reviews.",
+      "mathCheck": {
+        "kind": "comparison",
+        "amounts": {
+          "a": 7,
+          "b": 21,
+          "c": 42,
+          "d": 84
+        },
+        "combinedTotal": 154,
+        "expectedTarget": 84
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "identify_reference",
+          "equivalent_units",
+          "find_one_unit",
+          "scale_target",
+          "check_comparisons"
+        ],
+        "misconceptionId": "mixed_reference_units",
+        "visualHint": "bar_model",
+        "reviewPrompts": [
+          "Are all coefficients defined against the SAME reference quantity?",
+          "Are half-units aligned correctly?",
+          "Does the solution check every comparison and recombine the total?"
+        ]
+      },
+      "difficultyRelativeToLevel": 5,
+      "coverageFocus": "P4 D5: Four connected groups and combined-total check",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_CHAIN_03",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "scenario": "Synthetic: Three boxes A, B and C contain 84 cards altogether. B contains twice A, and C contains twice B. Find A.",
+      "input": {
+        "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+        "learnerLevel": 5,
+        "domain": "whole_numbers",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "comparison",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "multiplicative_comparison_chain",
+          "quantityKeys": [
+            "a",
+            "b",
+            "c"
+          ],
+          "relationships": [
+            {
+              "quantity": "b",
+              "relativeTo": "a",
+              "numerator": 2,
+              "denominator": 1
+            },
+            {
+              "quantity": "c",
+              "relativeTo": "b",
+              "numerator": 2,
+              "denominator": 1
+            }
+          ],
+          "combinedTotalKnown": true,
+          "combinedTotalIncludesExactlyTheseQuantities": true,
+          "targetQuantity": "a",
+          "comparisonType": "multiplicative"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_MULTIPLICATIVE_CHAIN_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example; pedagogical difficulty and suitability require two independent educator reviews.",
+      "mathCheck": {
+        "kind": "comparison",
+        "amounts": {
+          "a": 12,
+          "b": 24,
+          "c": 48
+        },
+        "combinedTotal": 84,
+        "expectedTarget": 12
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "identify_reference",
+          "equivalent_units",
+          "find_one_unit",
+          "scale_target",
+          "check_comparisons"
+        ],
+        "misconceptionId": "mixed_reference_units",
+        "visualHint": "bar_model",
+        "reviewPrompts": [
+          "Are all coefficients defined against the SAME reference quantity?",
+          "Are half-units aligned correctly?",
+          "Does the solution check every comparison and recombine the total?"
+        ]
+      },
+      "difficultyRelativeToLevel": 2,
+      "coverageFocus": "P5 D2: Backsolve shared units from a combined total",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_CHAIN_04",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "scenario": "Synthetic: Four paper collections A, B, C, D hold 103 sheets in total. B is 5/2 of A, C is 3/2 of B and D is 3/2 of C. Find D.",
+      "input": {
+        "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+        "learnerLevel": 5,
+        "domain": "whole_numbers",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "comparison",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "multiplicative_comparison_chain",
+          "quantityKeys": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "relationships": [
+            {
+              "quantity": "b",
+              "relativeTo": "a",
+              "numerator": 5,
+              "denominator": 2
+            },
+            {
+              "quantity": "c",
+              "relativeTo": "b",
+              "numerator": 3,
+              "denominator": 2
+            },
+            {
+              "quantity": "d",
+              "relativeTo": "c",
+              "numerator": 3,
+              "denominator": 2
+            }
+          ],
+          "combinedTotalKnown": true,
+          "combinedTotalIncludesExactlyTheseQuantities": true,
+          "targetQuantity": "d",
+          "comparisonType": "multiplicative"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_MULTIPLICATIVE_CHAIN_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example; pedagogical difficulty and suitability require two independent educator reviews.",
+      "mathCheck": {
+        "kind": "comparison",
+        "amounts": {
+          "a": 8,
+          "b": 20,
+          "c": 30,
+          "d": 45
+        },
+        "combinedTotal": 103,
+        "expectedTarget": 45
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "identify_reference",
+          "equivalent_units",
+          "find_one_unit",
+          "scale_target",
+          "check_comparisons"
+        ],
+        "misconceptionId": "mixed_reference_units",
+        "visualHint": "bar_model",
+        "reviewPrompts": [
+          "Are all coefficients defined against the SAME reference quantity?",
+          "Are half-units aligned correctly?",
+          "Does the solution check every comparison and recombine the total?"
+        ]
+      },
+      "difficultyRelativeToLevel": 4,
+      "coverageFocus": "P5 D4: Fractional multipliers with an exact shared base",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_CHAIN_05",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "scenario": "Synthetic: Three game point totals A, B and C sum to 30. B is twice A and C is three times A. Find B.",
+      "input": {
+        "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+        "learnerLevel": 6,
+        "domain": "whole_numbers",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "comparison",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "multiplicative_comparison_chain",
+          "quantityKeys": [
+            "a",
+            "b",
+            "c"
+          ],
+          "relationships": [
+            {
+              "quantity": "b",
+              "relativeTo": "a",
+              "numerator": 2,
+              "denominator": 1
+            },
+            {
+              "quantity": "c",
+              "relativeTo": "b",
+              "numerator": 3,
+              "denominator": 2
+            }
+          ],
+          "combinedTotalKnown": true,
+          "combinedTotalIncludesExactlyTheseQuantities": true,
+          "targetQuantity": "b",
+          "comparisonType": "multiplicative"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_MULTIPLICATIVE_CHAIN_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example; pedagogical difficulty and suitability require two independent educator reviews.",
+      "mathCheck": {
+        "kind": "comparison",
+        "amounts": {
+          "a": 5,
+          "b": 10,
+          "c": 15
+        },
+        "combinedTotal": 30,
+        "expectedTarget": 10
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "identify_reference",
+          "equivalent_units",
+          "find_one_unit",
+          "scale_target",
+          "check_comparisons"
+        ],
+        "misconceptionId": "mixed_reference_units",
+        "visualHint": "bar_model",
+        "reviewPrompts": [
+          "Are all coefficients defined against the SAME reference quantity?",
+          "Are half-units aligned correctly?",
+          "Does the solution check every comparison and recombine the total?"
+        ]
+      },
+      "difficultyRelativeToLevel": 1,
+      "coverageFocus": "P6 D1: Compare shorter direct alternatives against specialist scaffolding",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_CHAIN_06",
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "scenario": "Synthetic: Four display quantities A, B, C and D sum to 140. B is 3/2 of A, C is 5/3 of B and D is twice C. Find C.",
+      "input": {
+        "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+        "learnerLevel": 6,
+        "domain": "whole_numbers",
+        "problemStructure": "multi_step",
+        "requiredReasoning": [
+          "comparison",
+          "multiplication"
+        ],
+        "primaryFamilies": [
+          "heuristic.multi_step"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "multiplicative_comparison_chain",
+          "quantityKeys": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "relationships": [
+            {
+              "quantity": "b",
+              "relativeTo": "a",
+              "numerator": 3,
+              "denominator": 2
+            },
+            {
+              "quantity": "c",
+              "relativeTo": "b",
+              "numerator": 5,
+              "denominator": 3
+            },
+            {
+              "quantity": "d",
+              "relativeTo": "c",
+              "numerator": 2,
+              "denominator": 1
+            }
+          ],
+          "combinedTotalKnown": true,
+          "combinedTotalIncludesExactlyTheseQuantities": true,
+          "targetQuantity": "c",
+          "comparisonType": "multiplicative"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_MULTIPLICATIVE_CHAIN_SUPPORTED"
+      },
+      "reviewNote": "Synthetic gap-closure example; pedagogical difficulty and suitability require two independent educator reviews.",
+      "mathCheck": {
+        "kind": "comparison",
+        "amounts": {
+          "a": 14,
+          "b": 21,
+          "c": 35,
+          "d": 70
+        },
+        "combinedTotal": 140,
+        "expectedTarget": 35
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "identify_reference",
+          "equivalent_units",
+          "find_one_unit",
+          "scale_target",
+          "check_comparisons"
+        ],
+        "misconceptionId": "mixed_reference_units",
+        "visualHint": "bar_model",
+        "reviewPrompts": [
+          "Are all coefficients defined against the SAME reference quantity?",
+          "Are half-units aligned correctly?",
+          "Does the solution check every comparison and recombine the total?"
+        ]
+      },
+      "difficultyRelativeToLevel": 3,
+      "coverageFocus": "P6 D3: Explain connected rational ratios and total reconstruction",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    },
+    {
+      "caseId": "GAP_RATIO_01",
+      "methodId": "ratio.relationship.before_after_change",
+      "scenario": "Synthetic: Before a fair, the ratio of red to blue paper tokens is 2:3. Four red tokens are added and four blue tokens are removed. The new ratio is 1:1. Find the original number of blue tokens.",
+      "input": {
+        "methodId": "ratio.relationship.before_after_change",
+        "learnerLevel": 5,
+        "domain": "ratio",
+        "problemStructure": "ratio_relationship",
+        "requiredReasoning": [
+          "ratio_scaling",
+          "addition"
+        ],
+        "primaryFamilies": [
+          "ratio.relationship"
+        ],
+        "hasVisual": false,
+        "visualReviewed": false,
+        "facts": {
+          "kind": "ratio_before_after_change",
+          "beforeRatio": [
+            2,
+            3
+          ],
+          "afterRatio": [
+            1,
+            1
+          ],
+          "changes": [
+            4,
+            -4
+          ],
+          "changeEvidence": "both_explicit",
+          "quantityType": "whole_objects",
+          "goal": "original_quantity"
+        }
+      },
+      "expected": {
+        "status": "compatible_for_review",
+        "ruleCode": "SPECIALIST_8C2C3B_CHANGING_RATIO_STRUCTURE_SUPPORTED"
+      },
+      "reviewNote": "Synthetic ratio gap example; educator must judge diagram and relative P5 difficulty; no approval.",
+      "mathCheck": {
+        "kind": "ratio",
+        "original": [
+          16,
+          24
+        ],
+        "updated": [
+          20,
+          20
+        ],
+        "expectedTarget": 24
+      },
+      "pedagogyChecklist": {
+        "requiredStages": [
+          "identify_quantities",
+          "represent_before",
+          "apply_changes",
+          "enforce_after_ratio",
+          "solve_and_verify"
+        ],
+        "misconceptionId": "reuse_ratio_unit_across_states",
+        "visualHint": "ratio_table",
+        "reviewPrompts": [
+          "Are ordered quantities labelled before and after?",
+          "Is no unchanged quantity assumed without evidence?",
+          "Does the learner verify both ratios and both stated changes?"
+        ]
+      },
+      "difficultyRelativeToLevel": 3,
+      "coverageFocus": "P5 D3: track both positive and negative changes; do not assume a quantity stays fixed",
+      "coverageCategory": "positive",
+      "caseProvenance": "synthetic_designed_case_not_a_production_question"
+    }
+  ]
+}

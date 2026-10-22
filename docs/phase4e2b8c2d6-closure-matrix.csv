@@ -1,0 +1,10 @@
+specialist_method_id,primary_level,2d5_positive_cases,2d6_added_positive_cases,total_positive_cases,2d5_negative_or_insufficient_cases,positive_difficulty_bands,missing_positive_bands,pedagogical_validation
+heuristic.multi_step.equal_spacing_interval_count,3,2,3,5,2,1|2|3|4|5,,PENDING_EDUCATOR_REVIEW
+heuristic.multi_step.equal_spacing_interval_count,4,2,3,5,2,1|2|3|4|5,,PENDING_EDUCATOR_REVIEW
+heuristic.multi_step.equal_spacing_interval_count,5,2,3,5,3,1|2|3|4|5,,PENDING_EDUCATOR_REVIEW
+heuristic.multi_step.equal_spacing_interval_count,6,3,2,5,2,1|2|3|4|5,,PENDING_EDUCATOR_REVIEW
+heuristic.multi_step.multiplicative_comparison_chain,4,3,2,5,2,1|2|3|4|5,,PENDING_EDUCATOR_REVIEW
+heuristic.multi_step.multiplicative_comparison_chain,5,3,2,5,3,1|2|3|4|5,,PENDING_EDUCATOR_REVIEW
+heuristic.multi_step.multiplicative_comparison_chain,6,3,2,5,4,1|2|3|4|5,,PENDING_EDUCATOR_REVIEW
+ratio.relationship.before_after_change,5,4,1,5,4,1|2|3|4|5,,PENDING_EDUCATOR_REVIEW
+ratio.relationship.before_after_change,6,5,0,5,5,1|2|3|4|5,,PENDING_EDUCATOR_REVIEW
