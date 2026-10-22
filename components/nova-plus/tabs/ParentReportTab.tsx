@@ -513,7 +513,11 @@ function printReport({
         <span>NOVA RECOMMENDS NEXT</span>
         <h3>${escapeHtml(recommendation.skill_name)}</h3>
         <p>${escapeHtml(recommendation.reason)}</p>
-        <b>${escapeHtml(recommendation.quiz.quiz_title)}</b>
+        ${
+          recommendation.quiz?.quiz_title
+            ? `<b>${escapeHtml(recommendation.quiz.quiz_title)}</b>`
+            : ""
+        }
       </div>
     `
     : `<div class="empty">No single top-priority concept is shown here. Nova Recommends in NOVA+ lists the current options.</div>`;
@@ -1476,7 +1480,7 @@ export default function ParentReportTab({
               <p>{firstRecommendation.reason}</p>
               <div>
                 <span>Recommended mission</span>
-                <b>{firstRecommendation.quiz.quiz_title}</b>
+                <b>{firstRecommendation.quiz?.quiz_title || "No open mission yet"}</b>
               </div>
             </div>
           </article>

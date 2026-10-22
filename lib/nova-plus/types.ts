@@ -208,9 +208,13 @@ export type NovaRecommendationAlternative = {
   quiz_skill_coverage_percentage: number | null;
 };
 
+/**
+ * Phase 2B-2D-B2: the server always returns a quiz OBJECT, but its fields are
+ * null when no mission the learner can open exists (R1: the need stays visible).
+ */
 export type NovaRecommendationQuiz = {
-  quiz_id: string;
-  quiz_title: string;
+  quiz_id: string | null;
+  quiz_title: string | null;
   quiz_type: string | null;
   quiz_href: string | null;
   quiz_skill_coverage_percentage: number | null;
@@ -253,6 +257,23 @@ export type NovaRecommendation = {
   reason: string;
   quiz: NovaRecommendationQuiz;
   alternatives: NovaRecommendationAlternative[];
+  /** Added by the enforcement SQL; absent from older payloads. */
+  practice_status?: NovaPracticeStatus;
+};
+
+export type NovaPracticeStatus =
+  | "available"
+  | "practice_completed"
+  | "no_accessible_mission"
+  | "no_published_mission";
+
+/** Response of start_nova_learning_cycle_for_quiz (server-built href). */
+export type NovaCycleStartResult = {
+  cycle_id: string;
+  status: string;
+  existing: boolean;
+  quiz_id: string;
+  quiz_href: string;
 };
 
 export type NovaRecommendationsPayload = {

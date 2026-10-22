@@ -1,0 +1,40 @@
+DREAMSCAPE ONE — Phase 4E-2B-8C-2D.1
+Offline Specialist Teaching Quality Casebook
+
+This ZIP adds ONLY the following files at their ACTUAL repository paths:
+  scripts/phase4e2b8c2d1-quality-casebook.cjs
+  tests/fixtures/phase4e2b8c2d1-quality-cases.json
+  tests/phase4e2b8c2d1-specialist-teaching-quality.test.cjs
+  docs/PHASE_8C2D1_SPECIALIST_QUALITY_REVIEW.md
+
+NO existing source files are replaced. NO SQL. NO staff API route.
+No source text / live answer keys are included in these synthetic fixtures.
+
+INSTALL (PowerShell from repository root):
+  $zip = "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2D1_SPECIALIST_QUALITY_CASEBOOK_INSTALL.zip"
+  Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+
+VERIFY:
+  node --test tests/phase4e2b8c2d1-specialist-teaching-quality.test.cjs
+  if ($LASTEXITCODE -ne 0) { throw "Tests failed — stop" }
+  node scripts/phase4e2b8c2d1-quality-casebook.cjs
+  if ($LASTEXITCODE -ne 0) { throw "Quality casebook failed — stop" }
+  npx tsc --noEmit
+  if ($LASTEXITCODE -ne 0) { throw "TypeScript check failed — stop" }
+  git --no-pager diff --check
+  git --no-pager status --short
+
+STAGE ONLY THIS PHASE:
+  git add scripts/phase4e2b8c2d1-quality-casebook.cjs
+  git add tests/fixtures/phase4e2b8c2d1-quality-cases.json
+  git add tests/phase4e2b8c2d1-specialist-teaching-quality.test.cjs
+  git add docs/PHASE_8C2D1_SPECIALIST_QUALITY_REVIEW.md
+  git --no-pager diff --cached --name-only
+  git --no-pager diff --cached --check
+
+COMMIT ONLY WHEN ALL CHECKS PASS and staged-file list is correct:
+  git commit -m "Phase 8C-2D1 add offline specialist teaching quality casebook"
+  git push
+
+Status after installation: technical checks only, NOT independent pedagogical sign-off.
+Authenticated live session tests are deferred to final beta readiness.

@@ -29,29 +29,60 @@ import {
 } from "@/lib/nova-plus/teaching-evidence";
 import {
   checkPracticeAccess,
+  classifyCycleStartError,
   practiceAccessState,
   practiceQuizKey,
+  serverPracticeHref,
+  type CycleStartIssue,
   type PracticeAccessClient,
   type PracticeAccessResult,
   type PracticeAccessState,
 } from "@/lib/nova-plus/practice-access";
 import styles from "./NovaRecommendsTab.module.css";
 
+type CardPracticeState = PracticeAccessState | CycleStartIssue;
+
 type PracticeAccessLookup = (
   subject: unknown,
   quizId: unknown,
-) => PracticeAccessState;
+) => CardPracticeState;
 
 // Shown inside the card so the learning insight stays visible.
 const PRACTICE_ACCESS_COPY: Record<
-  "blocked" | "unverified",
+  "blocked" | "unverified" | "not_startable",
   string
 > = {
   blocked:
     "This mission is not open for this account yet. The learning insight above still applies.",
   unverified:
     "Nova could not confirm access to this mission right now. Please try again shortly.",
+  not_startable:
+    "Nova can't start a practice cycle for this concept right now. The learning insight above still applies.",
 };
+
+function canRetryAccess(state: CardPracticeState) {
+  return state === "unverified" || state === "blocked";
+}
+
+function practiceNoticeCopy(state: CardPracticeState) {
+  if (state === "unverified") return PRACTICE_ACCESS_COPY.unverified;
+  if (state === "not_startable") return PRACTICE_ACCESS_COPY.not_startable;
+  return PRACTICE_ACCESS_COPY.blocked;
+}
+
+// Phase 2B-2D-B2: no open mission. Completed practice is never described as
+// an access denial; older payloads without practice_status keep the old copy.
+function missingMissionCopy(
+  status: NovaRecommendation["practice_status"],
+) {
+  if (status === "no_accessible_mission") {
+    return "A matching mission is not open for this account yet. The learning insight above still applies.";
+  }
+  if (status === "practice_completed") {
+    return "The matching missions have already been completed. New practice will appear here when it is available.";
+  }
+  return "Nova is waiting for a mapped mission to become available.";
+}
 
 type NovaRecommendsTabProps = {
   learnerId: string;
@@ -268,6 +299,8 @@ function RecommendationCard({
   canLaunchPractice,
   isAdminPreview,
   accessFor,
+  onRetryAccess,
+  retryingAccess = false,
   featured = false,
   schoolworkCount = 0,
   teachingSignals = [],
@@ -279,6 +312,8 @@ function RecommendationCard({
   canLaunchPractice: boolean;
   isAdminPreview: boolean;
   accessFor: PracticeAccessLookup;
+  onRetryAccess?: () => void;
+  retryingAccess?: boolean;
   featured?: boolean;
   schoolworkCount?: number;
   teachingSignals?: NovaTeachingSignal[];
@@ -297,10 +332,12 @@ function RecommendationCard({
 
   // The learner may only act on a mission the access check has confirmed.
   // Admin preview of another learner keeps its existing preview link.
-  const practiceAccess: PracticeAccessState =
+  const practiceAccess: CardPracticeState =
     canLaunchPractice
       ? accessFor(item.subject, item.quiz?.quiz_id)
       : "checking";
+
+  const alternatives = item.alternatives ?? [];
 
   const mayOpen =
     missionAvailable &&
@@ -460,16 +497,20 @@ function RecommendationCard({
           </small>
 
           <strong>
-            {item.quiz.quiz_title}
+            {item.quiz?.quiz_title ||
+              "No open mission yet"}
           </strong>
 
           <span>
-            {item.quiz.quiz_type ||
-              "Practice"}
+            {item.quiz?.quiz_id
+              ? item.quiz?.quiz_type ||
+                "Practice"
+              : ""}
 
-            {item.quiz
-              .quiz_skill_coverage_percentage !==
-            null
+            {item.quiz?.quiz_id &&
+            item.quiz
+              ?.quiz_skill_coverage_percentage !=
+              null
               ? ` · ${Math.round(
                   numberValue(
                     item.quiz
@@ -520,8 +561,9 @@ function RecommendationCard({
             </strong>
 
             <span>
-              Nova is waiting for a mapped
-              mission to become available.
+              {missingMissionCopy(
+                item.practice_status,
+              )}
             </span>
           </div>
         ) : canLaunchPractice &&
@@ -544,10 +586,21 @@ function RecommendationCard({
             </strong>
 
             <span>
-              {practiceAccess === "unverified"
-                ? PRACTICE_ACCESS_COPY.unverified
-                : PRACTICE_ACCESS_COPY.blocked}
+              {practiceNoticeCopy(practiceAccess)}
             </span>
+            {onRetryAccess &&
+              canRetryAccess(practiceAccess) && (
+                <button
+                  type="button"
+                  className={styles.retryButton}
+                  disabled={retryingAccess}
+                  onClick={onRetryAccess}
+                >
+                  {retryingAccess
+                    ? "Checking…"
+                    : "Check again"}
+                </button>
+              )}
           </div>
         ) : (
           <div
@@ -836,7 +889,7 @@ function RecommendationCard({
           </p>
         )}
 
-        {item.alternatives?.length >
+        {alternatives.length >
           0 && (
           <div
             className={
@@ -848,7 +901,7 @@ function RecommendationCard({
             </small>
 
             <div>
-              {item.alternatives.map(
+              {alternatives.map(
                 (alternative) =>
                   alternative.quiz_href &&
                   (canLaunchPractice
@@ -920,14 +973,18 @@ function CycleCard({
   learnerLabel,
   canLaunchPractice,
   accessFor,
+  onRetryAccess,
+  retryingAccess = false,
 }: {
   cycle: NovaLearningCycle;
   learnerLabel: string;
   canLaunchPractice: boolean;
   accessFor: PracticeAccessLookup;
+  onRetryAccess?: () => void;
+  retryingAccess?: boolean;
 }) {
   // The server-selected practice quiz is linked only once access is confirmed.
-  const practiceAccess: PracticeAccessState =
+  const practiceAccess: CardPracticeState =
     canLaunchPractice
       ? accessFor(cycle.subject, cycle.recommended_quiz_id)
       : "checking";
@@ -1205,10 +1262,21 @@ function CycleCard({
                 Practice mission unavailable
               </strong>
               <span>
-                {practiceAccess === "unverified"
-                  ? PRACTICE_ACCESS_COPY.unverified
-                  : PRACTICE_ACCESS_COPY.blocked}
+                {practiceNoticeCopy(practiceAccess)}
               </span>
+              {onRetryAccess &&
+                canRetryAccess(practiceAccess) && (
+                  <button
+                    type="button"
+                    className={styles.retryButton}
+                    disabled={retryingAccess}
+                    onClick={onRetryAccess}
+                  >
+                    {retryingAccess
+                      ? "Checking…"
+                      : "Check again"}
+                  </button>
+                )}
             </div>
           ) : (
             <div
@@ -1307,7 +1375,25 @@ export default function NovaRecommendsTab({
   ] = useState<{
     key: string;
     result: PracticeAccessResult;
+    /** Increases with every fresh verification (stale refusals expire). */
+    generation: number;
   } | null>(null);
+
+  const generationRef = useRef(0);
+
+  // Server refusals from the quiz-specific start RPC, shown on the card
+  // (never as a full-tab error). Keyed by learner + quiz and tagged with the
+  // verification generation they occurred under: a refusal stands until a
+  // NEWER verification for that learner exists, then fresh data decides.
+  const [
+    startIssues,
+    setStartIssues,
+  ] = useState<Record<string, { issue: CycleStartIssue; generation: number }>>({});
+
+  const [
+    retryingAccess,
+    setRetryingAccess,
+  ] = useState(false);
 
   const learnerRef = useRef(learnerId);
 
@@ -1410,6 +1496,7 @@ export default function NovaRecommendsTab({
     }
 
     const learnerAtStart = learnerId;
+    const generationAtStart = currentGeneration;
 
     setStartingSkillId(
       String(item.skill_id),
@@ -1441,30 +1528,58 @@ export default function NovaRecommendsTab({
         if (accessState === "unverified") unverified.add(quizKey);
         else unverified.delete(quizKey);
         return {
-          key: current.key,
+          ...current,
           result: { ...current.result, accessible, unverified },
         };
       });
       return;
     }
 
-    const { error: startError } =
-      await supabase.rpc(
-        "start_nova_learning_cycle",
-        {
-          p_student_user_id:
-            learnerId,
-          p_skill_id: item.skill_id,
-        },
-      );
+    // Phase 2B-2D-B2: the server validates this exact quiz (mapping, level,
+    // visibility, topic, Core zone, profile) before creating the cycle, and
+    // returns the only href we navigate to.
+    let startData: unknown = null;
+    let startIssue: CycleStartIssue | null = null;
 
-    if (startError) {
+    try {
+      const { data, error: startError } =
+        await supabase.rpc(
+          "start_nova_learning_cycle_for_quiz",
+          {
+            p_student_user_id:
+              learnerId,
+            p_skill_id: item.skill_id,
+            p_quiz_id: item.quiz.quiz_id,
+          },
+        );
+      if (startError) {
+        startIssue = classifyCycleStartError(startError.message);
+      } else {
+        startData = data;
+      }
+    } catch {
+      startIssue = "unverified";
+    }
+
+    if (learnerRef.current !== learnerAtStart) return;
+
+    const serverHref = startIssue
+      ? null
+      : serverPracticeHref(startData, item.quiz.quiz_id);
+
+    if (!serverHref) {
       setStartingSkillId(null);
-      setError(startError.message);
+      setStartIssues((current) => ({
+        ...current,
+        [`${learnerAtStart}|${quizKey}`]: {
+          issue: startIssue ?? "unverified",
+          generation: generationAtStart,
+        },
+      }));
       return;
     }
 
-    window.location.assign(quizHref);
+    window.location.assign(serverHref);
   }
 
   const openCycles =
@@ -1473,7 +1588,7 @@ export default function NovaRecommendsTab({
   const accessRefs = useMemo(() => {
     const refs: Array<{ subject: string; quizId: string }> = [];
     for (const item of payload?.recommendations ?? []) {
-      refs.push({ subject: item.subject, quizId: item.quiz?.quiz_id });
+      refs.push({ subject: item.subject, quizId: item.quiz?.quiz_id ?? "" });
       for (const alternative of item.alternatives ?? []) {
         refs.push({ subject: item.subject, quizId: alternative.quiz_id });
       }
@@ -1505,7 +1620,13 @@ export default function NovaRecommendsTab({
         supabase as unknown as PracticeAccessClient,
         accessRefs,
       );
-      if (!cancelled) setAccessSnapshot({ key: accessKey, result });
+      if (!cancelled) {
+        setAccessSnapshot({
+          key: accessKey,
+          result,
+          generation: ++generationRef.current,
+        });
+      }
     }
 
     void verify();
@@ -1518,8 +1639,38 @@ export default function NovaRecommendsTab({
   const currentAccess =
     accessSnapshot?.key === accessKey ? accessSnapshot.result : null;
 
-  const accessFor: PracticeAccessLookup = (subject, quizId) =>
-    practiceAccessState(currentAccess, subject, quizId);
+  const currentGeneration =
+    accessSnapshot?.key === accessKey ? accessSnapshot.generation : -1;
+
+  const accessFor: PracticeAccessLookup = (subject, quizId) => {
+    const issue =
+      startIssues[`${learnerId}|${practiceQuizKey(subject, quizId)}`];
+    // A server refusal stands until a newer verification exists.
+    if (issue && currentAccess && issue.generation >= currentGeneration) {
+      return issue.issue;
+    }
+    return practiceAccessState(currentAccess, subject, quizId);
+  };
+
+  // "Check again": re-runs the read-only access check for this learner. It
+  // never starts a cycle; the learner must click Start again deliberately.
+  async function retryAccess() {
+    if (!canLaunchPractice || !accessRefs.length || retryingAccess) return;
+    const learnerAtRetry = learnerId;
+    const keyAtRetry = accessKey;
+    setRetryingAccess(true);
+    const result = await checkPracticeAccess(
+      supabase as unknown as PracticeAccessClient,
+      accessRefs,
+    );
+    setRetryingAccess(false);
+    if (learnerRef.current !== learnerAtRetry) return;
+    setAccessSnapshot({
+      key: keyAtRetry,
+      result,
+      generation: ++generationRef.current,
+    });
+  }
 
   const cycleSkillIds = useMemo(
     () =>
@@ -1811,6 +1962,8 @@ export default function NovaRecommendsTab({
                         canLaunchPractice
                       }
                       accessFor={accessFor}
+                      onRetryAccess={retryAccess}
+                      retryingAccess={retryingAccess}
                     />
                   ),
                 )}
@@ -1866,6 +2019,8 @@ export default function NovaRecommendsTab({
                   isAdminPreview
                 }
                 accessFor={accessFor}
+                onRetryAccess={retryAccess}
+                retryingAccess={retryingAccess}
                 featured
                 starting={
                   startingSkillId ===
@@ -1953,6 +2108,8 @@ export default function NovaRecommendsTab({
                       isAdminPreview
                     }
                     accessFor={accessFor}
+                    onRetryAccess={retryAccess}
+                    retryingAccess={retryingAccess}
                     schoolworkCount={
                       schoolworkEvidence.bySkillId.get(
                         String(
@@ -2027,6 +2184,8 @@ export default function NovaRecommendsTab({
                   isAdminPreview
                 }
                 accessFor={accessFor}
+                onRetryAccess={retryAccess}
+                retryingAccess={retryingAccess}
                 schoolworkCount={
                   schoolworkEvidence.bySkillId.get(
                     String(

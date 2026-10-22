@@ -1,0 +1,56 @@
+DREAMSCAPE ONE — Phase 4E-2B-8C-2D.3
+Teaching Method Comparison and Pedagogical Review
+
+Offline synthetic pairs only. Human pedagogical review PENDING. No SQL, no production source modifications, no method registration/activation, no scoring change, no API change, no learner release.
+
+ZIP contents (repository-relative paths):
+  scripts/phase4e2b8c2d3-pedagogical-comparison.cjs
+  tests/fixtures/phase4e2b8c2d3-paired-explanations.json
+  tests/phase4e2b8c2d3-pedagogical-comparison.test.cjs
+  docs/PHASE_8C2D3_PEDAGOGICAL_COMPARISON.md
+  docs/phase4e2b8c2d3-educator-scoring-template.csv
+  docs/phase4e2b8c2d3-method-role-template.csv
+
+Requires previously installed Phase 8C-2D.1 and 8C-2D.2, and Phase 8C-2C.3A/3B production-method source files.
+
+INSTALL (PowerShell):
+  Set-Location "C:\Users\leegy\gk-design-world"
+  $env:GIT_PAGER = "cat"
+  $zip = Join-Path $env:USERPROFILE "Downloads\DREAMSCAPE_4E2B_8C2D3_PEDAGOGICAL_COMPARISON_INSTALL.zip"
+  Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+
+TEST:
+  node --test tests/phase4e2b8c2d3-pedagogical-comparison.test.cjs tests/phase4e2b8c2d2-explanation-quality.test.cjs tests/phase4e2b8c2d1-specialist-teaching-quality.test.cjs
+  if ($LASTEXITCODE -ne 0) { throw "Offline comparison tests failed. Do not commit." }
+  node scripts/phase4e2b8c2d3-pedagogical-comparison.cjs
+  if ($LASTEXITCODE -ne 0) { throw "Offline comparison audit failed. Do not commit." }
+  npx tsc --noEmit
+  if ($LASTEXITCODE -ne 0) { throw "TypeScript compilation failed. Do not commit." }
+  git --no-pager diff --check
+  if ($LASTEXITCODE -ne 0) { throw "Git whitespace check failed. Do not commit." }
+  git --no-pager status --short
+
+COMMIT (after both tests and TypeScript succeed):
+  git add scripts/phase4e2b8c2d3-pedagogical-comparison.cjs
+  git add tests/fixtures/phase4e2b8c2d3-paired-explanations.json
+  git add tests/phase4e2b8c2d3-pedagogical-comparison.test.cjs
+  git add docs/PHASE_8C2D3_PEDAGOGICAL_COMPARISON.md
+  git add docs/phase4e2b8c2d3-educator-scoring-template.csv
+  git add docs/phase4e2b8c2d3-method-role-template.csv
+  git --no-pager diff --cached --name-only
+  git --no-pager diff --cached --check
+  git commit -m "Phase 8C-2D3 offline method comparison and educator review"
+  git push
+
+EXPECT:
+  Phase 4E-2B-8C-2D.3: OFFLINE_PAIR_CHECKS_PASSED
+  6/6 same-question specialist/incumbent synthetic comparison pairs validated
+  Two independent educator reviews per pair: PENDING
+  Actual NOVA output, actual 4C-ranked explanations and real child understanding: NOT TESTED
+  New specialist approval, scores, release: DISABLED
+
+KEEP PENDING UNTIL PRE-BETA:
+  Actual staff-authenticated access checks, database audit write-path tests,
+  actual NOVA-generated explanation comparison, two independent teacher reviews,
+  diagrams and learner-readiness verification. Completed reviewer sheets must
+  not be committed to public Git if they identify teachers or learners.

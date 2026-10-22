@@ -1,0 +1,44 @@
+DREAMSCAPE ONE - Phase 4E-2B-8C-2D.4
+TEACHING QUALITY DECISION FRAMEWORK - OFFLINE ONLY
+
+INSTALL: Extract ZIP directly into your repository root, preserving relative paths.
+Repo example: C:\Users\leegy\gk-design-world
+
+NEW FILES (no replacements):
+  scripts/phase4e2b8c2d4-teaching-quality-decisions.cjs
+  tests/phase4e2b8c2d4-teaching-quality-decisions.test.cjs
+  docs/PHASE_8C2D4_TEACHING_QUALITY_DECISION_FRAMEWORK.md
+
+PREREQUISITE: Phase 8C-2D.1, 8C-2D.2 and 8C-2D.3 installed.
+Both Phase 8C-2D.3 review CSV templates are REUSED, not overwritten.
+
+PowerShell:
+  Set-Location 'C:\Users\leegy\gk-design-world'
+  $zip = "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2D4_TEACHING_QUALITY_DECISIONS_INSTALL.zip"
+  Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+  node --test tests/phase4e2b8c2d4-teaching-quality-decisions.test.cjs tests/phase4e2b8c2d3-pedagogical-comparison.test.cjs tests/phase4e2b8c2d2-explanation-quality.test.cjs tests/phase4e2b8c2d1-specialist-teaching-quality.test.cjs
+  if ($LASTEXITCODE -ne 0) { throw 'Tests failed; do not commit.' }
+  node scripts/phase4e2b8c2d4-teaching-quality-decisions.cjs
+  if ($LASTEXITCODE -ne 0) { throw 'Decision audit failed; do not commit.' }
+  npx tsc --noEmit
+  if ($LASTEXITCODE -ne 0) { throw 'TypeScript failed; do not commit.' }
+  git --no-pager diff --check
+  if ($LASTEXITCODE -ne 0) { throw 'Git diff check failed; do not commit.' }
+
+EXPECTED with unfilled worksheets: REVIEW_EVIDENCE_INCOMPLETE (not an error).
+Optional later, when educator reviews are complete:
+  node scripts/phase4e2b8c2d4-teaching-quality-decisions.cjs --strict-complete
+This fails before all six cases have provisional role recommendations.
+Even a successful strict audit NEVER approves a method.
+
+STAGE ONLY these files:
+  git add scripts/phase4e2b8c2d4-teaching-quality-decisions.cjs
+  git add tests/phase4e2b8c2d4-teaching-quality-decisions.test.cjs
+  git add docs/PHASE_8C2D4_TEACHING_QUALITY_DECISION_FRAMEWORK.md
+  git --no-pager diff --cached --name-only
+  git --no-pager diff --cached --check
+  git commit -m 'Phase 8C-2D4 add offline teaching quality decision framework'
+  git push
+
+NO SQL. NO DB WRITES. NO API. NO LIVE SELECTOR. NO APPROVAL.
+The Google OAuth live tests, real NOVA explanation review and learner outcomes remain DEFERRED beta-readiness gates.

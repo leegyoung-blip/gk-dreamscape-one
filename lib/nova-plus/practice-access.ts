@@ -145,6 +145,58 @@ export function practiceAccessState(
   return result.unverified.has(key) ? "unverified" : "blocked";
 }
 
+/* ---------- Server cycle-start contract (Phase 2B-2D-B2) ---------- */
+
+export type CycleStartIssue = "blocked" | "not_startable" | "unverified";
+
+const ACCESS_REFUSALS = [
+  "PRACTICE_QUIZ_NOT_ACCESSIBLE",
+  "PRACTICE_QUIZ_NOT_FOR_SKILL",
+  "PRACTICE_QUIZ_NOT_FOUND",
+  "PRACTICE_QUIZ_REQUIRED",
+  "CORE_ACCESS_REQUIRED",
+  "LEARNING_PROFILE_REQUIRED",
+];
+
+const ELIGIBILITY_REFUSALS = [
+  "CONCEPT_NOT_CONFIRMED_FOCUS_GAP",
+  "MASTERY_NOT_FOUND",
+  "CANONICAL_SKILL_NOT_FOUND",
+  "NOVA_PLUS_ACCESS_REQUIRED",
+  "LEARNER_ACCOUNT_REQUIRED",
+  "AUTH_REQUIRED",
+];
+
+/**
+ * Maps a refusal from start_nova_learning_cycle_for_quiz to a card state:
+ * access refusals -> "blocked"; eligibility refusals -> "not_startable";
+ * anything else (network, missing RPC, unknown) -> "unverified" (retry).
+ */
+export function classifyCycleStartError(message: unknown): CycleStartIssue {
+  const text = String(message ?? "");
+  if (ACCESS_REFUSALS.some((code) => text.includes(code))) return "blocked";
+  if (ELIGIBILITY_REFUSALS.some((code) => text.includes(code))) return "not_startable";
+  return "unverified";
+}
+
+/**
+ * Accepts only the server-built Core quiz path for the quiz that was
+ * requested; anything else is rejected rather than navigated to.
+ */
+export function serverPracticeHref(
+  result: unknown,
+  requestedQuizId: unknown,
+): string | null {
+  if (!result || typeof result !== "object") return null;
+  const { quiz_href: href, quiz_id: quizId } = result as {
+    quiz_href?: unknown;
+    quiz_id?: unknown;
+  };
+  if (typeof href !== "string" || String(quizId ?? "") !== String(requestedQuizId ?? "")) return null;
+  const pattern = /^\/learning-missions\/core\/(english|math)\/p[1-6]\/quiz\/[0-9a-f-]{36}$/i;
+  return pattern.test(href) && href.endsWith(String(requestedQuizId)) ? href : null;
+}
+
 function emptyResult(zone: CoreZoneDecision, keys: string[]): PracticeAccessResult {
   return { zone, accessible: new Set(), unverified: new Set(zone === "unverified" ? keys : []) };
 }

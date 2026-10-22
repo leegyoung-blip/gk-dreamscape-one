@@ -1,0 +1,26 @@
+DREAMSCAPE ONE — Phase 4E-2B-8C-2D.2
+Offline reference teaching explanations. ADDITIVE INSTALL. NO EXISTING CODE FILES REPLACED.
+
+Place all contents at the root of the repository, preserving paths.
+
+Prerequisite: Phase 8C-2D.1 casebook and Phase 8C-2C.3A/B method definitions already installed.
+
+Run in VS Code PowerShell:
+  Set-Location "C:\Users\leegy\gk-design-world"
+  node --test tests/phase4e2b8c2d2-explanation-quality.test.cjs tests/phase4e2b8c2d1-specialist-teaching-quality.test.cjs
+  if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
+  node scripts/phase4e2b8c2d2-explanation-quality.cjs
+  if ($LASTEXITCODE -ne 0) { throw "Explanation audit failed" }
+  npx tsc --noEmit
+  if ($LASTEXITCODE -ne 0) { throw "TypeScript check failed" }
+  git --no-pager diff --check
+
+If checks pass, stage only:
+  scripts/phase4e2b8c2d2-explanation-quality.cjs
+  tests/fixtures/phase4e2b8c2d2-worked-explanations.json
+  tests/phase4e2b8c2d2-explanation-quality.test.cjs
+  docs/PHASE_8C2D2_EXPLANATION_QUALITY_REVIEW.md
+  docs/phase4e2b8c2d2-human-review-worksheet.csv
+
+Human review remains pending. Do not commit completed reviewer records containing any identifiers into a public repo.
+No DB SQL, production selector changes, staff-review writes or learner release.

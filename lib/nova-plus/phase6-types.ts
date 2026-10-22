@@ -47,6 +47,8 @@ export type NovaLearningCycle = {
   recommended_quiz_id: string | null;
   recommended_quiz_title: string | null;
   recommended_quiz_href: string | null;
+  /** Added by the enforcement SQL; absent from older payloads. */
+  practice_status?: "available" | "unavailable";
 
   nova_check_href: string | null;
 
