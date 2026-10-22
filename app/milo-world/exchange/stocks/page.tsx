@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 import MiloExchangeGuide from "../components/MiloExchangeGuide";
 
@@ -759,6 +760,12 @@ export default function MiloStockExchangePage() {
   const isCompact = screenMode !== "desktop";
 
   const [loading, setLoading] = useState(true);
+  // The account whose private data may be shown. Wallet, holdings and trade
+  // loaders check it after each await, so replies for any other account (or
+  // after logout) are dropped.
+  const activeUserIdRef = useRef<string | null>(null);
+  // Only the newest page load may finish the loading state.
+  const pageLoadIdRef = useRef(0);
   const [actionLoading, setActionLoading] = useState(false);
 
   const [userId, setUserId] = useState<string | null>(null);
@@ -866,16 +873,49 @@ export default function MiloStockExchangePage() {
     return stockMarketStates.find((item) => item.symbol === selectedStock.symbol);
   }, [selectedStock, stockMarketStates]);
 
-  useEffect(() => {
-    loadPage();
-  }, []);
+  // Drop the previous account's private data at once, ignore its outstanding
+  // replies, then load whoever is signed in now (or the guest view).
+  function handleAccountChange(nextUserId: string | null) {
+    activeUserIdRef.current = nextUserId;
+    pageLoadIdRef.current += 1;
+    clearLearnerState();
+    // Keep Supabase calls outside the auth callback (as the route access hook does).
+    window.setTimeout(() => {
+      loadPage();
+    }, 0);
+  }
+
+  function clearLearnerState() {
+    setUserId(null);
+    setDreamTokens(0);
+    setHoldings([]);
+    setTrades([]);
+    setQuantity(1);
+    setTradeMessage("");
+    setPageMessage("");
+  }
 
   useEffect(() => {
     if (!userId || !selectedSymbol) return;
     loadPriceHistory(selectedSymbol);
   }, [userId, selectedSymbol]);
 
+  useEffect(() => {
+    loadPage();
+
+    // Login, logout or a different account (this tab or another). Same-user
+    // events, such as the SIGNED_IN Supabase repeats on tab return, are ignored.
+    const stopAuthListener = onAuthUserChange(supabase, ({ userId: nextUserId }) => {
+      handleAccountChange(nextUserId);
+    });
+
+    return () => {
+      stopAuthListener();
+    };
+  }, []);
+
   async function loadPage() {
+    const loadId = ++pageLoadIdRef.current;
     setLoading(true);
     setPageMessage("");
 
@@ -884,14 +924,20 @@ export default function MiloStockExchangePage() {
       error: userError,
     } = await supabase.auth.getUser();
 
+    if (loadId !== pageLoadIdRef.current) return;
+
     if (userError || !user) {
+      activeUserIdRef.current = null;
       setUserId(null);
       setLoading(false);
       return;
     }
 
+    activeUserIdRef.current = user.id;
     setUserId(user.id);
 
+    // PERF-2D-4: the employment dashboard no longer waits for the other reads;
+    // refreshUserData() already runs it alongside them after every trade.
     await Promise.all([
       loadDreamTokens(user.id),
       loadStocks(),
@@ -899,17 +945,19 @@ export default function MiloStockExchangePage() {
       loadTrades(user.id),
       loadNewsEvents(),
       loadStockMarketDashboard(),
+      loadEmploymentDashboard(),
     ]);
 
-    await loadEmploymentDashboard();
-
+    if (loadId !== pageLoadIdRef.current) return;
     setLoading(false);
   }
 
-  async function loadDreamTokens(_id: string) {
+  async function loadDreamTokens(id: string) {
     const { data, error } = await supabase.rpc(
       "get_my_virtual_dream_token_balance"
     );
+
+    if (activeUserIdRef.current !== id) return;
 
     if (error) {
       console.warn("Could not load Dreamscape Tokens:", error.message);
@@ -948,6 +996,8 @@ export default function MiloStockExchangePage() {
       .eq("user_id", id)
       .order("symbol", { ascending: true });
 
+    if (activeUserIdRef.current !== id) return;
+
     if (error) {
       console.warn("Could not load holdings:", error.message);
       return;
@@ -963,6 +1013,8 @@ export default function MiloStockExchangePage() {
       .eq("user_id", id)
       .order("created_at", { ascending: false })
       .limit(8);
+
+    if (activeUserIdRef.current !== id) return;
 
     if (error) {
       console.warn("Could not load trades:", error.message);
@@ -1198,11 +1250,19 @@ export default function MiloStockExchangePage() {
 
     setActionLoading(true);
 
+    const tradeUserId = userId;
     const { data, error } = await supabase.rpc("trade_milo_exchange_stock", {
       p_symbol: selectedStock.symbol,
       p_side: side,
       p_quantity: qty,
     });
+
+    // The account changed while the trade was in flight: never show its
+    // result to the next learner (the page has already reloaded for them).
+    if (activeUserIdRef.current !== tradeUserId) {
+      setActionLoading(false);
+      return;
+    }
 
     if (error) {
       console.warn("Stock trade failed:", error.message);

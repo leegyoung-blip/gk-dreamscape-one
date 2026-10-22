@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import { onAuthUserChange } from "@/lib/auth/onAuthUserChange";
 import { supabase } from "@/lib/supabase";
 import MiloExchangeGuide from "./components/MiloExchangeGuide";
 import CityPulseHomeCard from "./components/CityPulseHomeCard";
@@ -162,6 +163,11 @@ export default function MiloExchangeMainPage() {
   const isCompact = screenMode !== "desktop";
 
   const [loading, setLoading] = useState(true);
+  // The account whose private data may be shown. Every loader checks it after
+  // each await, so a reply for any other account (or after logout) is dropped.
+  const activeUserIdRef = useRef<string | null>(null);
+  // Only the newest page load may finish the loading state.
+  const pageLoadIdRef = useRef(0);
   const [refreshing, setRefreshing] = useState(false);
 
   const [userId, setUserId] = useState<string | null>(null);
@@ -231,11 +237,53 @@ export default function MiloExchangeMainPage() {
     (friend) => friend.status === "pending" && friend.direction === "outgoing"
   );
 
+  // Drop the previous account's private data at once, ignore its outstanding
+  // replies, then load whoever is signed in now (or the guest view).
+  function handleAccountChange(nextUserId: string | null) {
+    activeUserIdRef.current = nextUserId;
+    pageLoadIdRef.current += 1;
+    clearLearnerState();
+    // Keep Supabase calls outside the auth callback (as the route access hook does).
+    window.setTimeout(() => {
+      loadPage();
+    }, 0);
+  }
+
+  function clearLearnerState() {
+    setUserId(null);
+    setViewerRole("regular");
+    setDreamTokens(0);
+    setStockHoldings([]);
+    setPropertyHoldings([]);
+    setPropertyMarketReady(false);
+    setManagedPropertyValue(null);
+    setManagedPropertyEquity(null);
+    setPropertyDebt(0);
+    setTransactions([]);
+    setLeaderboardRows([]);
+    setLeaderboardMessage("");
+    setFriends([]);
+    setFriendEmail("");
+    setFriendMessage("");
+    setPageMessage("");
+  }
+
   useEffect(() => {
     loadPage();
+
+    // Login, logout or a different account (this tab or another). Same-user
+    // events, such as the SIGNED_IN Supabase repeats on tab return, are ignored.
+    const stopAuthListener = onAuthUserChange(supabase, ({ userId: nextUserId }) => {
+      handleAccountChange(nextUserId);
+    });
+
+    return () => {
+      stopAuthListener();
+    };
   }, []);
 
   async function loadPage() {
+    const loadId = ++pageLoadIdRef.current;
     setLoading(true);
     setPageMessage("");
 
@@ -244,12 +292,16 @@ export default function MiloExchangeMainPage() {
       error: userError,
     } = await supabase.auth.getUser();
 
+    if (loadId !== pageLoadIdRef.current) return;
+
     if (userError || !user) {
+      activeUserIdRef.current = null;
       setUserId(null);
       setLoading(false);
       return;
     }
 
+    activeUserIdRef.current = user.id;
     setUserId(user.id);
 
     await Promise.all([
@@ -262,6 +314,7 @@ export default function MiloExchangeMainPage() {
       loadFriends(user.id),
     ]);
 
+    if (loadId !== pageLoadIdRef.current) return;
     setLoading(false);
   }
 
@@ -290,6 +343,8 @@ export default function MiloExchangeMainPage() {
       .eq("id", id)
       .maybeSingle();
 
+    if (activeUserIdRef.current !== id) return;
+
     if (error) {
       console.warn("Could not load viewer role:", error.message);
       setViewerRole("regular");
@@ -299,10 +354,12 @@ export default function MiloExchangeMainPage() {
     setViewerRole(String(data?.role || "regular").trim().toLowerCase());
   }
 
-  async function loadDreamTokens(_id: string) {
+  async function loadDreamTokens(id: string) {
     const { data, error } = await supabase.rpc(
       "get_my_virtual_dream_token_balance"
     );
+
+    if (activeUserIdRef.current !== id) return;
 
     if (error) {
       console.warn("Could not load Dreamscape Tokens:", error.message);
@@ -325,6 +382,8 @@ export default function MiloExchangeMainPage() {
         .eq("user_id", id),
     ]);
 
+    if (activeUserIdRef.current !== id) return;
+
     if (stocksResult.error) {
       console.warn("Could not load stocks:", stocksResult.error.message);
       setStocks([]);
@@ -341,10 +400,21 @@ export default function MiloExchangeMainPage() {
   }
 
   async function loadPropertyPortfolio(id: string) {
-    const propertiesResult = await supabase
-      .from("milo_exchange_properties")
-      .select("id,name,district,current_value,is_active")
-      .eq("is_active", true);
+    // PERF-2D-4: the property list and this learner's holdings are independent
+    // table reads, so they load together. The portfolio RPCs below still run
+    // only after both have succeeded.
+    const [propertiesResult, holdingsResult] = await Promise.all([
+      supabase
+        .from("milo_exchange_properties")
+        .select("id,name,district,current_value,is_active")
+        .eq("is_active", true),
+      supabase
+        .from("milo_exchange_property_holdings")
+        .select("id,user_id,property_id,quantity,purchase_price,created_at")
+        .eq("user_id", id),
+    ]);
+
+    if (activeUserIdRef.current !== id) return;
 
     if (propertiesResult.error) {
       setProperties([]);
@@ -355,11 +425,6 @@ export default function MiloExchangeMainPage() {
       setPropertyMarketReady(false);
       return;
     }
-
-    const holdingsResult = await supabase
-      .from("milo_exchange_property_holdings")
-      .select("id,user_id,property_id,quantity,purchase_price,created_at")
-      .eq("user_id", id);
 
     if (holdingsResult.error) {
       setProperties((propertiesResult.data || []) as ExchangeProperty[]);
@@ -376,6 +441,8 @@ export default function MiloExchangeMainPage() {
       supabase.rpc("get_my_milo_exchange_property_equity_value"),
       supabase.rpc("get_my_milo_property_finance_dashboard"),
     ]);
+
+    if (activeUserIdRef.current !== id) return;
 
     if (managedValueResult.error) {
       console.warn("Could not load managed property value:", managedValueResult.error.message);
@@ -411,6 +478,8 @@ export default function MiloExchangeMainPage() {
       .order("created_at", { ascending: false })
       .limit(40);
 
+    if (activeUserIdRef.current !== id) return;
+
     if (error) {
       console.warn("Could not load exchange transaction history:", error.message);
       setTransactions([]);
@@ -421,6 +490,8 @@ export default function MiloExchangeMainPage() {
   }
 
   async function loadLeaderboard() {
+    // Rows mark the current learner, so they belong to this account only.
+    const id = activeUserIdRef.current;
     setLeaderboardLoading(true);
     setLeaderboardMessage("");
 
@@ -428,6 +499,8 @@ export default function MiloExchangeMainPage() {
       "get_milo_exchange_overall_leaderboard",
       { p_limit: 20 }
     );
+
+    if (activeUserIdRef.current !== id) return;
 
     if (error) {
       console.warn("Could not load exchange leaderboard:", error.message);
@@ -470,6 +543,8 @@ export default function MiloExchangeMainPage() {
       .or(`user_id.eq.${id},friend_user_id.eq.${id}`)
       .order("created_at", { ascending: false });
 
+    if (activeUserIdRef.current !== id) return;
+
     if (error) {
       setFriends([]);
       setFriendsFeatureReady(false);
@@ -497,6 +572,8 @@ export default function MiloExchangeMainPage() {
       .from("profiles")
       .select("id,email")
       .in("id", profileIds);
+
+    if (activeUserIdRef.current !== id) return;
 
     if (profilesResult.error) {
       console.warn("Could not load friend profiles:", profilesResult.error.message);
