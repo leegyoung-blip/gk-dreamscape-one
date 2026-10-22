@@ -405,6 +405,9 @@ export default function ThinkingSkillsLabPage() {
   const userIdRef = useRef<string | null>(null);
   // Only the newest status load may update state.
   const statusLoadIdRef = useRef(0);
+  // True only while this page dispatches its own dream-tokens-updated event,
+  // right after it has already refreshed the balance itself.
+  const dispatchingOwnTokenEventRef = useRef(false);
   const [status, setStatus] = useState<LabStatus>(EMPTY_STATUS);
   const [profileAssets, setProfileAssets] =
     useState<ProfileAssetBreakdown>(EMPTY_PROFILE_ASSETS);
@@ -644,6 +647,18 @@ export default function ThinkingSkillsLabPage() {
     setLoading(false);
   }, []);
 
+  // Tell the rest of the site (and other tabs) that Dream Tokens changed. The
+  // event is dispatched synchronously, so the flag covers only this page's own
+  // listener; other components and tabs refresh as before.
+  const announceTokenUpdate = useCallback(() => {
+    dispatchingOwnTokenEventRef.current = true;
+    try {
+      window.dispatchEvent(new Event("dream-tokens-updated"));
+    } finally {
+      dispatchingOwnTokenEventRef.current = false;
+    }
+  }, []);
+
   const refreshCashAndTransactions = useCallback(
     async (accountUserId: string) => {
       const balanceResult = await fetchDreamTokenBalance(
@@ -694,6 +709,14 @@ export default function ThinkingSkillsLabPage() {
     const stopTabReturn = onTabReturn(scheduler.revalidate);
 
     function refreshTokenAssets() {
+      // PERF-2D-3: the page's own event follows a balance refresh it has just
+      // awaited; reading the same balance again would be a duplicate request.
+      // Skip exactly one delivery, so any other event (even one dispatched
+      // while the page's own event is being delivered) still refreshes.
+      if (dispatchingOwnTokenEventRef.current) {
+        dispatchingOwnTokenEventRef.current = false;
+        return;
+      }
       const currentUserId = userIdRef.current;
       if (currentUserId) {
         refreshCashAndTransactions(currentUserId);
@@ -899,7 +922,7 @@ export default function ThinkingSkillsLabPage() {
       }));
 
       await refreshCashAndTransactions(userId);
-      window.dispatchEvent(new Event("dream-tokens-updated"));
+      announceTokenUpdate();
 
       setNotice(
         gameId === "tower-memory"
@@ -908,7 +931,7 @@ export default function ThinkingSkillsLabPage() {
       );
       return result;
     },
-    [refreshCashAndTransactions, status.games, userId]
+    [announceTokenUpdate, refreshCashAndTransactions, status.games, userId]
   );
 
   const completeQuestion = useCallback(
@@ -1037,10 +1060,10 @@ export default function ThinkingSkillsLabPage() {
       }
 
       await refreshCashAndTransactions(userId);
-      window.dispatchEvent(new Event("dream-tokens-updated"));
+      announceTokenUpdate();
       return result;
     },
-    [refreshCashAndTransactions, status.games, userId]
+    [announceTokenUpdate, refreshCashAndTransactions, status.games, userId]
   );
 
   function beginNextQuestion() {
