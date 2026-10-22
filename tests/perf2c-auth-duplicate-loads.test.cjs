@@ -181,7 +181,8 @@ test('loaders drop stale responses after every await (no previous account data a
   // PERF-2D-1: the role read and objectives RPC now share one await (one guard).
   'app/milo-world/page.tsx': 3,
   'app/milo-world/categories/page.tsx': 2, 'app/milo-world/activity-lab/page.tsx': 2, 'app/nova/thinking-skills-lab/page.tsx': 2,
-  'app/learning-missions/knowledge-arena/page.tsx': 4, 'components/core-missions/CoreMissionTopBar.tsx': 2,
+  // PERF-2D-2: role, balances and upgrade now share one await (one guard).
+  'app/learning-missions/knowledge-arena/page.tsx': 2, 'components/core-missions/CoreMissionTopBar.tsx': 2,
  };
  for (const [file, n] of Object.entries(minGuards)) {
   const src = read(file);

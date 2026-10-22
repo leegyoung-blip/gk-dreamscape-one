@@ -66,11 +66,15 @@ export function useBankBonds(): UseBankBondsResult {
     setError(null);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      const bondProducts = await listBondProducts();
+      // PERF-2D-2: the bond product list does not depend on the user (it was
+      // already loaded for guests too), so it loads alongside getUser. As
+      // before, a failed product read fails the whole load (caught below).
+      const [
+        {
+          data: { user },
+        },
+        bondProducts,
+      ] = await Promise.all([supabase.auth.getUser(), listBondProducts()]);
       if (isStale()) return;
       setProducts(bondProducts);
 
@@ -87,6 +91,8 @@ export function useBankBonds(): UseBankBondsResult {
       // No scheduler is required for the user-facing lifecycle. This lightweight
       // RPC promotes any due active holdings before the current data are read.
       await refreshBondMaturities();
+      // Superseded (e.g. account switch): skip reads whose replies are dropped.
+      if (isStale()) return;
 
       const [bondHoldings, bondEvents, bondEligibility] = await Promise.all([
         listBondHoldings(),

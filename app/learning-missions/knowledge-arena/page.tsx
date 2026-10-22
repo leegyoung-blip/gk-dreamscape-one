@@ -1120,33 +1120,33 @@ export default function KnowledgeArenaPage() {
       setUserId(user.id);
       setUserEmail(user.email ?? null);
 
-      const { data: profileRow } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
+      // PERF-2D-2: the role, balances and Nova upgrade reads are independent
+      // (each RPC reads the signed-in learner's own row; upgrades are bought
+      // through a separate RPC), so they run together instead of one after
+      // another. Each result is applied exactly as before.
+      const [
+        { data: profileRow },
+        { data: balances, error: balancesError },
+        { data: upgradeData, error: upgradeError },
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase.rpc("get_my_dreamscape_balances"),
+        supabase.rpc("get_my_knowledge_arena_nova_upgrade_v1"),
+      ]);
 
       if (isStale()) return;
 
       setIsAdmin(String(profileRow?.role || "").trim().toLowerCase() === "admin");
-
-      const { data: balances, error: balancesError } = await supabase.rpc(
-        "get_my_dreamscape_balances"
-      );
-
-      if (isStale()) return;
 
       if (!balancesError) {
         const row = Array.isArray(balances) ? balances[0] : balances;
         setTokenBalance(Number(row?.token_balance ?? 0));
         setGemBalance(Number(row?.gem_balance ?? 0));
       }
-
-      const { data: upgradeData, error: upgradeError } = await supabase.rpc(
-        "get_my_knowledge_arena_nova_upgrade_v1"
-      );
-
-      if (isStale()) return;
 
       if (!upgradeError && upgradeData) {
         const upgrade = Array.isArray(upgradeData) ? upgradeData[0] : upgradeData;
