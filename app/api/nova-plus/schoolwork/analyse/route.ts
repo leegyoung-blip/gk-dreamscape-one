@@ -1,6 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  analysisStartDecision,
+  detectHintConflict,
+  hintConflictMessage,
+  isCanonicalSchoolworkObject,
+  neutralAiFilename,
+  publicSchoolworkError,
+} from "@/lib/nova-plus/schoolwork-guards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +50,7 @@ type SchoolworkUploadRow = {
   analysis_revision: number;
   production_page_limit: number;
   status: string;
+  analysis_started_at: string | null;
 };
 
 type TaxonomyRow = {
@@ -337,9 +346,13 @@ function friendlyAnalysisError(error: unknown) {
   if (
     raw.includes("PAGE_LIMIT_EXCEEDED")
   ) {
-    return raw
-      .replace("PAGE_LIMIT_EXCEEDED:", "")
-      .trim();
+    return "This upload has more pages than Nova can review at once. Please split it into smaller uploads.";
+  }
+
+  if (
+    raw.includes("QUESTION_LIMIT_EXCEEDED")
+  ) {
+    return publicSchoolworkError("QUESTION_LIMIT_EXCEEDED");
   }
 
   if (
@@ -348,10 +361,8 @@ function friendlyAnalysisError(error: unknown) {
     return "The worksheet analysis service returned an error. Please retry.";
   }
 
-  return (
-    raw ||
-    "The worksheet analysis could not be completed."
-  );
+  // Raw database / storage / model text is never shown to users.
+  return publicSchoolworkError("ANALYSIS_FAILED");
 }
 
 function analysisErrorCode(error: unknown) {
@@ -360,6 +371,14 @@ function analysisErrorCode(error: unknown) {
 
   if (message.includes("PAGE_LIMIT_EXCEEDED")) {
     return "PAGE_LIMIT_EXCEEDED";
+  }
+
+  if (message.includes("QUESTION_LIMIT_EXCEEDED")) {
+    return "QUESTION_LIMIT_EXCEEDED";
+  }
+
+  if (message.includes("SIGNED_URL_FAILED")) {
+    return "SIGNED_URL_FAILED";
   }
 
   if (message.includes("OPENAI")) {
@@ -605,7 +624,11 @@ async function callOpenAIWithFallback(
   }
 }
 
-function extractionSchema() {
+/*
+ * maxItems is one above the configured limit so an over-long worksheet is
+ * detected and refused rather than silently truncated by the schema.
+ */
+function extractionSchema(maxQuestions: number) {
   return {
     type: "object",
     properties: {
@@ -632,7 +655,7 @@ function extractionSchema() {
       overall_notes: { type: "string" },
       questions: {
         type: "array",
-        maxItems: 80,
+        maxItems: Math.max(1, Math.min(200, maxQuestions)) + 1,
         items: {
           type: "object",
           properties: {
@@ -923,15 +946,21 @@ Rules:
 
 /**
  * Review flag stored with the item AND returned to the reviewer. The model's
- * own needs_review is only one input; missing concepts or low mapping /
- * extraction confidence always require review.
+ * own needs_review is only one input; missing concepts, low mapping /
+ * extraction / correctness confidence, uncertain or unclear marking, and blank
+ * answers always require an explicit human decision. Model confidence is a
+ * triage signal only, not a validated measure of educational reliability.
  */
 function storedNeedsReview(item: ReasonedItem, hasPrimarySkill: boolean) {
   return (
     Boolean(item.needs_review) ||
     !hasPrimarySkill ||
     clamp01(item.mapping_confidence) < 0.78 ||
-    clamp01(item.extraction_confidence) < 0.78
+    clamp01(item.extraction_confidence) < 0.78 ||
+    clamp01(item.correctness_confidence) < 0.78 ||
+    item.final_correctness === "uncertain" ||
+    item.teacher_mark === "unclear" ||
+    !String(item.student_answer ?? "").trim()
   );
 }
 
@@ -1009,37 +1038,60 @@ async function createAnalysisRun(params: {
   return data;
 }
 
-async function markFailed(uploadId: string, error: unknown) {
-  const rawMessage =
-    error instanceof Error
-      ? error.message
-      : String(error || "Unexpected error");
+/*
+ * Every upload write after the claim is scoped to this request's own claim
+ * token (analysis_started_at), so a superseded or failed request can never
+ * overwrite a newer analysis, a review or an archive.
+ */
+function updateClaimedUpload(
+  uploadId: string,
+  claimToken: string,
+  values: Record<string, unknown>,
+) {
+  return supabaseAdmin
+    .from("nova_schoolwork_uploads")
+    .update(values)
+    .eq("id", uploadId)
+    .eq("status", "analysing")
+    .eq("analysis_started_at", claimToken);
+}
+
+/*
+ * A request that never claimed the upload (claimToken null) does not own it
+ * and writes nothing: it must not mark another request's analysis failed.
+ */
+async function markFailed(
+  uploadId: string,
+  error: unknown,
+  claimToken: string | null,
+) {
+  if (!claimToken) return;
 
   const friendlyMessage =
     friendlyAnalysisError(error);
 
-  await supabaseAdmin
-    .from("nova_schoolwork_uploads")
-    .update({
-      status: "failed",
-      error_message:
-        friendlyMessage.slice(0, 1000),
-      analysis_completed_at:
-        new Date().toISOString(),
-    })
-    .eq("id", uploadId);
+  await updateClaimedUpload(uploadId, claimToken, {
+    status: "failed",
+    error_message:
+      friendlyMessage.slice(0, 1000),
+    analysis_completed_at:
+      new Date().toISOString(),
+  });
 
-  // Preserve the raw technical error internally for diagnostics.
+  // Analyses rows are readable by learner viewers (RLS SELECT), so only the
+  // error code and safe message are stored; raw text goes to server logs.
   try {
     await supabaseAdmin
       .from("nova_schoolwork_analyses")
       .update({
         error_message:
-          rawMessage.slice(0, 4000),
+          `${analysisErrorCode(error)}: ${friendlyMessage}`.slice(0, 4000),
         completed_at:
           new Date().toISOString(),
       })
-      .eq("upload_id", uploadId);
+      .eq("upload_id", uploadId)
+      // The shared analyses row belongs to the newest claim (started_at).
+      .eq("started_at", claimToken);
   } catch {
     // Do not mask the original analysis failure if logging fails.
   }
@@ -1047,6 +1099,12 @@ async function markFailed(uploadId: string, error: unknown) {
 
 export async function POST(request: Request) {
   let uploadId = "";
+  // Set only once this request owns the analysis (claim) and its run row.
+  let claimToken: string | null = null;
+  let runId: string | null = null;
+  // Once this request has finalized its analysis, a later error (for example
+  // while building the response) must not mark anything failed.
+  let finalized = false;
 
   try {
     const { user, client: userClient } = await requireCurrentUser(request);
@@ -1132,42 +1190,50 @@ export async function POST(request: Request) {
 
     let upload = uploadData as SchoolworkUploadRow;
 
+    // Storage metadata is browser-supplied: never sign, fetch or send an
+    // object that is not this upload's canonical private key. Fail closed
+    // without echoing the stored path.
+    if (
+      !isCanonicalSchoolworkObject({
+        bucket: upload.storage_bucket,
+        path: upload.storage_path,
+        studentUserId: upload.student_user_id,
+        uploadId: upload.id,
+      })
+    ) {
+      console.error("NOVA+ schoolwork upload has non-canonical storage metadata", {
+        upload_id: uploadId,
+      });
+
+      return json(
+        {
+          error_code: "STORAGE_OBJECT_INVALID",
+          error: publicSchoolworkError("STORAGE_OBJECT_INVALID"),
+        },
+        422,
+      );
+    }
+
+    // Approved / archived uploads hold reviewed evidence: never re-analyse
+    // (that would delete and re-insert reviewed items).
+    const startDecision = analysisStartDecision({
+      status: upload.status,
+      analysisStartedAt: upload.analysis_started_at,
+      nowMs: Date.now(),
+    });
+
+    if (!startDecision.ok) {
+      return json(
+        {
+          error_code: startDecision.code,
+          error: publicSchoolworkError(startDecision.code),
+        },
+        409,
+      );
+    }
+
     const requestedSubjectHint = cleanText(body.subject_hint);
     const requestedLevelHint = Number(body.primary_level_hint);
-
-    if (
-      ["english", "math"].includes(requestedSubjectHint) ||
-      (
-        Number.isInteger(requestedLevelHint) &&
-        requestedLevelHint >= 1 &&
-        requestedLevelHint <= 6
-      )
-    ) {
-      const updates: Record<string, unknown> = {};
-
-      if (["english", "math"].includes(requestedSubjectHint)) {
-        updates.subject_hint = requestedSubjectHint;
-      }
-
-      if (
-        Number.isInteger(requestedLevelHint) &&
-        requestedLevelHint >= 1 &&
-        requestedLevelHint <= 6
-      ) {
-        updates.primary_level_hint = requestedLevelHint;
-      }
-
-      const { data: updatedUpload, error: hintError } =
-        await supabaseAdmin
-          .from("nova_schoolwork_uploads")
-          .update(updates)
-          .eq("id", uploadId)
-          .select("*")
-          .single();
-
-      if (hintError) throw hintError;
-      upload = updatedUpload as SchoolworkUploadRow;
-    }
 
     if (!ALLOWED_MIME_TYPES.has(upload.mime_type)) {
       return json(
@@ -1204,6 +1270,53 @@ export async function POST(request: Request) {
         413,
       );
     }
+
+    if (
+      ["english", "math"].includes(requestedSubjectHint) ||
+      (
+        Number.isInteger(requestedLevelHint) &&
+        requestedLevelHint >= 1 &&
+        requestedLevelHint <= 6
+      )
+    ) {
+      const updates: Record<string, unknown> = {};
+
+      if (["english", "math"].includes(requestedSubjectHint)) {
+        updates.subject_hint = requestedSubjectHint;
+      }
+
+      if (
+        Number.isInteger(requestedLevelHint) &&
+        requestedLevelHint >= 1 &&
+        requestedLevelHint <= 6
+      ) {
+        updates.primary_level_hint = requestedLevelHint;
+      }
+
+      const { data: updatedUpload, error: hintError } =
+        await supabaseAdmin
+          .from("nova_schoolwork_uploads")
+          .update(updates)
+          .eq("id", uploadId)
+          .select("*")
+          .single();
+
+      if (hintError) throw hintError;
+      upload = updatedUpload as SchoolworkUploadRow;
+    }
+
+    // Hints sent with an explicit needs_input retry are the reviewer's
+    // confirmation of the curriculum scope after a contradiction.
+    const hintsConfirmed =
+      cleanText(body.trigger_source) === "needs_input_retry" &&
+      (
+        ["english", "math"].includes(requestedSubjectHint) ||
+        (
+          Number.isInteger(requestedLevelHint) &&
+          requestedLevelHint >= 1 &&
+          requestedLevelHint <= 6
+        )
+      );
 
     const rollingDayStart =
       new Date(
@@ -1264,21 +1377,10 @@ export async function POST(request: Request) {
       ? cleanText(body.trigger_source)
       : "initial";
 
-    const run = await createAnalysisRun({
-      uploadId,
-      triggerSource,
-      extractionModel,
-      reasoningModel,
-    });
-
-    const runStartedMs = Date.now();
-
-    await supabaseAdmin
-      .from("nova_schoolwork_analysis_runs")
-      .update({ stage: "extracting" })
-      .eq("id", run.id);
-
-    const { error: startError } = await supabaseAdmin
+    // Compare-and-set claim: only one request can move this upload into
+    // `analysing` from the status it was read in (a stale claim is reclaimed
+    // only if it is still the exact claim that was observed).
+    let claimQuery = supabaseAdmin
       .from("nova_schoolwork_uploads")
       .update({
         status: "analysing",
@@ -1289,25 +1391,122 @@ export async function POST(request: Request) {
         analysis_completed_at: null,
         error_message: null,
       })
-      .eq("id", uploadId);
+      .eq("id", uploadId)
+      .eq("status", upload.status);
+
+    if (startDecision.reclaimStale) {
+      claimQuery = claimQuery.eq(
+        "analysis_started_at",
+        upload.analysis_started_at,
+      );
+    }
+
+    const { data: claimedRows, error: startError } =
+      await claimQuery.select("id");
 
     if (startError) throw startError;
 
+    if (!Array.isArray(claimedRows) || claimedRows.length !== 1) {
+      return json(
+        {
+          error_code: "ANALYSIS_IN_PROGRESS",
+          error: publicSchoolworkError("ANALYSIS_IN_PROGRESS"),
+        },
+        409,
+      );
+    }
+
+    claimToken = startedAt;
+
+    // Only the newest claim holder reaches this point (the compare-and-set
+    // above), so it takes the shared analyses row for this claim and clears
+    // the previous summary. Every later analyses write filters on
+    // started_at = this claim token, so a superseded request can no longer
+    // change it, and anything it wrote earlier is cleared here.
+    const { error: analysisClaimError } = await supabaseAdmin
+      .from("nova_schoolwork_analyses")
+      .upsert(
+        {
+          upload_id: uploadId,
+          started_at: startedAt,
+          completed_at: null,
+          error_message: null,
+          overall_summary: "",
+          strength_skill_codes: [],
+          support_skill_codes: [],
+        },
+        { onConflict: "upload_id" },
+      );
+
+    if (analysisClaimError) throw analysisClaimError;
+
+    const run = await createAnalysisRun({
+      uploadId,
+      triggerSource,
+      extractionModel,
+      reasoningModel,
+    });
+
+    runId = String(run.id);
+
+    // Terminal "needs_input" exits write the upload only if this request
+    // still owns the claim; otherwise the caller is told it was superseded.
+    const claimedExit = async (values: Record<string, unknown>) => {
+      const { data: exitRows, error: exitError } = await updateClaimedUpload(
+        uploadId,
+        startedAt,
+        values,
+      ).select("id");
+
+      if (exitError) throw exitError;
+      return Array.isArray(exitRows) && exitRows.length === 1;
+    };
+
+    // Stops this request without touching the upload: its claim was lost or
+    // reviewed evidence appeared. Only its own run row is closed.
+    const stopAnalysis = async (
+      code: "ANALYSIS_SUPERSEDED" | "UPLOAD_LOCKED",
+    ) => {
+      await supabaseAdmin
+        .from("nova_schoolwork_analysis_runs")
+        .update({
+          status: "failed",
+          stage: "failed",
+          duration_ms: Date.now() - runStartedMs,
+          error_code: code,
+          error_message: publicSchoolworkError(code),
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", run.id);
+
+      return json(
+        { error_code: code, error: publicSchoolworkError(code) },
+        409,
+      );
+    };
+
+    const runStartedMs = Date.now();
+
+    await supabaseAdmin
+      .from("nova_schoolwork_analysis_runs")
+      .update({ stage: "extracting" })
+      .eq("id", run.id);
+
+    // Signs only the canonical key validated above (constant bucket).
     const { data: signedData, error: signedError } =
       await supabaseAdmin.storage
         .from(upload.storage_bucket)
         .createSignedUrl(upload.storage_path, 15 * 60);
 
     if (signedError || !signedData?.signedUrl) {
-      throw new Error(
-        `SIGNED_URL_FAILED: ${signedError?.message || "No signed URL returned."}`,
-      );
+      throw new Error("SIGNED_URL_FAILED");
     }
 
     const filePart = fileContentPart({
       mimeType: upload.mime_type,
       signedUrl: signedData.signedUrl,
-      filename: upload.original_filename,
+      // The original filename may identify the learner; never send it.
+      filename: neutralAiFilename(upload.mime_type),
     });
 
     const extractionCall = await callOpenAIWithFallback({
@@ -1328,7 +1527,7 @@ Hints are context only. Do not force them when the document clearly contradicts 
 `,
       filePart,
       schemaName: "nova_schoolwork_extraction_v1",
-      schema: extractionSchema(),
+      schema: extractionSchema(settings.max_questions),
       reasoningEffort: "low",
       maxAutomaticRetries:
         settings.automatic_retry_count,
@@ -1345,6 +1544,18 @@ Hints are context only. Do not force them when the document clearly contradicts 
         `PAGE_LIMIT_EXCEEDED: This upload appears to contain ` +
         `${extraction.pages_detected} pages. Please upload up to ` +
         `${settings.max_pages} pages at a time.`;
+
+      if (
+        !(await claimedExit({
+          status: "needs_input",
+          page_count: Number(extraction.pages_detected || 0),
+          error_message:
+            `Please upload up to ${settings.max_pages} pages at a time.`,
+          analysis_completed_at: new Date().toISOString(),
+        }))
+      ) {
+        return await stopAnalysis("ANALYSIS_SUPERSEDED");
+      }
 
       await supabaseAdmin
         .from("nova_schoolwork_analysis_runs")
@@ -1369,17 +1580,6 @@ Hints are context only. Do not force them when the document clearly contradicts 
         })
         .eq("id", run.id);
 
-      await supabaseAdmin
-        .from("nova_schoolwork_uploads")
-        .update({
-          status: "needs_input",
-          page_count: Number(extraction.pages_detected || 0),
-          error_message:
-            `Please upload up to ${settings.max_pages} pages at a time.`,
-          analysis_completed_at: new Date().toISOString(),
-        })
-        .eq("id", uploadId);
-
       return json(
         {
           status: "needs_input",
@@ -1393,8 +1593,49 @@ Hints are context only. Do not force them when the document clearly contradicts 
     }
 
     if ((extraction.questions?.length || 0) > settings.max_questions) {
-      extraction.questions =
-        extraction.questions.slice(0, settings.max_questions);
+      const message = publicSchoolworkError("QUESTION_LIMIT_EXCEEDED");
+
+      if (
+        !(await claimedExit({
+          status: "needs_input",
+          error_message: message,
+          analysis_completed_at: new Date().toISOString(),
+        }))
+      ) {
+        return await stopAnalysis("ANALYSIS_SUPERSEDED");
+      }
+
+      await supabaseAdmin
+        .from("nova_schoolwork_analysis_runs")
+        .update({
+          status: "needs_input",
+          stage: "failed",
+          extraction_response_id: extractionCall.responseId,
+          extraction_usage: extractionCall.usage,
+          extraction_cost_usd: estimateCostUsd(
+            extractionCall.modelUsed,
+            extractionCall.usage,
+          ),
+          automatic_retry_count:
+            extractionCall.automaticRetryCount,
+          question_count: extraction.questions.length,
+          duration_ms: Date.now() - runStartedMs,
+          error_code: "QUESTION_LIMIT_EXCEEDED",
+          error_message: message,
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", run.id);
+
+      return json(
+        {
+          status: "needs_input",
+          upload_id: uploadId,
+          error_code: "QUESTION_LIMIT_EXCEEDED",
+          max_questions: settings.max_questions,
+          message,
+        },
+        422,
+      );
     }
 
     await supabaseAdmin
@@ -1418,6 +1659,50 @@ Hints are context only. Do not force them when the document clearly contradicts 
       })
       .eq("id", run.id);
 
+    const hintConflict = detectHintConflict({
+      subjectHint: upload.subject_hint,
+      levelHint: upload.primary_level_hint,
+      detectedSubject: extraction.subject,
+      detectedLevel: extraction.primary_level,
+    });
+
+    if (hintConflict && !hintsConfirmed) {
+      const message = hintConflictMessage(hintConflict);
+
+      if (
+        !(await claimedExit({
+          status: "needs_input",
+          analysis_completed_at: new Date().toISOString(),
+          error_message: message,
+        }))
+      ) {
+        return await stopAnalysis("ANALYSIS_SUPERSEDED");
+      }
+
+      await supabaseAdmin
+        .from("nova_schoolwork_analysis_runs")
+        .update({
+          status: "needs_input",
+          stage: "failed",
+          duration_ms: Date.now() - runStartedMs,
+          error_code: "HINT_CONFLICT",
+          error_message: message,
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", run.id);
+
+      return json(
+        {
+          status: "needs_input",
+          upload_id: uploadId,
+          error_code: "HINT_CONFLICT",
+          message,
+          conflict: hintConflict,
+        },
+        422,
+      );
+    }
+
     const resolvedSubject =
       upload.subject_hint ||
       (["english", "math"].includes(extraction.subject)
@@ -1430,52 +1715,60 @@ Hints are context only. Do not force them when the document clearly contradicts 
         ? extraction.primary_level
         : null);
 
-    await supabaseAdmin
-      .from("nova_schoolwork_analyses")
-      .upsert(
-        {
-          upload_id: uploadId,
+    const { data: extractionRows, error: extractionWriteError } =
+      await supabaseAdmin
+        .from("nova_schoolwork_analyses")
+        .update({
           extraction_model: extractionCall.modelUsed,
           reasoning_model: reasoningModel,
           extraction_response_id: extractionCall.responseId,
           extraction_raw: extraction,
           extraction_usage: extractionCall.usage,
-          started_at: startedAt,
           error_message: null,
-        },
-        {
-          onConflict: "upload_id",
-        },
-      );
+        })
+        .eq("upload_id", uploadId)
+        .eq("started_at", startedAt)
+        .select("upload_id");
 
-    await supabaseAdmin
-      .from("nova_schoolwork_uploads")
-      .update({
-        assignment_title: cleanText(extraction.assignment_title) || null,
-        detected_subject:
-          extraction.subject === "uncertain"
-            ? "uncertain"
-            : extraction.subject,
-        detected_primary_level:
-          extraction.primary_level >= 1 && extraction.primary_level <= 6
-            ? extraction.primary_level
-            : null,
-        document_quality: extraction.document_quality,
-        teacher_marked: Boolean(extraction.teacher_marked),
-        page_count: Math.max(1, Number(extraction.pages_detected || 1)),
-      })
-      .eq("id", uploadId);
+    if (extractionWriteError) throw extractionWriteError;
+
+    if (!Array.isArray(extractionRows) || extractionRows.length !== 1) {
+      return await stopAnalysis("ANALYSIS_SUPERSEDED");
+    }
+
+    const { data: detectedRows, error: detectedError } =
+      await updateClaimedUpload(uploadId, startedAt, {
+      assignment_title: cleanText(extraction.assignment_title) || null,
+      detected_subject:
+        extraction.subject === "uncertain"
+          ? "uncertain"
+          : extraction.subject,
+      detected_primary_level:
+        extraction.primary_level >= 1 && extraction.primary_level <= 6
+          ? extraction.primary_level
+          : null,
+      document_quality: extraction.document_quality,
+      teacher_marked: Boolean(extraction.teacher_marked),
+      page_count: Math.max(1, Number(extraction.pages_detected || 1)),
+    }).select("id");
+
+    if (detectedError) throw detectedError;
+
+    if (!Array.isArray(detectedRows) || detectedRows.length !== 1) {
+      return await stopAnalysis("ANALYSIS_SUPERSEDED");
+    }
 
     if (!resolvedSubject || !resolvedLevel) {
-      await supabaseAdmin
-        .from("nova_schoolwork_uploads")
-        .update({
+      if (
+        !(await claimedExit({
           status: "needs_input",
           analysis_completed_at: new Date().toISOString(),
           error_message:
             "Choose the subject and Primary level, then continue analysis.",
-        })
-        .eq("id", uploadId);
+        }))
+      ) {
+        return await stopAnalysis("ANALYSIS_SUPERSEDED");
+      }
 
       await supabaseAdmin
         .from("nova_schoolwork_analysis_runs")
@@ -1647,9 +1940,12 @@ Re-check the original file, then produce the final verified analysis.
       taxonomy.map((skill) => [skill.skill_code, skill]),
     );
 
+    if ((reasoned.items?.length || 0) > settings.max_questions) {
+      throw new Error("QUESTION_LIMIT_EXCEEDED");
+    }
+
     const validItems = [...(reasoned.items ?? [])]
-      .sort((a, b) => Number(a.item_index) - Number(b.item_index))
-      .slice(0, settings.max_questions);
+      .sort((a, b) => Number(a.item_index) - Number(b.item_index));
 
     const confidenceValues = validItems
       .map((item) => clamp01(item.mapping_confidence))
@@ -1660,29 +1956,23 @@ Re-check the original file, then produce the final verified analysis.
         confidenceValues.length
       : 0;
 
-    const { error: deleteItemsError } = await supabaseAdmin
-      .from("nova_schoolwork_items")
-      .delete()
-      .eq("upload_id", uploadId);
-
-    if (deleteItemsError) throw deleteItemsError;
-
-    const insertedItems: Array<{
-      id: string;
-      item_index: number;
-      primary_skill_code: string;
-      supporting_skill_codes: string[];
-      mapping_confidence: number;
-      evidence_weight: number;
-    }> = [];
-
-    for (const item of validItems) {
+    // Rows for this analysis, built once. They are written either atomically
+    // by the finalize RPC (when enabled) or by single-statement bulk inserts,
+    // never one REST request per item.
+    const itemRows = validItems.map((item) => {
       const primarySkill = taxonomyByCode.get(item.primary_skill_code);
       const evidenceWeight = proposedEvidenceWeight(item);
+      const skillCodes = [
+        ...new Set(
+          [
+            item.primary_skill_code,
+            ...(item.supporting_skill_codes || []),
+          ].filter(Boolean),
+        ),
+      ];
 
-      const { data: inserted, error: itemError } = await supabaseAdmin
-        .from("nova_schoolwork_items")
-        .insert({
+      return {
+        row: {
           upload_id: uploadId,
           item_index: Number(item.item_index),
           page_number:
@@ -1705,101 +1995,53 @@ Re-check the original file, then produce the final verified analysis.
           proposed_evidence_weight: evidenceWeight,
           reasoning_note: cleanText(item.reasoning_note),
           raw_item: item,
-        })
-        .select("id,item_index")
-        .single();
+        },
+        skills: skillCodes.flatMap((skillCode) => {
+          const skill = taxonomyByCode.get(skillCode);
+          if (!skill) return [];
 
-      if (itemError) throw itemError;
-
-      insertedItems.push({
-        id: String(inserted.id),
-        item_index: Number(inserted.item_index),
-        primary_skill_code: item.primary_skill_code,
-        supporting_skill_codes: item.supporting_skill_codes ?? [],
-        mapping_confidence: clamp01(item.mapping_confidence),
-        evidence_weight: evidenceWeight,
-      });
-    }
-
-    for (const inserted of insertedItems) {
-      const skillCodes = [
-        inserted.primary_skill_code,
-        ...(inserted.supporting_skill_codes || []),
-      ].filter(Boolean);
-
-      const uniqueCodes = [...new Set(skillCodes)];
-
-      if (!uniqueCodes.length) continue;
-
-      const mappingRows = uniqueCodes.flatMap((skillCode) => {
-        const skill = taxonomyByCode.get(skillCode);
-        if (!skill) return [];
-
-        return [
-          {
-            item_id: inserted.id,
-            skill_id: skill.id,
-            is_primary_skill:
-              skillCode === inserted.primary_skill_code,
-            mapping_confidence: inserted.mapping_confidence,
-            proposed_evidence_weight:
-              inserted.evidence_weight,
-            mapping_reason:
-              skillCode === inserted.primary_skill_code
-                ? "AI-proposed primary canonical concept from schoolwork analysis."
-                : "AI-proposed supporting canonical concept from schoolwork analysis.",
-            approved: false,
-          },
-        ];
-      });
-
-      if (mappingRows.length) {
-        const { error: mappingError } = await supabaseAdmin
-          .from("nova_schoolwork_item_skills")
-          .insert(mappingRows);
-
-        if (mappingError) throw mappingError;
-      }
-    }
+          return [
+            {
+              skill_id: skill.id,
+              is_primary_skill: skillCode === item.primary_skill_code,
+              mapping_confidence: clamp01(item.mapping_confidence),
+              proposed_evidence_weight: evidenceWeight,
+              mapping_reason:
+                skillCode === item.primary_skill_code
+                  ? "AI-proposed primary canonical concept from schoolwork analysis."
+                  : "AI-proposed supporting canonical concept from schoolwork analysis.",
+              approved: false,
+            },
+          ];
+        }),
+      };
+    });
 
     const completedAt = new Date().toISOString();
 
-    const { error: analysisUpdateError } = await supabaseAdmin
-      .from("nova_schoolwork_analyses")
-      .update({
-        reasoning_model: reasoningCall.modelUsed,
-        reasoning_response_id: reasoningCall.responseId,
-        analysis_raw: reasoned,
-        overall_summary: cleanText(reasoned.overall_summary),
-        strength_skill_codes: reasoned.strength_skill_codes ?? [],
-        support_skill_codes: reasoned.support_skill_codes ?? [],
-        reasoning_usage: reasoningCall.usage,
-        completed_at: completedAt,
-        error_message: null,
-      })
-      .eq("upload_id", uploadId);
+    const { data: summaryRows, error: analysisUpdateError } =
+      await supabaseAdmin
+        .from("nova_schoolwork_analyses")
+        .update({
+          reasoning_model: reasoningCall.modelUsed,
+          reasoning_response_id: reasoningCall.responseId,
+          analysis_raw: reasoned,
+          overall_summary: cleanText(reasoned.overall_summary),
+          strength_skill_codes: reasoned.strength_skill_codes ?? [],
+          support_skill_codes: reasoned.support_skill_codes ?? [],
+          reasoning_usage: reasoningCall.usage,
+          completed_at: completedAt,
+          error_message: null,
+        })
+        .eq("upload_id", uploadId)
+        .eq("started_at", startedAt)
+        .select("upload_id");
 
     if (analysisUpdateError) throw analysisUpdateError;
 
-    const { error: uploadUpdateError } = await supabaseAdmin
-      .from("nova_schoolwork_uploads")
-      .update({
-        status: "review_ready",
-        analysis_revision:
-          Number(upload.analysis_revision || 0) + 1,
-        detected_subject: resolvedSubject,
-        detected_primary_level: resolvedLevel,
-        assignment_title:
-          cleanText(reasoned.assignment_title) ||
-          cleanText(extraction.assignment_title) ||
-          null,
-        analysis_confidence: analysisConfidence,
-        analysis_completed_at: completedAt,
-        error_message: null,
-      })
-      .eq("id", uploadId);
-
-    if (uploadUpdateError) throw uploadUpdateError;
+    if (!Array.isArray(summaryRows) || summaryRows.length !== 1) {
+      return await stopAnalysis("ANALYSIS_SUPERSEDED");
+    }
 
     const extractionCost = estimateCostUsd(
       extractionCall.modelUsed,
@@ -1811,11 +2053,11 @@ Re-check the original file, then produce the final verified analysis.
       reasoningCall.usage,
     );
 
+    // Run telemetry only; the run's success status is written together with
+    // (atomic path) or immediately before (bulk path) the item rewrite.
     await supabaseAdmin
       .from("nova_schoolwork_analysis_runs")
       .update({
-        status: "succeeded",
-        stage: "complete",
         extraction_model:
           extractionCall.modelUsed,
         reasoning_model:
@@ -1840,13 +2082,166 @@ Re-check the original file, then produce the final verified analysis.
           1,
           Number(extraction.pages_detected || 1),
         ),
-        question_count: validItems.length,
         duration_ms: Date.now() - runStartedMs,
-        completed_at: completedAt,
-        error_code: null,
-        error_message: null,
       })
       .eq("id", run.id);
+
+    const uploadFields = {
+      detected_subject: resolvedSubject,
+      detected_primary_level: resolvedLevel,
+      assignment_title:
+        cleanText(reasoned.assignment_title) ||
+        cleanText(extraction.assignment_title) ||
+        null,
+      analysis_confidence: analysisConfidence,
+    };
+
+    let analysisRevision = Number(upload.analysis_revision || 0) + 1;
+
+    if (process.env.NOVA_SCHOOLWORK_ATOMIC_FINALIZE === "on") {
+      // One transaction: claim check, item rewrite, run success, review_ready.
+      const { data: finalizedResult, error: finalizeError } =
+        await supabaseAdmin.rpc("finalize_nova_schoolwork_analysis", {
+          p_upload_id: uploadId,
+          p_claim_started_at: startedAt,
+          p_run_id: run.id,
+          p_items: itemRows.map((entry) => ({
+            ...entry.row,
+            skills: entry.skills,
+          })),
+          p_upload: uploadFields,
+        });
+
+      if (finalizeError) {
+        const finalizeMessage = String(finalizeError.message || "");
+
+        if (finalizeMessage.includes("ANALYSIS_CLAIM_LOST")) {
+          return await stopAnalysis("ANALYSIS_SUPERSEDED");
+        }
+
+        if (finalizeMessage.includes("UPLOAD_HAS_REVIEWED_EVIDENCE")) {
+          return await stopAnalysis("UPLOAD_LOCKED");
+        }
+
+        throw finalizeError;
+      }
+
+      analysisRevision = Number(
+        (finalizedResult as { analysis_revision?: unknown } | null)
+          ?.analysis_revision ?? analysisRevision,
+      );
+      finalized = true;
+    } else {
+      // Items are only rewritten while this request still holds its claim
+      // and no reviewed evidence exists; otherwise stop without touching the
+      // upload.
+      const { data: claimRow, error: claimCheckError } = await supabaseAdmin
+        .from("nova_schoolwork_uploads")
+        .select("status,analysis_started_at")
+        .eq("id", uploadId)
+        .maybeSingle();
+
+      if (claimCheckError) throw claimCheckError;
+
+      const { data: reviewedRows, error: reviewedError } = await supabaseAdmin
+        .from("nova_schoolwork_items")
+        .select("id")
+        .eq("upload_id", uploadId)
+        .eq("included_in_profile", true)
+        .limit(1);
+
+      if (reviewedError) throw reviewedError;
+
+      const claimStillHeld =
+        claimRow?.status === "analysing" &&
+        new Date(String(claimRow.analysis_started_at || "")).getTime() ===
+          new Date(startedAt).getTime();
+
+      if (!claimStillHeld) {
+        return await stopAnalysis("ANALYSIS_SUPERSEDED");
+      }
+
+      if ((reviewedRows ?? []).length > 0) {
+        return await stopAnalysis("UPLOAD_LOCKED");
+      }
+
+      const { error: deleteItemsError } = await supabaseAdmin
+        .from("nova_schoolwork_items")
+        .delete()
+        .eq("upload_id", uploadId);
+
+      if (deleteItemsError) throw deleteItemsError;
+
+      if (itemRows.length) {
+        // One statement: all items are inserted or none are.
+        const { data: insertedRows, error: itemError } = await supabaseAdmin
+          .from("nova_schoolwork_items")
+          .insert(itemRows.map((entry) => entry.row))
+          .select("id,item_index");
+
+        if (itemError) throw itemError;
+
+        const idByIndex = new Map(
+          ((insertedRows ?? []) as Array<{ id: unknown; item_index: unknown }>)
+            .map((row) => [Number(row.item_index), String(row.id)]),
+        );
+
+        if (idByIndex.size !== itemRows.length) {
+          throw new Error("ITEM_INSERT_INCOMPLETE");
+        }
+
+        const mappingRows = itemRows.flatMap((entry) =>
+          entry.skills.map((skill) => ({
+            item_id: idByIndex.get(entry.row.item_index),
+            ...skill,
+          })),
+        );
+
+        if (mappingRows.length) {
+          const { error: mappingError } = await supabaseAdmin
+            .from("nova_schoolwork_item_skills")
+            .insert(mappingRows);
+
+          if (mappingError) throw mappingError;
+        }
+      }
+
+      // Success is recorded before review_ready: the commit guard requires
+      // the latest run to have succeeded with a matching question count.
+      const { error: runSuccessError } = await supabaseAdmin
+        .from("nova_schoolwork_analysis_runs")
+        .update({
+          status: "succeeded",
+          stage: "complete",
+          question_count: itemRows.length,
+          completed_at: completedAt,
+          error_code: null,
+          error_message: null,
+        })
+        .eq("id", run.id);
+
+      if (runSuccessError) throw runSuccessError;
+
+      const { data: finalRows, error: uploadUpdateError } =
+        await updateClaimedUpload(uploadId, startedAt, {
+          status: "review_ready",
+          analysis_revision: analysisRevision,
+          ...uploadFields,
+          analysis_completed_at: completedAt,
+          error_message: null,
+        }).select("id");
+
+      if (uploadUpdateError) throw uploadUpdateError;
+
+      if (!Array.isArray(finalRows) || finalRows.length !== 1) {
+        // Claim lost after the items were written (e.g. archived meanwhile):
+        // never report success. The run is closed as failed, so the commit
+        // guard refuses these rows until a new analysis succeeds.
+        return await stopAnalysis("ANALYSIS_SUPERSEDED");
+      }
+
+      finalized = true;
+    }
 
     const skillDisplay = Object.fromEntries(
       taxonomy.map((skill) => [
@@ -1875,6 +2270,7 @@ Re-check the original file, then produce the final verified analysis.
         teacher_marked: Boolean(extraction.teacher_marked),
         document_quality: extraction.document_quality,
         analysis_confidence: analysisConfidence,
+        analysis_revision: analysisRevision,
       },
       analysis: {
         overall_summary: reasoned.overall_summary,
@@ -1901,42 +2297,26 @@ Re-check the original file, then produce the final verified analysis.
       })),
     });
   } catch (error) {
-    if (uploadId) {
-      await markFailed(uploadId, error).catch(() => undefined);
+    if (uploadId && !finalized) {
+      await markFailed(uploadId, error, claimToken).catch(() => undefined);
 
-      try {
-        const { data: latestRun } = await supabaseAdmin
-          .from("nova_schoolwork_analysis_runs")
-          .select("id,started_at")
-          .eq("upload_id", uploadId)
-          .eq("status", "running")
-          .order("run_number", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (latestRun?.id) {
-          const startedMs =
-            new Date(latestRun.started_at).getTime();
-
+      // Only this request's own run row (never "the latest running run",
+      // which may belong to a newer request).
+      if (runId) {
+        try {
           await supabaseAdmin
             .from("nova_schoolwork_analysis_runs")
             .update({
               status: "failed",
               stage: "failed",
-              duration_ms: Number.isFinite(startedMs)
-                ? Math.max(0, Date.now() - startedMs)
-                : null,
               error_code: analysisErrorCode(error),
-              error_message:
-                error instanceof Error
-                  ? error.message.slice(0, 4000)
-                  : String(error).slice(0, 4000),
+              error_message: friendlyAnalysisError(error),
               completed_at: new Date().toISOString(),
             })
-            .eq("id", latestRun.id);
+            .eq("id", runId);
+        } catch {
+          // Preserve the original analysis failure.
         }
-      } catch {
-        // Preserve the original analysis failure.
       }
     }
 
@@ -1951,7 +2331,7 @@ Re-check the original file, then produce the final verified analysis.
       return json(
         {
           error:
-            "OPENAI_API_KEY is not configured on the server.",
+            "The worksheet analysis service is not configured yet.",
         },
         500,
       );

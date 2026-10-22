@@ -1,6 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  isCanonicalSchoolworkObject,
+  publicSchoolworkError,
+} from "@/lib/nova-plus/schoolwork-guards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -86,6 +90,24 @@ async function canViewStudent(
   return !error && Boolean(data);
 }
 
+/** Browser-supplied storage metadata is trusted only in canonical form. */
+function hasCanonicalObject(upload: Record<string, unknown> | null) {
+  return isCanonicalSchoolworkObject({
+    bucket: upload?.storage_bucket,
+    path: upload?.storage_path,
+    studentUserId: upload?.student_user_id,
+    uploadId: upload?.id,
+  });
+}
+
+/** Private storage location is never returned to the browser. */
+function publicUpload(upload: Record<string, unknown>) {
+  const { storage_bucket: _bucket, storage_path: _path, ...rest } = upload;
+  void _bucket;
+  void _path;
+  return rest;
+}
+
 async function getUpload(uploadId: string) {
   const { data, error } = await supabaseAdmin
     .from("nova_schoolwork_uploads")
@@ -162,15 +184,28 @@ export async function GET(request: Request) {
 
       if (runError) throw runError;
 
-      const { data: signedPreview, error: previewError } =
-        await supabaseAdmin.storage
-          .from(upload.storage_bucket)
-          .createSignedUrl(upload.storage_path, 10 * 60);
+      // Never sign a forged / non-canonical object: no preview instead.
+      let previewUrl: string | null = null;
 
-      const previewUrl =
-        previewError || !signedPreview?.signedUrl
-          ? null
-          : signedPreview.signedUrl;
+      if (hasCanonicalObject(upload)) {
+        const { data: signedPreview, error: previewError } =
+          await supabaseAdmin.storage
+            .from(upload.storage_bucket)
+            .createSignedUrl(upload.storage_path, 10 * 60);
+
+        previewUrl =
+          previewError || !signedPreview?.signedUrl
+            ? null
+            : signedPreview.signedUrl;
+      } else {
+        console.error("NOVA+ schoolwork preview skipped: non-canonical storage metadata", {
+          upload_id: upload.id,
+        });
+      }
+
+      // A reviewed upload reopens with the reviewer's own saved decisions.
+      const reviewed =
+        upload.status === "approved" || Boolean(upload.reviewed_at);
 
       const items = itemsResult.data ?? [];
       const itemIds = items.map((item) => item.id);
@@ -262,7 +297,7 @@ export async function GET(request: Request) {
       );
 
       return json({
-        upload,
+        upload: publicUpload(upload),
         analysis: analysisResult.data,
         analysis_runs: runRows ?? [],
         preview_url: previewUrl,
@@ -279,6 +314,7 @@ export async function GET(request: Request) {
             teacher_marked: Boolean(upload.teacher_marked),
             document_quality: upload.document_quality || "medium",
             analysis_confidence: Number(upload.analysis_confidence || 0),
+            analysis_revision: Number(upload.analysis_revision || 0),
           },
           analysis: {
             overall_summary:
@@ -304,20 +340,37 @@ export async function GET(request: Request) {
             teacher_feedback: item.teacher_feedback || "",
             final_correctness: item.final_correctness,
             correctness_source: item.correctness_source,
+            // The commit RPC overwrites stored confidences with 1.0 after a
+            // reviewer edit; the AI's own estimate is kept in raw_item and is
+            // what the "AI estimate" labels describe.
             extraction_confidence: Number(
-              item.extraction_confidence || 0,
+              item.raw_item?.extraction_confidence ??
+                item.extraction_confidence ??
+                0,
             ),
             correctness_confidence: Number(
-              item.correctness_confidence || 0,
+              item.raw_item?.correctness_confidence ??
+                item.correctness_confidence ??
+                0,
             ),
             mapping_confidence: Number(
-              item.mapping_confidence || 0,
+              item.raw_item?.mapping_confidence ??
+                item.mapping_confidence ??
+                0,
             ),
             reasoning_note: item.reasoning_note || "",
             needs_review: Boolean(item.needs_review),
-            evidence_recommendation: item.included_in_profile
-              ? "include"
-              : item.evidence_recommendation,
+            // Stored recommendation as-is (the commit RPC overwrites it with
+            // the reviewer's include/exclude once a review is saved).
+            evidence_recommendation: item.evidence_recommendation,
+            // The reviewer's saved decision (null until first reviewed), so a
+            // previously excluded item is never pre-included on reopen.
+            review_decision:
+              reviewed || item.approved_at
+                ? item.included_in_profile
+                  ? "include"
+                  : "exclude"
+                : null,
             proposed_evidence_weight: Number(
               item.proposed_evidence_weight || 0,
             ),
@@ -424,7 +477,7 @@ export async function GET(request: Request) {
     }
 
     console.error("NOVA+ schoolwork history GET failed", error);
-    return json({ error: message }, 500);
+    return json({ error: publicSchoolworkError("REQUEST_FAILED") }, 500);
   }
 }
 
@@ -448,14 +501,13 @@ export async function POST(request: Request) {
 
     const upload = await getUpload(uploadId);
 
-    if (!upload) {
-      return json({ error: "Schoolwork upload not found." }, 404);
-    }
-
-    if (!(await canViewStudent(client, upload.student_user_id))) {
+    if (
+      !upload ||
+      !(await canViewStudent(client, upload.student_user_id))
+    ) {
       return json(
-        { error: "You do not have access to this learner." },
-        403,
+        { error: publicSchoolworkError("UPLOAD_NOT_FOUND") },
+        404,
       );
     }
 
@@ -469,7 +521,8 @@ export async function POST(request: Request) {
       );
 
       if (error) {
-        return json({ error: error.message }, 400);
+        console.error("NOVA+ schoolwork archive RPC failed", error);
+        return json({ error: publicSchoolworkError("MANAGE_FAILED") }, 400);
       }
 
       return json({
@@ -491,23 +544,48 @@ export async function POST(request: Request) {
       );
 
       if (error) {
-        return json({ error: error.message }, 400);
+        console.error("NOVA+ schoolwork delete RPC failed", error);
+        return json({ error: publicSchoolworkError("MANAGE_FAILED") }, 400);
       }
 
-      try {
-        await supabaseAdmin.storage
-          .from(upload.storage_bucket)
-          .remove([upload.storage_path]);
-      } catch (storageError) {
-        console.error(
-          "Schoolwork DB delete succeeded but storage cleanup failed",
-          storageError,
-        );
+      // Service-role removal only for this upload's canonical object; a
+      // forged bucket/path could otherwise delete another learner's file.
+      if (hasCanonicalObject(upload)) {
+        try {
+          const { error: removeError } = await supabaseAdmin.storage
+            .from(upload.storage_bucket)
+            .remove([upload.storage_path]);
+
+          if (removeError) {
+            console.error(
+              "Schoolwork DB delete succeeded but storage cleanup failed",
+              { upload_id: upload.id },
+            );
+          }
+        } catch {
+          console.error(
+            "Schoolwork DB delete succeeded but storage cleanup failed",
+            { upload_id: upload.id },
+          );
+        }
+      } else {
+        console.error("NOVA+ schoolwork storage cleanup skipped: non-canonical storage metadata", {
+          upload_id: upload.id,
+        });
       }
+
+      // The delete RPC echoes the stored storage location; never return it.
+      const {
+        storage_bucket: _deletedBucket,
+        storage_path: _deletedPath,
+        ...deleteResult
+      } = (data ?? {}) as Record<string, unknown>;
+      void _deletedBucket;
+      void _deletedPath;
 
       return json({
         status: "deleted",
-        result: data,
+        result: deleteResult,
       });
     }
 
@@ -524,6 +602,6 @@ export async function POST(request: Request) {
     }
 
     console.error("NOVA+ schoolwork history POST failed", error);
-    return json({ error: message }, 500);
+    return json({ error: publicSchoolworkError("MANAGE_FAILED") }, 500);
   }
 }

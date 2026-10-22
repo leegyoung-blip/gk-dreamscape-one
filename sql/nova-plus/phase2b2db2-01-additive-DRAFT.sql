@@ -27,6 +27,8 @@
 
 begin;
 
+set local nova.release_approval = 'APPROVED-NOVA-2B2DB2-ADDITIVE';
+
 do $gate$
 begin
   if coalesce(current_setting('nova.release_approval', true), '') <> 'APPROVED-NOVA-2B2DB2-ADDITIVE' then

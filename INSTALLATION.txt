@@ -1,0 +1,30 @@
+DREAMSCAPE ONE — PHASE 4E-2B-8C-2D.8B-4
+Controlled AI Generation Preparation — HARD DISABLED
+
+ADD THESE NEW FILES (preserve paths):
+ lib/math/teaching/student-serving/phase4E2B8C2D8B4DisabledGenerationPolicy.ts
+ lib/math/teaching/student-serving/phase4E2B8C2D8B4DisabledGenerationAdapter.server.ts
+ tests/phase4e2b8c2d8b4-disabled-generation.test.cjs
+ docs/PHASE_8C2D8B4_DISABLED_GENERATION_PREPARATION.md
+
+REQUIRES earlier installed Phase 8B-2 trusted bridge and Phase 8B-3
+explanation capture contract. Does not replace either file.
+
+POWERSHELL:
+ Set-Location 'C:\Users\leegy\gk-design-world'
+ $zip = "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2D8B4_CONTROLLED_GENERATION_PREPARATION_INSTALL.zip"
+ Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+ node --test tests/phase4e2b8c2d8b4-disabled-generation.test.cjs tests/phase4e2b8c2d8b3-explanation-contract.test.cjs
+ if ($LASTEXITCODE -ne 0) { throw 'Tests failed. Do not commit.' }
+ npx tsc --noEmit
+ if ($LASTEXITCODE -ne 0) { throw 'TypeScript failed. Do not commit.' }
+ git --no-pager diff --check
+ if ($LASTEXITCODE -ne 0) { throw 'Diff check failed. Do not commit.' }
+ git --no-pager status --short
+
+STAGE ONLY THE FOUR PHASE 8B-4 FILES ABOVE.
+No Supabase SQL, env var, AI provider call, UI route, or student release.
+
+Local verification: 66/66 focused tests passed (B3 + B4);
+isolated strict ES2017 TypeScript check passed.
+Full checkout type-check has NOT been run in this partial source environment.

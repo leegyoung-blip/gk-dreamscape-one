@@ -1,0 +1,17 @@
+DREAMSCAPE ONE - Phase 8C-2D.8A Windows test portability hotfix
+
+This archive contains exactly one replacement repository file:
+ tests/phase4e2b8c2d8-generator-path-audit.test.cjs
+
+Problem: Windows can block fs.symlinkSync() with EPERM without Developer Mode or elevated privileges. That made the test fail before it could run the scanner. No production scanner code failed.
+
+Fix: The test now supplies a temporary directory-entry fixture whose isSymbolicLink() returns true. It asserts that the production scanner ignores the alias and reports only the legitimate provider call. It restores the original fs.readdirSync in a finally block.
+
+This is a portable unit test of the scanner's symlink-exclusion branch; it is not an end-to-end test with an actual OS symbolic link.
+
+Install in repository root (PowerShell):
+ $zip="$env:USERPROFILE\Downloads\DREAMSCAPE_8C2D8A_WINDOWS_TEST_HOTFIX.zip"
+ Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+ node --test tests/phase4e2b8c2d8-generator-path-audit.test.cjs
+
+If tests pass, run the original 8C-2D8A generator-path audit command. No Supabase SQL, production changes, or elevation required. Stage only the test file alongside previously installed 8C-2D.8A audit files.

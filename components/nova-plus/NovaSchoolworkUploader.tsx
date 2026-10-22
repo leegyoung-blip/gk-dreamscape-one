@@ -70,6 +70,8 @@ type AnalysisItem = {
   reasoning_note: string;
   needs_review: boolean;
   evidence_recommendation: "include" | "review" | "exclude";
+  /** Reviewer's saved decision when a reviewed upload is reopened. */
+  review_decision?: "include" | "exclude" | null;
   proposed_evidence_weight: number;
   primary_skill: CanonicalSkill | null;
   supporting_skills: CanonicalSkill[];
@@ -87,6 +89,8 @@ type AnalysisResult = {
     teacher_marked: boolean;
     document_quality: "high" | "medium" | "low";
     analysis_confidence: number;
+    /** Analysis the decisions were made against (stale-review guard). */
+    analysis_revision?: number;
   };
   analysis: {
     overall_summary: string;
@@ -119,6 +123,8 @@ type CommitResult = {
   partial_items: number;
   profile_events_written: number;
   mastery_refreshed: boolean;
+  mastery_refresh_status?: "refreshed" | "pending" | "not_needed";
+  mastery_refresh_warning?: string | null;
   reviewed_at: string;
 };
 
@@ -191,14 +197,25 @@ function dateLabel(value: string) {
       }).format(date);
 }
 
+/*
+ * The percentage is the AI model's own estimate, not a validated measure of
+ * educational reliability, so it is never labelled "High" or "Good".
+ */
 function confidenceLabel(value: number) {
   const percent = Math.round(
     Math.max(0, Math.min(1, Number(value || 0))) * 100,
   );
 
-  if (percent >= 90) return `High · ${percent}%`;
-  if (percent >= 75) return `Good · ${percent}%`;
-  return `Review · ${percent}%`;
+  if (percent < 78) return `Check carefully · AI estimate ${percent}%`;
+  return `AI estimate · ${percent}%`;
+}
+
+/** Older servers only sent mastery_refreshed; treat false as pending. */
+function refreshStatusOf(result: CommitResult) {
+  return (
+    result.mastery_refresh_status ??
+    (result.mastery_refreshed ? "refreshed" : "pending")
+  );
 }
 
 function correctnessLabel(value: Correctness) {
@@ -227,7 +244,15 @@ function defaultReviewState(
 
       let decision: ReviewDecisionValue = "review";
 
-      if (item.evidence_recommendation === "exclude") {
+      if (item.review_decision === "exclude") {
+        // A reviewer exclusion is preserved, never re-included by default.
+        decision = "exclude";
+      } else if (item.review_decision === "include") {
+        decision =
+          originalSkill && item.final_correctness !== "uncertain"
+            ? "include"
+            : "review";
+      } else if (item.evidence_recommendation === "exclude") {
         decision = "exclude";
       } else if (
         item.evidence_recommendation === "include" &&
@@ -299,6 +324,10 @@ export default function NovaSchoolworkUploader({
   onViewExistingUpload,
 }: NovaSchoolworkUploaderProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Set synchronously before the first await so a double click can never
+  // start a second upload / analysis or a second commit.
+  const analyseInFlightRef = useRef(false);
+  const commitInFlightRef = useRef(false);
 
   const [file, setFile] = useState<File | null>(null);
   const [subjectHint, setSubjectHint] =
@@ -685,7 +714,23 @@ export default function NovaSchoolworkUploader({
   }
 
   async function analyse() {
-    if (!file) return;
+    if (!file || analyseInFlightRef.current) return;
+
+    analyseInFlightRef.current = true;
+
+    try {
+      await runAnalysis(file);
+    } catch {
+      setStage("error");
+      setError(
+        "The connection was interrupted. Your upload may still be in Schoolwork history; check there before uploading again.",
+      );
+    } finally {
+      analyseInFlightRef.current = false;
+    }
+  }
+
+  async function runAnalysis(file: File) {
 
     if (!publicConfig.enabled) {
       setError(
@@ -864,8 +909,33 @@ export default function NovaSchoolworkUploader({
   }
 
   async function commitReview() {
-    if (!result || unresolvedCount > 0) return;
+    if (
+      !result ||
+      unresolvedCount > 0 ||
+      commitInFlightRef.current
+    ) {
+      return;
+    }
 
+    commitInFlightRef.current = true;
+    setError("");
+    setStage("committing");
+
+    try {
+      await submitReview(result);
+    } catch {
+      // Network failure: the commit may or may not have reached the server.
+      // Return to the review so the reviewer can retry deliberately.
+      setStage("review");
+      setError(
+        "The connection was interrupted before NOVA+ confirmed the review. Please try again; reopening the upload from Schoolwork history shows whether it was already added.",
+      );
+    } finally {
+      commitInFlightRef.current = false;
+    }
+  }
+
+  async function submitReview(result: AnalysisResult) {
     const {
       data: { session },
       error: sessionError,
@@ -875,6 +945,7 @@ export default function NovaSchoolworkUploader({
       sessionError ||
       !session?.access_token
     ) {
+      setStage("review");
       setError("Please sign in again.");
       return;
     }
@@ -896,9 +967,6 @@ export default function NovaSchoolworkUploader({
       };
     });
 
-    setError("");
-    setStage("committing");
-
     const response = await fetch(
       "/api/nova-plus/schoolwork/commit",
       {
@@ -910,6 +978,7 @@ export default function NovaSchoolworkUploader({
         },
         body: JSON.stringify({
           upload_id: result.upload.id,
+          analysis_revision: result.upload.analysis_revision,
           decisions,
         }),
       },
@@ -1621,7 +1690,7 @@ export default function NovaSchoolworkUploader({
 
                           <div>
                             <small>
-                              AI mapping confidence
+                              AI mapping estimate
                             </small>
                             <strong>
                               {confidenceLabel(
@@ -1700,7 +1769,8 @@ export default function NovaSchoolworkUploader({
                 <button
                   type="button"
                   disabled={
-                    unresolvedCount > 0
+                    unresolvedCount > 0 ||
+                    stage !== "review"
                   }
                   onClick={() =>
                     void commitReview()
@@ -1740,9 +1810,13 @@ export default function NovaSchoolworkUploader({
                 </h3>
 
                 <p>
-                  NOVA+ recalculated the learner&apos;s
-                  concept mastery using only the
-                  questions you approved.
+                  {refreshStatusOf(commitResult) ===
+                  "refreshed"
+                    ? "NOVA+ recalculated the learner's concept mastery using only the questions you approved."
+                    : refreshStatusOf(commitResult) ===
+                        "not_needed"
+                      ? "The review was saved. No questions were included, so concept mastery did not need recalculating."
+                      : "The reviewed evidence was saved, but the mastery recalculation is still pending, so concept mastery may not include this schoolwork yet."}
                 </p>
 
                 <div
@@ -1782,7 +1856,9 @@ export default function NovaSchoolworkUploader({
                   </article>
                 </div>
 
-                {impactResult && (
+                {impactResult &&
+                  refreshStatusOf(commitResult) !==
+                    "pending" && (
                   <div className={styles.impactGrid}>
                     <article>
                       <small>Concepts updated</small>

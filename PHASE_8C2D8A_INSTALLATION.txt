@@ -1,0 +1,21 @@
+DREAMSCAPE ONE — 4E-2B-8C-2D.8A GENERATION-PATH AUDIT
+
+Install: extract this ZIP at C:\Users\leegy\gk-design-world preserving paths.
+Run:
+  node --test tests/phase4e2b8c2d8-generator-path-audit.test.cjs
+  npx tsc --noEmit
+  node scripts/phase4e2b8c2d8-generator-path-audit.cjs --root .
+
+To create a report outside Git:
+  $report = Join-Path ([Environment]::GetFolderPath('Desktop')) 'DREAMSCAPE_8C2D8_GENERATOR_PATH_AUDIT.json'
+  node scripts/phase4e2b8c2d8-generator-path-audit.cjs --root (Get-Location).Path | Set-Content -Path $report -Encoding UTF8
+  if ($LASTEXITCODE -ne 0) { throw "Audit failed" }
+
+Only stage these 3 files after tests:
+  scripts/phase4e2b8c2d8-generator-path-audit.cjs
+  tests/phase4e2b8c2d8-generator-path-audit.test.cjs
+  docs/PHASE_8C2D8_CONTROLLED_CAPTURE_READINESS.md
+
+This package does not generate teaching, access Supabase, use AI APIs, record reviews,
+change teaching methods or approve a learner release. It prints only candidate
+file paths, never contents or secrets. Actual generator still unverified.

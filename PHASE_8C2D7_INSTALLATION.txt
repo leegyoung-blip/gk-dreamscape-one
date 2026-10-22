@@ -1,0 +1,29 @@
+DREAMSCAPE ONE — Phase 4E-2B-8C-2D.7
+Offline Real Teaching Output Evaluation Framework
+
+FILES TO ADD (no existing files replaced):
+  scripts/phase4e2b8c2d7-real-output-evaluation.cjs
+  tests/phase4e2b8c2d7-real-output-evaluation.test.cjs
+  docs/phase4e2b8c2d7-private-manifest-TEMPLATE.json
+  docs/phase4e2b8c2d7-two-reviewer-worksheet-TEMPLATE.csv
+  docs/PHASE_8C2D7_REAL_OUTPUT_EVALUATION.md
+
+Install from a downloaded ZIP under Downloads:
+  Set-Location "C:\Users\leegy\gk-design-world"
+  $zip = "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2D7_REAL_OUTPUT_EVALUATION_INSTALL.zip"
+  Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+
+Then run:
+  node --test tests/phase4e2b8c2d7-real-output-evaluation.test.cjs
+  node scripts/phase4e2b8c2d7-real-output-evaluation.cjs --check-template
+  npx tsc --noEmit
+  git --no-pager diff --check
+  git --no-pager status --short
+
+If ALL pass, stage only the five paths listed above, inspect the staged list, and commit/push.
+
+NEVER COMMIT actual NOVA outputs, source question text, answer keys, screenshots,
+OAuth tokens, private review manifests, or educator sheets with pupil data.
+
+NO Supabase migration, production ranking change, approved methods or learner release.
+Live staff auth tests remain a prerequisite before any production review activation.

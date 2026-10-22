@@ -1,0 +1,41 @@
+DREAMSCAPE ONE - PHASE 4E-2B-8C-2D.6
+EDUCATOR REVIEW PREPARATION & PRIORITY GAP CLOSURE
+
+Seven NEW repo files. No existing files replaced. No Supabase SQL. No method activation.
+
+1. Save ZIP to Downloads.
+2. PowerShell in repository root:
+
+Set-Location "C:\Users\leegy\gk-design-world"
+$env:GIT_PAGER = "cat"
+$zip = "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2D6_EDUCATOR_GAP_CLOSURE_INSTALL.zip"
+Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+
+node --test tests/phase4e2b8c2d6-review-priority-gap-closure.test.cjs tests/phase4e2b8c2d5-quality-coverage.test.cjs tests/phase4e2b8c2d4-teaching-quality-decisions.test.cjs tests/phase4e2b8c2d3-pedagogical-comparison.test.cjs tests/phase4e2b8c2d2-explanation-quality.test.cjs tests/phase4e2b8c2d1-specialist-teaching-quality.test.cjs
+if ($LASTEXITCODE -ne 0) { throw "Quality tests failed. Do not commit." }
+node scripts/phase4e2b8c2d6-review-priority-gap-closure.cjs --verify-assets
+if ($LASTEXITCODE -ne 0) { throw "Coverage/report audit failed. Do not commit." }
+npx tsc --noEmit
+if ($LASTEXITCODE -ne 0) { throw "TypeScript check failed. Do not commit." }
+git --no-pager diff --check
+if ($LASTEXITCODE -ne 0) { throw "Git diff check failed. Do not commit." }
+
+3. Stage only these seven files:
+
+git add scripts/phase4e2b8c2d6-review-priority-gap-closure.cjs
+git add tests/fixtures/phase4e2b8c2d6-gap-closure-cases.json
+git add tests/phase4e2b8c2d6-review-priority-gap-closure.test.cjs
+git add docs/phase4e2b8c2d6-closure-matrix.csv
+git add docs/phase4e2b8c2d6-educator-review-queue.csv
+git add docs/phase4e2b8c2d6-educator-review-worksheet.csv
+git add docs/PHASE_8C2D6_EDUCATOR_GAP_CLOSURE.md
+
+git --no-pager diff --cached --name-only
+git --no-pager diff --cached --check
+
+Review staged list; preserve unrelated Dream Tokens, NOVA+ and Math work.
+
+git commit -m "Phase 8C-2D6 close synthetic quality coverage gaps"
+git push
+
+IMPORTANT: Passing offline checks does not constitute educator sign-off, NOVA explanation quality, staff live-session auth verification, or permission to activate methods.

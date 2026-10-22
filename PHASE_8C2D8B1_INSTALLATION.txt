@@ -1,0 +1,15 @@
+DREAMSCAPE ONE: Phase 4E-2B-8C-2D.8B-1 — Generator contract verification
+
+1) Unzip this package into C:\Users\leegy\gk-design-world, preserving paths.
+2) Run:
+   node --test tests/phase4e2b8c2d8b1-generation-contract-audit.test.cjs
+   node scripts/phase4e2b8c2d8b1-generation-contract-audit.cjs --root .
+   git --no-pager diff --check
+3) Expect 16/16 tests; the report must say SOURCE_CONTRACT_REVIEWED_CAPTURE_BLOCKED.
+4) This phase makes no changes to live generation, API routes, scoring, Supabase or learner access.
+5) If checks pass, stage only these four files:
+   scripts/phase4e2b8c2d8b1-generation-contract-audit.cjs
+   tests/phase4e2b8c2d8b1-generation-contract-audit.test.cjs
+   scripts/phase4e2b8c2d8b2-extract-generator-contracts.ps1
+   docs/PHASE_8C2D8B1_GENERATOR_CONTRACT_REVIEW.md
+6) For the next implementation, run the dedicated 8B-2 PowerShell extractor, review its ZIP for secrets and share that ZIP.

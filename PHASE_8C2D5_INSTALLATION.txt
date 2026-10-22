@@ -1,0 +1,39 @@
+DREAMSCAPE ONE - Phase 4E-2B-8C-2D.5
+Teaching Quality Coverage Expansion | OFFLINE / ADDITIVE ONLY
+
+Install the files in this ZIP at their current relative repository paths.
+No existing TypeScript files are replaced. No Supabase SQL. No selector activation.
+
+PowerShell (run from C:\Users\leegy\gk-design-world):
+
+$env:GIT_PAGER = 'cat'
+$zip = Join-Path $env:USERPROFILE 'Downloads\DREAMSCAPE_4E2B_8C2D5_TEACHING_QUALITY_COVERAGE_INSTALL.zip'
+Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+
+node --test tests/phase4e2b8c2d5-quality-coverage.test.cjs tests/phase4e2b8c2d4-teaching-quality-decisions.test.cjs tests/phase4e2b8c2d3-pedagogical-comparison.test.cjs tests/phase4e2b8c2d2-explanation-quality.test.cjs tests/phase4e2b8c2d1-specialist-teaching-quality.test.cjs
+if ($LASTEXITCODE -ne 0) { throw 'Test failure: do not commit.' }
+node scripts/phase4e2b8c2d5-quality-coverage.cjs --check-matrix
+if ($LASTEXITCODE -ne 0) { throw 'Coverage audit failure: do not commit.' }
+npx tsc --noEmit
+if ($LASTEXITCODE -ne 0) { throw 'TypeScript failure: do not commit.' }
+git --no-pager diff --check
+if ($LASTEXITCODE -ne 0) { throw 'Git check failure: do not commit.' }
+
+STAGE ONLY THE FIVE NEW FILES:
+git add scripts/phase4e2b8c2d5-quality-coverage.cjs
+git add tests/fixtures/phase4e2b8c2d5-expanded-quality-cases.json
+git add tests/phase4e2b8c2d5-quality-coverage.test.cjs
+git add docs/phase4e2b8c2d5-coverage-matrix.csv
+git add docs/PHASE_8C2D5_TEACHING_QUALITY_COVERAGE.md
+git --no-pager diff --cached --name-only
+git --no-pager diff --cached --check
+
+Confirm no unrelated files are staged, then:
+git commit -m 'Phase 8C-2D5 expand offline teaching quality coverage'
+git push
+
+EXPECTED AUDIT:
+54/54 synthetic cases | 27 compatible | 17 excluded | 10 insufficient evidence
+9 supported level-method cells
+18 individual grade-by-difficulty positive-example gaps remain
+Human educator approval: PENDING. No release or scoring changes.

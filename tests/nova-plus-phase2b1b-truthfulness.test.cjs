@@ -226,7 +226,7 @@ test('Parent next step is withheld when the recommendation feeds cannot be verif
 /* ---------- Schoolwork review safeguards ---------- */
 
 test('stored review flag: low mapping/extraction confidence or a missing concept always requires review', () => {
- const item = (o) => ({needs_review:false, mapping_confidence:0.9, extraction_confidence:0.9, ...o});
+ const item = (o) => ({needs_review:false, mapping_confidence:0.9, extraction_confidence:0.9, correctness_confidence:0.9, final_correctness:'correct', teacher_mark:'correct', student_answer:'4', ...o});
  assert.equal(an.storedNeedsReview(item({}), true), false);
  assert.equal(an.storedNeedsReview(item({mapping_confidence:0.77}), true), true);
  assert.equal(an.storedNeedsReview(item({mapping_confidence:0.78}), true), false);

@@ -1,0 +1,23 @@
+DREAMSCAPE ONE - Phase 8C-2D.8B-2 Windows TypeScript Test Hotfix
+
+Fixes TS6231 (could not resolve '"commonjs"') caused by nested quoting when
+launching the TypeScript compiler through cmd.exe on Windows.
+
+This package changes ONLY:
+  tests/phase4e2b8c2d8b2-trusted-generator-mapping.test.cjs
+
+Installation (VS Code PowerShell, after downloading the ZIP to Downloads):
+
+Set-Location "C:\Users\leegy\gk-design-world"
+$zip = "$env:USERPROFILE\Downloads\DREAMSCAPE_8C2D8B2_WINDOWS_TSC_TEST_HOTFIX.zip"
+Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+node --test tests/phase4e2b8c2d8b2-trusted-generator-mapping.test.cjs
+if ($LASTEXITCODE -ne 0) { throw "Test suite failed: do not commit" }
+npx tsc --noEmit
+if ($LASTEXITCODE -ne 0) { throw "Project TypeScript failed: do not commit" }
+git --no-pager diff --check
+
+If all pass, stage only the intended Phase 8B-2 files; verify with
+'git --no-pager diff --cached --name-only' before committing.
+
+No production source, Supabase SQL, TypeScript config, or security controls changed.
