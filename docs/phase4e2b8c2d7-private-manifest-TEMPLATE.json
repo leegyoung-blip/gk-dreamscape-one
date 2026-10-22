@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "8C2D7.v1",
+  "templateOnly": true,
+  "reviewId": "REAL_REPLACE_WITH_UNIQUE_ID",
+  "comparisonQuestionIdentity": "single_source_question_for_both_variants",
+  "question": {
+    "quizId": "PASTE_QUIZ_UUID",
+    "questionId": "PASTE_QUESTION_UUID",
+    "version": 1,
+    "fingerprintSha256": "PASTE_64_CHAR_HEX_SOURCE_FINGERPRINT",
+    "primaryLevel": 3,
+    "sourceIdentityOrigin": "authenticated_staff_preview",
+    "previewedAt": "2026-10-22T10:00:00+08:00"
+  },
+  "governance": {
+    "staffOnly": true,
+    "noLearnerData": true,
+    "noStoredAnswerKey": true,
+    "recordingApproved": false,
+    "methodApproved": false,
+    "learnerRelease": false,
+    "liveAuthenticationVerified": false,
+    "liveFreshnessVerified": false
+  },
+  "specialist": {
+    "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+    "origin": "captured_nova_output",
+    "capturedAt": "2026-10-22T10:00:00+08:00",
+    "generatorVersion": "REPLACE_WITH_REAL_VERSION",
+    "textArtifact": {
+      "path": "C:\\PRIVATE_REVIEW\\specialist.txt",
+      "sha256": "PASTE_SHA256_OF_SPECIALIST_TEXT"
+    },
+    "containsDiagram": true,
+    "containsSpecialMathNotation": false,
+    "renderedArtifacts": [
+      {"device":"mobile","path":"C:\\PRIVATE_REVIEW\\specialist-mobile.png","sha256":"PASTE_SHA256_OF_MOBILE_SCREENSHOT"},
+      {"device":"desktop","path":"C:\\PRIVATE_REVIEW\\specialist-desktop.png","sha256":"PASTE_SHA256_OF_DESKTOP_SCREENSHOT"}
+    ]
+  },
+  "incumbent": {
+    "methodId": "heuristic.multi_step.identify_subgoals",
+    "origin": "staff_authored_reference",
+    "capturedAt": "2026-10-22T10:00:00+08:00",
+    "generatorVersion": null,
+    "textArtifact": {
+      "path": "C:\\PRIVATE_REVIEW\\incumbent.txt",
+      "sha256": "PASTE_SHA256_OF_INCUMBENT_TEXT"
+    },
+    "containsDiagram": false,
+    "containsSpecialMathNotation": false,
+    "renderedArtifacts": []
+  },
+  "presentationOrder": {
+    "R1": ["specialist", "incumbent"],
+    "R2": ["incumbent", "specialist"]
+  },
+  "educatorReview": {
+    "r1": "PENDING",
+    "r2": "PENDING",
+    "finalDecision": "UNDECIDED",
+    "approved": false
+  }
+}

@@ -1,0 +1,5 @@
+review_id,reviewer_code,variant_presented,mathematical_correctness_0_3,conceptual_explanation_0_3,representation_clarity_0_3,step_progression_0_3,misconception_response_0_3,learner_accessibility_0_3,working_rechecked_yes_no,diagrams_actually_inspected_yes_no,fraction_rendering_checked_yes_no,hard_stop_yes_no,hard_stop_reason,specific_strength,specific_concern,recommended_role_primary_supporting_not_warranted_undecided,review_status
+REPLACE_ID,R1,A,,,,,,,,,,,,,,undecided,PENDING
+REPLACE_ID,R1,B,,,,,,,,,,,,,,undecided,PENDING
+REPLACE_ID,R2,B,,,,,,,,,,,,,,undecided,PENDING
+REPLACE_ID,R2,A,,,,,,,,,,,,,,undecided,PENDING
