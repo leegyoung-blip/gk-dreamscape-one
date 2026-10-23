@@ -1,0 +1,24 @@
+DREAMSCAPE ONE | Phase 8C-2D.8B-6A
+Controlled local synthetic Luna generation pilot
+
+ADDITIVE FILES: scripts/phase4e2b8c2d8b6a-local-luna-pilot.cjs
+                tests/phase4e2b8c2d8b6a-local-luna-pilot.test.cjs
+                docs/PHASE_8C2D8B6A_LOCAL_SYNTHETIC_LUNA_PILOT.md
+
+1) In VS Code PowerShell:
+Set-Location 'C:\Users\leegy\gk-design-world'
+Expand-Archive -LiteralPath "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2D8B6A_LOCAL_SYNTHETIC_LUNA_PILOT_INSTALL.zip" -DestinationPath (Get-Location).Path -Force
+node --test tests/phase4e2b8c2d8b6a-local-luna-pilot.test.cjs
+if ($LASTEXITCODE -ne 0) { throw 'Tests failed. Do not commit.' }
+node scripts/phase4e2b8c2d8b6a-local-luna-pilot.cjs --dry-run --case equal_spacing
+if ($LASTEXITCODE -ne 0) { throw 'Dry run failed. Do not commit.' }
+npx tsc --noEmit
+if ($LASTEXITCODE -ne 0) { throw 'TypeScript failed. Do not commit.' }
+git --no-pager diff --check
+if ($LASTEXITCODE -ne 0) { throw 'Git diff check failed.' }
+
+2) Stage only the three new files. Full guidance in docs/PHASE_8C2D8B6A_LOCAL_SYNTHETIC_LUNA_PILOT.md.
+
+3) OPTIONAL actual model call: see doc. This requires explicit local consent/opt-in, OPENAI_API_KEY and a private OUTSIDE-GIT output folder. Default is NO NETWORK.
+
+No Supabase SQL. No new routes, production changes, teaching approval or learner access.

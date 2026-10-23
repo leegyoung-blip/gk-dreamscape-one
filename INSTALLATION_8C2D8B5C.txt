@@ -1,0 +1,27 @@
+DREAMSCAPE ONE — Phase 8C-2D.8B-5C
+====================================
+This archive adds exactly two internal TypeScript modules, one test file and one document.
+Extract at your repository root: C:\Users\leegy\gk-design-world
+
+PowerShell:
+Set-Location "C:\Users\leegy\gk-design-world"
+$zip = "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2D8B5C_CONTROLLED_CAPTURE_INTEGRATION_INSTALL.zip"
+Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+node --test tests/phase4e2b8c2d8b5c-controlled-capture-integration.test.cjs
+if ($LASTEXITCODE -ne 0) { throw "B5C tests failed; do not commit." }
+npx tsc --noEmit
+if ($LASTEXITCODE -ne 0) { throw "TypeScript failed; do not commit." }
+git --no-pager diff --check
+if ($LASTEXITCODE -ne 0) { throw "Diff check failed; do not commit." }
+
+git add lib/math/teaching/student-serving/phase4E2B8C2D8B5CStaffCapturePreflight.server.ts
+git add lib/math/teaching/student-serving/phase4E2B8C2D8B5COfflineCaptureHandoff.server.ts
+git add tests/phase4e2b8c2d8b5c-controlled-capture-integration.test.cjs
+git add docs/PHASE_8C2D8B5C_CONTROLLED_CAPTURE_INTEGRATION.md
+git --no-pager diff --cached --name-only
+git --no-pager diff --cached --check
+# Confirm staged names, then:
+git commit -m "Phase 8C-2D8B5C add disabled staff capture integration"
+git push
+
+NO Supabase SQL required. NO live provider call, captures, approvals or learner release.

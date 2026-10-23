@@ -1,0 +1,21 @@
+DREAMSCAPE ONE | 4E-2B-8C-2D.8B-5A | specialist explanation provider interface
+
+This package contains four NEW files with repository-relative paths. No existing source is overwritten.
+DO NOT run SQL. DO NOT enable Luna calls or a public route.
+
+INSTALL:
+  Expand-Archive -LiteralPath "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2D8B5A_SPECIALIST_PROVIDER_INTERFACE_INSTALL.zip" -DestinationPath "C:\Users\leegy\gk-design-world" -Force
+
+CHECKS (in VS Code PowerShell at repository root):
+  node --test tests/phase4e2b8c2d8b5a-specialist-provider-interface.test.cjs
+  npx tsc --noEmit
+  git --no-pager diff --check
+
+STAGE ONLY:
+  lib/math/teaching/student-serving/phase4E2B8C2D8B5ASpecialistProviderContract.ts
+  lib/math/teaching/student-serving/phase4E2B8C2D8B5ADisabledLunaProvider.server.ts
+  tests/phase4e2b8c2d8b5a-specialist-provider-interface.test.cjs
+  docs/PHASE_8C2D8B5A_SPECIALIST_PROVIDER_INTERFACE.md
+
+The validator is SHAPE ONLY, not authentication, mathematical proof or source freshness.
+The disabled Luna adapter NEVER calls OpenAI. Phase 5B/5C are not implemented here.
