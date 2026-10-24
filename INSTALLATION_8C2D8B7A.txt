@@ -1,0 +1,23 @@
+DREAMSCAPE ONE — Phase 4E-2B-8C-2D.8B-7A
+Beta Gate Reconciliation | No OpenAI key or real AI test required
+
+Contents (repo-relative paths):
+  scripts/phase4e2b8c2d8b7a-beta-gate-ledger.cjs
+  tests/phase4e2b8c2d8b7a-beta-gate-ledger.test.cjs
+  docs/PHASE_8C2D8B7A_BETA_GATE_RECONCILIATION.md
+
+PowerShell (download ZIP into Downloads):
+  Set-Location "C:\Users\leegy\gk-design-world"
+  $zip = "$env:USERPROFILE\Downloads\DREAMSCAPE_4E2B_8C2D8B7A_BETA_GATE_RECONCILIATION_INSTALL.zip"
+  Expand-Archive -LiteralPath $zip -DestinationPath (Get-Location).Path -Force
+  node --test tests/phase4e2b8c2d8b7a-beta-gate-ledger.test.cjs
+  if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+  $report = Join-Path ([Environment]::GetFolderPath('Desktop')) ("DREAMSCAPE_8B7A_BETA_GATES_{0}.json" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+  node scripts/phase4e2b8c2d8b7a-beta-gate-ledger.cjs --root (Get-Location).Path --output $report
+  if ($LASTEXITCODE -ne 0) { throw 'Audit failed' }
+  Start-Process explorer.exe -ArgumentList "/select,`"$report`""
+
+All reported gates intentionally remain blocked or unverified. A file existing does
+NOT demonstrate that it is deployed or security-reviewed.
+
+No Supabase SQL, production changes, learner activation, AI requests, or extra dependencies.
