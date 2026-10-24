@@ -1,0 +1,324 @@
+{
+  "phase": "4E-2B-8C-2D.8B-7C",
+  "schemaVersion": "8C2D8B7C.v1",
+  "artifactType": "human_refined_synthetic_teaching_reference",
+  "basedOn": "One user's qualitative review of six 8B-7B blind synthetic explanation pairs; not an independent second educator review",
+  "realNovaOutput": false,
+  "sourceAuthenticated": false,
+  "approvedForLearners": false,
+  "specialistMethodsActive": false,
+  "productionMethodScoresChanged": false,
+  "humanReviewCount": 1,
+  "releaseGatesUnchanged": true,
+  "cases": [
+    {
+      "caseId": "SPACING_VALID_MAIN",
+      "level": 3,
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "preferredOriginalVariant": "B",
+      "originalQuestion": "The markers are equally spaced 6 m apart on a straight path. Find the distance from marker 4 to marker 12.",
+      "question": "The markers are equally spaced 6 m apart on a straight path. Find the distance from marker 4 to marker 12.",
+      "questionChange": "none",
+      "answer": {
+        "value": 48,
+        "unit": "m"
+      },
+      "facts": {
+        "kind": "spacing",
+        "first": 4,
+        "last": 12,
+        "gapLength": 6
+      },
+      "diagram": {
+        "kind": "number_line",
+        "purpose": "Show eight equal gaps, not nine gaps between the markers."
+      },
+      "steps": [
+        {
+          "say": "Look at marker 4 and marker 12 on the number line. We need the distance between them.",
+          "working": ""
+        },
+        {
+          "say": "Count the gaps, not the markers. There are 12 − 4 = 8 gaps.",
+          "working": "12 − 4 = 8 gaps"
+        },
+        {
+          "say": "Each gap is 6 m. Multiply 8 by 6 to find the distance.",
+          "working": "8 × 6 = 48 m"
+        }
+      ],
+      "quickCheck": "From marker 4 to marker 5 is one gap. That helps us count correctly.",
+      "misconception": "Nine markers are shown, but there are only eight gaps between them.",
+      "reviewOutcome": "Keep Variant B's clear number line; remove the unnecessary fourth main step. Keep a short optional check."
+    },
+    {
+      "caseId": "SPACING_VALID_ADJACENT",
+      "level": 3,
+      "methodId": "heuristic.multi_step.equal_spacing_interval_count",
+      "preferredOriginalVariant": "A",
+      "originalQuestion": "The markers are equally spaced 9 m apart. Find the distance from the 1st marker to the 2nd.",
+      "question": "Markers are placed 9 m apart along a straight path. Ella walks from marker 2 to marker 7, then turns back and stops at marker 4. How far does Ella walk altogether?",
+      "questionChange": "proposed_multistep_replacement_not_the_reviewed_original",
+      "originalAnswer": {
+        "value": 9,
+        "unit": "m"
+      },
+      "answer": {
+        "value": 72,
+        "unit": "m"
+      },
+      "facts": {
+        "kind": "spacing_route",
+        "start": 2,
+        "turn": 7,
+        "end": 4,
+        "gapLength": 9
+      },
+      "diagram": {
+        "kind": "number_line_route",
+        "purpose": "Show the walk out and the walk back as two separate journeys along one number line."
+      },
+      "steps": [
+        {
+          "say": "Follow Ella from marker 2 to marker 7. Count 7 − 2 = 5 gaps.",
+          "working": "7 − 2 = 5 gaps"
+        },
+        {
+          "say": "She turns back from marker 7 to marker 4. Count 7 − 4 = 3 more gaps.",
+          "working": "7 − 4 = 3 gaps"
+        },
+        {
+          "say": "She walks 5 + 3 = 8 gaps altogether. Each gap is 9 m.",
+          "working": "5 + 3 = 8 gaps"
+        },
+        {
+          "say": "Multiply to find the total distance she walked.",
+          "working": "8 × 9 = 72 m"
+        }
+      ],
+      "quickCheck": "Ella walked past marker 4 and came back, so her walk is longer than the straight distance from marker 2 to marker 4.",
+      "misconception": "Do not count only from marker 2 to marker 4. Ella also walked to marker 7 before turning back.",
+      "reviewOutcome": "Original Q2 was too easy. Retain original as a one-gap warm-up; propose this NEW multistep question for later review. The original A-versus-B judgment does not score this replacement."
+    },
+    {
+      "caseId": "CHAIN_VALID_HALF",
+      "level": 5,
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "preferredOriginalVariant": "B",
+      "originalQuestion": "Bella has three times as many objects as Alan. Chen has half as many as Bella. Together they have 66. How many does Chen have?",
+      "question": "Bella has three times as many objects as Alan. Chen has half as many as Bella. Together they have 66. How many does Chen have?",
+      "questionChange": "none",
+      "answer": {
+        "value": 18,
+        "unit": "objects"
+      },
+      "facts": {
+        "kind": "comparison",
+        "parts": {
+          "Alan": 2,
+          "Bella": 6,
+          "Chen": 3
+        },
+        "total": 66,
+        "target": "Chen"
+      },
+      "diagram": {
+        "kind": "bar_model",
+        "purpose": "Use matching small parts so half of Bella is clearly three parts, not half of Alan."
+      },
+      "steps": [
+        {
+          "say": "Start with Alan. Bella has three times as many as Alan. Chen has half as many as Bella.",
+          "working": ""
+        },
+        {
+          "say": "Draw Alan with 2 equal parts, Bella with 6, and Chen with 3. All the small parts are the same size.",
+          "working": "Alan 2 parts; Bella 6 parts; Chen 3 parts"
+        },
+        {
+          "say": "There are 2 + 6 + 3 = 11 equal parts altogether. The total is 66 objects.",
+          "working": "66 ÷ 11 = 6 objects in one part"
+        },
+        {
+          "say": "Chen has 3 parts. Multiply to find Chen's number of objects.",
+          "working": "3 × 6 = 18 objects"
+        },
+        {
+          "say": "Check: Alan has 12, Bella has 36, and Chen has 18. The total is 66.",
+          "working": "12 + 36 + 18 = 66"
+        }
+      ],
+      "quickCheck": "Chen has half of Bella's 36 objects, which is 18.",
+      "misconception": "The question says Chen has half of Bella's objects, not half of Alan's objects.",
+      "reviewOutcome": "Prefer Variant B and the aligned 2:6:3 bar model. Do not lead with x and fraction equations."
+    },
+    {
+      "caseId": "CHAIN_VALID_SHARED_BASE",
+      "level": 5,
+      "methodId": "heuristic.multi_step.multiplicative_comparison_chain",
+      "preferredOriginalVariant": "A",
+      "originalQuestion": "Bella has twice as many objects as Alan; Chen has three times as many as Alan. Together they have 72. How many does Chen have?",
+      "question": "Bella has twice as many objects as Alan; Chen has three times as many as Alan. Together they have 72. How many does Chen have?",
+      "questionChange": "none",
+      "answer": {
+        "value": 36,
+        "unit": "objects"
+      },
+      "facts": {
+        "kind": "comparison",
+        "parts": {
+          "Alan": 1,
+          "Bella": 2,
+          "Chen": 3
+        },
+        "total": 72,
+        "target": "Chen"
+      },
+      "diagram": {
+        "kind": "bar_model",
+        "purpose": "Show 1, 2, and 3 equal parts, all measured against Alan."
+      },
+      "steps": [
+        {
+          "say": "Both comparisons are about Alan. Draw Alan as one equal part.",
+          "working": "Alan 1 part"
+        },
+        {
+          "say": "Bella has 2 parts and Chen has 3 parts. All the parts are the same size.",
+          "working": "1 + 2 + 3 = 6 parts"
+        },
+        {
+          "say": "All 6 parts add up to 72 objects. Divide to find one part.",
+          "working": "72 ÷ 6 = 12 objects"
+        },
+        {
+          "say": "Chen has 3 parts. Find how many objects Chen has.",
+          "working": "3 × 12 = 36 objects"
+        },
+        {
+          "say": "Check: 12 + 24 + 36 = 72. Bella has twice Alan's number, and Chen has three times Alan's number.",
+          "working": "12 + 24 + 36 = 72"
+        }
+      ],
+      "quickCheck": "Look at the bars again. Chen's bar is three times Alan's bar.",
+      "misconception": "Do not make Chen three times Bella. Both Bella and Chen are compared with Alan.",
+      "reviewOutcome": "Prefer Variant A and the shared-base bar model. Avoid an unnecessary dependency table."
+    },
+    {
+      "caseId": "RATIO_VALID_MAIN",
+      "level": 6,
+      "methodId": "ratio.relationship.before_after_change",
+      "preferredOriginalVariant": "A",
+      "originalQuestion": "The ratio of quantities A:B was 3:2. A increases by 6 and B increases by 24; the new ratio becomes 1:2. Find the original amount of B.",
+      "question": "The ratio of quantities A:B was 3:2. A increases by 6 and B increases by 24; the new ratio becomes 1:2. Find the original amount of B.",
+      "questionChange": "none",
+      "answer": {
+        "value": 6,
+        "unit": ""
+      },
+      "facts": {
+        "kind": "changing_ratio",
+        "before": [
+          3,
+          2
+        ],
+        "added": [
+          6,
+          24
+        ],
+        "after": [
+          1,
+          2
+        ],
+        "unit": 3
+      },
+      "diagram": {
+        "kind": "before_after_bar_model",
+        "purpose": "Show A and B before and after they increase. The extra 6 and 24 are separate added pieces. Draw the bars to scale only after finding the size of one part."
+      },
+      "steps": [
+        {
+          "say": "Before the increase, A has 3 equal parts and B has 2. Let u stand for one equal part before the increase.",
+          "working": "Before: A = 3u, B = 2u"
+        },
+        {
+          "say": "A increases by 6 and B increases by 24. After the increase, B is twice A.",
+          "working": "After: A = 3u + 6, B = 2u + 24"
+        },
+        {
+          "say": "Draw two copies of A after the increase. Together, they have 6 equal parts and 12 more. That is the same as B after the increase.",
+          "working": "6u + 12 = 2u + 24"
+        },
+        {
+          "say": "Remove 2 equal parts and 12 from both sides. Then 4 equal parts make 12, so one part is 3.",
+          "working": "4u = 12, so u = 3"
+        },
+        {
+          "say": "B originally had 2 parts, so B was 6. Check: A becomes 15 and B becomes 30. B is twice A.",
+          "working": "B = 2 × 3 = 6; 30 = 2 × 15"
+        }
+      ],
+      "quickCheck": "Before, A:B is 9:6, which is 3:2. After, A:B is 15:30, which is 1:2.",
+      "misconception": "The size of one part before the increase is not the same as the size of one part in the new ratio.",
+      "reviewOutcome": "Prefer A's bar approach, but make the bar model visible and explain u in everyday language. Algebra supports the bars instead of replacing them."
+    },
+    {
+      "caseId": "RATIO_VALID_DIFFERENT_SCALE",
+      "level": 6,
+      "methodId": "ratio.relationship.before_after_change",
+      "preferredOriginalVariant": "A",
+      "originalQuestion": "Quantities A:B start in the ratio 2:3. A increases by 5 and B increases by 16, giving a new ratio 1:2. Find original B.",
+      "question": "Quantities A:B start in the ratio 2:3. A increases by 5 and B increases by 16, giving a new ratio 1:2. Find original B.",
+      "questionChange": "none",
+      "answer": {
+        "value": 18,
+        "unit": ""
+      },
+      "facts": {
+        "kind": "changing_ratio",
+        "before": [
+          2,
+          3
+        ],
+        "added": [
+          5,
+          16
+        ],
+        "after": [
+          1,
+          2
+        ],
+        "unit": 6
+      },
+      "diagram": {
+        "kind": "before_after_bar_model",
+        "purpose": "Use visible bar models in both states, with +5 and +16 shown separately. The drawn lengths match only after we calculate one original part."
+      },
+      "steps": [
+        {
+          "say": "Before the increase, A has 2 equal parts and B has 3. Let u stand for one equal part before the increase.",
+          "working": "Before: A = 2u, B = 3u"
+        },
+        {
+          "say": "A gains 5 and B gains 16. After the increase, B has twice as much as A.",
+          "working": "After: A = 2u + 5, B = 3u + 16"
+        },
+        {
+          "say": "Make two copies of A after the increase. They add up to 4 equal parts and 10 more. This equals B after the increase.",
+          "working": "4u + 10 = 3u + 16"
+        },
+        {
+          "say": "Remove 3 equal parts and 10 from both sides. One equal part is worth 6.",
+          "working": "u = 6"
+        },
+        {
+          "say": "B originally had 3 parts, so B was 18. Check: A becomes 17 and B becomes 34. B is twice A.",
+          "working": "B = 3 × 6 = 18; 34 = 2 × 17"
+        }
+      ],
+      "quickCheck": "Before, A:B is 12:18, which is 2:3. After, A:B is 17:34, which is 1:2.",
+      "misconception": "u means one equal part before the increase. We must not treat the new ratio's parts as the same size.",
+      "reviewOutcome": "Prefer A's explanation but replace technical phrases with clear definitions, and add the missing bar model."
+    }
+  ]
+}
